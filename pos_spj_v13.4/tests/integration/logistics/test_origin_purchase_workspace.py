@@ -36,10 +36,18 @@ def _connection():
     return connection
 
 
+def _warehouse_address(connection):
+    connection.execute(
+        "INSERT INTO supplier_addresses (id, supplier_id, address_type, line, city, state,"
+        " label) VALUES ('addr','supplier','WAREHOUSE','Carretera 57','Querétaro',"
+        "'Querétaro','Bodega Norte')")
+
+
 def test_document_to_tree_differences_seal_dispatch_and_mobile_handoff():
     connection = _connection()
     connection.execute("INSERT INTO proveedores VALUES ('supplier','Proveedor Norte',1)")
     apply_supplier_cutover(connection)
+    _warehouse_address(connection)
     connection.execute(
         "INSERT INTO purchase_orders(id,document_number,supplier_id,branch_id,warehouse_id,status,total,"
         "created_by_user_id,operation_id,created_at,updated_at) VALUES "
@@ -56,6 +64,12 @@ def test_document_to_tree_differences_seal_dispatch_and_mobile_handoff():
     detail = workspace.create_shipment(actor_user_id="buyer", branch_id="branch",
                                        warehouse_id="warehouse", document=document)
     assert detail["status"] == "DRAFT"
+    # §12: el origen es la bodega del proveedor, no su nombre.
+    shipment_row = connection.execute(
+        "SELECT origin_location, origin_supplier_address_id, origin_address_snapshot"
+        " FROM logistics_shipments").fetchone()
+    assert shipment_row[0] == "Bodega Norte · Querétaro, Querétaro"
+    assert shipment_row[1] == "addr" and "Carretera 57" in shipment_row[2]
     handoff = workspace.mobile_handoff(detail["id"])
     assert handoff["requires_login"] and detail["id"] in handoff["url"]
 
@@ -98,9 +112,10 @@ def test_overage_or_cost_variance_is_blocking_authorization():
     logistics = LogisticsApplicationService(
         connection, LogisticsAuthorizationPolicy(Allow()), PermanentContainerQrService(b"q" * 32))
     shipment = LogisticsShipment.create(
-        shipment_number="SHIP", origin_type="SUPPLIER", origin_location="Proveedor Norte",
+        shipment_number="SHIP", origin_type="SUPPLIER", origin_location="Bodega Norte",
         origin_supplier_id="supplier", destination_branch_id="branch",
-        destination_warehouse_id="warehouse", buyer_user_id="buyer", operation_id="ship")
+        destination_warehouse_id="warehouse", buyer_user_id="buyer", operation_id="ship",
+        origin_supplier_address_id="addr")
     shipment.add_source(SourceDocumentType.PURCHASE_ORDER, "po")
     logistics.create_shipment(actor_user_id="buyer", shipment=shipment)
     ctype = ContainerType.create(code="BOX", name="Caja", category=ContainerCategory.PLASTIC_BOX)

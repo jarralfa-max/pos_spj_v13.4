@@ -137,7 +137,10 @@ _DDL = (
         tax TEXT NOT NULL DEFAULT '0',
         line_total TEXT NOT NULL DEFAULT '0',
         destination_branch_id TEXT,
-        destination_warehouse_id TEXT
+        destination_warehouse_id TEXT,
+        net_weight TEXT,
+        pricing_basis TEXT NOT NULL DEFAULT '',
+        inventory_by_weight INTEGER NOT NULL DEFAULT 0
     )
     """,
     """
@@ -276,7 +279,24 @@ _DDL = (
         operation_id TEXT UNIQUE,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        payment_terms TEXT
+        payment_terms TEXT,
+        exchange_rate TEXT,
+        required_date TEXT,
+        promised_date TEXT,
+        delivery_method TEXT,
+        delivery_address TEXT,
+        cost_center TEXT,
+        project_reference TEXT,
+        contract_reference TEXT,
+        notes TEXT,
+        supplier_reference TEXT,
+        confirmed_at TEXT,
+        confirmed_delivery_date TEXT,
+        confirmation_exceptions TEXT,
+        confirmation_comments TEXT,
+        confirmed_by_user_id TEXT,
+        origin_supplier_address_id TEXT,
+        origin_address_snapshot TEXT
     )
     """,
     """
@@ -295,7 +315,12 @@ _DDL = (
         accepted_quantity TEXT NOT NULL DEFAULT '0',
         rejected_quantity TEXT NOT NULL DEFAULT '0',
         invoiced_quantity TEXT NOT NULL DEFAULT '0',
-        destination_warehouse_id TEXT
+        destination_warehouse_id TEXT,
+        purchase_unit TEXT NOT NULL DEFAULT '',
+        inventory_unit TEXT NOT NULL DEFAULT '',
+        discount TEXT NOT NULL DEFAULT '0',
+        tax TEXT NOT NULL DEFAULT '0',
+        confirmed_quantity TEXT
     )
     """,
     """
@@ -324,7 +349,8 @@ _DDL = (
             'STARTED','COMPLETED','REVERSED')),
         received_by_user_id TEXT,
         operation_id TEXT UNIQUE,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        shipment_id TEXT
     )
     """,
     """
@@ -338,7 +364,10 @@ _DDL = (
         rejected_quantity TEXT NOT NULL DEFAULT '0',
         lot TEXT,
         expiration TEXT,
-        temperature TEXT
+        temperature TEXT,
+        net_weight TEXT,
+        piece_count TEXT,
+        purchase_order_line_id TEXT
     )
     """,
     """
@@ -484,6 +513,13 @@ def _column_exists(conn, table: str, column: str) -> bool:
     return any(r[1] == column for r in conn.execute(f"PRAGMA table_info({table})"))
 
 
+_PO_HEADER_COLUMNS = ('exchange_rate', 'required_date', 'promised_date', 'delivery_method', 'delivery_address', 'cost_center', 'project_reference', 'contract_reference', 'notes', 'supplier_reference', 'confirmed_at', 'confirmed_delivery_date', 'confirmation_exceptions', 'confirmation_comments', 'confirmed_by_user_id', 'origin_supplier_address_id', 'origin_address_snapshot')
+_PO_LINE_COLUMNS = (('discount', "TEXT NOT NULL DEFAULT '0'"), ('tax', "TEXT NOT NULL DEFAULT '0'"), ('confirmed_quantity', 'TEXT'),
+                    # Peso variable a $/kg (migración 287).
+                    ('pricing_basis', "TEXT NOT NULL DEFAULT ''"),
+                    ('inventory_by_weight', 'INTEGER NOT NULL DEFAULT 0'))
+
+
 def create_procurement_schema(conn) -> None:
     """Create the canonical procurement schema (idempotent). DDL lives only here."""
     for statement in _DDL:
@@ -495,6 +531,48 @@ def create_procurement_schema(conn) -> None:
     # created by an earlier run of this same function still needs the ALTER.
     if not _column_exists(conn, "purchase_orders", "payment_terms"):
         conn.execute("ALTER TABLE purchase_orders ADD COLUMN payment_terms TEXT")
+    # purchase_order_lines.purchase_unit/inventory_unit (migración 277): la unidad
+    # en que se ordenó y la de inventario, ambas definidas por Productos. Antes
+    # sólo se guardaba el factor, tecleado a mano en la pantalla.
+    for column in ("purchase_unit", "inventory_unit"):
+        if not _column_exists(conn, "purchase_order_lines", column):
+            conn.execute(f"ALTER TABLE purchase_order_lines ADD COLUMN {column}"
+                         " TEXT NOT NULL DEFAULT ''")
+    # Orden de compra completa + confirmación del proveedor (migración 279).
+    for column in _PO_HEADER_COLUMNS:
+        if not _column_exists(conn, "purchase_orders", column):
+            conn.execute(f"ALTER TABLE purchase_orders ADD COLUMN {column} TEXT")
+    for column, ddl in _PO_LINE_COLUMNS:
+        if not _column_exists(conn, "purchase_order_lines", column):
+            conn.execute(f"ALTER TABLE purchase_order_lines ADD COLUMN {column} {ddl}")
+    # Compra en origen (migración 280): la recepción sabe de qué embarque vino y
+    # guarda el peso real y las piezas (§26).
+    if not _column_exists(conn, "goods_receipts", "shipment_id"):
+        conn.execute("ALTER TABLE goods_receipts ADD COLUMN shipment_id TEXT")
+    # Surtido de la compra rápida (migración 285, §11) y bodega de origen.
+    for column, ddl in (("fulfillment_mode", "TEXT NOT NULL DEFAULT ''"),
+                        ("origin_supplier_address_id", "TEXT"),
+                        ("origin_address_snapshot", "TEXT")):
+        if not _column_exists(conn, "direct_purchases", column):
+            conn.execute(f"ALTER TABLE direct_purchases ADD COLUMN {column} {ddl}")
+    # Peso variable en la compra rápida (migración 282): peso real, base de
+    # precio y si entra al inventario por peso.
+    for column, ddl in (("net_weight", "TEXT"),
+                        ("pricing_basis", "TEXT NOT NULL DEFAULT ''"),
+                        ("inventory_by_weight", "INTEGER NOT NULL DEFAULT 0")):
+        if not _column_exists(conn, "direct_purchase_lines", column):
+            conn.execute(f"ALTER TABLE direct_purchase_lines ADD COLUMN {column} {ddl}")
+    # La línea recibida sabe a qué línea de la orden corresponde (migración 281):
+    # la conciliación de tres vías compara por línea, no por producto.
+    for column in ("net_weight", "piece_count", "purchase_order_line_id"):
+        if not _column_exists(conn, "goods_receipt_lines", column):
+            conn.execute(f"ALTER TABLE goods_receipt_lines ADD COLUMN {column} TEXT")
+    # Una adjudicación genera UNA orden por proveedor (migración 278): la
+    # idempotencia de "Generar órdenes" no depende sólo de la aplicación.
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_purchase_orders_award_supplier"
+        " ON purchase_orders(source_award_id, supplier_id)"
+        " WHERE source_award_id IS NOT NULL")
 
 
 def drop_procurement_schema(conn) -> list[str]:

@@ -404,6 +404,17 @@ QLabel#formFieldHelper {{ color: {c.TEXT_MUTED}; font-size: {Typography.SIZE_CAP
 QLabel#formFieldError, QLabel[state="error"] {{
     color: {c.DANGER_DEFAULT}; font-size: {Typography.SIZE_CAPTION}px;
 }}
+QLabel[role="banner"] {{
+    padding: 10px 14px; border-radius: {Radii.SM}px; font-size: {Typography.SIZE_BODY}px;
+    font-weight: {Typography.WEIGHT_MEDIUM}; border: {Borders.WIDTH_THIN}px solid {c.BORDER_DEFAULT};
+}}
+QLabel[role="banner"][state="error"] {{
+    color: {c.DANGER_DEFAULT}; background-color: {c.DANGER_SUBTLE}; border-color: {c.DANGER_BORDER};
+    font-size: {Typography.SIZE_BODY}px;
+}}
+QLabel[role="banner"][state="success"] {{
+    color: {c.SUCCESS_DEFAULT}; background-color: {c.SUCCESS_SUBTLE}; border-color: {c.SUCCESS_BORDER};
+}}
 QLineEdit#filePathField[readOnly="true"]:enabled {{
     background-color: {c.SURFACE_MUTED}; color: {c.TEXT_SECONDARY};
 }}

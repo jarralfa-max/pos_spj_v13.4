@@ -60,6 +60,7 @@ class UnitRepository:
 
     # ── conversions ───────────────────────────────────────────────────────
     def save_conversion(self, conv: ProductUnitConversion) -> None:
+        self._ensure_fractional_column()
         self._conn.execute(
             """INSERT INTO product_unit_conversions
                (id, product_id, from_unit_id, to_unit_id, factor, rounding_scale,
@@ -72,6 +73,18 @@ class UnitRepository:
             (conv.id, conv.product_id, conv.from_unit_id, conv.to_unit_id,
              str(conv.factor), int(conv.rounding_scale), conv.effective_from,
              conv.effective_to, int(conv.active)))
+        self._conn.execute(
+            "UPDATE product_unit_conversions SET allow_fractional_receipt=? WHERE id=?",
+            (1 if conv.fractional_receipt else 0, conv.id))
+
+    def _ensure_fractional_column(self) -> None:
+        """La columna nace con la migración 286; las bases de prueba hechas a mano
+        no la traen y no deben romper el guardado."""
+        columns = {row[1] for row in self._conn.execute(
+            "PRAGMA table_info(product_unit_conversions)")}
+        if columns and "allow_fractional_receipt" not in columns:
+            self._conn.execute("ALTER TABLE product_unit_conversions ADD COLUMN"
+                               " allow_fractional_receipt INTEGER NOT NULL DEFAULT 1")
 
     def list_conversions(self, *, product_id: str | None = None) -> list[ProductUnitConversion]:
         """Global conversions plus any specific to ``product_id``."""
@@ -86,6 +99,11 @@ class UnitRepository:
                 "WHERE active=1 AND product_id IS NULL").fetchall()
         return [self._row_to_conv(r) for r in rows]
 
+    def get_conversion(self, conversion_id: str) -> ProductUnitConversion | None:
+        row = self._conn.execute(
+            "SELECT * FROM product_unit_conversions WHERE id=?", (conversion_id,)).fetchone()
+        return self._row_to_conv(row) if row is not None else None
+
     @staticmethod
     def _row_to_conv(row) -> ProductUnitConversion:
         return ProductUnitConversion(
@@ -93,7 +111,9 @@ class UnitRepository:
             from_unit_id=row["from_unit_id"], to_unit_id=row["to_unit_id"],
             factor=Decimal(row["factor"]), rounding_scale=int(row["rounding_scale"]),
             effective_from=row["effective_from"], effective_to=row["effective_to"],
-            active=bool(row["active"]))
+            active=bool(row["active"]),
+            fractional_receipt=bool(row["allow_fractional_receipt"])
+            if "allow_fractional_receipt" in row.keys() else True)
 
     # ── catch-weight configuration ────────────────────────────────────────
     def save_catch_weight(self, product_id: str, cfg: CatchWeightConfiguration) -> None:

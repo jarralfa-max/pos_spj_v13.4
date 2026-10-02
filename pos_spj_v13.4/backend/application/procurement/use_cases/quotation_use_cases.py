@@ -190,6 +190,10 @@ class AwardSupplierQuoteUseCase:
                 return ProcurementResult.fail(str(exc), "VALIDATION",
                                               operation_id=operation_id)
             uow.rfqs.save_award(award, operation_id)
+            rfq = uow.rfqs.get_rfq(award.rfq_id)
+            if rfq is not None:
+                rfq.close()
+                uow.rfqs.save_rfq(rfq)
             uow.audit.record(action=ProcurementEvents.SUPPLIER_QUOTE_AWARDED,
                              actor_user_id=actor_user_id, document_id=award.id,
                              reason=reason, operation_id=operation_id)

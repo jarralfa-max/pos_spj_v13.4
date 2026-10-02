@@ -45,6 +45,7 @@ from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.money import Money
 from backend.domain.finance.value_objects.posting_reference import PostingReference
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
+from backend.shared.business_dates import local_business_date
 
 logger = logging.getLogger("spj.finance.procurement_immediate_payment_bridge")
 
@@ -98,6 +99,8 @@ class ProcurementImmediatePaymentBridgeHandler:
             return  # already logged inside _resolve_treasury_account
 
         issue_date = _issue_date(payload)
+        # El libro diario muestra el FOLIO (CD-2026-000003), no el UUID interno.
+        folio = str(payload.get("document_number") or "").strip() or document_id[:8]
         with FinanceUnitOfWork(self._connection) as uow:
             existing = uow.journal_entries.find_by_posting_reference(
                 "procurement", document_id, PostingPurpose.SUPPLIER_PAYMENT)
@@ -117,12 +120,12 @@ class ProcurementImmediatePaymentBridgeHandler:
                     continue
                 role = _NATURE_ACCOUNT_ROLE.get(nature, "expense_account_id")
                 lines.append(LineSpec(profile.account_for(role), debit=money,
-                                      description=f"Compra de contado {document_id} ({nature})"))
+                                      description=f"Compra de contado {folio} ({nature})"))
                 debited += money.amount
             tax_total = Money.from_string(str(payload.get("tax_total") or "0"), currency_code)
             if tax_total.is_positive():
                 lines.append(LineSpec(profile.account_for("tax_account_id"), debit=tax_total,
-                                      description=f"IVA acreditable {document_id}"))
+                                      description=f"IVA acreditable {folio}"))
                 debited += tax_total.amount
             if not lines:
                 return
@@ -133,11 +136,11 @@ class ProcurementImmediatePaymentBridgeHandler:
                     f"Pago de contado {document_id}: subtotales por naturaleza + impuesto "
                     f"({debited}) != monto total ({total.amount})")
             lines.append(LineSpec(treasury_account.ledger_account_id, credit=total,
-                                  description=f"Pago de contado a proveedor {document_id}"))
+                                  description=f"Pago de contado a proveedor {folio}"))
 
             self._engine.post(
                 uow, JournalType.PURCHASES, issue_date,
-                f"Compra de contado {document_id}",
+                f"Compra de contado {folio}",
                 PostingReference("procurement", document_id, PostingPurpose.SUPPLIER_PAYMENT,
                                  operation_id),
                 lines, currency_code=currency_code, branch_id=branch_id,
@@ -204,10 +207,6 @@ def purchase_posting_problem(connection, *, payment_source: str, branch_id: str 
 
 
 def _issue_date(payload: dict) -> date:
-    timestamp = str(payload.get("timestamp") or "")
-    if timestamp:
-        try:
-            return date.fromisoformat(timestamp[:10])
-        except ValueError:
-            pass
-    return date.today()
+    # Día LOCAL del negocio, no el de UTC (el último día del mes, el asiento
+    # caía en el periodo siguiente).
+    return local_business_date(payload.get("timestamp"))

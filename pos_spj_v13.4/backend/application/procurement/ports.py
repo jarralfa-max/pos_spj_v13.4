@@ -13,6 +13,7 @@ by having the right method signature — no inheritance required. That is why
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Protocol
 
 
@@ -23,6 +24,51 @@ class ProcurementProductOption:
     name: str
     purchase_unit: str | None
     purchasable: bool
+    #: Informativo: Compras busca en el catálogo GLOBAL; esto sólo dice si el
+    #: producto está habilitado en la sucursal consultada (None = no se sabe).
+    enabled_in_branch: bool | None = None
+
+
+@dataclass(frozen=True)
+class PurchaseUnitOption:
+    """``1 code = factor_to_base`` unidades base del producto."""
+
+    code: str
+    name: str
+    factor_to_base: Decimal
+    dimension: str = ""
+    is_base: bool = False
+    #: §27 (de Productos): ¿se puede recibir en fracción?
+    fractional_receipt: bool = True
+
+
+@dataclass(frozen=True)
+class PurchaseProductProfile:
+    """Lo que Compras necesita de Productos para capturar una línea: unidad base
+    (la de inventario), unidades de compra con su conversión y base de precio.
+    Compras sólo LEE esto; nunca inventa ni deja editar unidades o factores."""
+
+    product_id: str
+    code: str
+    name: str
+    base_unit: str
+    base_unit_name: str
+    base_unit_dimension: str
+    units: tuple[PurchaseUnitOption, ...]
+    purchasable: bool = True
+    catch_weight: bool = False
+    price_basis: str | None = None
+    lot_controlled: bool = False
+    expiration_controlled: bool = False
+    temperature_tracked: bool = False
+    serial_tracked: bool = False
+
+    def unit(self, code: str | None) -> PurchaseUnitOption | None:
+        wanted = (code or self.base_unit or "").strip().upper()
+        for option in self.units:
+            if option.code.upper() == wanted:
+                return option
+        return None
 
 
 class ProcurementProductCatalogPort(Protocol):
@@ -35,6 +81,9 @@ class ProcurementProductCatalogPort(Protocol):
         ...
 
     def resolve(self, product_id: str) -> ProcurementProductOption | None:
+        ...
+
+    def purchase_profile(self, product_id: str) -> PurchaseProductProfile | None:
         ...
 
 

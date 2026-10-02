@@ -73,9 +73,29 @@ class SupplierInvoiceRepository(ProcurementRepositoryBase):
         return self._hydrate(row) if row else None
 
     def exists_for_supplier(self, supplier_id: str, invoice_number: str) -> bool:
+        # «A-100», «a-100» y «A-100 » son la MISMA factura: el UNIQUE de la
+        # tabla compara exacto y dejaba pasar la segunda captura.
         return self._query_one(
-            "SELECT id FROM supplier_invoices WHERE supplier_id=? AND invoice_number=?",
+            "SELECT id FROM supplier_invoices WHERE supplier_id=?"
+            " AND UPPER(TRIM(invoice_number))=UPPER(TRIM(?)) AND status<>'CANCELLED'",
             (supplier_id, invoice_number)) is not None
+
+    def exists_fiscal_uuid(self, uuid_fiscal: str) -> bool:
+        """El folio fiscal (UUID del CFDI) es único en todo el SAT: el mismo
+        comprobante no puede capturarse dos veces, ni con otro número."""
+        return self._query_one(
+            "SELECT id FROM supplier_invoices WHERE UPPER(TRIM(uuid_fiscal))=UPPER(TRIM(?))"
+            " AND status<>'CANCELLED'", (uuid_fiscal,)) is not None
+
+    def previously_invoiced_direct_quantity(self, direct_purchase_line_id: str,
+                                            excluding_invoice_id: str) -> Decimal:
+        rows = self._query(
+            "SELECT l.invoiced_quantity FROM supplier_invoice_lines l"
+            " JOIN supplier_invoices i ON i.id=l.supplier_invoice_id"
+            " WHERE l.direct_purchase_line_id=? AND l.supplier_invoice_id<>?"
+            " AND i.status<>'CANCELLED'",
+            (direct_purchase_line_id, excluding_invoice_id))
+        return sum((to_decimal(row["invoiced_quantity"]) for row in rows), Decimal("0"))
 
     def previously_invoiced_quantity(self, purchase_order_line_id: str,
                                      excluding_invoice_id: str) -> Decimal:

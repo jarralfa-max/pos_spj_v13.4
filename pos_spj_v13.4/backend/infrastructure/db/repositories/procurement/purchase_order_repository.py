@@ -18,6 +18,22 @@ from backend.infrastructure.db.repositories.procurement.base import (
 from backend.shared.ids import new_uuid
 
 
+#: Encabezado enterprise + confirmación del proveedor (migración 279).
+_HEADER_FIELDS = ("exchange_rate", "required_date", "promised_date", "delivery_method",
+                  "delivery_address", "cost_center", "project_reference",
+                  "contract_reference", "notes", "supplier_reference", "confirmed_at",
+                  "confirmed_delivery_date", "confirmation_exceptions",
+                  "confirmation_comments", "confirmed_by_user_id",
+                  "origin_supplier_address_id", "origin_address_snapshot")
+
+
+def _header_value(po, column):
+    value = getattr(po, column, None)
+    if column == "exchange_rate" and value is not None:
+        return dec_str(value)
+    return value
+
+
 class PurchaseOrderRepository(ProcurementRepositoryBase):
     def save(self, po: PurchaseOrder) -> None:
         self._execute(
@@ -34,20 +50,29 @@ class PurchaseOrderRepository(ProcurementRepositoryBase):
              dec_str(po.total().amount), po.version, po.created_by_user_id,
              po.approved_by_user_id, po.source_requisition_id, po.source_rfq_id,
              po.source_award_id, None, po.created_at, po.updated_at, po.payment_terms))
-        self._execute("DELETE FROM purchase_order_lines WHERE purchase_order_id=?", (po.id,))
-        for ln in po.lines:
-            self._execute(
-                "INSERT INTO purchase_order_lines (id, purchase_order_id, product_id,"
-                " description, ordered_quantity, unit_price, purchase_nature, currency_code,"
-                " conversion_factor, received_quantity, accepted_quantity,"
-                " rejected_quantity, invoiced_quantity, destination_warehouse_id)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (ln.id, po.id, ln.product_id, ln.description, dec_str(ln.ordered_quantity),
+        self._execute(
+            "UPDATE purchase_orders SET " + ", ".join(f"{c}=?" for c in _HEADER_FIELDS)
+            + " WHERE id=?",
+            (*(_header_value(po, c) for c in _HEADER_FIELDS), po.id))
+        self._save_children(
+            "purchase_order_lines", "purchase_order_id", po.id,
+            ("id", "purchase_order_id", "product_id", "description", "ordered_quantity",
+             "unit_price", "purchase_nature", "currency_code", "conversion_factor",
+             "received_quantity", "accepted_quantity", "rejected_quantity",
+             "invoiced_quantity", "destination_warehouse_id", "purchase_unit",
+             "inventory_unit", "discount", "tax", "confirmed_quantity", "pricing_basis",
+             "inventory_by_weight"),
+            [(ln.id, po.id, ln.product_id, ln.description, dec_str(ln.ordered_quantity),
                  dec_str(ln.unit_price.amount), ln.purchase_nature.value,
                  ln.unit_price.currency_code,
                  dec_str(ln.conversion_factor), dec_str(ln.received_quantity),
                  dec_str(ln.accepted_quantity), dec_str(ln.rejected_quantity),
-                 dec_str(ln.invoiced_quantity), ln.destination_warehouse_id))
+                 dec_str(ln.invoiced_quantity), ln.destination_warehouse_id,
+                 ln.purchase_unit or "", ln.inventory_unit or "",
+                 dec_str(ln.discount), dec_str(ln.tax),
+                 None if ln.confirmed_quantity is None else dec_str(ln.confirmed_quantity),
+                 ln.pricing_basis or "", 1 if ln.inventory_by_weight else 0)
+             for ln in po.lines])
 
     def record_version(self, po: PurchaseOrder, *, before: dict | None, reason: str,
                        changed_by_user_id: str | None) -> None:
@@ -76,6 +101,17 @@ class PurchaseOrderRepository(ProcurementRepositoryBase):
                               (operation_id,))
         return self._hydrate(row) if row else None
 
+    def get_by_award_supplier(self, award_id: str, supplier_id: str) -> PurchaseOrder | None:
+        row = self._query_one(
+            "SELECT * FROM purchase_orders WHERE source_award_id=? AND supplier_id=?",
+            (award_id, supplier_id))
+        return self._hydrate(row) if row else None
+
+    def list_by_requisition(self, requisition_id: str) -> list[PurchaseOrder]:
+        rows = self._query("SELECT * FROM purchase_orders WHERE source_requisition_id=?",
+                           (requisition_id,))
+        return [self._hydrate(r) for r in rows]
+
     def get(self, purchase_order_id: str) -> PurchaseOrder | None:
         row = self._query_one("SELECT * FROM purchase_orders WHERE id=?", (purchase_order_id,))
         return self._hydrate(row) if row else None
@@ -95,7 +131,15 @@ class PurchaseOrderRepository(ProcurementRepositoryBase):
                 accepted_quantity=to_decimal(lr["accepted_quantity"]),
                 rejected_quantity=to_decimal(lr["rejected_quantity"]),
                 invoiced_quantity=to_decimal(lr["invoiced_quantity"]),
-                destination_warehouse_id=lr["destination_warehouse_id"])
+                destination_warehouse_id=lr["destination_warehouse_id"],
+                purchase_unit=lr.get("purchase_unit") or "",
+                inventory_unit=lr.get("inventory_unit") or "",
+                discount=to_decimal(lr.get("discount"), "0"),
+                tax=to_decimal(lr.get("tax"), "0"),
+                confirmed_quantity=(to_decimal(lr["confirmed_quantity"])
+                                    if lr.get("confirmed_quantity") not in (None, "") else None),
+                pricing_basis=lr.get("pricing_basis") or "",
+                inventory_by_weight=bool(lr.get("inventory_by_weight")))
             for lr in line_rows
         ]
         return PurchaseOrder(
@@ -109,4 +153,6 @@ class PurchaseOrderRepository(ProcurementRepositoryBase):
             source_requisition_id=row["source_requisition_id"],
             source_rfq_id=row["source_rfq_id"], source_award_id=row["source_award_id"],
             created_at=row["created_at"], updated_at=row["updated_at"],
-            payment_terms=row.get("payment_terms"))
+            payment_terms=row.get("payment_terms"),
+            **{c: (to_decimal(row.get(c)) if c == "exchange_rate" and row.get(c) else row.get(c))
+               for c in _HEADER_FIELDS})

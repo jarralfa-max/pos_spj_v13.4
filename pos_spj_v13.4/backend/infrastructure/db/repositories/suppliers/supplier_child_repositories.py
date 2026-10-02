@@ -63,14 +63,14 @@ class SupplierContactRepository(SupplierRepositoryBase):
 
 class SupplierAddressRepository(SupplierRepositoryBase):
     _COLS = ("id, supplier_id, address_type, line, city, state, postal_code, country_code,"
-             " latitude, longitude, geocoding_source, validation_state")
+             " latitude, longitude, geocoding_source, validation_state, label")
 
     def save(self, a: SupplierAddress) -> None:
         self._execute(
-            f"INSERT INTO supplier_addresses ({self._COLS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            f"INSERT INTO supplier_addresses ({self._COLS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (a.id, a.supplier_id, a.address_type.value, a.line, a.city, a.state,
              a.postal_code, a.country_code, a.latitude, a.longitude,
-             a.geocoding_source, a.validation_state))
+             a.geocoding_source, a.validation_state, (a.label or "").strip()))
 
     def list_by_supplier(self, supplier_id: str) -> list[SupplierAddress]:
         return [SupplierAddress(
@@ -78,7 +78,8 @@ class SupplierAddressRepository(SupplierRepositoryBase):
             address_type=AddressType(r["address_type"]), line=r["line"], city=r["city"],
             state=r["state"], postal_code=r["postal_code"], country_code=r["country_code"],
             latitude=r["latitude"], longitude=r["longitude"],
-            geocoding_source=r["geocoding_source"], validation_state=r["validation_state"])
+            geocoding_source=r["geocoding_source"], validation_state=r["validation_state"],
+            label=r["label"] or "")
             for r in self._query(
                 f"SELECT {self._COLS} FROM supplier_addresses WHERE supplier_id=?", (supplier_id,))]
 

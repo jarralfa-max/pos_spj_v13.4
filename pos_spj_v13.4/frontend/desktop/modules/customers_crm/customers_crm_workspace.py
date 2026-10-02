@@ -25,15 +25,9 @@ routes don't have pages yet (each later phase's own job), so
 ``page_factories`` override, the same escape hatch `cash_register` uses for
 its own not-yet-built sections and for tests.
 
-**Density**: `frontend/desktop/design_system/` has no `compact`/
-`comfortable`/`touch` profile system anywhere yet (aspirational per the
-master prompt's §90, not implemented even by `cash_register`) — this
-workspace wires the one density lever that DOES exist for real:
-``PageHeader(compact=...)`` (tighter vertical margins) plus a responsive
-``SideNav`` width collapse below ``ResponsiveBreakpoints.COMPACT``, the
-exact same lever/breakpoint `cash_register` already uses. Inventing a new
-cross-cutting `DensityProvider` unilaterally for one module was out of
-scope for this phase — see ``docs/refactor/CRM-14_ui_foundations.md``.
+The shared ``ModuleLayout`` owns the compact header, margins and scrollable
+content boundary. ``SideNav`` owns density and manual collapse, so resizing
+the workspace preserves the user's navigation preference.
 
 **Theme**: no bespoke code needed or added — every component here
 (`PageHeader`, `SideNav`, `StateWidget`) is already theme-aware via the
@@ -46,10 +40,10 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFrame, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components.icons import Icons
-from frontend.desktop.components.page_header import PageHeader
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.tooltip import apply_tooltip
 from frontend.desktop.components.view_states import ViewState, create_state_widget
@@ -79,7 +73,7 @@ from frontend.desktop.modules.customers_crm.customers_crm_routes import (
     grouped_routes,
     visible_routes,
 )
-from frontend.desktop.themes.tokens import ResponsiveBreakpoints, Spacing
+from frontend.desktop.themes.tokens import Spacing
 
 
 class CustomersCrmWorkspace(QWidget):
@@ -101,40 +95,23 @@ class CustomersCrmWorkspace(QWidget):
         self.setObjectName("customersCrmWorkspace")
         self.setAccessibleName("Modulo de Clientes y CRM")
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(Spacing.PAGE_MARGIN_HORIZONTAL, Spacing.PAGE_MARGIN_VERTICAL,
-                                Spacing.PAGE_MARGIN_HORIZONTAL, Spacing.PAGE_MARGIN_VERTICAL)
-        root.setSpacing(Spacing.MD)
-
-        self._header = PageHeader(
-            self, title="Clientes y CRM",
-            subtitle="Clientes, prospectos, oportunidades, atención, crédito y segmentación.",
-            icon=Icons.CUSTOMERS,
-            compact=self._initial_compact())
-        root.addWidget(self._header)
-
-        shell = QHBoxLayout()
-        shell.setSpacing(Spacing.LG)
-        root.addLayout(shell, stretch=1)
-
         self._nav = SideNav(self)
         self._nav.setProperty("role", "nav")
         self._nav.setAccessibleName("Navegacion de Clientes y CRM")
         self._nav.navigated.connect(self._on_navigated)
-        shell.addWidget(self._nav)
-
         self._stack = QStackedWidget(self)
         self._stack.setObjectName("customersCrmStack")
         self._stack.setAccessibleName("Paginas del modulo de Clientes y CRM")
-        shell.addWidget(self._stack, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Clientes y CRM",
+            subtitle="Clientes, prospectos, oportunidades, atención, crédito y segmentación.",
+            icon=Icons.CUSTOMERS, sidebar=self._nav, content=self._stack,
+        )
+        self._header = self.module_layout.header
 
         self._build_routes()
         self.select_route("customers.overview")
         self._ensure_active_page_loaded()
-
-    def _initial_compact(self) -> bool:
-        width = self.window().width() if self.window() else 0
-        return 0 < width < ResponsiveBreakpoints.COMPACT
 
     def _build_routes(self) -> None:
         self._route_index_by_id.clear()
@@ -293,9 +270,3 @@ class CustomersCrmWorkspace(QWidget):
             self.select_route(current_id)
         elif "customers.overview" in self._route_index_by_id:
             self.select_route("customers.overview")
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        compact = self.width() < ResponsiveBreakpoints.COMPACT
-        self._nav.setMaximumWidth(180 if compact else 240)
-        self._nav.setMinimumWidth(160 if compact else 180)

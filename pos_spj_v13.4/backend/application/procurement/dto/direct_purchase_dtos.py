@@ -31,6 +31,8 @@ class DirectPurchaseLineDTO:
     purchase_unit: str = "PZA"
     inventory_unit: str = "PZA"
     conversion_factor: str = "1"
+    net_weight: str | None = None
+    pricing_basis: str = ""
 
 
 @dataclass(frozen=True)
@@ -51,3 +53,13 @@ class DirectPurchaseDetailDTO:
     authorized_by_user_id: str | None = None
     created_by_user_id: str | None = None
     lines: list[DirectPurchaseLineDTO] = field(default_factory=list)
+    #: Nombres para mostrar: la pantalla nunca enseña un UUID (resueltos por el
+    #: servicio de consulta, no por la pantalla).
+    supplier_name: str = "—"
+    branch_name: str = "—"
+    warehouse_name: str = "—"
+    #: Fuente de pago con que se confirmó (sólo compras de contado ya confirmadas).
+    payment_source: str | None = None
+    #: Surtido (§11) y, con recolección, la bodega de origen tal como se eligió.
+    fulfillment_mode: str = ""
+    origin_display: str = ""

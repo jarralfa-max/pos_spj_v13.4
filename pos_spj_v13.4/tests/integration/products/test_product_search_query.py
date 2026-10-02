@@ -418,6 +418,30 @@ def test_explica_que_el_termino_no_coincide(conn):
     assert razon.code == "NO_COINCIDE"
 
 
+def test_lo_buscado_existe_pero_no_esta_habilitado_aunque_haya_otros(conn):
+    """Medido 2026-09-25 en la base real: en Corregidora sólo «Alas» estaba
+    habilitado; buscar «pechuga» respondía "ninguno coincide" porque la
+    explicación relajaba primero el TEXTO. La causa real es la habilitación."""
+    alas = _product(conn, name="Alas", code="CAR-1")
+    _product(conn, name="Pechuga", code="CAR-4")
+    _habilitar(conn, alas, "b1")
+    conn.commit()
+    razon = SearchPurchasableProductsQueryService(conn).explain_empty(
+        ProductSearchQuery(text="pechuga", branch_id="b1"))
+    assert razon.code == "SIN_HABILITAR_EN_SUCURSAL"
+    assert "Sucursales y surtidos" in razon.message
+
+
+def test_lo_buscado_existe_pero_no_esta_activo(conn):
+    alas = _product(conn, name="Alas", code="CAR-1")
+    _product(conn, name="Pechuga", code="CAR-4", lifecycle="UNDER_REVIEW")
+    _habilitar(conn, alas, "b1")
+    conn.commit()
+    razon = SearchPurchasableProductsQueryService(conn).explain_empty(
+        ProductSearchQuery(text="pechuga", branch_id="b1"))
+    assert razon.code == "SIN_ACTIVOS"
+
+
 def test_no_explica_nada_cuando_si_hay_resultados(conn):
     pid = _product(conn, name="Pollo Entero", code="PRD-1")
     _habilitar(conn, pid, "b1")

@@ -64,14 +64,12 @@ class ProductPurchaseCostReadService(_Base):
     """
 
     def historical_cost(self, product_id: str, *, branch_id: str | None = None) -> str:
-        branch = branch_id or ""
-        value = self._scalar(
-            "SELECT average_cost FROM product_cost WHERE product_id=? AND branch_id=?",
-            (product_id, branch))
-        if value is None and branch:
-            value = self._scalar(
-                "SELECT average_cost FROM product_cost WHERE product_id=? AND branch_id=''",
-                (product_id,))
+        """El costo promedio que RIGE según la política de costo (§32). Antes
+        Compras leía `product_cost` con su propia regla (sucursal primero,
+        siempre), que contradecía la política cuando ésta es global."""
+        from backend.application.pricing.cost_policy import ProductCostingService
+        value = ProductCostingService(self._conn).cost_view(
+            product_id, branch_id or None).average_cost
         try:
             amount = Decimal(str(value or "0"))
         except InvalidOperation:

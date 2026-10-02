@@ -50,6 +50,10 @@ class EntitySearchInput(QWidget):
         self._search = SearchInput(self, placeholder=placeholder, debounce_ms=debounce_ms)
         self._results = QListWidget(self)
         self._results.setObjectName("entitySearchResults")
+        # La fila de estado ("por qué no hay resultados") es una frase completa:
+        # sin ajuste de línea quedaba cortada tras una barra horizontal.
+        self._results.setWordWrap(True)
+        self._results.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._results.setVisible(False)
 
         layout = QVBoxLayout(self)
@@ -140,6 +144,8 @@ class EntitySearchInput(QWidget):
             text = option.label if not option.subtitle else f"{option.label} — {option.subtitle}"
             item = QListWidgetItem(text)
             item.setData(Qt.UserRole, option)
+            if getattr(option, "tooltip", ""):
+                item.setToolTip(option.tooltip)
             self._results.addItem(item)
         self._results.setVisible(bool(options))
         # Resaltar el primero: así se VE qué va a elegir Enter.

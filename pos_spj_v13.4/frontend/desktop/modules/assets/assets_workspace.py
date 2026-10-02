@@ -20,10 +20,10 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFrame, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components.icons import Icons
-from frontend.desktop.components.page_header import PageHeader
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.tooltip import apply_tooltip
 from frontend.desktop.components.view_states import ViewState, create_state_widget
@@ -33,7 +33,7 @@ from frontend.desktop.modules.assets.pages.assets_directory_page import AssetsDi
 from frontend.desktop.modules.assets.pages.maintenance_agenda_page import MaintenanceAgendaPage
 from frontend.desktop.modules.assets.pages.overview_page import AssetsOverviewPage
 from frontend.desktop.modules.assets.pages.work_orders_board_page import WorkOrdersBoardPage
-from frontend.desktop.themes.tokens import ResponsiveBreakpoints, Spacing
+from frontend.desktop.themes.tokens import Spacing
 
 
 class AssetsWorkspace(QWidget):
@@ -49,38 +49,22 @@ class AssetsWorkspace(QWidget):
         self.setObjectName("assetsWorkspace")
         self.setAccessibleName("Modulo de Activos")
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(Spacing.PAGE_MARGIN_HORIZONTAL, Spacing.PAGE_MARGIN_VERTICAL,
-                                Spacing.PAGE_MARGIN_HORIZONTAL, Spacing.PAGE_MARGIN_VERTICAL)
-        root.setSpacing(Spacing.MD)
-
-        self._header = PageHeader(
-            self, title="Activos", subtitle="Registro, custodia, mantenimiento y bajas.",
-            icon=Icons.ASSETS, compact=self._initial_compact())
-        root.addWidget(self._header)
-
-        shell = QHBoxLayout()
-        shell.setSpacing(Spacing.LG)
-        root.addLayout(shell, stretch=1)
-
         self._nav = SideNav(self)
         self._nav.setProperty("role", "nav")
         self._nav.setAccessibleName("Navegacion de Activos")
         self._nav.navigated.connect(self._on_navigated)
-        shell.addWidget(self._nav)
-
         self._stack = QStackedWidget(self)
         self._stack.setObjectName("assetsStack")
         self._stack.setAccessibleName("Paginas del modulo de Activos")
-        shell.addWidget(self._stack, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Activos", subtitle="Registro, custodia, mantenimiento y bajas.",
+            icon=Icons.ASSETS, sidebar=self._nav, content=self._stack,
+        )
+        self._header = self.module_layout.header
 
         self._build_routes()
         self.select_route("assets.overview")
         self._ensure_active_page_loaded()
-
-    def _initial_compact(self) -> bool:
-        width = self.window().width() if self.window() else 0
-        return 0 < width < ResponsiveBreakpoints.COMPACT
 
     def _build_routes(self) -> None:
         self._route_index_by_id.clear()
@@ -203,9 +187,3 @@ class AssetsWorkspace(QWidget):
             self.select_route(current_id)
         elif "assets.overview" in self._route_index_by_id:
             self.select_route("assets.overview")
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        compact = self.width() < ResponsiveBreakpoints.COMPACT
-        self._nav.setMaximumWidth(180 if compact else 240)
-        self._nav.setMinimumWidth(160 if compact else 180)

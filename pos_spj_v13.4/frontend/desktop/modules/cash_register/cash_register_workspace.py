@@ -11,13 +11,13 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFrame, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components.buttons import create_secondary_button
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
-from frontend.desktop.components.page_header import PageHeader
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.tooltip import apply_tooltip
 from frontend.desktop.components.view_states import ViewState, create_state_widget
@@ -41,7 +41,7 @@ from frontend.desktop.modules.cash_register.cash_register_routes import (
     grouped_routes,
     visible_routes,
 )
-from frontend.desktop.themes.tokens import ResponsiveBreakpoints, Spacing
+from frontend.desktop.themes.tokens import Spacing
 
 
 class CashRegisterWorkspace(QWidget):
@@ -57,46 +57,33 @@ class CashRegisterWorkspace(QWidget):
         self.setObjectName("cashRegisterWorkspace")
         self.setAccessibleName("Modulo de Caja")
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(Spacing.PAGE_MARGIN_HORIZONTAL, Spacing.PAGE_MARGIN_VERTICAL,
-                                Spacing.PAGE_MARGIN_HORIZONTAL, Spacing.PAGE_MARGIN_VERTICAL)
-        root.setSpacing(Spacing.MD)
-
         refresh = create_secondary_button(
             self,
             "Actualizar",
             tooltip="Recargar la vista activa sin cambiar de seccion.",
         )
         refresh.clicked.connect(self.refresh_active_page)
-        root.addWidget(PageHeader(
-            self,
-            title="Caja",
-            subtitle="Operacion, cortes, diferencias, entregas y configuracion con tema JUANIS.",
-            actions=[refresh],
-        ))
-
         self._status_bar = KPIBar(self)
         self._status_bar.set_cards([
             KPIDTO("shift", "Turno", "Sin seleccionar"),
             KPIDTO("offline", "Sincronizacion", "Lista"),
             KPIDTO("alerts", "Alertas", "0"),
         ])
-        root.addWidget(self._status_bar)
-
-        shell = QHBoxLayout()
-        shell.setSpacing(Spacing.LG)
-        root.addLayout(shell, stretch=1)
-
         self._nav = SideNav(self)
         self._nav.setProperty("role", "nav")
         self._nav.setAccessibleName("Navegacion de caja")
         self._nav.navigated.connect(self._on_navigated)
-        shell.addWidget(self._nav)
-
         self._stack = QStackedWidget(self)
         self._stack.setObjectName("cashRegisterStack")
         self._stack.setAccessibleName("Paginas del modulo de caja")
-        shell.addWidget(self._stack, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Caja",
+            subtitle="Operacion, cortes, diferencias, entregas y configuracion con tema JUANIS.",
+            icon=Icons.CASH, sidebar=self._nav, content=self._stack,
+        )
+        self._header = self.module_layout.header
+        self._header.add_action(refresh)
+        self.module_layout.add_context(self._status_bar)
 
         self._build_routes()
         self.select_route("overview")
@@ -281,9 +268,3 @@ class CashRegisterWorkspace(QWidget):
         elif "overview" in self._route_index_by_key:
             self.select_route("overview")
         self.refresh_status()
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        compact = self.width() < ResponsiveBreakpoints.COMPACT
-        self._nav.setMaximumWidth(180 if compact else 240)
-        self._nav.setMinimumWidth(160 if compact else 180)

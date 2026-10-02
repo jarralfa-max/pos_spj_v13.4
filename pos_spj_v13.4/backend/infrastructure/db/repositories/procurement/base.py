@@ -48,3 +48,29 @@ class ProcurementRepositoryBase:
     def _scalar(self, sql: str, params: tuple = (), default: Any = None) -> Any:
         row = self._conn.execute(sql, params).fetchone()
         return row[0] if row and row[0] is not None else default
+
+    def _save_children(self, table: str, parent_column: str, parent_id: str,
+                       columns: tuple[str, ...], rows: list[tuple]) -> None:
+        """Guarda las líneas de un documento SIN borrarlas y reinsertarlas.
+
+        Borrar-y-reinsertar rompía la llave foránea de las facturas: la app
+        abre la base con ``PRAGMA foreign_keys=ON`` y, en cuanto una factura
+        apuntaba a una línea (de la orden, de la compra rápida o de la
+        recepción), volver a guardar ese documento —recibir el resto, reversar—
+        fallaba. Ahora se actualiza cada línea por su id y sólo se borran las
+        que el documento ya no tiene. ``columns[0]`` debe ser ``id`` y la
+        segunda la del documento padre.
+        """
+        placeholders = ",".join("?" for _ in columns)
+        updates = ",".join(f"{c}=excluded.{c}" for c in columns[1:])
+        sql = (f"INSERT INTO {table} ({','.join(columns)}) VALUES ({placeholders})"
+               f" ON CONFLICT(id) DO UPDATE SET {updates}")
+        for row in rows:
+            self._execute(sql, row)
+        kept = [row[0] for row in rows]
+        if kept:
+            marks = ",".join("?" for _ in kept)
+            self._execute(f"DELETE FROM {table} WHERE {parent_column}=? AND id NOT IN ({marks})",
+                          (parent_id, *kept))
+        else:
+            self._execute(f"DELETE FROM {table} WHERE {parent_column}=?", (parent_id,))

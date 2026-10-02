@@ -62,14 +62,25 @@ def test_un_fallo_de_sql_no_se_disfraza_de_lista_vacia(build):
         presenter.product_options("pollo")
 
 
+class _CatalogoQueAnota:
+    def __init__(self):
+        self.branch_ids = []
+
+    def search(self, query, *, branch_id=None, limit=20):
+        self.branch_ids.append(branch_id)
+        return []
+
+
 @pytest.mark.parametrize("build", [_enterprise, _direct])
-def test_sesion_sin_sucursal_activa_se_nota(build):
-    """Antes devolvía [] y el comprador creía que no había productos."""
+def test_sin_sucursal_activa_la_busqueda_es_global(build):
+    """Las compras son GLOBALES (decisión del usuario 2026-09-25): sin sucursal
+    se busca igual en todo el catálogo; la sucursal sólo sirve para marcar lo
+    no habilitado. Antes una sesión sin sucursal no podía buscar."""
     session = Session()
     session.active_branch_id = ""
-    presenter = build(session, _CatalogoVacio())
-    with pytest.raises(PermissionError, match="sucursal activa"):
-        presenter.product_options("pollo")
+    catalogo = _CatalogoQueAnota()
+    assert build(session, catalogo).product_options("pollo") == []
+    assert catalogo.branch_ids == [None]
 
 
 @pytest.mark.parametrize("build", [_enterprise, _direct])

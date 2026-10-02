@@ -54,6 +54,42 @@ class MatchResult(str, Enum):
     MISSING_PURCHASE_DOCUMENT = "MISSING_PURCHASE_DOCUMENT"
 
 
+#: Diferencia máxima atribuible al redondeo a centavos: un precio neto de
+#: descuento (42 − 10/3 = 38.6667) o un IVA prorrateado se facturan redondeados.
+ROUNDING_ALLOWANCE = Decimal("0.01")
+
+
+def allocate_accepted_quantities(lines: list[tuple[str, str, Decimal]],
+                                 by_line: dict[str, Decimal],
+                                 unlinked_by_product: dict[str, Decimal]
+                                 ) -> dict[str, Decimal]:
+    """Aceptado por línea del documento de compra.
+
+    ``lines`` = (id de línea, producto, cantidad pedida) en orden. Lo recibido
+    con la línea ligada va a esa línea. Lo recibido SIN línea (recepciones
+    viejas, compras rápidas) se reparte entre las líneas del mismo producto
+    hasta su cantidad pedida, y el sobrante a la última. Antes cada línea
+    tomaba el TOTAL del producto: dos líneas de Alas contaban doble.
+    """
+    result = {line_id: Decimal(str(by_line.get(line_id, "0"))) for line_id, _, _ in lines}
+    pending = {product: Decimal(str(qty)) for product, qty in unlinked_by_product.items()}
+    last_for_product = {product: line_id for line_id, product, _ in lines}
+    for line_id, product, ordered in lines:
+        available = pending.get(product, Decimal("0"))
+        if available <= 0:
+            continue
+        room = max(Decimal("0"), Decimal(str(ordered)) - result[line_id])
+        take = available if last_for_product[product] == line_id else min(available, room)
+        result[line_id] += take
+        pending[product] = available - take
+    return result
+
+
+def _close_enough(tolerance: Tolerance, expected: Decimal, actual: Decimal) -> bool:
+    return (abs(actual - expected) <= ROUNDING_ALLOWANCE
+            or tolerance.within(expected, actual))
+
+
 class InvoiceMatchingPolicy:
     """Three-way match (order↔receipt↔invoice) or two-way for direct purchases."""
 
@@ -96,9 +132,9 @@ class InvoiceMatchingPolicy:
             # Partial invoices are valid; only cumulative over-invoicing is a variance.
             if invoiced > accepted and not self._qty_tol.within(accepted, invoiced):
                 return MatchResult.QUANTITY_VARIANCE
-            if not self._price_tol.within(
-                    Decimal(str(ordered["unit_price"])),
-                    Decimal(str(invoice_line["unit_price"]))):
+            if not _close_enough(self._price_tol,
+                                 Decimal(str(ordered["unit_price"])),
+                                 Decimal(str(invoice_line["unit_price"]))):
                 return MatchResult.PRICE_VARIANCE
             # Decisión del usuario (2026-09-18): el impuesto sólo se compara si
             # el documento de compra lo DECLARÓ. La orden de compra no guarda
@@ -107,10 +143,19 @@ class InvoiceMatchingPolicy:
             # como diferencia de impuesto y nunca generara la cuenta por pagar.
             # `tax=None` significa "no declarado"; el IVA de la factura se
             # acepta como viene (lo respalda el CFDI).
-            if ordered.get("tax") is not None:
+            #
+            # Desde la FASE 7 la orden SÍ guarda el impuesto de cada línea. Si lo
+            # declaró (`tax_per_unit`), se compara en proporción a lo que ESTA
+            # factura cobra: una factura parcial lleva el IVA de su parte.
+            actual_tax = Decimal(str(invoice_line.get("tax", "0")))
+            if ordered.get("tax_per_unit") is not None:
+                this_quantity = Decimal(str(invoice_line.get("this_quantity", invoiced)))
+                expected_tax = Decimal(str(ordered["tax_per_unit"])) * this_quantity
+                if not _close_enough(self._tax_tol, expected_tax, actual_tax):
+                    return MatchResult.TAX_VARIANCE
+            elif ordered.get("tax") is not None:
                 expected_tax = Decimal(str(ordered["tax"]))
-                actual_tax = Decimal(str(invoice_line.get("tax", "0")))
-                if not self._tax_tol.within(expected_tax, actual_tax):
+                if not _close_enough(self._tax_tol, expected_tax, actual_tax):
                     return MatchResult.TAX_VARIANCE
         return MatchResult.MATCHED
 

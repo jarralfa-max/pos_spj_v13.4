@@ -1,8 +1,10 @@
 """Enterprise Mermas workspace with persistent permission-aware sidebar."""
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QHBoxLayout, QStackedWidget, QWidget
+from PyQt5.QtWidgets import QStackedWidget, QWidget
 
+from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.losses.losses_routes import build_page
 from frontend.desktop.modules.losses.widgets import LossesSidebarWidget
 from frontend.desktop.themes.tokens import ResponsiveBreakpoints
@@ -16,19 +18,17 @@ class LossesView(QWidget):
         self.setAccessibleDescription(
             "Espacio de trabajo para registrar, revisar y analizar pérdidas."
         )
-        self.setMinimumSize(640, 480)
         self._page_builder = page_builder or build_page
         self._pages = {}
         self._active_route = None
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
         self.sidebar = LossesSidebarWidget(
             has_permission=has_permission, badges=badges, parent=self)
         self.stack = QStackedWidget(self)
-        layout.addWidget(self.sidebar)
-        layout.addWidget(self.stack, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Mermas y Pérdidas", icon=Icons.WASTE,
+            sidebar=self.sidebar, content=self.stack,
+        )
         self.sidebar.route_requested.connect(self.show_route)
         if self.sidebar.count():
             self.show_route(str(self.sidebar.item(0).data(Qt.UserRole)))

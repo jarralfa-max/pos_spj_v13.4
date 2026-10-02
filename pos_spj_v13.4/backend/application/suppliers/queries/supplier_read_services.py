@@ -149,7 +149,7 @@ class SupplierDetailQueryService(_Base):
         obligaría a tocar otra vez esta consulta.
         """
         return self._query(
-            "SELECT id, address_type, line, city, state, postal_code, country_code,"
+            "SELECT id, address_type, label, line, city, state, postal_code, country_code,"
             " validation_state FROM supplier_addresses WHERE supplier_id=?"
             " ORDER BY address_type", (supplier_id,))
 

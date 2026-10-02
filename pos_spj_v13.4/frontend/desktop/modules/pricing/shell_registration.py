@@ -112,6 +112,9 @@ def create_pricing_view(connection, session_context):
     from backend.application.products.queries.product_selection_query_service import (
         ProductCatalogSearchQueryService,
     )
+    from backend.application.pricing.use_cases.cost_policy_use_cases import (
+        SetCostPolicyUseCase,
+    )
     from frontend.desktop.modules.pricing.presenter import PricingPresenter
     from frontend.desktop.modules.pricing.pricing_workspace import PricingWorkspace
 
@@ -150,6 +153,7 @@ def create_pricing_view(connection, session_context):
             "apply_bulk": ApplyPriceToSelectionUseCase(
                 authorization,
                 lambda: ProductCatalogSearchQueryService(connection)),
+            "set_cost_policy": SetCostPolicyUseCase(authorization),
         },
         product_search_factory=lambda: ProductCatalogSearchQueryService(connection),
         category_query_factory=lambda: ProductCategoryQueryService(connection),

@@ -13,10 +13,10 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFrame, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components.icons import Icons
-from frontend.desktop.components.page_header import PageHeader
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.tooltip import apply_tooltip
 from frontend.desktop.components.view_states import ViewState, create_state_widget
@@ -32,7 +32,7 @@ from frontend.desktop.modules.fidelidad.pages.overview_page import FidelidadOver
 from frontend.desktop.modules.fidelidad.pages.programs_page import ProgramsPage
 from frontend.desktop.modules.fidelidad.pages.rewards_page import RewardsPage
 from frontend.desktop.modules.fidelidad.pages.sweepstakes_page import SweepstakesPage
-from frontend.desktop.themes.tokens import ResponsiveBreakpoints, Spacing
+from frontend.desktop.themes.tokens import Spacing
 
 
 class FidelidadWorkspace(QWidget):
@@ -47,39 +47,23 @@ class FidelidadWorkspace(QWidget):
         self.setObjectName("fidelidadWorkspace")
         self.setAccessibleName("Modulo de Fidelidad")
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(Spacing.PAGE_MARGIN_HORIZONTAL, Spacing.PAGE_MARGIN_VERTICAL,
-                                Spacing.PAGE_MARGIN_HORIZONTAL, Spacing.PAGE_MARGIN_VERTICAL)
-        root.setSpacing(Spacing.MD)
-
-        self._header = PageHeader(
-            self, title="Fidelidad",
-            subtitle="Programas, puntos, recompensas, cupones, vales y sorteos.",
-            icon=Icons.LOYALTY, compact=self._initial_compact())
-        root.addWidget(self._header)
-
-        shell = QHBoxLayout()
-        shell.setSpacing(Spacing.LG)
-        root.addLayout(shell, stretch=1)
-
         self._nav = SideNav(self)
         self._nav.setProperty("role", "nav")
         self._nav.setAccessibleName("Navegacion de Fidelidad")
         self._nav.navigated.connect(self._on_navigated)
-        shell.addWidget(self._nav)
-
         self._stack = QStackedWidget(self)
         self._stack.setObjectName("fidelidadStack")
         self._stack.setAccessibleName("Paginas del modulo de Fidelidad")
-        shell.addWidget(self._stack, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Fidelidad",
+            subtitle="Programas, puntos, recompensas, cupones, vales y sorteos.",
+            icon=Icons.LOYALTY, sidebar=self._nav, content=self._stack,
+        )
+        self._header = self.module_layout.header
 
         self._build_routes()
         self.select_route("fidelidad.overview")
         self._ensure_active_page_loaded()
-
-    def _initial_compact(self) -> bool:
-        width = self.window().width() if self.window() else 0
-        return 0 < width < ResponsiveBreakpoints.COMPACT
 
     def _build_routes(self) -> None:
         self._route_index_by_id.clear()
@@ -197,9 +181,3 @@ class FidelidadWorkspace(QWidget):
             self.select_route(current_id)
         elif "fidelidad.overview" in self._route_index_by_id:
             self.select_route("fidelidad.overview")
-
-    def resizeEvent(self, event) -> None:
-        super().resizeEvent(event)
-        compact = self.width() < ResponsiveBreakpoints.COMPACT
-        self._nav.setMaximumWidth(180 if compact else 240)
-        self._nav.setMinimumWidth(160 if compact else 180)

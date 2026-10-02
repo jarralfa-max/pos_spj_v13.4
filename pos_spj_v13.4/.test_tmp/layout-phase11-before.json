@@ -1,0 +1,56 @@
+{
+  "files": 632,
+  "rules": {
+    "native_operational_table": {
+      "occurrences": 1,
+      "files": 1
+    },
+    "noncanonical_dialog": {
+      "occurrences": 36,
+      "files": 25
+    },
+    "screen_without_explicit_overflow": {
+      "occurrences": 111,
+      "files": 110
+    },
+    "unicode_icon_literal": {
+      "occurrences": 13,
+      "files": 6
+    }
+  },
+  "unallowlisted": [
+    {
+      "key": [
+        "frontend/desktop/modules/meat_processing/dialogs_plan.py",
+        "native_operational_table",
+        "05dd7ab084b6bbef866f"
+      ],
+      "count": 1
+    },
+    {
+      "key": [
+        "frontend/desktop/modules/meat_processing/pages/meat_processing_settings_page.py",
+        "screen_without_explicit_overflow",
+        "ccda8fcb6a5694ec8cac"
+      ],
+      "count": 1
+    },
+    {
+      "key": [
+        "frontend/desktop/modules/pricing/pages/settings_page.py",
+        "screen_without_explicit_overflow",
+        "eecdb14c0a9c4a98cf33"
+      ],
+      "count": 1
+    },
+    {
+      "key": [
+        "frontend/desktop/modules/products/dialogs/purchase_units_dialog.py",
+        "noncanonical_dialog",
+        "42aeb29161df6209c740"
+      ],
+      "count": 1
+    }
+  ],
+  "obsolete": 2
+}

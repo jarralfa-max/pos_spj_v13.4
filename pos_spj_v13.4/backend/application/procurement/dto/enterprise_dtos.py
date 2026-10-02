@@ -16,6 +16,7 @@ class RequisitionLineDTO:
     quantity: str
     estimated_unit_cost: str | None
     purchase_nature: str
+    product_name: str = "Producto"
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,22 @@ class OrderLineDTO:
     unit_price: str
     received_quantity: str
     accepted_quantity: str
+    product_name: str = "Producto"
+    purchase_unit: str = ""
+    id: str = ""
+    inventory_unit: str = ""
+    conversion_factor: str = "1"
+    discount: str = "0"
+    tax: str = "0"
+    subtotal: str = "0"
+    confirmed_quantity: str | None = None
+    destination_warehouse_id: str | None = None
+
+    @property
+    def inventory_quantity(self) -> str:
+        from decimal import Decimal
+        value = Decimal(str(self.ordered_quantity)) * Decimal(str(self.conversion_factor or "1"))
+        return format(value.normalize(), "f")
 
 
 @dataclass(frozen=True)
@@ -108,6 +125,26 @@ class OrderDetailDTO:
     source_rfq_id: str | None = None
     source_award_id: str | None = None
     operation_id: str | None = None
+    payment_terms: str | None = None
+    exchange_rate: str | None = None
+    required_date: str | None = None
+    promised_date: str | None = None
+    delivery_method: str | None = None
+    delivery_address: str | None = None
+    cost_center: str | None = None
+    project_reference: str | None = None
+    contract_reference: str | None = None
+    notes: str | None = None
+    supplier_reference: str | None = None
+    confirmed_at: str | None = None
+    confirmed_delivery_date: str | None = None
+    confirmation_exceptions: str | None = None
+    confirmation_comments: str | None = None
+    origin_supplier_address_id: str | None = None
+    origin_address_snapshot: str | None = None
+    branch_name: str = "—"
+    warehouse_name: str = "—"
+    buyer_name: str = "—"
     lines: list[OrderLineDTO] = field(default_factory=list)
     versions: list[OrderVersionDTO] = field(default_factory=list)
     related_documents: list[dict] = field(default_factory=list)
@@ -125,6 +162,7 @@ class InvoiceLineDTO:
     purchase_order_line_id: str | None
     direct_purchase_line_id: str | None
     receipt_line_id: str | None
+    product_name: str = "Producto"
 
 
 @dataclass(frozen=True)
@@ -133,6 +171,7 @@ class InvoiceMatchDTO:
     released_by_user_id: str | None
     notes: str
     created_at: str
+    released_by_name: str = ""
 
 
 @dataclass(frozen=True)
@@ -173,6 +212,10 @@ class InvoiceDetailDTO:
     lines: list[InvoiceLineDTO] = field(default_factory=list)
     matches: list[InvoiceMatchDTO] = field(default_factory=list)
     comparison: list[dict] = field(default_factory=list)
+    # Lo que Finanzas hizo con la factura: su cuenta por pagar (folio, saldo,
+    # vencimiento, estado) o, si la compra se pagó de contado, que no genera.
+    payable: dict | None = None
+    paid_in_cash: bool = False
 
 
 # ── goods receipts ────────────────────────────────────────────────────────────
@@ -227,6 +270,8 @@ class ReceiptDetailDTO:
     lines: list[GoodsReceiptLineDTO] = field(default_factory=list)
     differences: list[ReceiptDiscrepancyDTO] = field(default_factory=list)
     invoices: list[dict] = field(default_factory=list)
+    #: Folio de la orden o compra directa que originó la recepción.
+    source_document_number: str = ""
 
 
 # ── documental purchase history ───────────────────────────────────────────────

@@ -32,6 +32,7 @@ from backend.application.procurement.session_authorization import (
 from backend.application.procurement.use_cases.direct_purchase_use_cases import (
     AuthorizeDirectPurchaseUseCase,
     ConfirmDirectPurchaseUseCase,
+    ReceiveDirectPurchaseUseCase,
     CreateDirectPurchaseUseCase,
     ReverseDirectPurchaseUseCase,
 )
@@ -69,8 +70,12 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
     from backend.infrastructure.integrations.procurement_payment_source_adapter import (
         ProcurementPaymentSourceBookingAdapter,
     )
+    from backend.application.suppliers.queries.supplier_origin_query_service import (
+        SupplierOriginQueryService,
+    )
     product_catalog = ProcurementProductCatalogAdapter(connection)
     warehouse_directory = WarehouseDirectoryQueryService(connection)
+    supplier_origins = SupplierOriginQueryService(connection)
     payment_booking = ProcurementPaymentSourceBookingAdapter(connection)
     return DirectPurchasePresenter(
         connection_provider=lambda: connection,
@@ -80,13 +85,16 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
         use_cases={
             "create": CreateDirectPurchaseUseCase(
                 authorization, supplier_directory, product_catalog=product_catalog,
-                warehouse_directory=warehouse_directory),
+                warehouse_directory=warehouse_directory, supplier_origins=supplier_origins),
             "authorize": AuthorizeDirectPurchaseUseCase(authorization),
             "confirm": ConfirmDirectPurchaseUseCase(
                 authorization, supplier_directory=supplier_directory,
                 product_catalog=product_catalog, warehouse_directory=warehouse_directory,
                 payment_booking=payment_booking),
             "reverse": ReverseDirectPurchaseUseCase(authorization),
+            "receive": ReceiveDirectPurchaseUseCase(
+                authorization, warehouse_directory=warehouse_directory,
+                product_catalog=product_catalog),
             "record_variance": RecordPurchasePriceVarianceUseCase(authorization),
         },
         session_context=session_context,
@@ -98,4 +106,6 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
         supplier_finance=SupplierFinanceAdapter(connection),
         receipt_status=InventoryReceiptStatusAdapter(connection),
         payment_booking=payment_booking,
+        warehouse_directory=warehouse_directory,
+        supplier_origins=supplier_origins,
     )

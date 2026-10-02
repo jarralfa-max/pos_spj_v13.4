@@ -27,6 +27,7 @@ from backend.domain.procurement.receiving_matching_policies import (
     DuplicatePurchasePolicy,
     InvoiceMatchingPolicy,
     MatchResult,
+    allocate_accepted_quantities,
 )
 from backend.domain.procurement.value_objects import Money, Tolerance
 from backend.infrastructure.db.repositories.procurement.unit_of_work import (
@@ -96,6 +97,75 @@ def _payment_term_days(payment_terms, supplier_id: str) -> int:
     return max(0, int(dias or 0))
 
 
+def _net_unit_price(quantity: Decimal, gross_price: Decimal, discount: Decimal) -> Decimal:
+    """Precio pactado NETO de descuento: la factura no trae descuento por línea,
+    así que su precio unitario debe ser ya el neto. Antes se comparaba contra
+    el precio bruto y una factura sin el descuento pactado conciliaba."""
+    if quantity <= 0:
+        return gross_price
+    return (quantity * gross_price - discount) / quantity
+
+
+def _accepted_weight_by_line(uow, po) -> dict[str, Decimal]:
+    """Peso real ACEPTADO por línea de orden (para lo que se paga por kg)."""
+    from backend.application.procurement.use_cases.purchase_order_use_cases import (
+        accepted_weight,
+    )
+    weights: dict[str, Decimal] = {}
+    for receipt in uow.receipts.completed_for_document(purchase_order_id=po.id):
+        for line in receipt.lines:
+            weight = accepted_weight(line)
+            if weight and line.purchase_order_line_id:
+                weights[line.purchase_order_line_id] = (
+                    weights.get(line.purchase_order_line_id, Decimal("0")) + weight)
+    return weights
+
+
+def _order_comparison(uow, po) -> dict[str, dict]:
+    by_line, unlinked = uow.receipts.accepted_by_source(purchase_order_id=po.id)
+    accepted = allocate_accepted_quantities(
+        [(line.id, line.product_id, line.ordered_quantity) for line in po.lines],
+        by_line, unlinked)
+    weights = (_accepted_weight_by_line(uow, po)
+               if any(line.priced_by_weight() for line in po.lines) else {})
+    return {line.id: {
+        # A $/kg la factura cobra kg: se compara contra el PESO REAL aceptado.
+        "accepted_quantity": (weights.get(line.id, Decimal("0")) if line.priced_by_weight()
+                              else accepted.get(line.id, Decimal("0"))),
+        "unit_price": _net_unit_price(line.billable_quantity(), line.unit_price.amount,
+                                      line.discount),
+        # Impuesto declarado en la orden (FASE 7), por unidad. Una orden sin
+        # impuesto capturado NO se compara (decisión del usuario 2026-09-18):
+        # cero puede ser "tasa 0" o "nadie lo capturó", y no se distinguen.
+        "tax_per_unit": (line.tax / line.billable_quantity()
+                         if line.tax > 0 and line.billable_quantity() > 0 else None),
+    } for line in po.lines}
+
+
+def _direct_comparison(uow, direct) -> dict[str, dict]:
+    # La recepción de la compra rápida se guarda en unidad de INVENTARIO
+    # (125 kg) y la factura cobra lo FACTURABLE: la unidad de compra (5
+    # costales) o, con peso variable a $/kg, el peso real (127.850 kg). Se
+    # reparte en inventario y se convierte a lo facturable de cada línea.
+    by_line, unlinked = uow.receipts.accepted_by_source(direct_purchase_id=direct.id)
+    accepted = allocate_accepted_quantities(
+        [(line.id, line.product_id, line.inventory_quantity()) for line in direct.lines],
+        by_line, unlinked)
+    result = {}
+    for line in direct.lines:
+        billable, inventory = line.billable_quantity(), line.inventory_quantity()
+        accepted_inventory = accepted.get(line.id, Decimal("0"))
+        result[line.id] = {
+            "accepted_quantity": (accepted_inventory * billable / inventory
+                                  if inventory > 0 else Decimal("0")),
+            "unit_price": _net_unit_price(billable, line.unit_cost.amount,
+                                          line.discount.amount),
+            # La compra rápida siempre captura su impuesto (cero incluido).
+            "tax_per_unit": line.tax.amount / billable if billable > 0 else Decimal("0"),
+        }
+    return result
+
+
 class CaptureSupplierInvoiceUseCase:
     def __init__(self, authorization=None, supplier_directory=None) -> None:
         self._auth = authorization or PurchaseAuthorizationPolicy()
@@ -121,6 +191,11 @@ class CaptureSupplierInvoiceUseCase:
             if uow.invoices.exists_for_supplier(supplier_id, invoice_number.strip()):
                 return ProcurementResult.fail("Factura duplicada del proveedor",
                                               "DUPLICATE_INVOICE", operation_id=operation_id)
+            uuid_fiscal = (uuid_fiscal or "").strip() or None
+            if uuid_fiscal and uow.invoices.exists_fiscal_uuid(uuid_fiscal):
+                return ProcurementResult.fail(
+                    "Ese folio fiscal (UUID) ya está capturado en otra factura",
+                    "DUPLICATE_INVOICE", operation_id=operation_id)
             try:
                 if self._supplier_directory is not None:
                     self._supplier_directory.require_eligible(supplier_id)
@@ -129,7 +204,8 @@ class CaptureSupplierInvoiceUseCase:
                         "La factura requiere líneas reales", "EMPTY_INVOICE_LINES",
                         operation_id=operation_id)
                 inv = SupplierInvoice.create(
-                    uow.sequences.next_number("FPR", _year()), supplier_id, invoice_number,
+                    uow.sequences.next_number("FPR", _year()), supplier_id,
+                    invoice_number.strip(),
                     Money(str(total), currency_code), purchase_order_id=purchase_order_id,
                     direct_purchase_id=direct_purchase_id, uuid_fiscal=uuid_fiscal,
                     captured_by_user_id=actor_user_id)
@@ -218,31 +294,25 @@ class MatchSupplierInvoiceUseCase:
                 result = MatchResult.MISSING_RECEIPT
             elif inv.purchase_order_id and po is not None:
                 result = matcher.match_lines(
-                    ordered_lines={line.id: {
-                        "accepted_quantity": accepted.get(line.product_id, Decimal("0")),
-                        "unit_price": line.unit_price.amount,
-                        # La orden no declara impuesto: no se compara (ver la
-                        # política). Antes era "0" y rechazaba todo IVA.
-                        "tax": None,
-                    } for line in po.lines},
+                    ordered_lines=_order_comparison(uow, po),
                     invoice_lines=[{
                         "purchase_order_line_id": line.purchase_order_line_id,
                         "invoiced_quantity": line.invoiced_quantity +
                         uow.invoices.previously_invoiced_quantity(
                             line.purchase_order_line_id or "", inv.id),
+                        "this_quantity": line.invoiced_quantity,
                         "unit_price": line.unit_price.amount,
                         "tax": line.tax.amount,
                     } for line in inv.lines])
             elif inv.direct_purchase_id and direct is not None:
-                ordered = {line.id: {
-                    "accepted_quantity": accepted.get(line.product_id, Decimal("0")),
-                    "unit_price": line.unit_cost.amount, "tax": line.tax.amount,
-                } for line in direct.lines}
                 result = matcher.match_lines(
-                    ordered_lines=ordered,
+                    ordered_lines=_direct_comparison(uow, direct),
                     invoice_lines=[{
                         "purchase_order_line_id": line.direct_purchase_line_id,
-                        "invoiced_quantity": line.invoiced_quantity,
+                        "invoiced_quantity": line.invoiced_quantity +
+                        uow.invoices.previously_invoiced_direct_quantity(
+                            line.direct_purchase_line_id or "", inv.id),
+                        "this_quantity": line.invoiced_quantity,
                         "unit_price": line.unit_price.amount, "tax": line.tax.amount,
                     } for line in inv.lines])
             else:

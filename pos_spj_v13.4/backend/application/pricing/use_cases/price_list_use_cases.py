@@ -187,6 +187,10 @@ class _TransitionUseCase(_BasePriceListUseCase):
     def _apply(self, price_list: PriceList, *, actor_user_id: str) -> None:
         raise NotImplementedError
 
+    def _side_effects(self, repo, price_list: PriceList, *, actor_user_id: str,
+                      operation_id: str) -> None:
+        """Cambios a OTRAS listas en la misma transacción (por omisión, ninguno)."""
+
     def execute(self, connection, *, actor_user_id: str, price_list_id: str,
                 operation_id: str) -> PricingResult:
         try:
@@ -216,6 +220,8 @@ class _TransitionUseCase(_BasePriceListUseCase):
                                       operation_id=operation_id)
 
         try:
+            self._side_effects(repo, price_list, actor_user_id=actor_user_id,
+                               operation_id=operation_id)
             repo.save_list(price_list)
             self._emit(repo, self.event_name, entity_id=price_list.id,
                        operation_id=operation_id, user_id=actor_user_id,
@@ -257,6 +263,22 @@ class ActivatePriceListUseCase(_TransitionUseCase):
 
     def _apply(self, price_list, *, actor_user_id):
         price_list.activate()
+
+    def _side_effects(self, repo, price_list, *, actor_user_id, operation_id):
+        """Siempre hay EXACTAMENTE una lista base (decisión del usuario,
+        2026-09-30): activar otra la REEMPLAZA en la misma operación. Antes
+        convivían dos activas y mandaba la de modificación más reciente, sin
+        que nadie lo eligiera."""
+        if price_list.kind is not PriceListKind.BASE:
+            return
+        for previous in repo.active_lists_of_kind(PriceListKind.BASE):
+            if previous.id == price_list.id:
+                continue
+            previous.deactivate()
+            repo.save_list(previous)
+            self._emit(repo, PricingEvents.PRICE_LIST_DEACTIVATED, entity_id=previous.id,
+                       operation_id=operation_id, user_id=actor_user_id,
+                       status=previous.status.value, replaced_by=price_list.id)
 
 
 class DeactivatePriceListUseCase(_TransitionUseCase):

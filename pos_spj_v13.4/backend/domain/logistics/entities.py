@@ -293,16 +293,30 @@ class LogisticsShipment:
     dispatched_at: str | None = None
     arrived_at: str | None = None
     closed_at: str | None = None
+    # §14: el origen se identifica por la dirección del proveedor (id) más una
+    # foto del domicilio al crear el embarque; `origin_location` queda como el
+    # texto legible ("Bodega Norte · Querétaro"), nunca como identidad.
+    origin_supplier_address_id: str | None = None
+    origin_address_snapshot: str | None = None
+    in_transit_at: str | None = None
+    receiving_started_at: str | None = None
 
     @classmethod
     def create(cls, *, shipment_number: str, origin_type: str,
                origin_location: str, destination_branch_id: str,
                destination_warehouse_id: str, buyer_user_id: str,
                operation_id: str, origin_supplier_id=None,
-               vehicle_id=None, shipment_id: str | None = None) -> "LogisticsShipment":
+               vehicle_id=None, shipment_id: str | None = None,
+               origin_supplier_address_id: str | None = None,
+               origin_address_snapshot: str | None = None) -> "LogisticsShipment":
+        if origin_type == "SUPPLIER" and origin_supplier_id and not origin_supplier_address_id:
+            raise LogisticsDomainError(
+                "Un embarque desde proveedor requiere la bodega o punto de recolección")
         return cls(shipment_id or new_uuid(), shipment_number, origin_type, origin_supplier_id,
                    origin_location, destination_branch_id, destination_warehouse_id,
-                   buyer_user_id, vehicle_id, ShipmentStatus.DRAFT, operation_id)
+                   buyer_user_id, vehicle_id, ShipmentStatus.DRAFT, operation_id,
+                   origin_supplier_address_id=origin_supplier_address_id,
+                   origin_address_snapshot=origin_address_snapshot)
 
     def add_source(self, source_type: SourceDocumentType, source_id: str) -> None:
         if any(s.source_document_type is source_type and
@@ -441,6 +455,38 @@ class LogisticsShipment:
             raise InvalidLogisticsStateError("Todos los contenedores raíz deben estar sellados")
         self.status = ShipmentStatus.DISPATCHED
         self.dispatched_at = utcnow()
+
+    # §28: el embarque ya no termina en DISPATCHED.
+    def start_transit(self) -> None:
+        if self.status is not ShipmentStatus.DISPATCHED:
+            raise InvalidLogisticsStateError("Sólo un embarque despachado sale a tránsito")
+        self.status = ShipmentStatus.IN_TRANSIT
+        self.in_transit_at = utcnow()
+
+    def arrive(self) -> None:
+        if self.status not in (ShipmentStatus.DISPATCHED, ShipmentStatus.IN_TRANSIT):
+            raise InvalidLogisticsStateError("Sólo llega un embarque despachado o en tránsito")
+        self.status = ShipmentStatus.ARRIVED
+        self.arrived_at = utcnow()
+        for node in self.nodes:
+            if not node.detached_at:
+                node.status = ShipmentNodeStatus.ARRIVED
+
+    def start_receiving(self) -> None:
+        if self.status not in (ShipmentStatus.ARRIVED, ShipmentStatus.RECEIVING):
+            raise InvalidLogisticsStateError("Registra la llegada antes de contar")
+        if self.status is ShipmentStatus.ARRIVED:
+            self.status = ShipmentStatus.RECEIVING
+            self.receiving_started_at = utcnow()
+
+    def close(self) -> None:
+        if self.status is not ShipmentStatus.RECEIVING:
+            raise InvalidLogisticsStateError("Sólo se cierra un embarque en recepción")
+        self.status = ShipmentStatus.CLOSED
+        self.closed_at = utcnow()
+        for node in self.nodes:
+            if not node.detached_at:
+                node.status = ShipmentNodeStatus.ACCEPTED
 
     def node(self, node_id: str | None) -> ShipmentContainerNode:
         for node in self.nodes:

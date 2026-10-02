@@ -36,6 +36,9 @@ class ProductUnitConversion:
     effective_from: str | None = None
     effective_to: str | None = None
     active: bool = True
+    #: §27: ¿la presentación se puede RECIBIR en fracción («4 costales + 22 kg»)?
+    #: Lo decide Productos por presentación; Compras sólo lo obedece.
+    fractional_receipt: bool = True
 
     def __post_init__(self) -> None:
         if not self.from_unit_id or not self.to_unit_id:

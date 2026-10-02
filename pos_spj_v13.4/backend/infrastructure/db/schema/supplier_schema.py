@@ -114,7 +114,8 @@ _DDL = (
         latitude REAL,
         longitude REAL,
         geocoding_source TEXT,
-        validation_state TEXT NOT NULL DEFAULT 'MANUAL'
+        validation_state TEXT NOT NULL DEFAULT 'MANUAL',
+        label TEXT NOT NULL DEFAULT ''
     )
     """,
     """

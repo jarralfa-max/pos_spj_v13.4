@@ -28,8 +28,28 @@ class InventoryProductConfigDTO:
 
 
 @dataclass(frozen=True)
+class PurchaseUnitDTO:
+    """Una unidad en la que se puede comprar el producto: ``1 code = factor_to_base``
+    unidades base. La unidad base misma va con factor 1."""
+
+    unit_id: str
+    code: str
+    name: str
+    dimension: str
+    factor_to_base: str
+    is_base: bool
+    product_specific: bool
+    conversion_id: str | None = None
+    #: §27: se puede recibir en fracción. La unidad base siempre puede.
+    fractional_receipt: bool = True
+
+
+@dataclass(frozen=True)
 class PurchaseProductConfigDTO:
-    """What Purchasing needs to buy a product (§31). No final price here."""
+    """What Purchasing needs to buy a product (§31). No final price here.
+
+    Las unidades de compra, su conversión y la base de precio salen de aquí: Compras
+    no las define ni deja capturarlas."""
 
     product_id: str
     purchasable: bool
@@ -40,6 +60,18 @@ class PurchaseProductConfigDTO:
     requires_cold_chain: bool
     inspection_required: bool
     supplier_codes: tuple[str, ...]
+    code: str = ""
+    name: str = ""
+    base_unit_code: str = ""
+    base_unit_name: str = ""
+    base_unit_dimension: str = ""
+    purchase_units: tuple[PurchaseUnitDTO, ...] = ()
+    price_basis: str | None = None
+    lot_controlled: bool = False
+    expiration_controlled: bool = False
+    # §25: lo que la RECEPCIÓN debe capturar, también desde el maestro.
+    temperature_required: bool = False
+    serial_controlled: bool = False
 
 
 @dataclass(frozen=True)

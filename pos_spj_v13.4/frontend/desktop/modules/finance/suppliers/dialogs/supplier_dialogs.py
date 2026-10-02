@@ -362,9 +362,14 @@ class SupplierAddressDialog(_SupplierDialog):
 
     def _build(self) -> None:
         self._type = _combo(_ADDRESS_TYPES)
+        self._label = StandardLineEdit(self)
+        # Así la reconoce Compras al elegir dónde recoger ("Bodega Norte ·
+        # Querétaro") y Logística como origen del embarque.
+        self._label.setPlaceholderText("Nombre (ej. Bodega Norte, Centro de distribución)")
         self._address = AddressInput(self, search_service=self._search_service,
                                      runner=self._runner)
         self.form.addRow("Tipo *", self._type)
+        self.form.addRow("Nombre", self._label)
         self.form.addRow("Domicilio *", self._address)
 
     def _error(self) -> str | None:
@@ -383,6 +388,7 @@ class SupplierAddressDialog(_SupplierDialog):
             line = f"{line}, Col. {direccion.neighborhood}"
         return {
             "address_type": self._type.current_id(),
+            "label": self._label.text().strip(),
             "line": line,
             "city": direccion.municipality, "state": direccion.state,
             "postal_code": direccion.postal_code,

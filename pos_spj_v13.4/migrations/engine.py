@@ -280,6 +280,17 @@ MIGRATIONS = [
     _Migration("274",  "migrations.standalone.274_revoke_processing_quality_decision_from_roles"),
     _Migration("275",  "migrations.standalone.275_processing_order_folio"),
     _Migration("276",  "migrations.standalone.276_meat_processing_production_plan"),
+    _Migration("277",  "migrations.standalone.277_purchase_order_line_units"),
+    _Migration("278",  "migrations.standalone.278_purchase_orders_award_supplier_unique"),
+    _Migration("279",  "migrations.standalone.279_purchase_order_enterprise_fields"),
+    _Migration("280",  "migrations.standalone.280_compra_en_origen_supplier_origin"),
+    _Migration("281",  "migrations.standalone.281_receipt_line_order_link"),
+    _Migration("282",  "migrations.standalone.282_direct_purchase_variable_weight"),
+    _Migration("283",  "migrations.standalone.283_seed_compras_logistica_role_permissions"),
+    _Migration("284",  "migrations.standalone.284_single_active_base_price_list"),
+    _Migration("285",  "migrations.standalone.285_direct_purchase_fulfillment_mode"),
+    _Migration("286",  "migrations.standalone.286_unit_conversion_fractional_receipt"),
+    _Migration("287",  "migrations.standalone.287_purchase_order_weight_pricing"),
 ]
 
 def _ensure_tracking_table(conn):

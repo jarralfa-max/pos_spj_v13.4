@@ -6,6 +6,8 @@ use cases. The view/pages never see the connection nor the AppContainer.
 
 from __future__ import annotations
 
+import logging
+
 from backend.application.procurement.adapters.product_catalog_adapter import (
     ProcurementProductCatalogAdapter,
 )
@@ -17,6 +19,7 @@ from backend.application.procurement.adapters.supplier_profile_adapter import (
 from backend.application.procurement.queries import SupplierPickerQueryService
 from backend.application.procurement.queries.enterprise_read_services import (
     InvoiceReadService,
+    ReceiptReadService,
     OrderReadService,
     RequisitionReadService,
 )
@@ -42,11 +45,15 @@ from backend.application.procurement.session_authorization import (
     ProcurementSessionPermissionChecker,
 )
 from backend.application.procurement.use_cases.purchase_order_use_cases import (
+    AcknowledgePurchaseOrderUseCase,
     ApprovePurchaseOrderUseCase,
     ChangePurchaseOrderUseCase,
     CreatePurchaseOrderUseCase,
     ReceivePurchaseOrderUseCase,
     SendPurchaseOrderUseCase,
+)
+from backend.application.procurement.use_cases.direct_purchase_use_cases import (
+    ReceiveDirectPurchaseUseCase,
 )
 from backend.application.procurement.use_cases.requisition_use_cases import (
     ApprovePurchaseRequisitionUseCase,
@@ -66,6 +73,9 @@ from backend.application.procurement.use_cases.supplier_invoice_use_cases import
 from frontend.desktop.modules.purchasing.enterprise_presenter import (
     EnterprisePurchasingPresenter,
 )
+
+
+logger = logging.getLogger("spj.purchasing.enterprise_routes")
 
 
 def _post_commit_dispatcher(connection):
@@ -95,18 +105,73 @@ def build_enterprise_presenter(connection, session_context=None, *,
     # (core/events/wiring.py::_wire_logistics_pipeline) instead of constructing a
     # second, repository-less LogisticsShipmentQueryService here.
     logistics_reads = logistics_queries or LogisticsShipmentQueryService(connection)
-    origin_workspace = None
-    if logistics_service is not None and logistics_queries is not None:
-        from backend.application.logistics.origin_purchase_workspace import (
-            OriginPurchaseWorkspaceService,
-        )
-        origin_workspace = OriginPurchaseWorkspaceService(logistics_service, logistics_queries)
-    return EnterprisePurchasingPresenter(
+    product_catalog = ProcurementProductCatalogAdapter(connection)
+    from backend.application.suppliers.queries.supplier_origin_query_service import (
+        SupplierOriginQueryService,
+    )
+    supplier_origins = SupplierOriginQueryService(connection)
+    warehouse_directory = WarehouseDirectoryQueryService(connection)
+    create_order = CreatePurchaseOrderUseCase(
+        authorization, supplier_directory, product_catalog=product_catalog,
+        warehouse_directory=warehouse_directory, supplier_origins=supplier_origins)
+    from backend.application.procurement.use_cases.award_order_use_cases import (
+        GeneratePurchaseOrdersFromAwardUseCase,
+    )
+    # Logística: nadie la construía en producción desde que se borró
+    # `core/events/wiring.py`; «Compra en origen» quedaba siempre apagada.
+    if logistics_service is None or logistics_queries is None:
+        from backend.application.logistics.composition import build_logistics_services
+        logistics_service, logistics_queries = build_logistics_services(
+            connection, session_context)
+        logistics_reads = logistics_queries
+    from backend.application.logistics.origin_purchase_workspace import (
+        OriginPurchaseWorkspaceService,
+    )
+    receive_order_uc = ReceivePurchaseOrderUseCase(authorization=authorization,
+                                                   product_catalog=product_catalog)
+    # Un SOLO punto de publicación: el despachador del presentador (el mismo
+    # que usan todas las demás operaciones). Antes la recepción en origen
+    # publicaba por su cuenta en el bus global.
+    presenter_ref: list = []
+    receive_direct_uc = ReceiveDirectPurchaseUseCase(authorization,
+                                                     warehouse_directory=warehouse_directory,
+                                                     product_catalog=product_catalog)
+
+    def _publish(result) -> None:
+        dispatch = getattr(presenter_ref[0], "_dispatch", None) if presenter_ref else None
+        if result.success and dispatch is not None:
+            try:
+                dispatch()
+            except Exception:  # pragma: no cover - el outbox se reintenta después
+                logger.exception("post-commit dispatch failed (recepción en origen)")
+
+    def receive_direct(*, actor_user_id, order_id, lines, shipment_id, operation_id):
+        result = receive_direct_uc.execute(
+            connection, actor_user_id=actor_user_id, direct_purchase_id=order_id,
+            operation_id=operation_id, receipt_lines=lines, shipment_id=shipment_id)
+        _publish(result)
+        return result.success, result.message, dict(result.data,
+                                                    entity_id=result.entity_id)
+
+    def receive_order(*, actor_user_id, order_id, lines, shipment_id, operation_id):
+        result = receive_order_uc.execute(
+            connection, actor_user_id=actor_user_id, purchase_order_id=order_id,
+            operation_id=operation_id, receipt_lines=lines, shipment_id=shipment_id)
+        _publish(result)
+        return result.success, result.message, dict(result.data,
+                                                     entity_id=result.entity_id)
+
+    origin_workspace = OriginPurchaseWorkspaceService(
+        logistics_service, logistics_queries, connection=connection,
+        supplier_origins=supplier_origins, product_catalog=product_catalog,
+        receive_order=receive_order, receive_direct=receive_direct)
+    presenter = EnterprisePurchasingPresenter(
         connection_provider=lambda: connection,
         read_services={
             "requisitions": RequisitionReadService(connection),
             "orders": OrderReadService(connection),
             "invoices": InvoiceReadService(connection),
+            "receipts": ReceiptReadService(connection),
             "rfqs": RfqReadService(connection),
         },
         analytics=ProcurementAnalyticsService(connection),
@@ -118,11 +183,14 @@ def build_enterprise_presenter(connection, session_context=None, *,
             "rfq_create": CreateRfqUseCase(authorization, supplier_directory),
             "quote_capture": CaptureSupplierQuoteUseCase(authorization, supplier_directory),
             "quote_award": AwardSupplierQuoteUseCase(authorization),
-            "po_create": CreatePurchaseOrderUseCase(authorization, supplier_directory),
+            "po_create": create_order,
+            "po_from_award": GeneratePurchaseOrdersFromAwardUseCase(create_order, authorization),
             "po_approve": ApprovePurchaseOrderUseCase(authorization),
             "po_send": SendPurchaseOrderUseCase(authorization),
+            "po_acknowledge": AcknowledgePurchaseOrderUseCase(authorization),
             "po_change": ChangePurchaseOrderUseCase(authorization),
-            "po_receive": ReceivePurchaseOrderUseCase(authorization=authorization),
+            "po_receive": ReceivePurchaseOrderUseCase(authorization=authorization,
+                                                      product_catalog=product_catalog),
             "inv_capture": CaptureSupplierInvoiceUseCase(
                 authorization, supplier_directory),
             "inv_match": MatchSupplierInvoiceUseCase(
@@ -133,15 +201,18 @@ def build_enterprise_presenter(connection, session_context=None, *,
         },
         session_context=session_context,
         logistics_reads=logistics_reads,
-        warehouse_directory=WarehouseDirectoryQueryService(connection),
+        warehouse_directory=warehouse_directory,
         history_reads=PurchaseHistoryReadService(connection),
         origin_workspace=origin_workspace,
         supplier_picker=SupplierPickerQueryService(connection),
-        product_catalog=ProcurementProductCatalogAdapter(connection),
+        product_catalog=product_catalog,
+        supplier_origins=supplier_origins,
         supplier_profile=SupplierProfileAdapter(connection),
         supplier_finance=SupplierFinanceAdapter(connection),
         receipt_status=InventoryReceiptStatusAdapter(connection),
     )
+    presenter_ref.append(presenter)
+    return presenter
 
 
 def create_enterprise_purchasing_view(container, parent=None):

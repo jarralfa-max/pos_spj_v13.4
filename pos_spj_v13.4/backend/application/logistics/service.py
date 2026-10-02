@@ -186,6 +186,145 @@ class LogisticsApplicationService:
                                    {"shipment_id": shipment.id})
         return shipment
 
+    # ── lectura (para coordinadores; nunca el repositorio directo) ────────────
+    def get_shipment(self, shipment_id: str):
+        return self._repo.get_shipment(shipment_id)
+
+    def get_container(self, container_id: str):
+        return self._repo.get_container(container_id)
+
+    def get_type(self, type_id: str):
+        return self._repo.get_type(type_id)
+
+    def resolve_qr(self, token: str) -> str:
+        container_id, _version = self._qr.resolve(token)
+        return container_id
+
+    # ── llegada y recepción (§28) ─────────────────────────────────────────────
+    def mark_in_transit(self, *, actor_user_id: str, shipment_id: str,
+                        operation_id: str) -> LogisticsShipment:
+        self._auth.require(actor_user_id, LogisticsPermissions.SHIPMENT_DISPATCH)
+        if self._operation_result(operation_id) is not None:
+            return self._required_shipment(shipment_id)
+        shipment = self._required_shipment(shipment_id)
+        shipment.start_transit()
+        shipment.touch()
+        containers = [self._required_container(n.container_id) for n in shipment.nodes
+                      if not n.detached_at]
+        with self._connection:
+            for container in containers:
+                container.status = ContainerStatus.IN_TRANSIT
+                self._repo.save_container(container)
+            self._repo.save_shipment(shipment)
+            self._event("LOGISTICS_SHIPMENT_IN_TRANSIT", shipment.id, operation_id,
+                        {"shipment_id": shipment.id})
+            self._record_operation(operation_id, "SHIPMENT_IN_TRANSIT", shipment.id,
+                                   {"shipment_id": shipment.id})
+        return shipment
+
+    def register_arrival(self, *, actor_user_id: str, shipment_id: str,
+                         operation_id: str) -> LogisticsShipment:
+        self._auth.require(actor_user_id, LogisticsPermissions.SHIPMENT_RECEIVE)
+        if self._operation_result(operation_id) is not None:
+            return self._required_shipment(shipment_id)
+        shipment = self._required_shipment(shipment_id)
+        shipment.arrive()
+        shipment.touch()
+        containers = [self._required_container(n.container_id) for n in shipment.nodes
+                      if not n.detached_at]
+        with self._connection:
+            for container in containers:
+                container.status = ContainerStatus.AT_DESTINATION
+                self._repo.save_container(container)
+            self._repo.save_shipment(shipment)
+            self._event("LOGISTICS_SHIPMENT_ARRIVED", shipment.id, operation_id,
+                        {"shipment_id": shipment.id})
+            self._record_operation(operation_id, "SHIPMENT_ARRIVED", shipment.id,
+                                   {"shipment_id": shipment.id})
+        return shipment
+
+    def record_count(self, *, actor_user_id: str, shipment_id: str, content_id: str,
+                     received_quantity, accepted_quantity, received_net_weight="0",
+                     piece_count=None, lot_number=None, expiration_date=None,
+                     temperature=None, notes: str = "", operation_id: str) -> None:
+        """Conteo/pesaje de UN contenido al llegar. Repetirlo lo corrige (una fila
+        por contenido); lo aceptado nunca excede lo recibido."""
+        from decimal import Decimal
+        self._auth.require(actor_user_id, LogisticsPermissions.SHIPMENT_RECEIVE)
+        shipment = self._required_shipment(shipment_id)
+        if not any(c.id == content_id for c in shipment.contents):
+            raise ValueError("El contenido no pertenece al embarque")
+        received, accepted = Decimal(str(received_quantity)), Decimal(str(accepted_quantity))
+        if received < 0 or accepted < 0 or accepted > received:
+            raise ValueError("Lo aceptado no puede exceder lo recibido")
+        shipment.start_receiving()
+        shipment.touch()
+        with self._connection:
+            self._repo.save_shipment(shipment)
+            self._connection.execute(
+                "INSERT INTO logistics_arrival_counts (id, shipment_id, content_id,"
+                " received_quantity, received_net_weight, accepted_quantity, rejected_quantity,"
+                " piece_count, lot_number, expiration_date, temperature, notes,"
+                " counted_by_user_id, counted_at, operation_id)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+                " ON CONFLICT(content_id) DO UPDATE SET"
+                " received_quantity=excluded.received_quantity,"
+                " received_net_weight=excluded.received_net_weight,"
+                " accepted_quantity=excluded.accepted_quantity,"
+                " rejected_quantity=excluded.rejected_quantity,"
+                " piece_count=excluded.piece_count, lot_number=excluded.lot_number,"
+                " expiration_date=excluded.expiration_date, temperature=excluded.temperature,"
+                " notes=excluded.notes, counted_by_user_id=excluded.counted_by_user_id,"
+                " counted_at=excluded.counted_at, operation_id=excluded.operation_id",
+                (new_uuid(), shipment_id, content_id, str(received),
+                 str(Decimal(str(received_net_weight or "0"))), str(accepted),
+                 str(received - accepted), piece_count, lot_number or None,
+                 str(expiration_date) if expiration_date else None,
+                 str(temperature) if temperature not in (None, "") else None,
+                 notes or "", actor_user_id, utcnow(), operation_id))
+            self._audit(actor_user_id, operation_id, "ShipmentContent", content_id,
+                        "COUNTED", notes or "")
+
+    def arrival_counts(self, shipment_id: str) -> dict[str, dict]:
+        cursor = self._connection.execute(
+            "SELECT * FROM logistics_arrival_counts WHERE shipment_id=?", (shipment_id,))
+        columns = [c[0] for c in cursor.description]
+        return {row[2]: dict(zip(columns, row)) for row in cursor.fetchall()}
+
+    def close_shipment(self, *, actor_user_id: str, shipment_id: str,
+                       operation_id: str) -> LogisticsShipment:
+        """Cierra el embarque recibido y libera sus contenedores: los propios
+        quedan DISPONIBLES para el siguiente viaje; los del proveedor, devueltos."""
+        from backend.domain.logistics.enums import ContainerOwnerType
+        self._auth.require(actor_user_id, LogisticsPermissions.SHIPMENT_RECEIVE)
+        if self._operation_result(operation_id) is not None:
+            return self._required_shipment(shipment_id)
+        shipment = self._required_shipment(shipment_id)
+        shipment.close()
+        shipment.touch()
+        with self._connection:
+            for node in shipment.nodes:
+                if node.detached_at:
+                    continue
+                container = self._required_container(node.container_id)
+                supplier_owned = container.owner_type is ContainerOwnerType.SUPPLIER
+                container.release(return_to_supplier=supplier_owned)
+                if not supplier_owned:
+                    container.status = ContainerStatus.AVAILABLE
+                    container.current_custodian_id = None
+                self._repo.save_container(container)
+                # `logistics_custody_events.operation_id` es ÚNICO: un evento por
+                # contenedor necesita su propia operación derivada.
+                self._custody(container, actor_user_id,
+                              CustodyAction.RETURNED if supplier_owned else CustodyAction.RELEASED,
+                              f"{operation_id}:{container.id}", "Embarque recibido y cerrado")
+            self._repo.save_shipment(shipment)
+            self._event("LOGISTICS_SHIPMENT_CLOSED", shipment.id, operation_id,
+                        {"shipment_id": shipment.id})
+            self._record_operation(operation_id, "SHIPMENT_CLOSED", shipment.id,
+                                   {"shipment_id": shipment.id})
+        return shipment
+
     def authorize_loading_variance(self, *, actor_user_id: str, shipment_id: str,
                                    source_line_id: str, reason: str,
                                    operation_id: str) -> None:

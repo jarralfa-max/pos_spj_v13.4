@@ -57,6 +57,9 @@ class DecimalInput(QLineEdit):
         except InvalidOperation:
             self.setText("")
 
+    def set_precision(self, precision: int) -> None:
+        self._precision = max(0, int(precision))
+
     # validation --------------------------------------------------------------
     def is_valid(self) -> bool:
         text = self.text().strip().replace(",", "")

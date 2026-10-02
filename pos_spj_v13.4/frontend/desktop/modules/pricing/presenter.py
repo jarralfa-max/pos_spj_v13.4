@@ -225,6 +225,30 @@ class PricingPresenter:
             return todas
         return todas + [(o.branch_id, o.name) for o in encontradas]
 
+    # ── política de costo (§32) ───────────────────────────────────────────
+    def cost_policy_options(self) -> list[tuple[str, str]]:
+        from backend.application.pricing.cost_policy import COST_POLICY_LABELS
+        return [(policy.value, label) for policy, label in COST_POLICY_LABELS.items()]
+
+    def current_cost_policy(self) -> str:
+        from backend.application.pricing.cost_policy import CostPolicy, CostPolicySettings
+        if self._conn is None:
+            return CostPolicy.GLOBAL.value
+        try:
+            return CostPolicySettings(self._conn()).current().value
+        except Exception:  # pragma: no cover - defensivo
+            logger.exception("No se pudo leer la política de costo")
+            return CostPolicy.GLOBAL.value
+
+    @property
+    def can_manage_cost_policy(self) -> bool:
+        from backend.application.pricing.permissions import PricingPermissions
+        return "set_cost_policy" in self._use_cases and self.can(
+            PricingPermissions.SETTINGS_MANAGE)
+
+    def set_cost_policy(self, policy: str) -> tuple[bool, str, dict]:
+        return self._run("set_cost_policy", policy=policy)
+
     def settings(self) -> TableViewModel:
         """Parámetros efectivos del módulo, como `Parámetro · Valor · Nota`.
 

@@ -4043,3 +4043,324 @@ Decisiones del usuario (2026-09-24) y lo hecho con ellas:
    folio), y quien aprobó el plan no convierte (segregación). La línea guarda el
    proceso y el producto objetivo (la entrada en despiece). **Migración 276**:
    `production_plans` (único por sucursal y día) y `production_plan_lines`.
+
+## Compras — compra rápida visible y unidades de compra desde Productos (FASE 2-3, 2026-09-25, sin migración)
+
+1. **"No pasa nada" al guardar la compra rápida**: medido sobre la base real, el
+   borrador SÍ se guardaba (CD-2026-000001), pero el único aviso era una línea de
+   texto pequeña, la captura seguía editable, y tras confirmar la tabla nunca se
+   repintaba (la compra seguía a la vista). Ahora: aviso destacado del Design
+   System (`QLabel[role="banner"]`, estados error/éxito, en `qss_builder`), folio
+   en el resumen («Documento»), captura bloqueada tras guardar («Nueva compra»
+   desbloquea con operación nueva), tabla vacía y folio confirmado tras
+   confirmar. Modalidad y Condición abren con valor real (antes placeholder que
+   guardaba "Pago inmediato" sin mostrarlo).
+2. **Búsqueda de productos**: `explain_empty` relajaba primero el TEXTO; con un
+   solo producto habilitado en la sucursal, buscar otro existente decía "ninguno
+   coincide". Ahora relaja primero sucursal/estado conservando el texto
+   (SIN_HABILITAR_EN_SUCURSAL / SIN_ACTIVOS). La compra rápida busca, explica y
+   costea con la sucursal del DOCUMENTO (antes la de la sesión) y pasa
+   `empty_reason_provider` al diálogo (antes nunca explicaba). La fila de estado
+   de `EntitySearchInput` ajusta línea (antes quedaba cortada).
+3. **FASE 3 — unidades desde Productos**: `PurchaseProductConfigDTO` (contrato
+   existente de Productos §31) ahora trae unidad base, presentaciones
+   (`product_unit_conversions` hacia/desde la base, específica del producto gana
+   a la global, vigencia respetada) y base de precio; tolera esquemas reducidos y
+   conexiones sin `sqlite3.Row`. Compras lo lee por
+   `ProcurementProductCatalogAdapter.purchase_profile` (`PurchaseProductProfile`).
+   `CreateDirectPurchaseUseCase` DERIVA unidad de inventario y factor del maestro
+   (ignora lo que mande la pantalla) y rechaza una presentación no configurada
+   (`UNIT_NOT_CONFIGURED`). El diálogo «Agregar producto» perdió "Producto por
+   peso" y "Factor de conversión": se ELIGE la unidad de compra, se ve la
+   equivalencia y los kilos que entran; precisión 3 para peso. Captura en
+   Productos → Catálogo → «Unidades de compra» (alta y retiro; nuevo
+   `SetUnitConversionActiveUseCase`, nunca se borra).
+4. **Costo al inventario**: `DIRECT_PURCHASE_RECEIVED` mandaba cantidad en unidad
+   de inventario con costo de la unidad de compra (2 cajas de 20 kg a $400 → 40 kg
+   a $400/kg). Ahora costo por unidad de inventario.
+5. **Permisos**: `PRODUCTOS.unidad.gestionar` y `PRODUCTOS.conversion.gestionar`
+   no estaban en el puente de permisos y caían a `PRODUCTOS.ver`; ahora exigen
+   edición.
+6. Borrado `frontend/desktop/modules/purchasing/pages/direct_purchase_page.py`
+   (código muerto, sin referencias).
+
+Pendiente: `OrderFormDialog` (Órdenes) aún captura el factor a mano — entra en
+FASE 5 (PR→OC).
+
+### Compras con catálogo GLOBAL (decisión del usuario, 2026-09-25)
+
+Las compras NO se filtran por habilitación de sucursal: `ProcurementProductCatalogAdapter.search`
+busca en todo el catálogo comprable y usa la sucursal del formulario sólo para
+MARCAR (`enabled_in_branch`, vía `_BaseProductSearch.enabled_in_branch` de
+Productos). El resultado dice «CÓDIGO · deshabilitado para esta sucursal» y el
+tooltip de la fila «Habilítalo en Productos → Sucursales y surtidos.»
+(`SearchOption.tooltip`, pintado por `EntitySearchInput`). El producto sigue
+siendo seleccionable y comprable. La explicación de vacío de Compras ya no
+menciona habilitación. Ventas/Inventario siguen filtrando por sucursal.
+
+## Compras FASE 5 — solicitud → orden de compra (migración 277, 2026-09-25)
+
+1. **No se podía crear ninguna orden en producción**: «Nueva orden» y «Crear
+   orden» (desde solicitud) exigían `default_warehouse()` antes de abrir el
+   diálogo y `LegacySessionAdapter.active_warehouse_id` es siempre `""`. Ahora
+   sucursal y almacén se eligen en el formulario (el almacén se recarga al
+   cambiar de sucursal y se preselecciona si es único). `open_order_form` es la
+   única entrada.
+2. **El diálogo crea la orden y sólo se cierra si se creó**: antes un rechazo
+   del backend llegaba DESPUÉS de cerrar y se perdía la captura. Error como banner
+   arriba del diálogo. `operation_id` estable por captura (doble clic = una orden).
+3. **Sin precio 0**: las líneas que vienen de una solicitud sin costo estimado
+   quedan «Falta precio» (nunca se siembra 0) y el diálogo no acepta hasta
+   capturarlo («Capturar precio»). También «Quitar línea».
+4. **Reglas del maestro en la orden** (`product_master_rules.py`, compartido con
+   la compra rápida): almacén de la sucursal, producto activo y comprable, unidad
+   de compra configurada en Productos; el factor lo deriva el maestro (el campo
+   «Conversión» tecleado desapareció). Validación ANTES de reservar el folio: una
+   línea inválida ya no deja hueco en la secuencia OC.
+5. **Migración 277**: `purchase_order_lines.purchase_unit` / `inventory_unit`.
+6. **Recepción de OC → inventario**: mandaba la cantidad en unidad de compra y sin
+   costo; ahora cantidad aceptada × factor y costo por unidad de inventario.
+7. **Nombres, nunca ids**: `product_name` en las líneas de solicitud, orden,
+   factura y comparación de cotizaciones (`queries/product_names.py`); paneles de
+   detalle, recepción y adjudicación muestran el nombre.
+8. Diálogos con líneas usan `DialogMetrics.WIDTH_LG`; el buscador de producto va
+   en su propio renglón.
+
+Pendiente (FASE 6): una solicitud sigue admitiendo UNA sola orden (la primera la
+marca SOURCED) y la adjudicación no genera órdenes.
+
+## Compras FASE 6 — adjudicación → órdenes de compra (migración 278, 2026-09-25)
+
+1. **La adjudicación era un callejón sin salida**: sólo escribía
+   `purchase_awards`/`purchase_award_lines`. Nuevo
+   `GeneratePurchaseOrdersFromAwardUseCase` (`award_order_use_cases.py`): agrupa
+   las líneas adjudicadas por proveedor y crea UNA orden por proveedor con el
+   precio COTIZADO y la cantidad ADJUDICADA, mediante el mismo
+   `CreatePurchaseOrderUseCase` (mismas reglas del maestro de FASE 5). Las
+   órdenes llevan `source_requisition_id`, `source_rfq_id` y `source_award_id`.
+2. **Idempotencia por (adjudicación, proveedor)**: el caso de uso devuelve la
+   orden existente y la **migración 278** agrega el índice único parcial
+   `purchase_orders(source_award_id, supplier_id)`. Reintentar tras un fallo
+   genera sólo las que falten.
+3. **Varias órdenes por solicitud**: la primera orden marcaba la solicitud
+   SOURCED y bloqueaba la segunda. Ahora se admite APROBADA o PARCIALMENTE
+   ABASTECIDA, y el estado se calcula por COBERTURA (cantidad ordenada × factor
+   de todas sus órdenes no rechazadas vs. lo pedido).
+4. **La RFQ se cierra al adjudicar** (antes quedaba en «Borrador»).
+5. Pantalla: botón «Generar órdenes» en el detalle de Cotizaciones (activo
+   mientras falte alguna), y se ofrece automáticamente justo después de
+   adjudicar. El diálogo muestra proveedor, líneas, total y orden (o «Por
+   generar»), pide el almacén (preseleccionado si es único) y sólo cierra si
+   todo se generó. Estado de invitación y de RFQ en español.
+6. **(cierre del pendiente, mismo día)** «Generar órdenes» es ATÓMICO:
+   `CreatePurchaseOrderUseCase.create_in(uow, …)` crea dentro de una transacción
+   ajena y el caso de uso de adjudicación genera las de todos los proveedores en
+   UNA sola; si la de un proveedor falla se revierten todas (y no se queman folios).
+
+## Compras FASE 7 — orden de compra completa y confirmación del proveedor (migración 279, 2026-09-25)
+
+1. **Encabezado (§23)**: fecha requerida y prometida, condición de pago (Contado,
+   Crédito 7/15/30/45/60), forma de entrega (Entrega del proveedor / Recolección en
+   proveedor), moneda con tipo de cambio obligatorio si no es MXN, dirección de
+   entrega, centro de costo, proyecto, contrato y notas («Más datos»). El detalle
+   muestra comprador, sucursal y almacén por NOMBRE.
+2. **Líneas**: descuento e IVA por línea (descuento ≤ importe), subtotal, cantidad en
+   unidad de compra y de inventario. Total = Σ(cantidad × precio − descuento + IVA).
+3. **Confirmación del proveedor (§24)**: `send_order(acknowledge=True)` marcaba la
+   orden como confirmada SIN ningún dato; se eliminó. Nuevo
+   `AcknowledgePurchaseOrderUseCase` (permiso `COMPRAS.orden.confirmar`, que existía
+   sin usarse): referencia del proveedor, fecha de entrega confirmada, cantidad
+   confirmada por línea, comentarios, quién y cuándo. Las EXCEPCIONES (confirma
+   menos/más de lo pedido, entrega posterior a la requerida) se calculan, se guardan
+   y viajan en `PURCHASE_ORDER_ACKNOWLEDGED`. Botón «Registrar confirmación» sólo en
+   órdenes Enviadas; el detalle distingue «Enviada — sin confirmación del
+   proveedor» de «Confirmada por el proveedor (ref. …)».
+4. **Migración 279**: columnas de encabezado y confirmación en `purchase_orders`;
+   `discount`, `tax`, `confirmed_quantity` en `purchase_order_lines`.
+5. **Bitácora legible**: acciones en español, nombre del usuario (no su id), hora
+   local; el historial ya no se queda pintado al cambiar de orden.
+
+## Compras/Costeo FASE 13 — promedio móvil con existencia real (2026-09-28, sin migración)
+
+1. **Bug crítico (§31)**: `ProductCostProjectionHandler` usaba `tracked_quantity`,
+   que sólo SUMABA entradas y nunca restaba salidas. Caso obligatorio: 100 kg @ $40,
+   salen 90, entran 10 @ $60 → daba $41.82; ahora $50.00.
+2. La cantidad previa se le pregunta a Inventario
+   (`backend/application/inventory/queries/costing_stock_query_service.py`):
+   existencia total del producto (costo global → todas las sucursales/almacenes)
+   menos lo que la MISMA operación ya asentó en `inventory_ledger` (su
+   `operation_id` es único). Así el resultado es igual si Inventario procesa la
+   entrada antes o después que Costeo (ambos escuchan el mismo evento). Existencia
+   negativa cuenta como 0. Sin inventario canónico en la base, respaldo al contador
+   anterior.
+3. **Bug encontrado de paso**: dos líneas del MISMO producto en un evento — la
+   idempotencia es por (producto, operación) y la segunda se tomaba por «ya
+   aplicada» y se perdía (cantidad y costo). Ahora se consolidan (cantidad total,
+   costo ponderado) antes de aplicar.
+4. Verificado de punta a punta con el bus real sobre copia de la base: dos compras
+   rápidas de Alas con una salida de 90 kg entre ellas → costo promedio $50.00.
+
+Pendiente (FASE 12): política de costo GLOBAL/PER_BRANCH (§32); hoy el costo sigue
+siendo global.
+
+## Compras/Costeo FASE 12 — política de costo multi-sucursal (2026-09-29, sin migración)
+
+1. **§32**: el costo era global "en silencio". Nueva política
+   `configuraciones.costing.cost_policy` (`GLOBAL` por omisión / `PER_BRANCH`) en la
+   tabla de ajustes EXISTENTE (no se creó una nueva), cambiada sólo con
+   `SetCostPolicyUseCase` (permiso `PRECIOS.configuracion.gestionar`), auditada como
+   `COST_POLICY_CHANGED` en `pricing_outbox`.
+2. `ProductCostProjectionHandler` mantiene SIEMPRE las dos vistas: promedio de
+   empresa (`branch_id=''`) y el de la sucursal del evento, cada uno con su propia
+   existencia real (`CostingStockQueryService.on_hand_before(..., branch_id=)`).
+   Cambiar de política rige de inmediato, sin recalcular.
+3. `ProductCostingService` (`backend/application/pricing/cost_policy.py`) decide:
+   promedio y último costo de compra de empresa y de sucursal, y cuál rige.
+   `ProductCostQueryService` (→ `PricingReadFacade`, Ventas) y el costo de
+   referencia de Compras (`ProductPurchaseCostReadService`, que tenía su propio
+   SQL) pasan por la política. Sin dato en la vista que manda, se usa la otra
+   (nunca "sin costo" habiendo uno).
+4. **§30**: un cambio de costo nunca toca el precio de venta (prueba fija).
+5. Precios → Configuración: selector «Política de costo» (único control editable
+   de la pantalla) y fila en la tabla; Costos muestra «Empresa» o la sucursal por
+   nombre.
+
+## Compras/Logística FASE 8-11 — compra en origen de punta a punta (2026-09-30, migración 280)
+
+1. **Origen = domicilio del proveedor (FASE 8)**. `supplier_addresses.label` (nombre
+   del domicilio, p. ej. «Bodega»); `SupplierOriginQueryService` expone los
+   domicilios como orígenes. La OC guarda `origin_supplier_address_id` +
+   `origin_address_snapshot`; con entrega `SUPPLIER_PICKUP` el origen es
+   obligatorio. `LogisticsShipment.create()` exige el domicilio si el origen es
+   el proveedor.
+2. **Contenedores y carga (FASE 9)**. Tipos y contenedores se registran desde la
+   pantalla; se localizan por código o QR (secreto de firma en
+   `configuraciones.logistics.qr_signing_secret`, generado una vez). Cada línea
+   cargada lleva lote/caducidad/peso/temperatura según el perfil del producto
+   (Productos manda). Se borró el repositorio duplicado `qr_container_repository.py`.
+3. **Tránsito y llegada (FASE 10)**. Nuevas transiciones `start_transit`, `arrive`,
+   `start_receiving`, `close`; tabla `logistics_arrival_counts` (conteo por
+   contenido: recibido, aceptado, peso). Permiso `LOGISTICA.embarque.recibir`.
+4. **Recepción (FASE 11)**. `receive_and_close` genera UNA recepción por OC
+   (operación uuid5 embarque+OC → idempotente), una línea por lote;
+   `ReceivePurchaseOrderUseCase` valida contra el perfil (lote, caducidad, peso,
+   temperatura), acumula por línea de OC, registra el rechazo como
+   `QUALITY_FAILURE` y pasa lote/caducidad/peso a Inventario.
+   `GoodsReceipt.shipment_id`; bug previo: la caducidad nunca se releía.
+5. Composición: `backend/application/logistics/composition.py`
+   (`build_logistics_services`) — Logística ya no dependía de nadie que la armara
+   desde que se borró `core/events/wiring.py`. La sesión real no trae almacén:
+   el destino sale del documento.
+6. Hallazgo en base real: al cerrar con varios contenedores la custodia repetía
+   `operation_id` (UNIQUE) → ahora `"{operación}:{contenedor}"`; prueba de regresión.
+
+Huecos conocidos: la compra directa con recepción diferida no tiene caso de uso
+(el cierre rechaza fuentes DIRECT_PURCHASE); permisos `LOGISTICA.*` fuera de
+`permission_catalog` (sólo administradores); recepción fraccionaria (§27) y
+`fulfillment_mode` de compra rápida sin implementar.
+
+## Compras FASE 14 — Finanzas/CxP: conciliación de tres vías al día (2026-09-30, migración 281)
+
+Reproducido en copia de la base real antes de corregir.
+
+1. **Precio neto e IVA declarado**: una OC a $42 con $100 de descuento (neto $40) y
+   $320 de IVA conciliaba una factura a $42 SIN IVA (CxP de $1,260 en vez de $1,392).
+   Ahora se compara el precio NETO de descuento y, si la orden declaró impuesto
+   (FASE 7), el IVA prorrateado a lo que ESA factura cobra. Orden sin impuesto
+   capturado: no se compara (decisión del usuario 2026-09-18). Tolerancia de un
+   centavo por redondeo (`ROUNDING_ALLOWANCE`).
+2. **Aceptado por LÍNEA de la orden**: `goods_receipt_lines.purchase_order_line_id`
+   existía en la entidad desde la FASE 11 pero NO se guardaba (sin columna). Migración
+   **281**: columna + relleno de recepciones viejas sin ambigüedad. Lo recibido sin
+   vínculo se reparte línea por línea (`allocate_accepted_quantities`); antes cada
+   línea de un mismo producto tomaba el total.
+3. **Compra rápida**: su recepción está en unidad de inventario (125 kg) y la factura
+   en unidad de compra (5 costales); la conciliación y el prellenado ya convierten.
+4. **Duplicados**: «A-100» = «a-100 » (mayúsculas/espacios) y el mismo folio fiscal
+   (UUID del CFDI) con otro número también es duplicado.
+5. **Recepción POSTERIOR de compra rápida** (`ReceiveDirectPurchaseUseCase`, botón
+   «Recibir mercancía» en el historial): el modo «con recepción pendiente» no podía
+   recibirse nunca → ni inventario, ni factura conciliable, ni CxP.
+6. **Llave foránea en producción**: el pool abre con `foreign_keys=ON`; guardar una
+   orden/compra/recepción borraba y reinsertaba sus líneas, y en cuanto una factura
+   apuntaba a una línea, recibir el resto o reversar FALLABA. `_save_children` hace
+   upsert por id y borra sólo lo que el documento ya no tiene.
+7. Pantalla de facturas: «Liberar diferencia» reventaba (TypeError: faltaba el
+   capturista); estados traducidos; quién liberó por NOMBRE; renglón con la CxP
+   (folio, estado, saldo, vencimiento) leído de Finanzas; captura prellenada con lo
+   PENDIENTE de facturar, total propuesto, «Editar línea»; se quitó el campo «Línea de
+   OC» que pedía teclear un UUID. Documentos facturables de TODAS las sucursales.
+8. Asiento de contado con el FOLIO (`CD-2026-000003`), no el UUID. Fechas de los
+   asientos de compra en día LOCAL (`backend/shared/business_dates.py`): de noche el
+   asiento caía en el día —y a fin de mes en el periodo— siguiente.
+
+## Compras FASE 15 — Sin UUID ni estados técnicos en pantalla (2026-09-30)
+
+* `backend/application/procurement/queries/display_refs.py`: Product/Supplier/Branch/
+  Warehouse/User/ContainerDisplayRef + `DisplayRefResolver` («código · nombre»; si no
+  existe, texto genérico, NUNCA el id). `product_labels` («CAR-000001 · Alas») en las
+  lecturas de Compras y Logística (`product_names` queda para Inventario/Cárnico).
+* `enterprise_view_models.py` es la ÚNICA traducción de estados (recepción, compra
+  directa, diferencia, prioridad, naturaleza, tipo de documento, estado según tipo);
+  filtros de estado derivados de los mismos mapas; textos del §20 («Pendiente de
+  aprobación», «Confirmada por proveedor», «Recibida parcialmente»). La gráfica del
+  resumen usa `ORDER_STATUS_LABELS` igual.
+* **Recepciones** nunca funcionó: la página llamaba `receipts()`/`receipt_detail()`
+  inexistentes y mostraba «object has no attribute 'receipts'»; ahora lista todas las
+  recepciones con producto, almacén, origen y facturas por nombre.
+* Filtro de periodo y fechas de las listas en hora LOCAL (`date(created_at,'localtime')`):
+  lo capturado después de las 18:00 desaparecía de las listas hasta el día siguiente.
+* Siglas en inglés del flujo («PR», «PO») → «Solicitud», «Orden de compra».
+* Prueba: `tests/integration/procurement/test_no_technical_text_in_ui.py` recorre todas
+  las páginas con documentos en muchos estados.
+
+## Compras FASE 16 — UI/UX final (2026-09-30, migración 282)
+
+* **Recibir una orden** por LÍNEA (ligada a su línea de OC) y con la trazabilidad que
+  Productos exige (lote, caducidad, peso real, temperatura): antes una sola fila por
+  producto sin esos datos → un producto con lote no se podía recibir desde Órdenes.
+* **Peso variable** (§17, §41-2) por CAPACIDAD de Productos (`catch_weight_enabled` +
+  `price_basis`), nunca por categoría: 5 cajas, 127.850 kg a $95/kg = $12,145.75; entra
+  el peso real si la unidad de inventario es de peso; costo $95/kg. Migración **282**:
+  `direct_purchase_lines.net_weight/pricing_basis/inventory_by_weight`. La OC no exige
+  peso (se pesa al recibir). Bases soportadas: PER_KILOGRAM y PER_PIECE_WITH_ACTUAL_WEIGHT.
+* Auditoría estática del módulo: sin `setStyleSheet`, sin colores, sin `QPushButton`
+  crudos, sin acciones genéricas al fondo.
+
+## Compras FASE 17 — Pruebas E2E del §41 (2026-09-30)
+
+`tests/e2e/test_procurement_master_prompt_e2e.py`: base NACIDA con el arranque real
+(`run_database_bootstrap_sequence`, todas las migraciones) + bus de eventos real en un
+bus local. 11 pruebas: compra rápida completa, peso variable, abarrote 125 kg, PR→OC,
+adjudicación dividida, compra en origen, promedio $50, sin UUID/estados, permisos,
+crédito → CxP → pago (debe = haber). Hallazgo: la recepción en origen publicaba su
+outbox por su cuenta en el bus global; ahora usa el despachador del presentador.
+
+## Compras — cierre de pendientes (2026-09-30, migraciones 283-287)
+
+1. **Permisos (283)**: `backend/application/logistics/permissions.py` publica
+   `ALL_LOGISTICS_PERMISSIONS` → LOGISTICA entra al catálogo (era inotorgable). Medido:
+   `rol_permisos` sólo tenía las 5 acciones gruesas de COMPRAS y ninguna de LOGISTICA,
+   así que ningún rol no administrador operaba órdenes, recepciones ni embarques.
+   Siembra por función (decisión del usuario): system_owner/admin/gerente todo;
+   almacen ver + RECIBIR (recepción, llegada/conteo, escaneo, mover/liberar
+   contenedores, etiquetas); cajero/solo_lectura/repartidor nada.
+2. **Una sola lista base (284)**: activar otra lista base la REEMPLAZA en la misma
+   operación (`ActivatePriceListUseCase._side_effects`, decisión del usuario). Datos:
+   queda `BASE`, se desactiva `ORIGIN-00001` (ambas sin precios; mandaba la más
+   reciente sin que nadie lo eligiera).
+3. **Surtido de la compra rápida (285, §11)**: `FulfillmentMode` (inmediata,
+   posterior, entrega del proveedor, recolección en proveedor) separado del TIPO
+   (mercancía/servicio/gasto) que antes compartía combo. Recolección exige la bodega
+   del proveedor (id + foto). Compra en origen sólo ofrece compras directas
+   CONFIRMADAS con recolección, y `receive_and_close` ya las recibe
+   (`ReceiveDirectPurchaseUseCase` con lo contado: aceptado, rechazo, lote, peso).
+4. **Recepción fraccionada (286, §27)**: `product_unit_conversions.allow_fractional_receipt`
+   por presentación (Productos → Unidades de compra, casilla y botón; auditado). Si
+   no se permite, la recepción exige unidades completas; si sí, el diálogo captura
+   «4 costales + 22 kg sueltos» = 4.88. Por omisión se permite (no cambia nada vigente).
+5. **OC a precio por kg (287)**: `purchase_order_lines.pricing_basis/inventory_by_weight`
+   desde Productos (la OC no exige peso). Importe estimado = cantidad × kg nominales ×
+   $/kg; al recibir se paga el PESO REAL aceptado; la factura se prellena y concilia en kg.
+6. FASE 4 verificada: Compras no tiene campos para editar unidad ni factor; el que
+   manda la compra rápida se ignora (manda Productos).

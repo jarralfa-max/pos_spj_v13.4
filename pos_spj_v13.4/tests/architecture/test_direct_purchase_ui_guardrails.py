@@ -102,10 +102,15 @@ def test_enterprise_ui_exists_and_is_registered():
     assert (PUR_UI / "enterprise_view.py").exists()
     assert (PUR_UI / "pages" / "enterprise_pages.py").exists()
     assert (PUR_UI / "pages" / "procurement_dashboard_page.py").exists()
-    wrapper = (REPO / "modulos/compras_enterprise.py").read_text(encoding="utf-8")
-    assert "create_enterprise_purchasing_view" in wrapper
-    loader = (REPO / "core/ui/module_loader.py").read_text(encoding="utf-8")
-    assert "compras_enterprise" in loader
+    # El shell legacy (modulos/compras_enterprise.py + core/ui/module_loader.py)
+    # fue eliminado en el cutover; la ruta viva es el registro del shell canónico.
+    registration = (PUR_UI / "shell_registration.py").read_text(encoding="utf-8")
+    assert "def create_purchasing_view" in registration
+    assert "class PurchasingModuleActivator" in registration
+    composition = (REPO / "frontend/desktop/shell/desktop_shell_window_composition.py"
+                   ).read_text(encoding="utf-8")
+    assert "PurchasingModuleActivator" in composition
+    assert not (REPO / "modulos/compras_enterprise.py").exists()
 
 
 def test_analytics_dtos_are_color_free():

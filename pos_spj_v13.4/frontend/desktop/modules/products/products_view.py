@@ -13,7 +13,6 @@ import logging
 
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
-    QHBoxLayout,
     QLabel,
     QStackedWidget,
     QVBoxLayout,
@@ -22,6 +21,7 @@ from PyQt5.QtWidgets import (
 
 from frontend.desktop.components import SideNav
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.products.navigation import PRODUCTS_NAV
 
 logger = logging.getLogger("spj.products.view")
@@ -56,11 +56,10 @@ class ProductsView(QWidget):
             slot_layout.setContentsMargins(0, 0, 0, 0)
             self.stack.addWidget(slot)
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self.nav)
-        layout.addWidget(self.stack, 1)
+        self.module_layout = ModuleLayout(
+            self, title="Productos", icon=Icons.PRODUCTS,
+            sidebar=self.nav, content=self.stack,
+        )
 
         self.nav.navigated.connect(self._on_nav)
         if self._specs:

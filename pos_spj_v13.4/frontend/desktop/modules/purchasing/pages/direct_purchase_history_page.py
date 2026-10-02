@@ -9,9 +9,11 @@ from frontend.desktop.components import (
 )
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.purchasing.dialogs.direct_purchase_dialogs import (
-    HotAuthorizationDialog, ReverseReasonDialog,
+    HotAuthorizationDialog, ReverseReasonDialog, confirm_purchase_flow,
 )
-from frontend.desktop.modules.purchasing.direct_purchase_view_models import money, status_es
+from frontend.desktop.modules.purchasing.direct_purchase_view_models import (
+    FULFILLMENT_ES, PAYMENT_SOURCE_ES, error_text, money, payment_condition_es, status_es,
+)
 from frontend.desktop.themes.tokens import Spacing
 
 _LIST = [ColumnSpec("Folio", "text"), ColumnSpec("Proveedor", "text"),
@@ -69,9 +71,13 @@ class DirectPurchaseHistoryPage(QWidget):
         self._authorize.clicked.connect(self._authorize_current)
         self._confirm = create_primary_button(self, "Confirmar")
         self._confirm.clicked.connect(self._confirm_current)
+        self._receive = create_primary_button(self, "Recibir mercancía")
+        self._receive.clicked.connect(self._receive_current)
+        self._receive.setVisible(False)
         self._reverse = create_danger_button(self, "Reversar")
         self._reverse.clicked.connect(self._reverse_current)
-        for button in (self._authorize, self._confirm, self._reverse): actions.addWidget(button)
+        for button in (self._authorize, self._confirm, self._receive, self._reverse):
+            actions.addWidget(button)
         actions.addStretch(1); card.body().addLayout(actions)
         return card
 
@@ -89,34 +95,74 @@ class DirectPurchaseHistoryPage(QWidget):
         self._current_id = self._table.selected_row_id()
         detail = self._presenter.detail(self._current_id) if self._current_id else None
         if detail is None: return
+        source = (f"\nFuente de pago: "
+                  f"{PAYMENT_SOURCE_ES.get(detail.payment_source, detail.payment_source)}"
+                  if detail.payment_source else "")
         self._summary.setText(f"{detail.document_number} · {status_es(detail.status)}\n"
-                              f"Proveedor: {self._presenter.supplier_name(detail.supplier_id)}\n"
-                              f"Total: {money(detail.total)}")
-        self._lines.load_rows([[line.description, str(line.quantity), money(line.unit_cost),
-                                money(line.line_total)] for line in detail.lines],
+                              f"Proveedor: {detail.supplier_name}\n"
+                              f"Sucursal: {detail.branch_name}\n"
+                              f"Almacén: {detail.warehouse_name}\n"
+                              f"Condición: {payment_condition_es(detail.payment_condition)}\n"
+                              f"{_fulfillment_text(detail)}"
+                              f"Total: {money(detail.total)}{source}")
+        self._lines.load_rows([[
+            line.description,
+            f"{line.quantity} {line.purchase_unit}".strip()
+            + (f" · {line.net_weight} kg reales" if line.net_weight else ""),
+            money(line.unit_cost) + (" /kg" if line.pricing_basis == "PER_KILOGRAM" else ""),
+            money(line.line_total)] for line in detail.lines],
                               row_ids=[line.product_id for line in detail.lines])
         caps = self._presenter.capabilities()
         self._authorize.setVisible(caps.direct_authorize and detail.status == "PENDING_AUTHORIZATION")
         self._confirm.setVisible(caps.direct_confirm and detail.status == "DRAFT")
+        self._receive.setVisible(caps.receipt_complete and detail.status == "CONFIRMED"
+                                 and detail.mode == "DIRECT_WITH_PENDING_RECEIPT")
         self._reverse.setVisible(caps.direct_reverse and detail.status in ("CONFIRMED", "RECEIVED"))
 
     def _authorize_current(self):
         dialog = HotAuthorizationDialog(self)
         if dialog.exec_() and dialog.reason():
-            ok, message, _ = self._presenter.authorize(self._current_id, dialog.reason())
-            self._feedback(ok, message)
+            ok, message, data = self._presenter.authorize(self._current_id, dialog.reason())
+            self._feedback(ok, message, data)
 
     def _confirm_current(self):
-        ok, message, _ = self._presenter.confirm(self._current_id, None)
-        self._feedback(ok, message)
+        if not self._current_id:
+            return
+        # Contado: el diálogo exige la fuente de pago (no se confirma sin una
+        # válida). Crédito de proveedor: se confirma directo, sin fuente.
+        result = confirm_purchase_flow(self, self._presenter, self._current_id)
+        if result is None:
+            return
+        ok, message, data = result
+        self._feedback(ok, message, data)
+
+    def _receive_current(self):
+        if not self._current_id:
+            return
+        ok, message, data = self._presenter.receive(self._current_id)
+        self._feedback(ok, message, data)
 
     def _reverse_current(self):
         dialog = ReverseReasonDialog(self)
         if dialog.exec_() and dialog.reason():
-            ok, message, _ = self._presenter.reverse(self._current_id, dialog.reason())
-            self._feedback(ok, message)
+            ok, message, data = self._presenter.reverse(self._current_id, dialog.reason())
+            self._feedback(ok, message, data)
 
-    def _feedback(self, ok, message):
-        self._notice.setProperty("state", "READY" if ok else "ERROR")
-        self._notice.setText(message)
+    def _feedback(self, ok, message, data=None):
+        # `state="error"` es el que estiliza el Design System; hay que re-pulir
+        # tras cambiar la propiedad o el cambio no se repinta.
+        self._notice.setProperty("state", "ready" if ok else "error")
+        self._notice.style().unpolish(self._notice)
+        self._notice.style().polish(self._notice)
+        self._notice.setText(message if ok else error_text(message, data))
         self.reload(); self._select()
+
+
+def _fulfillment_text(detail) -> str:
+    """«Surtido: Recolección en proveedor · Bodega Norte · …» (vacío en servicios)."""
+    mode = getattr(detail, "fulfillment_mode", "")
+    if not mode:
+        return ""
+    origin = getattr(detail, "origin_display", "")
+    return f"Surtido: {FULFILLMENT_ES.get(mode, 'Por definir')}" + (
+        f" · {origin}" if origin else "") + "\n"

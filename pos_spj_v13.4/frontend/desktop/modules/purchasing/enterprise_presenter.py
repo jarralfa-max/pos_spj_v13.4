@@ -25,12 +25,27 @@ from frontend.desktop.modules.purchasing.enterprise_view_models import (
     PurchasingCapabilities,
     TableViewModel,
     invoice_status_es,
+    local_datetime_text,
     match_result_es,
     money,
+    discrepancy_es,
     order_status_es,
+    priority_es,
+    receipt_status_es,
+    purchase_nature_es,
     requisition_status_es,
     rfq_status_es,
 )
+
+def _plain_quantity(value) -> str:
+    """Cantidad sin notación científica ni ceros de relleno."""
+    from decimal import Decimal, InvalidOperation
+    try:
+        number = Decimal(str(value if value not in (None, "") else "0"))
+    except InvalidOperation:
+        return str(value)
+    return format(number.normalize(), "f") if number else "0"
+
 
 logger = logging.getLogger("spj.purchasing.enterprise_presenter")
 
@@ -53,6 +68,7 @@ class EnterprisePurchasingPresenter:
                  logistics_reads=None,
                  warehouse_directory: BranchWarehouseContextPort | None = None,
                  history_reads=None, origin_workspace=None, supplier_picker=None,
+                 supplier_origins=None,
                  product_catalog: ProcurementProductCatalogPort | None = None,
                  supplier_profile: SupplierProcurementProfilePort | None = None,
                  supplier_finance: ProcurementFinancePort | None = None,
@@ -67,6 +83,7 @@ class EnterprisePurchasingPresenter:
         self._warehouse_directory = warehouse_directory
         self._history = history_reads
         self._origin = origin_workspace
+        self._supplier_origins = supplier_origins
         self._suppliers = supplier_picker
         self._product_catalog = product_catalog
         # Wired for future UI consumption (supplier profile/financial standing,
@@ -135,10 +152,64 @@ class EnterprisePurchasingPresenter:
         value = str(warehouse_id or "").strip()
         return value or None
 
-    def warehouse_options(self) -> list[tuple[str, str]]:
+    def warehouse_options(self, branch_id: str | None = None) -> list[tuple[str, str]]:
+        """Almacenes que reciben compras en ``branch_id`` (la del formulario; la
+        de la sesión si no se da). El mismo directorio que valida el caso de uso,
+        así que nunca se ofrece el almacén de otra sucursal."""
         if self._warehouse_directory is None:
             return []
-        return self._warehouse_directory.active_for_branch(self.default_branch())
+        branch = branch_id or getattr(self._session, "active_branch_id", None)
+        if not branch:
+            return []
+        try:
+            return [(str(w), str(label)) for w, label
+                    in self._warehouse_directory.active_for_branch(str(branch))]
+        except Exception:
+            logger.exception("warehouse_options failed")
+            return []
+
+    def preselected_warehouse(self, options: list[tuple[str, str]]) -> str:
+        """El de la sesión si está entre las opciones; si no, el único; si no, ''."""
+        ids = [w for w, _ in options]
+        session = str(getattr(self._session, "active_warehouse_id", None) or "")
+        if session and session in ids:
+            return session
+        return ids[0] if len(ids) == 1 else ""
+
+    def supplier_origin_options(self, supplier_id: str | None) -> list[tuple[str, str]]:
+        """Bodegas y puntos de recolección del proveedor: ``(id, "Bodega Norte ·
+        Querétaro")`` — nunca un UUID capturado a mano."""
+        if self._supplier_origins is None or not supplier_id:
+            return []
+        try:
+            return [(o["id"], o["display"])
+                    for o in self._supplier_origins.origin_locations(str(supplier_id))]
+        except Exception:
+            logger.exception("supplier_origin_options failed")
+            return []
+
+    def purchase_profile(self, product_id: str):
+        """Unidades de compra del producto tal como las define Productos."""
+        getter = getattr(self._product_catalog, "purchase_profile", None)
+        if getter is None or not product_id:
+            return None
+        try:
+            return getter(str(product_id))
+        except Exception:
+            logger.exception("purchase profile lookup failed")
+            return None
+
+    def product_label(self, product_id: str) -> str:
+        """Nombre del producto para mostrar (nunca el id)."""
+        resolve = getattr(self._product_catalog, "resolve", None)
+        if resolve is None or not product_id:
+            return "Producto"
+        try:
+            option = resolve(str(product_id))
+        except Exception:
+            logger.exception("product label lookup failed")
+            option = None
+        return str(option.name) if option is not None and option.name else "Producto"
 
     def select_warehouse(self, warehouse_id: str) -> None:
         options = dict(self.warehouse_options())
@@ -180,12 +251,16 @@ class EnterprisePurchasingPresenter:
         return {"branch_id": self.default_branch(), "start_date": self._period_start,
                 "end_date": self._period_end}
 
-    def _run(self, key: str, **kwargs) -> tuple[bool, str, dict]:
+    def _run(self, key: str, *, operation_id: str | None = None,
+             **kwargs) -> tuple[bool, str, dict]:
         try:
-            result = self._use_cases[key].execute(self._conn(), operation_id=new_uuid(), **kwargs)
+            result = self._use_cases[key].execute(
+                self._conn(), operation_id=operation_id or new_uuid(), **kwargs)
             data = dict(result.data)
             if result.entity_id is not None:
                 data.setdefault("entity_id", result.entity_id)
+            if getattr(result, "error_code", None):
+                data.setdefault("error_code", result.error_code)
             if result.success and self._dispatch is not None:
                 try:
                     self._dispatch()   # post-commit: publish outbox → downstream
@@ -205,9 +280,9 @@ class EnterprisePurchasingPresenter:
         total = svc.count(status=status, search=search, **self._scope())
         data, ids = [], []
         for r in rows:
-            data.append([r.document_number, r.branch_name, r.purchase_type,
-                         r.priority, requisition_status_es(r.status),
-                         (r.created_at or "")[:10]])
+            data.append([r.document_number, r.branch_name, purchase_nature_es(r.purchase_type),
+                         priority_es(r.priority), requisition_status_es(r.status),
+                         local_datetime_text(r.created_at, date_only=True)])
             ids.append(r.id)
         return TableViewModel(data, ids, total=int(total))
 
@@ -241,7 +316,7 @@ class EnterprisePurchasingPresenter:
         for r in rows:
             data.append([r.document_number, rfq_status_es(r.status), str(r.invited_count),
                          str(r.quoted_count), "Sí" if r.awarded else "No",
-                         (r.created_at or "")[:10]])
+                         local_datetime_text(r.created_at, date_only=True)])
             ids.append(r.id)
         return TableViewModel(data, ids, total=int(total))
 
@@ -269,11 +344,14 @@ class EnterprisePurchasingPresenter:
         return [SearchOption(id=r["id"], label=r["name"], subtitle=_supplier_subtitle(r))
                 for r in rows]
 
-    def product_options(self, query: str) -> list[SearchOption]:
+    def product_options(self, query: str, branch_id: str | None = None) -> list[SearchOption]:
+        """Catálogo GLOBAL de compra. La sucursal (la del formulario; la de la
+        sesión si no se da) sólo marca los productos no habilitados en ella."""
         if self._product_catalog is None:
             return []
+        branch = branch_id or getattr(self._session, "active_branch_id", None) or None
         try:
-            options = self._product_catalog.search(query, branch_id=self.default_branch())
+            options = self._product_catalog.search(query, branch_id=branch)
         except Exception:
             # §35: un fallo técnico (sesión sin sucursal activa, SQL roto) NO
             # puede verse igual que "sin resultados". `EntitySearchInput` ya
@@ -282,8 +360,10 @@ class EnterprisePurchasingPresenter:
             # ninguna pista de que la búsqueda ni siquiera llegó a ejecutarse.
             logger.exception("product search failed")
             raise
-        return [SearchOption(id=o.product_id, label=o.name, subtitle=o.code)
-                for o in options]
+        from frontend.desktop.modules.purchasing.direct_purchase_view_models import (
+            product_search_option,
+        )
+        return [product_search_option(o) for o in options]
 
     def supplier_search_reason(self, query: str) -> str | None:
         """Por qué el buscador de proveedores no devolvió nada.
@@ -312,7 +392,7 @@ class EnterprisePurchasingPresenter:
         if explain is None:
             return None
         try:
-            return explain(query, branch_id=self.default_branch())
+            return explain(query)   # búsqueda global: la sucursal no explica vacíos
         except Exception:
             logger.exception("product search reason failed")
             return None
@@ -328,7 +408,7 @@ class EnterprisePurchasingPresenter:
         for r in rows:
             data.append([r.document_number, r.supplier_name,
                          order_status_es(r.status), f"v{r.version}",
-                         money(r.total), (r.created_at or "")[:10]])
+                         money(r.total), local_datetime_text(r.created_at, date_only=True)])
             ids.append(r.id)
         return TableViewModel(data, ids, total=int(total))
 
@@ -338,16 +418,49 @@ class EnterprisePurchasingPresenter:
     def invoice_detail(self, invoice_id: str):
         return self._reads["invoices"].detail(invoice_id)
 
-    def create_order(self, **fields) -> tuple[bool, str, dict]:
-        return self._run("po_create", actor_user_id=self._actor(), **fields)
+    def award_orders(self, rfq_id: str) -> dict:
+        """Proveedores adjudicados de la RFQ con su orden (si ya existe)."""
+        try:
+            return self._reads["rfqs"].award_orders(rfq_id) if rfq_id else {}
+        except Exception:
+            logger.exception("award_orders failed")
+            return {}
+
+    def generate_orders_from_award(self, award_id: str, warehouse_id: str, *,
+                                   operation_id: str | None = None
+                                   ) -> tuple[bool, str, dict]:
+        return self._run("po_from_award", operation_id=operation_id,
+                         actor_user_id=self._actor(), award_id=award_id,
+                         warehouse_id=warehouse_id)
+
+    def create_order(self, *, operation_id: str | None = None,
+                     **fields) -> tuple[bool, str, dict]:
+        """``operation_id`` estable por captura: reintentar o hacer doble clic
+        devuelve la orden ya creada en vez de duplicarla."""
+        return self._run("po_create", operation_id=operation_id,
+                         actor_user_id=self._actor(), **fields)
 
     def approve_order(self, order_id: str, *, reason="") -> tuple[bool, str, dict]:
         return self._run("po_approve", approver_user_id=self._actor(),
                          purchase_order_id=order_id, reason=reason)
 
-    def send_order(self, order_id: str, *, acknowledge=False) -> tuple[bool, str, dict]:
+    def acknowledge_order(self, order_id: str, *, supplier_reference: str = "",
+                          confirmed_delivery_date: str | None = None,
+                          confirmed_quantities: dict | None = None, comments: str = "",
+                          operation_id: str | None = None) -> tuple[bool, str, dict]:
+        detail = self.order_detail(order_id)
+        labels = ({ln.id: ln.product_name for ln in detail.lines}
+                  if detail is not None else {})
+        return self._run("po_acknowledge", operation_id=operation_id,
+                         actor_user_id=self._actor(), purchase_order_id=order_id,
+                         supplier_reference=supplier_reference,
+                         confirmed_delivery_date=confirmed_delivery_date,
+                         confirmed_quantities=confirmed_quantities or {},
+                         comments=comments, line_labels=labels)
+
+    def send_order(self, order_id: str) -> tuple[bool, str, dict]:
         return self._run("po_send", actor_user_id=self._actor(),
-                         purchase_order_id=order_id, acknowledge=acknowledge)
+                         purchase_order_id=order_id)
 
     def change_order(self, order_id: str, *, reason, line_changes=None) -> tuple[bool, str, dict]:
         return self._run("po_change", actor_user_id=self._actor(),
@@ -364,7 +477,7 @@ class EnterprisePurchasingPresenter:
     def invoice_document_options(self, query: str) -> list[SearchOption]:
         svc = self._reads["invoices"]
         try:
-            rows = svc.billable_documents(branch_id=self.default_branch(), search=query)
+            rows = svc.billable_documents(search=query)
         except Exception:
             logger.exception("invoice document search failed")
             return []
@@ -376,7 +489,8 @@ class EnterprisePurchasingPresenter:
         resolved = svc.resolve_billable_document(document_id)
         if resolved is None:
             return {}
-        lines = svc.billable_lines(resolved["document_type"], document_id)
+        lines = [dict(line, product_label=self.product_label(str(line["product_id"])))
+                 for line in svc.billable_lines(resolved["document_type"], document_id)]
         return {"supplier_id": resolved["supplier_id"],
                 "supplier_name": resolved["supplier_name"],
                 "document_type": resolved["document_type"], "lines": lines}
@@ -392,7 +506,7 @@ class EnterprisePurchasingPresenter:
             data.append([r.document_number, r.supplier_name,
                          r.invoice_number, money(r.total),
                          invoice_status_es(r.status), match_result_es(r.match_result),
-                         (r.created_at or "")[:10]])
+                         local_datetime_text(r.created_at, date_only=True)])
             ids.append(r.id)
         return TableViewModel(data, ids, total=int(total))
 
@@ -402,8 +516,13 @@ class EnterprisePurchasingPresenter:
     def match_invoice(self, invoice_id: str) -> tuple[bool, str, dict]:
         return self._run("inv_match", actor_user_id=self._actor(), invoice_id=invoice_id)
 
-    def release_variance(self, invoice_id: str, *, captured_by_user_id,
-                         reason) -> tuple[bool, str, dict]:
+    def release_variance(self, invoice_id: str, *, reason,
+                         captured_by_user_id: str | None = None) -> tuple[bool, str, dict]:
+        # La página no conoce al capturista; antes lo exigía como argumento
+        # obligatorio y el botón «Liberar diferencia» reventaba con TypeError.
+        if captured_by_user_id is None:
+            detail = self.invoice_detail(invoice_id)
+            captured_by_user_id = detail.captured_by_user_id if detail else None
         return self._run("inv_release", releaser_user_id=self._actor(),
                          invoice_id=invoice_id, captured_by_user_id=captured_by_user_id,
                          reason=reason)
@@ -419,7 +538,7 @@ class EnterprisePurchasingPresenter:
         try:
             detail = fn(*args, **kwargs)
             return True, "Operación registrada", detail or {}
-        except (ValueError, LookupError) as exc:
+        except (ValueError, LookupError, PermissionError) as exc:
             return False, str(exc), {}
         except Exception:
             logger.exception("EnterprisePurchasingPresenter: error en compra en origen")
@@ -428,20 +547,88 @@ class EnterprisePurchasingPresenter:
     def origin_documents(self, search: str = "") -> list[dict]:
         if self._origin is None:
             raise PermissionError("Compra en origen no está configurada en este equipo")
+        # El almacén destino sale de cada documento; la sesión real no trae almacén.
         return self._origin.documents(branch_id=self.default_branch(),
-                                      warehouse_id=self.default_warehouse(), search=search)
+                                      warehouse_id=self.selected_warehouse() or "",
+                                      search=search)
 
     def origin_workspace(self, shipment_id: str):
         if self._origin is None:
             raise PermissionError("Compra en origen no está configurada en este equipo")
         return self._origin.open(shipment_id)
 
-    def origin_create_shipment(self, document: dict) -> tuple[bool, str, dict]:
+    def origin_create_shipment(self, document: dict,
+                               origin_address_id: str | None = None) -> tuple[bool, str, dict]:
         if self._origin is None:
             return False, "Compra en origen no está configurada en este equipo", {}
+        warehouse = document.get("destination_warehouse_id") or self.selected_warehouse()
+        if not warehouse:
+            return False, "El documento no tiene almacén destino", {}
         return self._origin_run(self._origin.create_shipment, actor_user_id=self._actor(),
-                                branch_id=self.default_branch(),
-                                warehouse_id=self.default_warehouse(), document=document)
+                                branch_id=self.default_branch(), warehouse_id=warehouse,
+                                document=document, origin_address_id=origin_address_id)
+
+    def origin_supplier_options(self, supplier_id) -> list[tuple[str, str]]:
+        return self._origin.supplier_origin_options(supplier_id) if self._origin else []
+
+    def origin_container_types(self) -> list[tuple[str, str]]:
+        return self._origin.container_types() if self._origin else []
+
+    def origin_register_container_type(self, **fields) -> tuple[bool, str, dict]:
+        if self._origin is None:
+            return False, "Compra en origen no está configurada en este equipo", {}
+        return self._origin_value(self._origin.register_container_type,
+                                  actor_user_id=self._actor(), **fields)
+
+    def origin_register_container(self, **fields) -> tuple[bool, str, dict]:
+        if self._origin is None:
+            return False, "Compra en origen no está configurada en este equipo", {}
+        return self._origin_value(self._origin.register_container,
+                                  actor_user_id=self._actor(), **fields)
+
+    def origin_attach_container(self, shipment_id: str, reference: str,
+                                parent_node_id: str | None = None) -> tuple[bool, str, dict]:
+        return self._origin_run(self._origin.attach_container, actor_user_id=self._actor(),
+                                shipment_id=shipment_id, reference=reference,
+                                parent_node_id=parent_node_id)
+
+    def origin_loading_lines(self, shipment_id: str) -> list[dict]:
+        return self._origin.loading_lines(shipment_id) if self._origin else []
+
+    def origin_assign_line(self, shipment_id: str, **fields) -> tuple[bool, str, dict]:
+        return self._origin_run(self._origin.assign_line, actor_user_id=self._actor(),
+                                shipment_id=shipment_id, **fields)
+
+    def origin_mark_in_transit(self, shipment_id: str) -> tuple[bool, str, dict]:
+        return self._origin_run(self._origin.mark_in_transit, actor_user_id=self._actor(),
+                                shipment_id=shipment_id)
+
+    def origin_register_arrival(self, shipment_id: str) -> tuple[bool, str, dict]:
+        return self._origin_run(self._origin.register_arrival, actor_user_id=self._actor(),
+                                shipment_id=shipment_id)
+
+    def origin_arrival_lines(self, shipment_id: str) -> list[dict]:
+        return self._origin.arrival_lines(shipment_id) if self._origin else []
+
+    def origin_record_count(self, shipment_id: str, **fields) -> tuple[bool, str, dict]:
+        return self._origin_run(self._origin.record_count, actor_user_id=self._actor(),
+                                shipment_id=shipment_id, **fields)
+
+    def origin_receive_and_close(self, shipment_id: str) -> tuple[bool, str, dict]:
+        return self._origin_run(self._origin.receive_and_close, actor_user_id=self._actor(),
+                                shipment_id=shipment_id)
+
+    def _origin_value(self, fn, **kwargs) -> tuple[bool, str, dict]:
+        try:
+            value = fn(**kwargs)
+        except (ValueError, LookupError) as exc:
+            return False, str(exc), {}
+        except PermissionError as exc:
+            return False, str(exc), {}
+        except Exception:
+            logger.exception("EnterprisePurchasingPresenter: error en compra en origen")
+            return False, "Error inesperado; revise el log.", {}
+        return True, "Operación registrada", value if isinstance(value, dict) else {"id": value}
 
     def origin_mobile_handoff(self, shipment_id: str) -> tuple[bool, str, dict]:
         if self._origin is None:
@@ -469,13 +656,77 @@ class EnterprisePurchasingPresenter:
                                 shipment_id=shipment_id, source_line_id=source_line_id,
                                 reason=reason)
 
+    # ── recepciones (página «Pendientes y diferencias») ───────────────────────
+    # La página llamaba `receipts()`/`receipt_detail()` y ninguno existía: en
+    # producción mostraba «'EnterprisePurchasingPresenter' object has no
+    # attribute 'receipts'». Todo sale con nombres y estados en español.
+    def receipts(self) -> list[dict]:
+        svc = self._reads.get("receipts")
+        if svc is None:
+            return []
+        return [{
+            "id": r.id, "document_number": r.document_number,
+            "supplier_name": r.supplier_name, "status": receipt_status_es(r.status),
+            "received": _plain_quantity(r.received), "accepted": _plain_quantity(r.accepted),
+            "rejected": _plain_quantity(r.rejected), "differences": int(r.differences or 0),
+            "created_at": local_datetime_text(r.created_at),
+        } for r in svc.list(limit=200)]
+
+    def receipt_detail(self, receipt_id: str) -> dict | None:
+        from backend.application.procurement.queries.display_refs import (
+            ProductDisplayRef, WarehouseDisplayRef,
+        )
+        svc = self._reads.get("receipts")
+        detail = svc.detail(receipt_id) if svc is not None and receipt_id else None
+        if detail is None:
+            return None
+        from backend.application.procurement.queries.display_refs import DisplayRefResolver
+        refs = DisplayRefResolver(self._conn())
+        products = refs.resolve(ProductDisplayRef, (ln.product_id for ln in detail.lines))
+        source = self._receipt_source_number(detail)
+        return {
+            "document_number": detail.document_number,
+            "status": receipt_status_es(detail.status),
+            "warehouse": refs.label(WarehouseDisplayRef, detail.warehouse_id),
+            "source": source, "created_at": local_datetime_text(detail.created_at),
+            "lines": [{
+                "id": ln.id, "product": products[ln.product_id].label,
+                "ordered_quantity": _plain_quantity(ln.ordered_quantity),
+                "received_quantity": _plain_quantity(ln.received_quantity),
+                "accepted_quantity": _plain_quantity(ln.accepted_quantity),
+                "rejected_quantity": _plain_quantity(ln.rejected_quantity),
+                "lot": ln.lot or "—",
+            } for ln in detail.lines],
+            "differences": [{
+                "type": discrepancy_es(d.discrepancy_type),
+                "expected": _plain_quantity(d.expected), "actual": _plain_quantity(d.actual),
+                "reason": d.reason or "—",
+            } for d in detail.differences],
+            "invoices": [{
+                "id": inv["id"], "document_number": inv["document_number"],
+                "invoice_number": inv["invoice_number"],
+                "status": invoice_status_es(inv["status"]),
+                "match_result": match_result_es(inv.get("match_result"))
+                if inv.get("match_result") else "Sin conciliar",
+                "total": money(inv["total"]),
+            } for inv in detail.invoices],
+        }
+
+    @staticmethod
+    def _receipt_source_number(detail) -> str:
+        if detail.purchase_order_id:
+            return f"Orden {detail.source_document_number or ''}".strip()
+        if detail.direct_purchase_id:
+            return f"Compra directa {detail.source_document_number or ''}".strip()
+        return "—"
+
     # ── documental purchase history ───────────────────────────────────────────
     def purchase_history(self) -> TableViewModel:
         if self._history is None:
             return TableViewModel([], [], 0)
         rows = self._history.canonical_receipts(limit=100)
         data = [[r.document_number, r.supplier_name, r.status,
-                 (r.created_at or "")[:19]] for r in rows]
+                 local_datetime_text(r.created_at)] for r in rows]
         return TableViewModel(data, [r.document_number for r in rows], total=len(rows))
 
     # ── analytics ─────────────────────────────────────────────────────────────

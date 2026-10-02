@@ -50,6 +50,10 @@ def _dec(value) -> Decimal:
     return Decimal(str(value))
 
 
+#: Base de precio de Productos que cobra el PESO real (PriceBasis.PER_KILOGRAM).
+WEIGHT_PRICING_BASIS = "PER_KILOGRAM"
+
+
 # ── direct purchase ───────────────────────────────────────────────────────────
 @dataclass(slots=True)
 class DirectPurchaseLine:
@@ -66,6 +70,13 @@ class DirectPurchaseLine:
     tax: Money = None  # type: ignore[assignment]
     destination_branch_id: str | None = None
     destination_warehouse_id: str | None = None
+    # Peso variable (§17), decidido por Productos: «5 cajas, 127.850 kg reales a
+    # $95/kg». `pricing_basis` = PER_KILOGRAM cobra el PESO REAL, no la cantidad;
+    # `inventory_by_weight` = la unidad de inventario es de peso, así que entra
+    # el peso real y no el nominal de la presentación.
+    net_weight: Decimal | None = None
+    pricing_basis: str = ""
+    inventory_by_weight: bool = False
 
     @classmethod
     def create(cls, product_id: str, description: str, quantity, unit_cost: Money,
@@ -73,6 +84,15 @@ class DirectPurchaseLine:
         q = _dec(quantity)
         if q <= 0:
             raise ProcurementDomainError("La cantidad debe ser mayor a cero")
+        weight = kwargs.get("net_weight")
+        if weight not in (None, ""):
+            kwargs["net_weight"] = _dec(weight)
+            if kwargs["net_weight"] <= 0:
+                raise ProcurementDomainError("El peso real debe ser mayor a cero")
+        elif kwargs.get("pricing_basis") == WEIGHT_PRICING_BASIS or kwargs.get(
+                "inventory_by_weight"):
+            raise ProcurementDomainError(
+                "El producto se maneja por peso variable: captura el peso real")
         # Decisión del usuario (2026-09-18): el costo debe ser MAYOR a cero.
         # Aceptaba cero, y una línea en cero —casi siempre un precio olvidado—
         # entraba al inventario a costo 0 y hundía el costo promedio sin que
@@ -91,11 +111,29 @@ class DirectPurchaseLine:
         if self.tax is None:
             self.tax = Money.zero(self.unit_cost.currency_code)
 
+    def priced_by_weight(self) -> bool:
+        return self.pricing_basis == WEIGHT_PRICING_BASIS
+
+    def billable_quantity(self) -> Decimal:
+        """Lo que se cobra: el peso real si el precio es por kg; si no, la
+        cantidad en la unidad de compra."""
+        return self.net_weight if self.priced_by_weight() and self.net_weight else self.quantity
+
     def inventory_quantity(self) -> Decimal:
+        if self.inventory_by_weight and self.net_weight:
+            return self.net_weight
         return self.quantity * self.conversion_factor
 
+    def inventory_unit_cost(self) -> Decimal:
+        """Costo por unidad de INVENTARIO: importe de la línea entre lo que entra."""
+        quantity = self.inventory_quantity()
+        if quantity <= 0:
+            return Decimal("0")
+        return self.line_subtotal().amount / quantity
+
     def line_subtotal(self) -> Money:
-        return Money(self.quantity * self.unit_cost.amount, self.unit_cost.currency_code)
+        return Money(self.billable_quantity() * self.unit_cost.amount,
+                     self.unit_cost.currency_code)
 
     def line_total(self) -> Money:
         total = self.line_subtotal().amount - self.discount.amount + self.tax.amount
@@ -135,6 +173,11 @@ class DirectPurchase:
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
     source_requisition_id: str | None = None
+    # §11: cómo llega la mercancía, aparte de cómo se paga. Recolección en
+    # proveedor lleva la bodega de origen (id + foto del domicilio, §13).
+    fulfillment_mode: str = ""
+    origin_supplier_address_id: str | None = None
+    origin_address_snapshot: str | None = None
 
     @classmethod
     def create(cls, document_number: DocumentNumber, supplier_id: str, branch_id: str,
@@ -299,8 +342,14 @@ class PurchaseRequisition:
         self.status = RequisitionStatus.CANCELLED
         self.updated_at = _utcnow()
 
+    def can_be_sourced(self) -> bool:
+        """Aprobada, o ya surtida en parte: una adjudicación dividida genera una
+        orden por proveedor, y la segunda llega con la solicitud PARCIAL."""
+        return self.status in (RequisitionStatus.APPROVED,
+                               RequisitionStatus.PARTIALLY_SOURCED)
+
     def mark_sourced(self, *, partial: bool = False) -> None:
-        if self.status is not RequisitionStatus.APPROVED:
+        if not self.can_be_sourced():
             raise InvalidPurchaseStateError("Solo se abastece una solicitud aprobada")
         self.status = (RequisitionStatus.PARTIALLY_SOURCED if partial
                        else RequisitionStatus.SOURCED)
@@ -388,6 +437,11 @@ class RequestForQuotation:
     def supplier_ids(self) -> tuple[str, ...]:
         return tuple(inv.supplier_id for inv in self.invitations)
 
+    def close(self) -> None:
+        """La ronda de cotización terminó (adjudicada): ya no se capturan
+        cotizaciones. Antes la RFQ se quedaba en «Borrador» para siempre."""
+        self.status = "CLOSED"
+
     def mark_sent(self) -> None:
         self.status = "SENT"
 
@@ -473,6 +527,20 @@ class PurchaseOrderLine:
     rejected_quantity: Decimal = Decimal("0")
     invoiced_quantity: Decimal = Decimal("0")
     destination_warehouse_id: str | None = None
+    # Unidad en que se ordena y unidad de inventario, ambas de Productos; el
+    # factor convierte la primera en la segunda. Vacías = unidad base.
+    purchase_unit: str = ""
+    inventory_unit: str = ""
+    # Importes de la línea (misma moneda que el precio) y lo que el proveedor
+    # CONFIRMÓ surtir (None = aún sin confirmar).
+    discount: Decimal = Decimal("0")
+    tax: Decimal = Decimal("0")
+    confirmed_quantity: Decimal | None = None
+    # Peso variable (§16-17): «5 cajas a $95/kg». El precio es POR KG; el
+    # importe de la orden se ESTIMA con el peso nominal de la presentación y la
+    # recepción (peso real) y la factura (kg) deciden lo que se paga.
+    pricing_basis: str = ""
+    inventory_by_weight: bool = False
 
     @classmethod
     def create(cls, product_id: str, description: str, ordered_quantity, unit_price: Money,
@@ -484,12 +552,37 @@ class PurchaseOrderLine:
         # precio NEGATIVO; la recepción de la orden lo llevaría al costo.
         if not unit_price.is_positive():
             raise ProcurementDomainError("El precio unitario debe ser mayor a cero")
+        discount = _dec(kwargs.pop("discount", None) or "0")
+        tax = _dec(kwargs.pop("tax", None) or "0")
+        if discount < 0 or tax < 0:
+            raise ProcurementDomainError("El descuento y el impuesto no pueden ser negativos")
+        estimate = q * unit_price.amount
+        if kwargs.get("pricing_basis") == WEIGHT_PRICING_BASIS:
+            estimate *= _dec(kwargs.get("conversion_factor") or "1")
+        if discount > estimate:
+            raise ProcurementDomainError("El descuento no puede superar el importe de la línea")
         return cls(id=new_uuid(), product_id=product_id, description=description,
-                   ordered_quantity=q, unit_price=unit_price, **kwargs)
+                   ordered_quantity=q, unit_price=unit_price, discount=discount, tax=tax,
+                   **kwargs)
+
+    def priced_by_weight(self) -> bool:
+        return self.pricing_basis == WEIGHT_PRICING_BASIS
+
+    def billable_quantity(self) -> Decimal:
+        """Lo que se pacta cobrar: kg nominales si el precio es por kg."""
+        if self.priced_by_weight():
+            return self.ordered_quantity * (self.conversion_factor or Decimal("1"))
+        return self.ordered_quantity
+
+    def line_subtotal(self) -> Money:
+        return Money(self.billable_quantity() * self.unit_price.amount - self.discount,
+                     self.unit_price.currency_code)
 
     def line_total(self) -> Money:
-        return Money(self.ordered_quantity * self.unit_price.amount,
-                     self.unit_price.currency_code)
+        return Money(self.line_subtotal().amount + self.tax, self.unit_price.currency_code)
+
+    def inventory_quantity(self) -> Decimal:
+        return self.ordered_quantity * (self.conversion_factor or Decimal("1"))
 
     def pending_quantity(self) -> Decimal:
         return self.ordered_quantity - self.received_quantity
@@ -515,6 +608,26 @@ class PurchaseOrder:
     source_rfq_id: str | None = None
     source_award_id: str | None = None
     payment_terms: str | None = None
+    # Encabezado enterprise (§23).
+    exchange_rate: Decimal | None = None
+    required_date: str | None = None
+    promised_date: str | None = None
+    delivery_method: str | None = None
+    delivery_address: str | None = None
+    cost_center: str | None = None
+    project_reference: str | None = None
+    contract_reference: str | None = None
+    notes: str | None = None
+    # Confirmación del proveedor (§24): «enviada» NO es «aceptada».
+    supplier_reference: str | None = None
+    confirmed_at: str | None = None
+    confirmed_delivery_date: str | None = None
+    confirmation_exceptions: str | None = None
+    confirmation_comments: str | None = None
+    confirmed_by_user_id: str | None = None
+    # §13: recolección en proveedor — de qué bodega/punto sale (id + foto JSON).
+    origin_supplier_address_id: str | None = None
+    origin_address_snapshot: str | None = None
 
     @classmethod
     def create(cls, document_number: DocumentNumber, supplier_id: str, branch_id: str,
@@ -549,11 +662,47 @@ class PurchaseOrder:
         self.status = PurchaseOrderStatus.SENT
         self.updated_at = _utcnow()
 
-    def acknowledge(self) -> None:
+    def acknowledge(self, *, supplier_reference: str = "",
+                    confirmed_delivery_date: str | None = None,
+                    confirmed_quantities: dict[str, Decimal] | None = None,
+                    comments: str = "", confirmed_by_user_id: str | None = None,
+                    line_labels: dict[str, str] | None = None) -> list[str]:
+        """El proveedor CONFIRMA la orden enviada (§24).
+
+        Registra su referencia, la fecha de entrega que promete y la cantidad que
+        confirma por línea (la ordenada si no dice otra). Devuelve las
+        EXCEPCIONES — diferencias contra lo pedido — que también quedan guardadas:
+        confirmar menos (o más) de lo ordenado, o prometer después de la fecha
+        requerida."""
         if self.status is not PurchaseOrderStatus.SENT:
             raise InvalidPurchaseStateError("Solo se confirma una orden enviada")
+        confirmed_quantities = confirmed_quantities or {}
+        labels = line_labels or {}
+        exceptions: list[str] = []
+        for line in self.lines:
+            quantity = _dec(confirmed_quantities.get(line.id, line.ordered_quantity))
+            if quantity < 0:
+                raise ProcurementDomainError("La cantidad confirmada no puede ser negativa")
+            line.confirmed_quantity = quantity
+            if quantity != line.ordered_quantity:
+                name = labels.get(line.id) or line.description or "Producto"
+                exceptions.append(f"{name}: confirma {quantity.normalize():f} de "
+                                  f"{line.ordered_quantity.normalize():f}")
+        if (confirmed_delivery_date and self.required_date
+                and str(confirmed_delivery_date) > str(self.required_date)):
+            exceptions.append(f"Entrega prometida {confirmed_delivery_date}, posterior a la "
+                              f"requerida {self.required_date}")
+        self.supplier_reference = (supplier_reference or "").strip() or None
+        self.confirmed_delivery_date = confirmed_delivery_date or None
+        self.confirmation_comments = (comments or "").strip() or None
+        self.confirmation_exceptions = "\n".join(exceptions) or None
+        self.confirmed_by_user_id = confirmed_by_user_id
+        self.confirmed_at = _utcnow()
+        if confirmed_delivery_date:
+            self.promised_date = str(confirmed_delivery_date)
         self.status = PurchaseOrderStatus.ACKNOWLEDGED
         self.updated_at = _utcnow()
+        return exceptions
 
     def register_receipt(self, quantities: dict[str, Decimal]) -> None:
         """Update received quantities per line; recompute the order status."""
@@ -635,6 +784,11 @@ class GoodsReceiptLine:
     lot: str | None = None
     expiration: date | None = None
     temperature: Decimal | None = None
+    # §26: peso real y piezas cuando el producto se maneja por peso variable
+    # ("3 canales, 814.700 kg").
+    net_weight: Decimal | None = None
+    piece_count: int | None = None
+    purchase_order_line_id: str | None = None
 
     @classmethod
     def create(cls, product_id: str, ordered_quantity, received_quantity,
@@ -667,16 +821,20 @@ class GoodsReceipt:
     discrepancies: list[ReceiptDiscrepancy] = field(default_factory=list)
     received_by_user_id: str | None = None
     created_at: str = field(default_factory=_utcnow)
+    # Compra en origen: el embarque de Logística del que salió esta recepción.
+    shipment_id: str | None = None
 
     @classmethod
     def create(cls, document_number: DocumentNumber, supplier_id: str, branch_id: str,
                warehouse_id: str, *, received_by_user_id: str,
                purchase_order_id: str | None = None,
-               direct_purchase_id: str | None = None) -> "GoodsReceipt":
+               direct_purchase_id: str | None = None,
+               shipment_id: str | None = None) -> "GoodsReceipt":
         return cls(id=new_uuid(), document_number=str(document_number), supplier_id=supplier_id,
                    branch_id=branch_id, warehouse_id=warehouse_id,
                    received_by_user_id=received_by_user_id,
-                   purchase_order_id=purchase_order_id, direct_purchase_id=direct_purchase_id)
+                   purchase_order_id=purchase_order_id, direct_purchase_id=direct_purchase_id,
+                   shipment_id=shipment_id)
 
     def add_line(self, line: GoodsReceiptLine) -> None:
         if self.status != "STARTED":

@@ -39,7 +39,8 @@ class ProductsPresenter:
                  bundles_write_factory=None, import_read_factory=None,
                  import_write_factory=None, species_read_factory=None,
                  branch_read_factory=None, branch_write_factory=None,
-                 product_search_factory=None,
+                 product_search_factory=None, units_write_factory=None,
+                 purchase_config_factory=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -74,6 +75,10 @@ class ProductsPresenter:
         #: es una lectura de tabla (necesita estado y si es cárnico), no un
         #: buscador duplicado.
         self._product_search = product_search_factory
+        #: Presentaciones de compra (conversiones hacia la unidad base). Compras
+        #: las LEE de aquí; ésta es la única pantalla que las escribe.
+        self._units_write = units_write_factory
+        self._purchase_config = purchase_config_factory
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -959,6 +964,98 @@ class ProductsPresenter:
         except Exception:  # pragma: no cover - defensive
             logger.exception("No se pudieron listar unidades")
             return []
+
+    # ── unidades de compra (presentaciones) ───────────────────────────────
+    @property
+    def can_manage_purchase_units(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        if self._units_write is None:
+            return False
+        if self._has_permission is None:
+            return True
+        return bool(self._has_permission(ProductPermissions.CONVERSIONS_MANAGE))
+
+    def purchase_unit_profile(self, product_id: str):
+        """``PurchaseProductConfigDTO`` del producto: base + presentaciones."""
+        if self._purchase_config is None or not product_id:
+            return None
+        try:
+            return self._purchase_config().get(product_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo leer la configuración de compra")
+            return None
+
+    def purchase_unit_choices(self, product_id: str) -> list[tuple[str, str]]:
+        """Unidades activas que aún pueden agregarse como presentación: ni la
+        base ni una ya configurada."""
+        profile = self.purchase_unit_profile(product_id)
+        if profile is None:
+            return []
+        taken = {u.code for u in profile.purchase_units}
+        return [(u["id"], f"{u['name']} ({u['code']})") for u in self.list_units()
+                if u["code"] not in taken and u["id"] != profile.base_unit_id]
+
+    def add_purchase_unit(self, product_id: str, unit_id: str, factor: str,
+                          fractional_receipt: bool = True) -> tuple[bool, str]:
+        """``1 unidad = factor × unidad base`` sólo para este producto."""
+        from backend.application.products.commands.product_unit_commands import (
+            CreateUnitConversionCommand,
+        )
+        from backend.shared.ids import new_uuid
+        profile = self.purchase_unit_profile(product_id)
+        if self._units_write is None or profile is None:
+            return False, "Acción no disponible"
+        if not profile.base_unit_id:
+            return False, "El producto no tiene unidad base; edítalo primero."
+        try:
+            res = self._units_write()["create_conversion"].execute(CreateUnitConversionCommand(
+                operation_id=new_uuid(), from_unit_id=unit_id,
+                to_unit_id=profile.base_unit_id, factor=str(factor),
+                user_id=getattr(self._session, "user_id", None), product_id=product_id,
+                fractional_receipt=bool(fractional_receipt)))
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Alta de presentación de compra falló")
+            return False, f"Error: {exc}"
+        return res.success, ("Presentación agregada." if res.success else res.message)
+
+    def set_purchase_unit_fractional(self, conversion_id: str,
+                                     fractional: bool) -> tuple[bool, str]:
+        """§27: si la presentación se puede recibir en fracción."""
+        from backend.application.products.commands.product_unit_commands import (
+            SetConversionFractionalReceiptCommand,
+        )
+        from backend.shared.ids import new_uuid
+        if self._units_write is None or not conversion_id:
+            return False, "Acción no disponible"
+        try:
+            res = self._units_write()["set_conversion_fractional"].execute(
+                SetConversionFractionalReceiptCommand(
+                    operation_id=new_uuid(), conversion_id=conversion_id,
+                    fractional_receipt=bool(fractional),
+                    user_id=getattr(self._session, "user_id", None)))
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Cambio de recepción fraccionada falló")
+            return False, f"Error: {exc}"
+        return res.success, (("Se puede recibir en fracción." if fractional else
+                              "Sólo se recibe en unidades completas.")
+                             if res.success else res.message)
+
+    def retire_purchase_unit(self, conversion_id: str) -> tuple[bool, str]:
+        from backend.application.products.commands.product_unit_commands import (
+            SetUnitConversionActiveCommand,
+        )
+        from backend.shared.ids import new_uuid
+        if self._units_write is None or not conversion_id:
+            return False, "Acción no disponible"
+        try:
+            res = self._units_write()["set_conversion_active"].execute(
+                SetUnitConversionActiveCommand(
+                    operation_id=new_uuid(), conversion_id=conversion_id, active=False,
+                    user_id=getattr(self._session, "user_id", None)))
+        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
+            logger.exception("Retiro de presentación de compra falló")
+            return False, f"Error: {exc}"
+        return res.success, ("Presentación retirada." if res.success else res.message)
 
     def list_species(self) -> list[dict]:
         """Especies del catálogo para el selector cárnico del formulario (§5.2).

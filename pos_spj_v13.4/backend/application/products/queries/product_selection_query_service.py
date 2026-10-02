@@ -35,6 +35,8 @@ corrige ahí, no falseando la comparación aquí.
 
 from __future__ import annotations
 
+import sqlite3
+
 from dataclasses import dataclass, replace
 from typing import Protocol
 
@@ -232,6 +234,23 @@ class _BaseProductSearch:
         return self._barcodes_available
 
     # ── preset ───────────────────────────────────────────────────────────
+    def enabled_in_branch(self, product_ids, branch_id: str) -> set[str] | None:
+        """Cuáles de ``product_ids`` están habilitados en ``branch_id``
+        (``branch_product``). Para contextos que buscan en el catálogo GLOBAL y
+        sólo INFORMAN la habilitación (Compras). ``None`` = no se puede saber
+        (sin tabla): quien llama no debe marcar nada."""
+        ids = [str(pid) for pid in product_ids if pid]
+        if not ids or not branch_id:
+            return set()
+        marks = ",".join("?" * len(ids))
+        try:
+            rows = self._conn.execute(
+                f"SELECT product_id FROM branch_product WHERE branch_id=? AND enabled=1"
+                f" AND product_id IN ({marks})", [str(branch_id), *ids]).fetchall()
+        except sqlite3.OperationalError:
+            return None
+        return {str(r[0]) for r in rows}
+
     def _preset(self, criteria: "ProductSearchQuery") -> "ProductSearchQuery":
         overrides: dict = {}
         if self.exclude_internal:
@@ -310,6 +329,23 @@ class _BaseProductSearch:
                     "Hay productos que coinciden, pero ninguno tiene existencia "
                     "en esta sucursal.")
             return None
+
+        # Primero se relaja MANTENIENDO el texto: si lo buscado existe pero no
+        # está habilitado aquí (o no está activo), ésa es la causa. Relajar antes
+        # el texto decía "ninguno coincide" en cuanto la sucursal tenía cualquier
+        # otro producto habilitado — medido 2026-09-25: «pechuga» en una sucursal
+        # con sólo «Alas» habilitado respondía "no coincide".
+        con_texto = (
+            (replace(base, branch_id=None, channel_id=None), "SIN_HABILITAR_EN_SUCURSAL",
+             "Lo que buscas existe, pero no está habilitado en esta sucursal. "
+             "Habilítalo en Productos → Sucursales y surtidos."),
+            (replace(base, branch_id=None, channel_id=None, active_only=False), "SIN_ACTIVOS",
+             "Lo que buscas existe, pero todavía no está activo (borrador o en revisión)."),
+        )
+        if any(getattr(base, campo) for campo in sin_texto):
+            for criterio, codigo, mensaje in con_texto:
+                if hay(criterio):
+                    return EmptyResultReason(codigo, mensaje)
 
         pasos = (
             (replace(base, **sin_texto), "NO_COINCIDE",

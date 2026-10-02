@@ -7,7 +7,13 @@ for what actually gets awarded)."""
 from __future__ import annotations
 
 import sqlite3
+from decimal import Decimal
 from typing import Any
+
+from backend.application.procurement.queries.product_names import (
+    UNKNOWN_PRODUCT,
+    product_labels,
+)
 
 from backend.application.procurement.dto.quotation_dtos import (
     ComparisonRowDTO,
@@ -107,6 +113,37 @@ class RfqReadService(_Base):
             response_deadline=row["response_deadline"], awarded=awarded,
             invitations=invitations, quotes=quotes)
 
+    def award_orders(self, rfq_id: str) -> dict:
+        """La adjudicación de la RFQ agrupada por proveedor, y la orden que ya
+        generó cada grupo (si existe). ``{}`` si la RFQ no está adjudicada."""
+        award = self._query_one("SELECT id FROM purchase_awards WHERE rfq_id=?"
+                                " ORDER BY created_at DESC LIMIT 1", (rfq_id,))
+        if award is None:
+            return {}
+        branch = self._query_one(
+            "SELECT r.branch_id FROM requests_for_quotation q"
+            " JOIN purchase_requisitions r ON r.id=q.requisition_id WHERE q.id=?", (rfq_id,))
+        rows = self._query(
+            "SELECT al.supplier_id, al.awarded_quantity, l.unit_price"
+            " FROM purchase_award_lines al JOIN supplier_quote_lines l ON l.id=al.quote_line_id"
+            " WHERE al.award_id=?", (award["id"],))
+        groups: dict[str, dict] = {}
+        for r in rows:
+            group = groups.setdefault(r["supplier_id"], {
+                "supplier_id": r["supplier_id"],
+                "supplier_name": self._supplier_name(r["supplier_id"]),
+                "lines": 0, "total": Decimal("0"), "order_number": ""})
+            group["lines"] += 1
+            group["total"] += Decimal(str(r["awarded_quantity"])) * Decimal(str(r["unit_price"]))
+        for supplier_id, group in groups.items():
+            order = self._query_one(
+                "SELECT document_number FROM purchase_orders"
+                " WHERE source_award_id=? AND supplier_id=?", (award["id"], supplier_id))
+            group["order_number"] = order["document_number"] if order else ""
+            group["total"] = str(group["total"])
+        return {"award_id": award["id"], "branch_id": branch["branch_id"] if branch else "",
+                "suppliers": sorted(groups.values(), key=lambda g: g["supplier_name"])}
+
     def comparison(self, rfq_id: str) -> list[ComparisonRowDTO]:
         """Every quoted (product, supplier) line for this RFQ, ranked cheapest
         first within each product group — display-only ranking."""
@@ -119,6 +156,7 @@ class RfqReadService(_Base):
             " WHERE q.rfq_id=?"
             " ORDER BY l.product_id, CAST(l.unit_price AS NUMERIC), q.lead_time_days",
             (rfq_id,))
+        names = product_labels(self._conn, (r["product_id"] for r in rows))
         result: list[ComparisonRowDTO] = []
         best_seen: set[str] = set()
         for r in rows:
@@ -129,7 +167,8 @@ class RfqReadService(_Base):
                 quote_line_id=r["quote_line_id"], supplier_id=r["supplier_id"],
                 supplier_name=r["supplier_name"], quantity=r["quantity"],
                 unit_price=r["unit_price"], lead_time_days=r["lead_time_days"],
-                currency_code=r["currency_code"], is_best=is_best))
+                currency_code=r["currency_code"], is_best=is_best,
+                product_name=names.get(str(r["product_id"]), UNKNOWN_PRODUCT)))
         return result
 
     def _where(self, status: str | None, search: str) -> tuple[str, list]:

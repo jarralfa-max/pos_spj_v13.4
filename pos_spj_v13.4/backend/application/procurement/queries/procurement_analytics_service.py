@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -84,8 +83,9 @@ class ProcurementAnalyticsService:
             invoices_with_differences=int(self._scalar(
                 "SELECT COUNT(*) FROM supplier_invoices WHERE status='WITH_DIFFERENCES'")),
             direct_purchases_today=int(self._scalar(
-                "SELECT COUNT(*) FROM direct_purchases WHERE substr(created_at,1,10)=?",
-                (datetime.now(timezone.utc).date().isoformat(),))),
+                # «Hoy» es el día LOCAL del negocio, no el de UTC.
+                "SELECT COUNT(*) FROM direct_purchases"
+                " WHERE date(created_at,'localtime')=date('now','localtime')")),
             committed_spend=str(committed.quantize(Decimal("0.01"))))
 
     def alerts(self) -> tuple[ProcurementAlertDTO, ...]:
@@ -160,10 +160,16 @@ class ProcurementAnalyticsService:
                 self.receipts_vs_discrepancies_chart()]
 
 
+#: Debe coincidir con `ORDER_STATUS_ES` de la UI (una prueba lo exige): la
+#: gráfica y la lista nombran igual el mismo estado.
+ORDER_STATUS_LABELS = {
+    "DRAFT": "Borrador", "PENDING_APPROVAL": "Pendiente de aprobación",
+    "APPROVED": "Aprobada", "SENT": "Enviada", "ACKNOWLEDGED": "Confirmada por proveedor",
+    "PARTIALLY_RECEIVED": "Recibida parcialmente", "RECEIVED": "Recibida",
+    "INVOICED": "Facturada", "CLOSED": "Cerrada", "CANCELLED": "Cancelada",
+}
+
+
 def _status_es(code: str) -> str:
-    return {
-        "DRAFT": "Borrador", "PENDING_APPROVAL": "Pendiente", "APPROVED": "Aprobada",
-        "SENT": "Enviada", "ACKNOWLEDGED": "Confirmada",
-        "PARTIALLY_RECEIVED": "Recibida parcial", "RECEIVED": "Recibida",
-        "INVOICED": "Facturada", "CLOSED": "Cerrada", "CANCELLED": "Cancelada",
-    }.get(str(code or ""), str(code or "—"))
+    value = str(code or "")
+    return ORDER_STATUS_LABELS.get(value) or (value.replace("_", " ").capitalize() or "—")

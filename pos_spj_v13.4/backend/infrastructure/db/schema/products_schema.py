@@ -254,6 +254,9 @@ _DDL = (
         effective_from TEXT,
         effective_to TEXT,
         active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+        -- §27: ¿se puede recibir en fracción? (migración 286)
+        allow_fractional_receipt INTEGER NOT NULL DEFAULT 1
+            CHECK(allow_fractional_receipt IN (0,1)),
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         FOREIGN KEY (from_unit_id) REFERENCES units_of_measure(id),
         FOREIGN KEY (to_unit_id) REFERENCES units_of_measure(id),

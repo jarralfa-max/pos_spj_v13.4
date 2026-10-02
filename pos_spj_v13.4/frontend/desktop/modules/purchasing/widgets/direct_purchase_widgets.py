@@ -35,6 +35,7 @@ class PurchaseSummaryPanel(SectionCard):
         self._values = {}
         form = QFormLayout()
         for key, title in (
+            ("document", "Documento"),
             ("supplier", "Proveedor"), ("destination", "Destino"),
             ("payment", "Condición"), ("subtotal", "Subtotal"),
             ("tax", "Impuestos"), ("discount", "Descuento"), ("total", "Total"),

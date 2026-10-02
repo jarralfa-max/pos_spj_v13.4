@@ -6,10 +6,11 @@ database, the app container, SQL or business rules. Validated at 1366×768.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QStackedWidget, QWidget
 
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.finance.pages.accounts_payable_page import AccountsPayablePage
 from frontend.desktop.modules.finance.pages.accounts_receivable_page import (
     AccountsReceivablePage,
@@ -75,25 +76,17 @@ class FinanceView(QWidget):
         self._presenter = presenter
         self.setObjectName("financeModule")
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
         self._nav = SideNav(self)
         self._nav.setObjectName("financeNav")
-        self._nav.setMaximumWidth(260)
-        self._nav.setMinimumWidth(220)
 
         self._stack = QStackedWidget(self)
         self._pages: list = []
         self._build_navigation()
 
-        layout.addWidget(self._nav)
-        content = QWidget(self)
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.addWidget(self._stack)
-        layout.addWidget(content, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Finanzas", icon=Icons.FINANCE,
+            sidebar=self._nav, content=self._stack,
+        )
 
         self._nav.navigated.connect(self._on_nav_changed)
         self._nav.setCurrentRow(self._first_page_row)

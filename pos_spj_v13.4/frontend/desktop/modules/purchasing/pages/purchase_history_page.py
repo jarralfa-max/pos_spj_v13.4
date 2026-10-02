@@ -48,29 +48,35 @@ class PurchaseHistoryPage(QWidget):
     def reload(self):
         try:
             rows = self._presenter.receipts()
-            self._table.load_rows([[
-                row["document_number"], row["supplier_name"], row["status"],
-                str(row["received"]), str(row["accepted"]), str(row["rejected"]),
-                str(row["differences"]),
-            ] for row in rows], row_ids=[row["id"] for row in rows])
-            self._loaded = True
-        except Exception as exc:
-            self._notice.setText(str(exc)); self._notice.setProperty("state", "ERROR"); self._notice.show()
+        except Exception:
+            # Nunca el texto de una excepción de Python en pantalla (antes se
+            # mostraba «object has no attribute 'receipts'»).
+            self._notice.setText("No fue posible cargar las recepciones; revise el log.")
+            self._notice.setProperty("state", "error"); self._notice.show()
+            return
+        self._notice.hide()
+        self._table.load_rows([[
+            row["document_number"], row["supplier_name"], row["status"],
+            row["received"], row["accepted"], row["rejected"], str(row["differences"]),
+        ] for row in rows], row_ids=[row["id"] for row in rows])
+        self._loaded = True
 
     def _select(self):
         receipt_id = self._table.selected_row_id()
         if not receipt_id: return
         row = self._presenter.receipt_detail(receipt_id)
         if not row: return
-        self._summary.setText(f"{row['document_number']} · {row['status']} · Almacén {row['warehouse_id']}")
+        self._summary.setText(f"{row['document_number']} · {row['status']} · "
+                              f"{row['source']}\nAlmacén: {row['warehouse']} · "
+                              f"{row['created_at']}")
         self._lines.load_rows([[
-            item["product_id"], item["ordered_quantity"], item["received_quantity"],
-            item["accepted_quantity"], item["rejected_quantity"], item.get("lot") or "—",
+            item["product"], item["ordered_quantity"], item["received_quantity"],
+            item["accepted_quantity"], item["rejected_quantity"], item["lot"],
         ] for item in row["lines"]], row_ids=[item["id"] for item in row["lines"]])
         self._differences.load_rows([[
-            item["discrepancy_type"], item["expected"], item["actual"], item["reason"] or "—",
+            item["type"], item["expected"], item["actual"], item["reason"],
         ] for item in row["differences"]], row_ids=[str(i) for i, _ in enumerate(row["differences"])])
         self._invoices.load_rows([[
             item["document_number"], item["invoice_number"], item["status"],
-            item.get("match_result") or "—", item["total"],
+            item["match_result"], item["total"],
         ] for item in row["invoices"]], row_ids=[item["id"] for item in row["invoices"]])

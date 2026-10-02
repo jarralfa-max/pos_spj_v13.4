@@ -84,7 +84,7 @@ def test_orders_have_master_detail_timeline_and_contextual_actions():
     assert "QSplitter" in worklist and "OrderDetailPanel" in pages
     assert "itemSelectionChanged" in worklist
     assert "class DocumentTimeline" in detail
-    assert all(step in detail for step in ("PR", "RFQ", "Embarque", "Recepción", "Factura", "CxP", "Pago"))
+    assert all(step in detail for step in ("Solicitud", "RFQ", "Embarque", "Recepción", "Factura", "CxP", "Pago"))
     assert "QMessageBox" not in pages
 
 
@@ -111,7 +111,7 @@ def test_receipts_and_invoices_are_real_master_detail_workspaces():
         "Recepciones relacionadas", "Aceptado", "Rechazado", "Diferencias",
         "Conciliación"))
     assert all(label in invoices for label in (
-        "Aceptado", "Facturado", "Precio acordado", "Precio factura", "Impuesto"))
+        "Aceptado", "Facturado", "Precio pactado (neto)", "Precio factura", "Impuesto"))
     assert "document_provider" in dialogs and "direct_purchase_line_id" in dialogs
     assert "__unknown__" not in invoices
 

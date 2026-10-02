@@ -44,10 +44,39 @@ class CreateUnitConversionCommand:
     rounding_scale: int = 6
     effective_from: str | None = None
     effective_to: str | None = None
+    fractional_receipt: bool = True
 
     def validate(self) -> None:
         missing = [f for f in ("operation_id", "from_unit_id", "to_unit_id", "factor")
                    if not getattr(self, f)]
+        if missing:
+            raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
+
+
+@dataclass(frozen=True)
+class SetConversionFractionalReceiptCommand:
+    """§27: si la presentación se puede recibir en fracción."""
+
+    operation_id: str
+    conversion_id: str
+    fractional_receipt: bool
+    user_id: str | None = None
+
+    def validate(self) -> None:
+        missing = [f for f in ("operation_id", "conversion_id") if not getattr(self, f)]
+        if missing:
+            raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
+
+
+@dataclass(frozen=True)
+class SetUnitConversionActiveCommand:
+    operation_id: str
+    conversion_id: str
+    active: bool
+    user_id: str | None = None
+
+    def validate(self) -> None:
+        missing = [f for f in ("operation_id", "conversion_id") if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
 

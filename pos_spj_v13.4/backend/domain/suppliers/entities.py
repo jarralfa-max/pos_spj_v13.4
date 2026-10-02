@@ -281,6 +281,8 @@ class SupplierAddress:
     longitude: float | None = None
     geocoding_source: str | None = None
     validation_state: str = "MANUAL"
+    # Nombre con que Compras y Logística la reconocen ("Bodega Norte").
+    label: str = ""
 
     @classmethod
     def create(cls, supplier_id: str, address_type: AddressType, line: str,

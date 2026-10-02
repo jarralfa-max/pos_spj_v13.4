@@ -28,6 +28,7 @@ from backend.application.products.commands.product_unit_commands import (
     CreateUnitConversionCommand,
     SetCatchWeightConfigCommand,
     SetUnitActiveCommand,
+    SetUnitConversionActiveCommand,
 )
 from backend.application.products.permissions import ProductPermissions
 from backend.domain.products.entities.product_unit_conversion import (
@@ -138,7 +139,8 @@ class CreateUnitConversionUseCase(_Base):
                 factor=command.factor, product_id=command.product_id,
                 rounding_scale=command.rounding_scale,
                 effective_from=command.effective_from,
-                effective_to=command.effective_to)
+                effective_to=command.effective_to,
+                fractional_receipt=bool(getattr(command, "fractional_receipt", True)))
         except ProductsDomainError as exc:
             return UnitResult(False, None, str(exc))
         # §16: la nueva arista no debe crear un ciclo en el grafo de conversión
@@ -163,6 +165,77 @@ class CreateUnitConversionUseCase(_Base):
             logger.exception("create conversion failed op=%s", command.operation_id)
             raise
         return UnitResult(True, conv.id, "UNIT_CONVERSION_CREATED")
+
+
+class SetUnitConversionActiveUseCase(_Base):
+    """Retira (o reactiva) una conversión. Nunca se borra: las compras ya
+    registradas guardan su propio factor, y la bitácora conserva cuál estaba
+    vigente."""
+
+    name = "SetUnitConversionActiveUseCase"
+
+    def execute(self, command: SetUnitConversionActiveCommand) -> UnitResult:
+        command.validate()
+        self._auth.require(command.user_id or "", ProductPermissions.CONVERSIONS_MANAGE)
+        conv = self._repo.get_conversion(command.conversion_id)
+        if conv is None:
+            return UnitResult(False, None, "La conversión no existe")
+        conv.active = bool(command.active)
+        if conv.active:
+            others = [c for c in self._repo.list_conversions(product_id=conv.product_id)
+                      if c.id != conv.id]
+            try:
+                detect_cycle([*others, conv])
+            except ProductsDomainError as exc:
+                return UnitResult(False, None, str(exc))
+        try:
+            self._repo.save_conversion(conv)
+            record_product_audit_entry(
+                self._conn, action="UNIT_CONVERSION_UPDATED", entity_id=conv.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                after={"active": conv.active, "product_id": conv.product_id})
+            _emit(self._conn, ProductEvents.PRODUCT_UNIT_CONVERSION_UPDATED, command,
+                  conv.id, {"product_id": conv.product_id, "active": conv.active})
+            self._conn.commit()
+        except Exception:
+            self._rollback()
+            logger.exception("set-active conversion failed op=%s", command.operation_id)
+            raise
+        return UnitResult(True, conv.id, "UNIT_CONVERSION_UPDATED")
+
+
+class SetConversionFractionalReceiptUseCase(_Base):
+    """§27: la presentación decide si se recibe en fracción («4 costales + 22
+    kg») o sólo en unidades completas. Se audita como cualquier cambio de
+    conversión."""
+
+    name = "SetConversionFractionalReceiptUseCase"
+
+    def execute(self, command) -> UnitResult:
+        command.validate()
+        self._auth.require(command.user_id or "", ProductPermissions.CONVERSIONS_MANAGE)
+        conv = self._repo.get_conversion(command.conversion_id)
+        if conv is None:
+            return UnitResult(False, None, "La conversión no existe")
+        before = conv.fractional_receipt
+        conv.fractional_receipt = bool(command.fractional_receipt)
+        try:
+            self._repo.save_conversion(conv)
+            record_product_audit_entry(
+                self._conn, action="UNIT_CONVERSION_UPDATED", entity_id=conv.id,
+                user_id=command.user_id, operation_id=command.operation_id,
+                before={"fractional_receipt": before},
+                after={"fractional_receipt": conv.fractional_receipt,
+                       "product_id": conv.product_id})
+            _emit(self._conn, ProductEvents.PRODUCT_UNIT_CONVERSION_UPDATED, command,
+                  conv.id, {"product_id": conv.product_id,
+                            "fractional_receipt": conv.fractional_receipt})
+            self._conn.commit()
+        except Exception:
+            self._rollback()
+            logger.exception("fractional receipt change failed op=%s", command.operation_id)
+            raise
+        return UnitResult(True, conv.id, "UNIT_CONVERSION_UPDATED")
 
 
 # ── peso variable ────────────────────────────────────────────────────────

@@ -13,7 +13,6 @@ from __future__ import annotations
 import logging
 
 from PyQt5.QtWidgets import (
-    QHBoxLayout,
     QLabel,
     QStackedWidget,
     QVBoxLayout,
@@ -21,6 +20,8 @@ from PyQt5.QtWidgets import (
 )
 
 from frontend.desktop.components import SideNav
+from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV
 
@@ -47,11 +48,10 @@ class InventoryView(QWidget):
             slot_layout.setContentsMargins(0, 0, 0, 0)
             self.stack.addWidget(slot)
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        layout.addWidget(self.nav)
-        layout.addWidget(self.stack, 1)
+        self.module_layout = ModuleLayout(
+            self, title="Inventario", icon=Icons.INVENTORY,
+            sidebar=self.nav, content=self.stack,
+        )
 
         self.nav.navigated.connect(self._on_nav)
         if self._specs:

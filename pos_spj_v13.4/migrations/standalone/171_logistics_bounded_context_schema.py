@@ -1,6 +1,13 @@
 """Born-clean Logistics schema; no compatibility or rescue migration."""
 
 DDL = (
+    """CREATE TABLE IF NOT EXISTS logistics_arrival_counts (
+        id TEXT NOT NULL PRIMARY KEY, shipment_id TEXT NOT NULL,
+        content_id TEXT NOT NULL UNIQUE, received_quantity TEXT NOT NULL,
+        received_net_weight TEXT NOT NULL DEFAULT '0', accepted_quantity TEXT NOT NULL,
+        rejected_quantity TEXT NOT NULL DEFAULT '0', piece_count INTEGER,
+        lot_number TEXT, expiration_date TEXT, temperature TEXT, notes TEXT NOT NULL DEFAULT '',
+        counted_by_user_id TEXT NOT NULL, counted_at TEXT NOT NULL, operation_id TEXT NOT NULL)""",
     """CREATE TABLE IF NOT EXISTS logistics_operations (
         operation_id TEXT NOT NULL PRIMARY KEY, operation_type TEXT NOT NULL,
         result_entity_id TEXT NOT NULL, result_json TEXT NOT NULL, created_at TEXT NOT NULL)""",
@@ -33,7 +40,9 @@ DDL = (
         buyer_user_id TEXT NOT NULL, vehicle_id TEXT, status TEXT NOT NULL,
         operation_id TEXT NOT NULL UNIQUE, version INTEGER NOT NULL DEFAULT 0,
         started_at TEXT, sealed_at TEXT,
-        dispatched_at TEXT, arrived_at TEXT, closed_at TEXT)""",
+        dispatched_at TEXT, arrived_at TEXT, closed_at TEXT,
+        origin_supplier_address_id TEXT, origin_address_snapshot TEXT,
+        in_transit_at TEXT, receiving_started_at TEXT)""",
     """CREATE TABLE IF NOT EXISTS logistics_shipment_sources (
         id TEXT NOT NULL PRIMARY KEY, shipment_id TEXT NOT NULL REFERENCES logistics_shipments(id),
         source_document_type TEXT NOT NULL, source_document_id TEXT NOT NULL,

@@ -47,7 +47,11 @@ def test_costs_table():
     t = costs_table([{"product_id": "p1", "product_name": "Bistec", "product_code": "A-1",
                       "average_cost": "60", "currency": "MXN", "last_cost": "62",
                       "standard_cost": None, "cost_method": "AVERAGE"}])
-    assert t.rows[0] == ["A-1 · Bistec", "$60.00", "$62.00", "—", "Promedio"]
+    # Sin sucursal = costo de EMPRESA (§32: ahora conviven con los de sucursal).
+    assert t.rows[0] == ["A-1 · Bistec", "Empresa", "$60.00", "$62.00", "—", "Promedio"]
+    branch = costs_table([{"product_id": "p1", "branch_id": "b1", "branch_name": "Centro",
+                           "average_cost": "58", "currency": "MXN"}])
+    assert branch.rows[0][1] == "Centro" and branch.row_ids == ["p1:b1"]
 
 
 def test_history_table():

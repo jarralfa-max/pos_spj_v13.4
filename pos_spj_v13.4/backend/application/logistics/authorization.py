@@ -25,3 +25,5 @@ class LogisticsPermissions:
     CONTAINER_RELEASE = "LOGISTICA.contenedor.liberar"
     LABEL_PRINT = "LOGISTICA.etiqueta.imprimir"
     CONTAINER_SCAN = "LOGISTICA.contenedor.escanear"
+    # §28: llegada, conteo/pesaje y cierre del embarque.
+    SHIPMENT_RECEIVE = "LOGISTICA.embarque.recibir"

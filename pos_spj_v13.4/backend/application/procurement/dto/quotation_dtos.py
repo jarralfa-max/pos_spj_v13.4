@@ -73,3 +73,4 @@ class ComparisonRowDTO:
     lead_time_days: int
     currency_code: str
     is_best: bool
+    product_name: str = "Producto"

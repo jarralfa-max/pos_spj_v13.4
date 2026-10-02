@@ -95,17 +95,29 @@ class LogisticsRepository:
         return row is not None
 
     def save_shipment(self, shipment: LogisticsShipment) -> None:
+        # Columnas NOMBRADAS: la tabla crece (migración 280) y un INSERT posicional
+        # dejaba de funcionar en cuanto se agregaba una.
         self.connection.execute(
-            "INSERT INTO logistics_shipments VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            "INSERT INTO logistics_shipments (id, shipment_number, origin_type,"
+            " origin_supplier_id, origin_location, destination_branch_id,"
+            " destination_warehouse_id, buyer_user_id, vehicle_id, status, operation_id,"
+            " version, started_at, sealed_at, dispatched_at, arrived_at, closed_at,"
+            " origin_supplier_address_id, origin_address_snapshot, in_transit_at,"
+            " receiving_started_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(id) DO UPDATE SET status=excluded.status,sealed_at=excluded.sealed_at,"
             " dispatched_at=excluded.dispatched_at,arrived_at=excluded.arrived_at,"
-            " closed_at=excluded.closed_at,version=excluded.version",
+            " closed_at=excluded.closed_at,version=excluded.version,"
+            " in_transit_at=excluded.in_transit_at,"
+            " receiving_started_at=excluded.receiving_started_at",
             (shipment.id, shipment.shipment_number, shipment.origin_type,
              shipment.origin_supplier_id, shipment.origin_location,
              shipment.destination_branch_id, shipment.destination_warehouse_id,
              shipment.buyer_user_id, shipment.vehicle_id, shipment.status.value,
              shipment.operation_id, shipment.version, shipment.started_at, shipment.sealed_at,
-             shipment.dispatched_at, shipment.arrived_at, shipment.closed_at))
+             shipment.dispatched_at, shipment.arrived_at, shipment.closed_at,
+             shipment.origin_supplier_address_id, shipment.origin_address_snapshot,
+             shipment.in_transit_at, shipment.receiving_started_at))
         for source in shipment.sources:
             self.connection.execute(
                 "INSERT OR IGNORE INTO logistics_shipment_sources VALUES (?,?,?,?)",
@@ -150,14 +162,20 @@ class LogisticsRepository:
         return self.get_shipment(row[0]) if row else None
 
     def get_shipment(self, shipment_id: str) -> LogisticsShipment | None:
-        row = self.connection.execute(
-            "SELECT * FROM logistics_shipments WHERE id=?", (shipment_id,)).fetchone()
+        cursor = self.connection.execute(
+            "SELECT * FROM logistics_shipments WHERE id=?", (shipment_id,))
+        row = cursor.fetchone()
         if not row:
             return None
+        extra = dict(zip([c[0] for c in cursor.description], tuple(row)))
         shipment = LogisticsShipment(
             row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8],
             ShipmentStatus(row[9]), row[10], row[11], started_at=row[12], sealed_at=row[13],
-            dispatched_at=row[14], arrived_at=row[15], closed_at=row[16])
+            dispatched_at=row[14], arrived_at=row[15], closed_at=row[16],
+            origin_supplier_address_id=extra.get("origin_supplier_address_id"),
+            origin_address_snapshot=extra.get("origin_address_snapshot"),
+            in_transit_at=extra.get("in_transit_at"),
+            receiving_started_at=extra.get("receiving_started_at"))
         shipment.sources = [ShipmentSourceDocument(
             source[0], source[1], SourceDocumentType(source[2]), source[3])
             for source in self.connection.execute(

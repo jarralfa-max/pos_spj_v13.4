@@ -107,13 +107,33 @@ class MobileOriginPurchaseWorkflow:
             raise ValueError("La solicitud requiere una compra directa con proveedor confirmado")
         if expected_version != 0:
             raise ValueError("La versión inicial debe ser cero")
+        # §12: el origen es una bodega/punto de recolección del proveedor, no el
+        # literal "Proveedor". Si tiene una sola se usa; si tiene varias, el
+        # cliente móvil debe mandar `originAddressId`.
+        import json
+        from backend.application.suppliers.queries.supplier_origin_query_service import (
+            SupplierOriginQueryService,
+        )
+        origins = SupplierOriginQueryService(self._connection)
+        supplier_id = command.get("supplierId")
+        address_id = command.get("originAddressId")
+        if not address_id:
+            options = origins.origin_locations(supplier_id)
+            if len(options) != 1:
+                raise ValueError("Elige la bodega o punto de recolección de origen")
+            address_id = options[0]["id"]
+        origin = origins.origin_location(supplier_id, address_id)
+        if origin is None:
+            raise ValueError("La bodega o punto de recolección no pertenece al proveedor")
         shipment = LogisticsShipment.create(
             shipment_id=command["shipmentId"], shipment_number=f"SHIP-{command['shipmentId']}",
-            origin_type="SUPPLIER", origin_location="Proveedor",
-            origin_supplier_id=command.get("supplierId"),
+            origin_type="SUPPLIER", origin_location=origin["display"],
+            origin_supplier_id=supplier_id,
             destination_branch_id=identity.branch_id,
             destination_warehouse_id=identity.warehouse_id,
-            buyer_user_id=identity.user_id, operation_id=operation_id)
+            buyer_user_id=identity.user_id, operation_id=operation_id,
+            origin_supplier_address_id=origin["id"],
+            origin_address_snapshot=json.dumps(origin["snapshot"], ensure_ascii=False))
         shipment.add_source(SourceDocumentType(command["documentType"]), command["documentId"])
         return self._shipment_result(
             self._logistics.create_shipment(actor_user_id=identity.user_id, shipment=shipment))
@@ -145,8 +165,10 @@ class MobileOriginPurchaseWorkflow:
             source_document_id=source.source_document_id,
             source_line_id=command["sourceLineId"], product_id=command["productId"],
             declared_quantity=command["quantity"], declared_net_weight=command["netWeight"],
-            purchase_unit=profile["base_unit_id"], inventory_unit=profile["base_unit_id"],
-            conversion_factor="1",
+            # Unidades y factor de la LÍNEA de compra (que salen de Productos);
+            # antes se usaba el id de la unidad base con factor 1.
+            purchase_unit=profile["purchase_unit"], inventory_unit=profile["inventory_unit"],
+            conversion_factor=profile["conversion_factor"],
             unit_cost=command["unitCost"], currency_code="MXN", operation_id=operation_id,
             lot_number=command.get("lotNumber"),
             expiration_date=date.fromisoformat(command["expirationDate"])
@@ -169,8 +191,19 @@ class MobileOriginPurchaseWorkflow:
             (source_line_id, source.source_document_id, product_id)).fetchone()
         if row is None:
             raise ValueError("El producto no pertenece al documento comercial")
+        units = None
+        if table != "purchase_requisition_lines":
+            try:
+                units = self._connection.execute(
+                    f"SELECT purchase_unit, inventory_unit, conversion_factor FROM {table}"
+                    f" WHERE id=?", (source_line_id,)).fetchone()
+            except Exception:
+                units = None
         return {"base_unit_id": row[0], "catch_weight_enabled": bool(row[1]),
-                "lot_controlled": bool(row[2]), "expiration_controlled": bool(row[3])}
+                "lot_controlled": bool(row[2]), "expiration_controlled": bool(row[3]),
+                "purchase_unit": (units[0] if units and units[0] else row[0]),
+                "inventory_unit": (units[1] if units and units[1] else row[0]),
+                "conversion_factor": (units[2] if units and units[2] else "1")}
 
     def attach_photo(self, identity: MobileIdentity, shipment_id: str, operation_id: str,
                      expected_version: int, command: dict) -> dict:

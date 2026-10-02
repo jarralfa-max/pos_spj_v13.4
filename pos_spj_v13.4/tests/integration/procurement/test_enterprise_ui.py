@@ -29,6 +29,7 @@ from frontend.desktop.modules.purchasing.enterprise_routes import (  # noqa: E40
 )
 from backend.application.procurement.permissions import ALL_PURCHASE_PERMISSIONS  # noqa: E402
 from tests.integration._supplier_cutover import apply_supplier_cutover
+from tests.integration.procurement._purchase_context import seed_purchase_context  # noqa: E402
 
 
 class Session:
@@ -62,6 +63,11 @@ def conn():
     # fallo cerrado correcto, pero deja el combo sin nada que ofrecer.
     c.execute("CREATE TABLE usuarios(id TEXT PRIMARY KEY, sucursal_id TEXT)")
     c.execute("INSERT INTO usuarios VALUES ('user-1','br-1')")
+    # FASE 5: la orden valida contra el maestro igual que la compra rápida
+    # (producto activo, almacén de la sucursal). Antes estas pruebas creaban
+    # órdenes con un producto y un almacén que no existían — el defecto, fijado
+    # como contrato.
+    seed_purchase_context(c)
     yield c
     c.close()
 
@@ -105,7 +111,7 @@ def test_sidebar_routes_and_dashboard_actions_follow_capabilities(app, conn):
         "Cotizaciones", "Adjudicaciones", "Políticas y tolerancias"))
 
     pr_stage = next(button for button in view.findChildren(QAbstractButton)
-                    if button.text() == "PR")
+                    if button.text() == "Solicitud")
     pr_stage.click()
     app.processEvents()
     assert view.sidebar.currentItem().text().startswith("Solicitudes")
@@ -239,18 +245,28 @@ def test_order_form_dialog_builds_from_requisition_detail_without_crashing(app, 
 
     dialog = OrderFormDialog(
         source_requisition=detail, branch_id=presenter.default_branch(),
-        warehouse_id=presenter.default_warehouse(),
         supplier_provider=presenter.supplier_options,
         product_provider=presenter.product_options,
         # La sucursal dejó de ser texto libre: si no se ofrecen opciones no hay
         # nada que seleccionar, igual que en la pantalla real.
-        branch_options=presenter.branch_options())
+        branch_options=presenter.branch_options(),
+        warehouse_provider=presenter.warehouse_options,
+        preselect_warehouse=presenter.preselected_warehouse,
+        product_label_provider=presenter.product_label)
 
     values = dialog.values()
     assert values["branch_id"] == "br-1"
+    assert values["warehouse_id"] == "wh-1"      # único almacén: preseleccionado
+    # Antes: `unit_price "0"` sembrado y el dominio lo rechazaba DESPUÉS de
+    # cerrar el diálogo. Ahora la línea queda sin precio, con NOMBRE, y el
+    # diálogo no acepta hasta capturarlo.
     assert values["lines"] == [{
-        "product_id": "p1", "quantity": "10", "purchase_nature": "INVENTORY",
-        "unit_price": "0"}]
+        "product_id": "p1", "description": "Pollo", "quantity": "10",
+        "purchase_nature": "INVENTORY"}]
+    assert dialog._lines._display_rows()[0][0] == "Pollo"
+    assert dialog._lines._display_rows()[0][3] == "Falta precio"
+    from frontend.desktop.modules.purchasing.dialogs.enterprise_dialogs import _lines_problem
+    assert _lines_problem(dialog._lines).startswith("Captura el precio de: Pollo")
 
 
 def test_the_order_dialog_does_not_invent_a_branch_it_was_not_offered(app, conn):
@@ -389,28 +405,29 @@ def test_supplier_and_invoice_document_options_do_not_crash(app, conn):
     assert presenter.invoice_document_profile("missing-id") == {}
 
 
-# ── FASE 3 (acotada): conversión de unidades en líneas de Órdenes ────────────
-def test_order_form_dialog_captures_conversion_factor(app, conn):
+# ── FASE 5: la unidad de compra se ELIGE (Productos); el factor no se teclea ───
+def test_order_lines_take_the_unit_from_products_not_a_typed_factor(app, conn):
     from frontend.desktop.modules.purchasing.dialogs.enterprise_dialogs import (
         OrderFormDialog,
     )
-    from frontend.desktop.components.search_selector import SearchOption
 
-    def products(_query):
-        return [SearchOption(id="p1", label="Pollo entero", subtitle="COD-1")]
-
-    dialog = OrderFormDialog(branch_id="br-1", warehouse_id="wh-1",
-                             supplier_provider=lambda _q: [], product_provider=products)
-    dialog._lines._product.set_selected_label("p1", "Pollo entero")
+    presenter = build_enterprise_presenter(conn, Session())
+    dialog = OrderFormDialog(branch_id="br-1", supplier_provider=lambda _q: [],
+                             product_provider=presenter.product_options,
+                             profile_provider=presenter.purchase_profile)
+    assert not hasattr(dialog._lines, "_conversion")
+    dialog._lines._product.set_selected_label("p1", "Pollo")
+    dialog._lines._product_selected("p1")
+    assert dialog._lines._unit.current_id() == "PZA"
     dialog._lines._qty.set_decimal("10")
     dialog._lines._price.set_decimal("100")
-    dialog._lines._conversion.set_decimal("12")
     dialog._lines._add()
 
-    lines = dialog._lines.lines()
-    assert lines == [{"product_id": "p1", "quantity": "10.000",
-                      "purchase_nature": "INVENTORY", "unit_price": "100.00",
-                      "estimated_unit_cost": "100.00", "conversion_factor": "12.000"}]
+    assert dialog._lines.lines() == [{
+        "product_id": "p1", "description": "Pollo", "quantity": "10.000",
+        "purchase_nature": "INVENTORY", "purchase_unit": "PZA",
+        "unit_price": "100.00", "estimated_unit_cost": "100.00",
+        "discount": "0", "tax": "0"}]
 
 
 def test_analytics_kpis_and_charts(app, conn):

@@ -93,6 +93,22 @@ class DirectPurchaseMode(str, Enum):
     DIRECT_ASSET = "DIRECT_ASSET"
 
 
+class FulfillmentMode(str, Enum):
+    """Forma LOGÍSTICA en que llega la mercancía (§11), independiente de la
+    condición comercial (contado/crédito)."""
+
+    IMMEDIATE_RECEIPT = "IMMEDIATE_RECEIPT"
+    LATER_RECEIPT = "LATER_RECEIPT"
+    SUPPLIER_DELIVERY = "SUPPLIER_DELIVERY"
+    SUPPLIER_PICKUP = "SUPPLIER_PICKUP"
+
+
+#: Modalidades que dejan la recepción PENDIENTE (todas menos la inmediata).
+DEFERRED_FULFILLMENT = frozenset({
+    FulfillmentMode.LATER_RECEIPT, FulfillmentMode.SUPPLIER_DELIVERY,
+    FulfillmentMode.SUPPLIER_PICKUP})
+
+
 class DocumentStatus(str, Enum):
     DRAFT = "DRAFT"
     PENDING_AUTHORIZATION = "PENDING_AUTHORIZATION"

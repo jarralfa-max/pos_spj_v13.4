@@ -139,8 +139,8 @@ class ProcurementDashboardPage(QWidget):
         row.setSpacing(Spacing.SM)
         capabilities = self._presenter.capabilities()
         stages = (
-            ("PR", PurchasingRoutes.REQUISITIONS, capabilities.requisition_view),
-            ("PO", PurchasingRoutes.ORDERS, capabilities.order_view),
+            ("Solicitud", PurchasingRoutes.REQUISITIONS, capabilities.requisition_view),
+            ("Orden de compra", PurchasingRoutes.ORDERS, capabilities.order_view),
             ("Carga en origen", PurchasingRoutes.ORIGIN_LOADING, capabilities.origin_view),
             ("Recepción", PurchasingRoutes.RECEIPTS, capabilities.receipt_view),
             ("Factura", PurchasingRoutes.INVOICES, capabilities.invoice_view),

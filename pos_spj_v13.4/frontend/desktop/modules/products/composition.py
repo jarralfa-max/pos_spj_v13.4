@@ -61,6 +61,14 @@ class _Session:
 
 
 def build_products_presenter(connection, session_context=None, *, live_session=None):
+    from backend.application.products.queries.integration_query_services import (
+        PurchaseProductConfigQueryService,
+    )
+    from backend.application.products.use_cases.product_unit_use_cases import (
+        CreateUnitConversionUseCase,
+        SetConversionFractionalReceiptUseCase,
+        SetUnitConversionActiveUseCase,
+    )
     from backend.application.products.queries.catalog_read_service import (
         ProductCatalogReadService,
     )
@@ -254,6 +262,13 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
         product_search_factory=lambda: ProductCatalogSearchQueryService(conn),
         write_service_factory=write_factory,
         units_service_factory=lambda: UnitCatalogQueryService(conn),
+        units_write_factory=lambda: {
+            "create_conversion": CreateUnitConversionUseCase(conn, authorization),
+            "set_conversion_active": SetUnitConversionActiveUseCase(conn, authorization),
+            "set_conversion_fractional": SetConversionFractionalReceiptUseCase(
+                conn, authorization),
+        },
+        purchase_config_factory=lambda: PurchaseProductConfigQueryService(conn),
         lifecycle_service_factory=lifecycle_factory,
         code_service_factory=lambda: PreviewProductCodeQueryService(conn),
         categories_read_factory=lambda: ProductCategoryQueryService(conn),

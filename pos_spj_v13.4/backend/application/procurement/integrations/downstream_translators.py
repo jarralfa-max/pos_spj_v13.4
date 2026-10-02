@@ -75,10 +75,14 @@ class ProcurementDownstreamTranslators:
             "document_number": payload.get("document_number"),
             # unit_cost + inventory_unit travel so the Inventory context can compute
             # the weighted-average cost and create lots for weight-tracked lines.
+            # El manejador de Inventario lee `lot_code`/`expiration_date`/`weight`:
+            # con `lot` a secas el lote se perdía y nunca se creaba.
             "lines": [{"product_id": ln.get("product_id"), "quantity": ln.get("quantity"),
                        "unit_cost": ln.get("unit_cost"),
                        "inventory_unit": ln.get("inventory_unit"),
-                       "expiration": ln.get("expiration"), "lot": ln.get("lot")}
+                       "expiration": ln.get("expiration"),
+                       "expiration_date": ln.get("expiration"), "lot": ln.get("lot"),
+                       "lot_code": ln.get("lot"), "weight": ln.get("weight") or 0}
                       for ln in lines],
         })
 
@@ -126,6 +130,7 @@ class ProcurementDownstreamTranslators:
             "currency_code": payload.get("currency_code", "MXN"),
             "payment_source": source or None,
             "document_id": payload.get("document_id"),
+            "document_number": payload.get("document_number"),
             "branch_id": payload.get("branch_id"),
             # nature_subtotals/tax_total travel so Finance can recognize the
             # immediate-payment journal entry's debit side correctly, same

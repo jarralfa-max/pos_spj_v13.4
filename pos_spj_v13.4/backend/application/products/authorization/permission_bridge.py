@@ -71,6 +71,13 @@ CANONICAL_TO_LEGACY: dict[str, tuple[str, ...]] = {
     # Combos / kits: ver con la vista; gestionar con edición.
     ProductPermissions.BUNDLES_VIEW: ("PRODUCTOS.ver",),
     ProductPermissions.BUNDLES_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    # Unidades y conversiones (presentaciones de compra): ver con la vista;
+    # gestionarlas exige edición. Sin mapeo caían al permiso por omisión (la
+    # vista) y cualquiera que viera productos podía cambiar un factor que mueve
+    # inventario y costo.
+    ProductPermissions.UNITS_VIEW: ("PRODUCTOS.ver",),
+    ProductPermissions.UNITS_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    ProductPermissions.CONVERSIONS_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
     # Importación CSV/XLSX: ejecutar/aprobar son privilegios de creación/edición.
     ProductPermissions.IMPORT_EXECUTE: ("PRODUCTOS.crear", "CREAR_PRODUCTO"),
     ProductPermissions.IMPORT_APPROVE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),

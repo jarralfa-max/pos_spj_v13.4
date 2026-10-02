@@ -9,16 +9,22 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from backend.domain.procurement.entities import DirectPurchase, DirectPurchaseLine
+from backend.domain.procurement.entities import (
+    DirectPurchase,
+    DirectPurchaseLine,
+    PurchasePaymentInstruction,
+)
 from backend.domain.procurement.enums import (
     DirectPurchaseMode,
     DocumentStatus,
     PaymentCondition,
+    PaymentSource,
     PurchaseNature,
     PurchaseType,
     SourceChannel,
 )
 from backend.domain.procurement.value_objects import Money
+from backend.shared.ids import new_uuid
 from backend.infrastructure.db.repositories.procurement.base import (
     ProcurementRepositoryBase,
     dec_str,
@@ -57,23 +63,31 @@ class DirectPurchaseRepository(ProcurementRepositoryBase):
              dp.payment_instruction.id if dp.payment_instruction else None,
              dp.source_requisition_id,
              dp.created_at, dp.updated_at))
+        # Surtido (§11) y bodega de origen: nacen con la compra y no cambian.
+        self._execute(
+            "UPDATE direct_purchases SET fulfillment_mode=?, origin_supplier_address_id=?,"
+            " origin_address_snapshot=? WHERE id=?",
+            (dp.fulfillment_mode or "", dp.origin_supplier_address_id,
+             dp.origin_address_snapshot, dp.id))
         self._replace_lines(dp)
 
     def _replace_lines(self, dp: DirectPurchase) -> None:
-        self._execute("DELETE FROM direct_purchase_lines WHERE direct_purchase_id=?", (dp.id,))
-        for ln in dp.lines:
-            self._execute(
-                "INSERT INTO direct_purchase_lines (id, direct_purchase_id, product_id,"
-                " description, quantity, unit_cost, purchase_nature, currency_code, purchase_unit,"
-                " inventory_unit, conversion_factor, discount, tax, line_total,"
-                " destination_branch_id, destination_warehouse_id)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (ln.id, dp.id, ln.product_id, ln.description, dec_str(ln.quantity),
+        self._save_children(
+            "direct_purchase_lines", "direct_purchase_id", dp.id,
+            ("id", "direct_purchase_id", "product_id", "description", "quantity",
+             "unit_cost", "purchase_nature", "currency_code", "purchase_unit",
+             "inventory_unit", "conversion_factor", "discount", "tax", "line_total",
+             "destination_branch_id", "destination_warehouse_id", "net_weight",
+             "pricing_basis", "inventory_by_weight"),
+            [(ln.id, dp.id, ln.product_id, ln.description, dec_str(ln.quantity),
                  dec_str(ln.unit_cost.amount), ln.purchase_nature.value,
                  ln.unit_cost.currency_code, ln.purchase_unit,
                  ln.inventory_unit, dec_str(ln.conversion_factor), dec_str(ln.discount.amount),
                  dec_str(ln.tax.amount), dec_str(ln.line_total().amount),
-                 ln.destination_branch_id, ln.destination_warehouse_id))
+                 ln.destination_branch_id, ln.destination_warehouse_id,
+                 dec_str(ln.net_weight) if ln.net_weight is not None else None,
+                 ln.pricing_basis or "", 1 if ln.inventory_by_weight else 0)
+             for ln in dp.lines])
 
     def link_receipt(self, direct_purchase_id: str, goods_receipt_id: str) -> None:
         self._execute("UPDATE direct_purchases SET goods_receipt_id=? WHERE id=?",
@@ -110,9 +124,24 @@ class DirectPurchaseRepository(ProcurementRepositoryBase):
                 discount=Money(to_decimal(lr["discount"]), lr["currency_code"]),
                 tax=Money(to_decimal(lr["tax"]), lr["currency_code"]),
                 destination_branch_id=lr["destination_branch_id"],
-                destination_warehouse_id=lr["destination_warehouse_id"])
+                destination_warehouse_id=lr["destination_warehouse_id"],
+                net_weight=(to_decimal(lr["net_weight"]) if lr.get("net_weight")
+                            else None),
+                pricing_basis=lr.get("pricing_basis") or "",
+                inventory_by_weight=bool(lr.get("inventory_by_weight")))
             for lr in line_rows
         ]
+        instruction = None
+        if row["payment_source"]:
+            # Sin rehidratarla, cualquier `save` posterior (reverso, autorización)
+            # escribía NULL sobre `payment_source` y la fuente se perdía.
+            try:
+                instruction = PurchasePaymentInstruction(
+                    id=row["payment_instruction_id"] or new_uuid(),
+                    source=PaymentSource(row["payment_source"]),
+                    amount=Money(to_decimal(row["total"]), currency))
+            except ValueError:
+                instruction = None
         return DirectPurchase(
             id=row["id"], document_number=row["document_number"],
             supplier_id=row["supplier_id"], branch_id=row["branch_id"],
@@ -121,11 +150,15 @@ class DirectPurchaseRepository(ProcurementRepositoryBase):
             currency_code=currency, source_channel=SourceChannel(row["source_channel"]),
             purchase_type=PurchaseType(row["purchase_type"]),
             status=DocumentStatus(row["status"]), lines=lines,
+            payment_instruction=instruction,
             created_by_user_id=row["created_by_user_id"],
             authorized_by_user_id=row["authorized_by_user_id"],
             authorization_reason=row["authorization_reason"] or "",
             source_requisition_id=row["source_requisition_id"],
-            created_at=row["created_at"], updated_at=row["updated_at"])
+            created_at=row["created_at"], updated_at=row["updated_at"],
+            fulfillment_mode=row.get("fulfillment_mode") or "",
+            origin_supplier_address_id=row.get("origin_supplier_address_id"),
+            origin_address_snapshot=row.get("origin_address_snapshot"))
 
     def set_operation_id(self, direct_purchase_id: str, operation_id: str) -> None:
         self._execute("UPDATE direct_purchases SET operation_id=? WHERE id=?",

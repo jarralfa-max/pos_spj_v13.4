@@ -122,13 +122,20 @@ class PricingReadService:
         name_sel = "p.code AS product_code, p.name AS product_name" if has_products \
             else "NULL AS product_code, NULL AS product_name"
         join = "LEFT JOIN products p ON p.id = pc.product_id" if has_products else ""
+        # Costo de empresa (`branch_id=''`) y el de cada sucursal (§32): la
+        # sucursal se muestra por NOMBRE.
+        has_branches = self._table_exists("sucursales")
+        branch_sel = "s.nombre AS branch_name" if has_branches else "NULL AS branch_name"
+        branch_join = "LEFT JOIN sucursales s ON s.id = pc.branch_id" if has_branches else ""
         rows = self._conn.execute(
-            f"SELECT pc.product_id, {name_sel}, pc.average_cost, pc.average_cost_currency, "
-            f"pc.last_cost, pc.standard_cost, pc.cost_method "
-            f"FROM product_cost pc {join} ORDER BY pc.updated_at DESC LIMIT ?",
+            f"SELECT pc.product_id, pc.branch_id, {name_sel}, {branch_sel}, pc.average_cost, "
+            f"pc.average_cost_currency, pc.last_cost, pc.standard_cost, pc.cost_method "
+            f"FROM product_cost pc {join} {branch_join} "
+            f"ORDER BY pc.updated_at DESC, pc.branch_id LIMIT ?",
             (int(limit),)).fetchall()
         return [{"product_id": r["product_id"], "product_code": r["product_code"],
-                 "product_name": r["product_name"], "average_cost": r["average_cost"],
+                 "product_name": r["product_name"], "branch_id": r["branch_id"] or "",
+                 "branch_name": r["branch_name"], "average_cost": r["average_cost"],
                  "currency": r["average_cost_currency"], "last_cost": r["last_cost"],
                  "standard_cost": r["standard_cost"], "cost_method": r["cost_method"]}
                 for r in rows]
@@ -196,7 +203,11 @@ class PricingReadService:
         hot_authorizations = c.execute(
             "SELECT COUNT(*) FROM pricing_authorization_log").fetchone()[0] \
             if self._table_exists("pricing_authorization_log") else 0
+        from backend.application.pricing.cost_policy import CostPolicySettings
         return {
+            # La ÚNICA configuración guardada del módulo: gobierna qué costo se
+            # reporta (empresa o sucursal), no es consecuencia de los datos.
+            "cost_policy": CostPolicySettings(c).current().value,
             "base_lists": base_lists,
             "lists_by_kind": lists_by_kind,
             "currencies": currencies,

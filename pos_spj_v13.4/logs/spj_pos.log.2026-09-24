@@ -1,0 +1,697 @@
+2026-09-24 16:40:10,020 SPJ.Boot INFO =======================================================
+2026-09-24 16:40:10,023 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-24 16:40:10,023 SPJ.Boot INFO =======================================================
+2026-09-24 16:40:14,075 spj.migrations ERROR Migration 272 (migrations.standalone.272_meat_processing_frozen_definition_and_real_reservations) failed: error in view v_negative_inventory: no such table: main.branch_inventory_old
+2026-09-24 16:40:17,756 SPJ.Boot CRITICAL El arranque de la base de datos falló (database_migration): El motor de migraciones falló: Migration 272 (migrations.standalone.272_meat_processing_frozen_definition_and_real_reservations) failed: error in view v_negative_inventory: no such table: main.branch_inventory_old
+2026-09-24 16:55:46,012 SPJ.Boot INFO =======================================================
+2026-09-24 16:55:46,013 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-24 16:55:46,014 SPJ.Boot INFO =======================================================
+2026-09-24 16:55:48,405 spj.migrations ERROR Migration 272 (migrations.standalone.272_meat_processing_frozen_definition_and_real_reservations) failed: table process_outputs__new already exists
+2026-09-24 16:55:48,787 SPJ.Boot CRITICAL El arranque de la base de datos falló (database_migration): El motor de migraciones falló: Migration 272 (migrations.standalone.272_meat_processing_frozen_definition_and_real_reservations) failed: table process_outputs__new already exists
+2026-09-24 20:23:28,715 SPJ.Boot INFO =======================================================
+2026-09-24 20:23:28,725 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-24 20:23:28,731 SPJ.Boot INFO =======================================================
+2026-09-24 20:23:36,683 spj.migrations INFO Migración 000 ejecutada.
+2026-09-24 20:23:36,794 spj.migrations INFO Migración 001 ejecutada.
+2026-09-24 20:23:36,820 spj.migrations.concurrency_events INFO 016 — concurrency_events OK
+2026-09-24 20:23:36,827 spj.migrations INFO Migración 016 ejecutada.
+2026-09-24 20:23:36,852 spj.migrations INFO Migración 018 ejecutada.
+2026-09-24 20:23:36,875 spj.migrations INFO Migración 019 ejecutada.
+2026-09-24 20:23:36,925 spj.migrations INFO Migración 020 ejecutada.
+2026-09-24 20:23:36,937 spj.migrations INFO Migración 021 ejecutada.
+2026-09-24 20:23:36,945 spj.migrations INFO Migración 022 ejecutada.
+2026-09-24 20:23:37,724 spj.migrations INFO Migración 023 ejecutada.
+2026-09-24 20:23:37,808 spj.migrations INFO Migración 024 ejecutada.
+2026-09-24 20:23:37,937 spj.migrations INFO Migración 025 ejecutada.
+2026-09-24 20:23:38,027 spj.migrations INFO Migración 026 ejecutada.
+2026-09-24 20:23:38,044 spj.migrations.027 INFO branch_inventory: agregando CHECK(quantity >= 0) — migración única...
+2026-09-24 20:23:38,176 spj.migrations.027 INFO branch_inventory migrada con CHECK(quantity >= 0). Negativos corregidos a 0.
+2026-09-24 20:23:38,294 spj.migrations.027 INFO inventory_movements creada/verificada con triggers IMMUTABLE.
+2026-09-24 20:23:38,299 spj.migrations.027 INFO Índices de inventory creados/verificados.
+2026-09-24 20:23:38,301 spj.migrations.027 INFO Triggers de protección de inventario negativo creados/verificados.
+2026-09-24 20:23:38,308 spj.migrations.027 INFO Migración 027 completada: branch_inventory + inventory_movements creados/verificados.
+2026-09-24 20:23:38,390 spj.migrations INFO Migración 027 ejecutada.
+2026-09-24 20:23:38,404 spj.migrations.028 INFO Tabla payments creada/verificada con triggers IMMUTABLE.
+2026-09-24 20:23:38,406 spj.migrations.028 INFO Columnas operation_id y credit_approved añadidas a ventas.
+2026-09-24 20:23:38,420 spj.migrations.028 INFO Índices de ventas/payments creados/verificados.
+2026-09-24 20:23:38,433 spj.migrations.028 INFO Triggers de protección de ventas completadas creados/verificados.
+2026-09-24 20:23:38,436 spj.migrations.028 INFO Migración 028 completada: payments + ventas hardening.
+2026-09-24 20:23:38,441 spj.migrations INFO Migración 028 ejecutada.
+2026-09-24 20:23:38,458 spj.migrations.029 INFO Tabla sale_refunds creada/verificada.
+2026-09-24 20:23:38,468 spj.migrations.029 INFO Tabla credit_notes creada/verificada.
+2026-09-24 20:23:38,477 spj.migrations.029 INFO Triggers de transición de estado de ventas actualizados.
+2026-09-24 20:23:38,491 spj.migrations.029 INFO Triggers de integridad de devoluciones creados/verificados.
+2026-09-24 20:23:38,505 spj.migrations.029 INFO Índices de reversiones creados/verificados.
+2026-09-24 20:23:38,506 spj.migrations.029 INFO Migración 029 completada: sale_refunds + credit_notes + triggers reversión.
+2026-09-24 20:23:38,524 spj.migrations INFO Migración 029 ejecutada.
+2026-09-24 20:23:38,558 spj.migrations.030 INFO Iniciando migración 030_recetas_industriales...
+2026-09-24 20:23:38,563 spj.migrations.030 INFO product_recipe_components creada/verificada.
+2026-09-24 20:23:38,566 spj.migrations.030 INFO Migración 030 aplicada correctamente.
+2026-09-24 20:23:38,571 spj.migrations INFO Migración 030 ejecutada.
+2026-09-24 20:23:38,584 spj.migrations.034 INFO ventas_diarias creada/verificada.
+2026-09-24 20:23:38,591 spj.migrations.034 INFO inventario_diario creada/verificada.
+2026-09-24 20:23:38,592 spj.migrations.034 INFO production_batches creada/verificada.
+2026-09-24 20:23:38,593 spj.migrations.034 INFO production_outputs creada/verificada.
+2026-09-24 20:23:38,605 spj.migrations.034 INFO production_yield_analysis creada/verificada.
+2026-09-24 20:23:38,609 spj.migrations.034 INFO production_alerts creada/verificada.
+2026-09-24 20:23:38,610 spj.migrations.034 INFO production_cost_ledger creada/verificada.
+2026-09-24 20:23:38,620 spj.migrations.034 INFO recetas + receta_componentes parchadas para rendimiento esperado.
+2026-09-24 20:23:38,671 spj.migrations.034 INFO Migración 032 completada.
+2026-09-24 20:23:38,683 spj.migrations INFO Migración 032 ejecutada.
+2026-09-24 20:23:38,699 spj.migrations.033 INFO Iniciando migración 033_demand_forecast...
+2026-09-24 20:23:38,757 spj.migrations.033 INFO Migración 033 aplicada correctamente.
+2026-09-24 20:23:38,759 spj.migrations INFO Migración 033 ejecutada.
+2026-09-24 20:23:38,766 spj.migrations.035 INFO Iniciando migración 035_finance_erp...
+2026-09-24 20:23:38,834 spj.migrations.035 INFO Migración 035 aplicada correctamente.
+2026-09-24 20:23:38,836 spj.migrations INFO Migración 035 ejecutada.
+2026-09-24 20:23:38,846 spj.migrations.036 INFO whatsapp_queue creada/verificada.
+2026-09-24 20:23:38,855 spj.migrations.036 INFO rasa_sessions creada/verificada.
+2026-09-24 20:23:38,855 spj.migrations.036 INFO marketing_messages creada/verificada.
+2026-09-24 20:23:38,885 spj.migrations.036 INFO Índices 036 creados/verificados.
+2026-09-24 20:23:38,886 spj.migrations.036 INFO Migración 036: WhatsApp queue + Rasa sessions completada.
+2026-09-24 20:23:38,890 spj.migrations INFO Migración 036 ejecutada.
+2026-09-24 20:23:38,894 spj.migrations.037 INFO Columna imagen_path verificada en productos.
+2026-09-24 20:23:38,904 spj.migrations.037 INFO Directorio imagenes_productos verificado.
+2026-09-24 20:23:38,905 spj.migrations.037 INFO Migración 037: imagen_path en productos completada.
+2026-09-24 20:23:38,918 spj.migrations INFO Migración 037 ejecutada.
+2026-09-24 20:23:38,935 spj.migrations.039 INFO branch_products creada/verificada.
+2026-09-24 20:23:38,937 spj.migrations.039 INFO Vista v_productos_activos creada.
+2026-09-24 20:23:38,939 spj.migrations.039 INFO Seed branch_products: 0 filas insertadas.
+2026-09-24 20:23:38,940 spj.migrations.039 INFO Índices branch_products creados.
+2026-09-24 20:23:38,942 spj.migrations.039 INFO Migración 039: branch_products completada.
+2026-09-24 20:23:38,948 spj.migrations INFO Migración 039 ejecutada.
+2026-09-24 20:23:39,109 spj.migrations.040 INFO recepciones extendida con campos de pago + QR.
+2026-09-24 20:23:39,188 spj.migrations.040 INFO recepcion_items extendida con trazabilidad.
+2026-09-24 20:23:39,235 spj.migrations.040 INFO trazabilidad_qr extendida con recepcion_id.
+2026-09-24 20:23:39,255 spj.migrations.040 INFO contenedores_qr creada.
+2026-09-24 20:23:39,256 spj.migrations.040 INFO Migración 040: recepción QR completada.
+2026-09-24 20:23:39,267 spj.migrations INFO Migración 040 ejecutada.
+2026-09-24 20:23:39,286 spj.migrations.041 INFO Migración 041: notification_inbox completada.
+2026-09-24 20:23:39,290 spj.migrations INFO Migración 041 ejecutada.
+2026-09-24 20:23:39,302 spj.migrations.042 INFO whatsapp_numeros creada.
+2026-09-24 20:23:39,306 spj.migrations.042 INFO Vista v_whatsapp_config creada.
+2026-09-24 20:23:39,307 spj.migrations.042 INFO Migración 042: whatsapp_numeros completada.
+2026-09-24 20:23:39,310 spj.migrations INFO Migración 042 ejecutada.
+2026-09-24 20:23:39,375 spj.migrations.043 INFO historial_precios creada.
+2026-09-24 20:23:39,384 spj.migrations.043 INFO Triggers historial_precios creados.
+2026-09-24 20:23:39,385 spj.migrations.043 INFO Migración 043: historial de precios completada.
+2026-09-24 20:23:39,389 spj.migrations INFO Migración 043 ejecutada.
+2026-09-24 20:23:39,465 migrations.standalone.044_cotizaciones INFO 044 — cotizaciones y cotizaciones_detalle creadas
+2026-09-24 20:23:39,475 spj.migrations INFO Migración 044 ejecutada.
+2026-09-24 20:23:39,541 migrations.standalone.045_performance_indexes INFO 045 — 12 índices de rendimiento creados
+2026-09-24 20:23:39,555 spj.migrations INFO Migración 045 ejecutada.
+2026-09-24 20:23:39,718 migrations.standalone.046_comisiones_happy_hour INFO 046 — comisiones_config, comisiones_acumuladas, happy_hour_rules
+2026-09-24 20:23:39,721 spj.migrations INFO Migración 046 ejecutada.
+2026-09-24 20:23:40,393 migrations.standalone.047_v13_schema INFO 047 — v13 schema aplicado
+2026-09-24 20:23:40,408 spj.migrations INFO Migración 047 ejecutada.
+2026-09-24 20:23:40,508 spj.migrations.048 INFO 048 — v13.1 hardening aplicado
+2026-09-24 20:23:40,510 spj.migrations INFO Migración 048 ejecutada.
+2026-09-24 20:23:40,526 spj.migrations.049 INFO Migración 049: tablas ERP inteligente v13.4 creadas/verificadas.
+2026-09-24 20:23:40,535 spj.migrations INFO Migración 049 ejecutada.
+2026-09-24 20:23:40,624 spj.migrations.050 INFO Migración 050: tablas integración WhatsApp creadas/actualizadas.
+2026-09-24 20:23:40,628 spj.migrations INFO Migración 050 ejecutada.
+2026-09-24 20:23:40,640 spj.migrations.051 INFO Migration 051: kpi_snapshots creada/verificada.
+2026-09-24 20:23:40,643 spj.migrations INFO Migración 051 ejecutada.
+2026-09-24 20:23:40,660 spj.migrations INFO Migración 052 ejecutada.
+2026-09-24 20:23:40,667 spj.migrations.053 INFO Migración 053 — tablas cárnicas huérfanas de 032...
+2026-09-24 20:23:40,751 spj.migrations.053 INFO Migración 053 completada.
+2026-09-24 20:23:40,756 spj.migrations INFO Migración 053 ejecutada.
+2026-09-24 20:23:40,761 spj.migrations.054 INFO Migración 054 — sync improvements huérfanos de 048...
+2026-09-24 20:23:40,786 spj.migrations.054 INFO Migración 054 completada.
+2026-09-24 20:23:40,788 spj.migrations INFO Migración 054 ejecutada.
+2026-09-24 20:23:40,798 spj.migrations.055 INFO 055: vista inventario creada (compatibilidad legacy).
+2026-09-24 20:23:40,801 spj.migrations INFO Migración 055 ejecutada.
+2026-09-24 20:23:40,815 spj.migrations INFO Migración 056 ejecutada.
+2026-09-24 20:23:40,838 spj.migrations INFO Migración 057 ejecutada.
+2026-09-24 20:23:40,857 spj.migrations INFO Migración 058 ejecutada.
+2026-09-24 20:23:40,872 spj.migrations INFO Migración 059 ejecutada.
+2026-09-24 20:23:40,896 spj.migrations INFO Migración 060 ejecutada.
+2026-09-24 20:23:40,921 spj.migrations.061 INFO 061: added financial_event_log.concepto
+2026-09-24 20:23:40,924 spj.migrations INFO Migración 061 ejecutada.
+2026-09-24 20:23:40,951 spj.migrations INFO Migración 062 ejecutada.
+2026-09-24 20:23:40,973 spj.migrations INFO Migración 063 ejecutada.
+2026-09-24 20:23:41,003 spj.migrations.064 INFO 064: added gastos.recurrente
+2026-09-24 20:23:41,025 spj.migrations.064 INFO 064: added clientes.apellido_paterno
+2026-09-24 20:23:41,052 spj.migrations.064 INFO 064: added compras_inventariables.saldo_pendiente
+2026-09-24 20:23:41,055 spj.migrations INFO Migración 064 ejecutada.
+2026-09-24 20:23:41,060 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_ventas_fecha_suc ON ventas (D
+2026-09-24 20:23:41,061 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_ventas_cliente ON ventas (cli
+2026-09-24 20:23:41,065 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_ventas_estado ON ventas (esta
+2026-09-24 20:23:41,066 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_dv_venta ON detalles_venta (v
+2026-09-24 20:23:41,066 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_dv_producto ON detalles_venta
+2026-09-24 20:23:41,069 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_mov_producto_fecha ON movimie
+2026-09-24 20:23:41,073 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_mov_sucursal ON movimientos_i
+2026-09-24 20:23:41,078 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_mov_tipo ON movimientos_inven
+2026-09-24 20:23:41,083 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_fel_fecha ON financial_event_
+2026-09-24 20:23:41,087 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_fel_cuenta_debe ON financial_
+2026-09-24 20:23:41,090 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_fel_cuenta_haber ON financial
+2026-09-24 20:23:41,090 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_fel_evento ON financial_event
+2026-09-24 20:23:41,095 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_bi_sales_fecha ON bi_sales_da
+2026-09-24 20:23:41,100 spj.migrations.065 INFO 065: CREATE INDEX IF NOT EXISTS idx_bi_prod_profit_fecha ON bi_pr
+2026-09-24 20:23:41,103 spj.migrations.065 INFO 065: view v_ventas_diarias creada/confirmada
+2026-09-24 20:23:41,106 spj.migrations.065 INFO 065: view v_rentabilidad_productos creada/confirmada
+2026-09-24 20:23:41,114 spj.migrations.065 INFO 065: view v_stock_critico creada/confirmada
+2026-09-24 20:23:41,117 spj.migrations.065 INFO 065: view v_flujo_caja_diario creada/confirmada
+2026-09-24 20:23:41,119 spj.migrations INFO Migración 065 ejecutada.
+2026-09-24 20:23:41,266 migrations.standalone.066_unificar_esquema_recetas INFO Migration 066: 0 recetas legacy migradas a product_recipes; vista recetas_unificada creada.
+2026-09-24 20:23:41,268 spj.migrations INFO Migración 066 ejecutada.
+2026-09-24 20:23:41,272 spj.migrations.067 INFO Migración 067 — ERP Cárnico: trazabilidad de lotes y merma...
+2026-09-24 20:23:41,628 spj.migrations.067 INFO Migración 067 completada — ERP Cárnico activo.
+2026-09-24 20:23:41,631 spj.migrations INFO Migración 067 ejecutada.
+2026-09-24 20:23:41,638 spj.migrations INFO Índice uq_branch_inv_no_batch creado/verificado.
+2026-09-24 20:23:41,642 spj.migrations INFO Migración 068 ejecutada.
+2026-09-24 20:23:41,684 spj.migrations INFO Migración 069 ejecutada.
+2026-09-24 20:23:41,715 spj.migrations INFO Migración 070 ejecutada.
+2026-09-24 20:23:41,776 spj.migrations INFO Migración 071 ejecutada.
+2026-09-24 20:23:41,786 spj.migrations INFO Migración 072 ejecutada.
+2026-09-24 20:23:41,801 spj.migrations INFO Migración 073 ejecutada.
+2026-09-24 20:23:41,822 spj.migrations INFO Migración 074 ejecutada.
+2026-09-24 20:23:41,836 spj.migrations INFO Migración 075 ejecutada.
+2026-09-24 20:23:41,906 spj.migrations INFO Migración 076 ejecutada.
+2026-09-24 20:23:42,235 spj.migrations INFO Migración 077 ejecutada.
+2026-09-24 20:23:42,264 spj.migrations INFO Migración 078 ejecutada.
+2026-09-24 20:23:42,302 spj.migrations INFO Migración 079 ejecutada.
+2026-09-24 20:23:42,336 spj.migrations INFO Migración 081 ejecutada.
+2026-09-24 20:23:42,365 spj.migrations INFO Migración 082 ejecutada.
+2026-09-24 20:23:42,460 spj.migrations INFO Migración 083 ejecutada.
+2026-09-24 20:23:42,484 spj.migrations INFO Migración 084 ejecutada.
+2026-09-24 20:23:42,599 spj.migrations INFO Migración 085 ejecutada.
+2026-09-24 20:23:42,731 spj.migrations INFO Migración 086 ejecutada.
+2026-09-24 20:23:42,762 spj.migrations INFO Migración 087 ejecutada.
+2026-09-24 20:23:42,998 spj.migrations INFO Migración 088 ejecutada.
+2026-09-24 20:23:43,049 spj.migrations.089 INFO Migración 089: dedupe_key/severity en notification_inbox completada.
+2026-09-24 20:23:43,051 spj.migrations INFO Migración 089 ejecutada.
+2026-09-24 20:23:43,199 spj.migrations.090 INFO Migración 090: workflow_type/scheduled_at/source_channel en ventas y delivery_orders completada.
+2026-09-24 20:23:43,202 spj.migrations INFO Migración 090 ejecutada.
+2026-09-24 20:23:43,214 spj.migrations.091 INFO Migración 091: scheduled_demand_events completada.
+2026-09-24 20:23:43,216 spj.migrations INFO Migración 091 ejecutada.
+2026-09-24 20:23:43,252 spj.migrations INFO Migración 092 ejecutada.
+2026-09-24 20:23:43,328 spj.migrations INFO Migración 093 ejecutada.
+2026-09-24 20:23:43,396 spj.migrations INFO Migración 094 ejecutada.
+2026-09-24 20:23:43,429 spj.migrations INFO Migración 095 ejecutada.
+2026-09-24 20:23:43,437 spj.migrations INFO Migración 096 ejecutada.
+2026-09-24 20:23:43,463 spj.migrations INFO Migración 098 ejecutada.
+2026-09-24 20:23:43,469 spj.migrations INFO Migración 099 ejecutada.
+2026-09-24 20:23:43,618 spj.migrations INFO Migración 100 ejecutada.
+2026-09-24 20:23:43,624 spj.migrations INFO Migración 101 ejecutada.
+2026-09-24 20:23:43,631 spj.migrations INFO Migración 102 ejecutada.
+2026-09-24 20:23:43,636 spj.migrations INFO Migración 103 ejecutada.
+2026-09-24 20:23:43,645 spj.migrations INFO Migración 104 ejecutada.
+2026-09-24 20:23:43,650 spj.migrations.105 INFO 105: ensuring movimientos_inventario exists …
+2026-09-24 20:23:43,652 spj.migrations.105 INFO 105: movimientos_inventario already exists — columns verified
+2026-09-24 20:23:43,652 spj.migrations.105 INFO 105: done
+2026-09-24 20:23:43,654 spj.migrations INFO Migración 105 ejecutada.
+2026-09-24 20:23:43,664 spj.migrations.106 INFO 106: ensuring inventario_actual and branch_inventory exist …
+2026-09-24 20:23:43,665 spj.migrations.106 INFO 106: inventario_actual already exists — columns verified
+2026-09-24 20:23:43,666 spj.migrations.106 INFO 106: branch_inventory already exists — columns verified
+2026-09-24 20:23:43,666 spj.migrations.106 INFO 106: done
+2026-09-24 20:23:43,668 spj.migrations INFO Migración 106 ejecutada.
+2026-09-24 20:23:43,671 spj.migrations.107 INFO 107: ensuring cost columns exist on productos and related tables …
+2026-09-24 20:23:43,699 spj.migrations.107 INFO 107: added column productos.costo
+2026-09-24 20:23:43,726 spj.migrations.107 INFO 107: added column productos.costo_promedio
+2026-09-24 20:23:43,751 spj.migrations.107 INFO 107: added column productos.precio_minimo
+2026-09-24 20:23:43,752 spj.migrations.107 INFO 107: done
+2026-09-24 20:23:43,754 spj.migrations INFO Migración 107 ejecutada.
+2026-09-24 20:23:43,762 spj.migrations.108 INFO 108: syncing inventory_stock from inventario_actual …
+2026-09-24 20:23:43,764 spj.migrations.108 INFO 108: 0 inventory_actual rows synced to inventory_stock
+2026-09-24 20:23:43,765 spj.migrations.108 INFO 108: done
+2026-09-24 20:23:43,767 spj.migrations INFO Migración 108 ejecutada.
+2026-09-24 20:23:43,817 spj.migrations INFO Migración 109 ejecutada.
+2026-09-24 20:23:43,830 spj.migrations INFO Migración 110 ejecutada.
+2026-09-24 20:23:43,892 spj.migrations INFO Migración 111 (QR/contenedores schema) completada.
+2026-09-24 20:23:43,894 spj.migrations INFO Migración 111 ejecutada.
+2026-09-24 20:23:43,910 spj.migrations INFO Migración 112 ejecutada.
+2026-09-24 20:23:43,942 spj.migrations INFO Migración 113 ejecutada.
+2026-09-24 20:23:43,958 spj.migrations INFO Migración 114 ejecutada.
+2026-09-24 20:23:43,968 spj.migrations INFO Migración 115 ejecutada.
+2026-09-24 20:23:43,977 spj.migrations INFO Migración 116 ejecutada.
+2026-09-24 20:23:44,062 spj.migrations.117 INFO 117: dropped 11 legacy finance tables: journal_entries, financial_documents, fixed_assets, maintenance_records, operating_supplies, plan_cuentas, asset_depreciation_entries, financial_trace_log, reconciliation_records, capital_movements, loyalty_budget_caps
+2026-09-24 20:23:44,193 spj.migrations.117 INFO 117: finance bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:44,195 spj.migrations INFO Migración 117 ejecutada.
+2026-09-24 20:23:44,223 spj.migrations.118 INFO 118: dropped 6 legacy HR tables: asistencias, nomina_records, evaluaciones_personal, turno_roles, turno_asignaciones, turno_notificaciones_log
+2026-09-24 20:23:44,320 spj.migrations.118 INFO 118: HR bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:44,324 spj.migrations INFO Migración 118 ejecutada.
+2026-09-24 20:23:44,448 spj.migrations.119 INFO 119: supplier bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:44,451 spj.migrations INFO Migración 119 ejecutada.
+2026-09-24 20:23:44,601 spj.migrations.120 INFO 120: procurement bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:44,603 spj.migrations INFO Migración 120 ejecutada.
+2026-09-24 20:23:44,869 spj.migrations.121 INFO 121: inventory bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:44,871 spj.migrations INFO Migración 121 ejecutada.
+2026-09-24 20:23:44,879 spj.migrations.122 INFO 122: inventory_lots table ensured (born-clean UUIDv7).
+2026-09-24 20:23:44,882 spj.migrations INFO Migración 122 ejecutada.
+2026-09-24 20:23:44,886 spj.migrations.123 INFO 123: inventory cold-chain tables ensured (born-clean UUIDv7).
+2026-09-24 20:23:44,890 spj.migrations INFO Migración 123 ejecutada.
+2026-09-24 20:23:44,899 spj.migrations.124 INFO 124: inventory reservation/allocation tables ensured (born-clean UUIDv7).
+2026-09-24 20:23:44,902 spj.migrations INFO Migración 124 ejecutada.
+2026-09-24 20:23:44,912 spj.migrations.126 INFO 126: inventory count tables ensured (born-clean UUIDv7).
+2026-09-24 20:23:44,915 spj.migrations INFO Migración 126 ejecutada.
+2026-09-24 20:23:44,919 spj.migrations.127 INFO 127: inventory adjustment tables ensured (born-clean UUIDv7).
+2026-09-24 20:23:44,923 spj.migrations INFO Migración 127 ejecutada.
+2026-09-24 20:23:44,930 spj.migrations.128 INFO 128: inventory quarantine table ensured (born-clean UUIDv7).
+2026-09-24 20:23:44,932 spj.migrations INFO Migración 128 ejecutada.
+2026-09-24 20:23:44,936 spj.migrations.130 INFO 130: inventory traceability-link table ensured (born-clean UUIDv7).
+2026-09-24 20:23:44,945 spj.migrations INFO Migración 130 ejecutada.
+2026-09-24 20:23:44,949 spj.migrations.131 INFO 131: inventory replenishment rule/suggestion tables ensured.
+2026-09-24 20:23:44,952 spj.migrations INFO Migración 131 ejecutada.
+2026-09-24 20:23:44,959 spj.migrations.132 INFO 132: inventory sync dispatch/cursor tables ensured (offline-first).
+2026-09-24 20:23:44,965 spj.migrations INFO Migración 132 ejecutada.
+2026-09-24 20:23:44,969 spj.migrations.133 INFO 133: inventory notification rule/log tables ensured.
+2026-09-24 20:23:44,974 spj.migrations INFO Migración 133 ejecutada.
+2026-09-24 20:23:46,798 spj.migrations.backfill_legacy_stock WARNING Backfill legacy→canónico: 0 sembrados, 0 omitidos (fuente inventario_actual).
+2026-09-24 20:23:46,799 spj.migrations.134 INFO 134: backfill inventario_actual → 0 seeded, 0 skipped.
+2026-09-24 20:23:46,807 spj.migrations.134 WARNING 134: canonical inventory cutover ACTIVATED (flag ON).
+2026-09-24 20:23:46,812 spj.migrations INFO Migración 134 ejecutada.
+2026-09-24 20:23:46,827 spj.migrations.135 INFO 135: inventory_label_print_log ensured.
+2026-09-24 20:23:46,830 spj.migrations INFO Migración 135 ejecutada.
+2026-09-24 20:23:47,304 spj.migrations.136 INFO 136: canonical products schema ensured (master + meat classification).
+2026-09-24 20:23:47,307 spj.migrations INFO Migración 136 ejecutada.
+2026-09-24 20:23:47,314 spj.migrations.137 INFO 137: units_of_measure / conversions / catch-weight config ensured.
+2026-09-24 20:23:47,322 spj.migrations INFO Migración 137 ejecutada.
+2026-09-24 20:23:47,330 spj.migrations.138 INFO 138: products.internal_stage ensured.
+2026-09-24 20:23:47,334 spj.migrations INFO Migración 138 ejecutada.
+2026-09-24 20:23:47,345 spj.migrations.139 INFO 139: product_barcodes / product_alternate_codes ensured.
+2026-09-24 20:23:47,348 spj.migrations INFO Migración 139 ejecutada.
+2026-09-24 20:23:47,360 spj.migrations.140 INFO 140: shelf-life / quality / logistics profiles ensured.
+2026-09-24 20:23:47,365 spj.migrations INFO Migración 140 ejecutada.
+2026-09-24 20:23:47,376 spj.migrations.141 INFO 141: recipes / recipe_versions / components / outputs ensured.
+2026-09-24 20:23:47,378 spj.migrations INFO Migración 141 ejecutada.
+2026-09-24 20:23:47,384 spj.migrations.142 INFO 142: yield_profiles / versions / outputs ensured.
+2026-09-24 20:23:47,392 spj.migrations INFO Migración 142 ejecutada.
+2026-09-24 20:23:47,399 spj.migrations.143 INFO 143: cutting_schemes / versions / outputs ensured.
+2026-09-24 20:23:47,411 spj.migrations INFO Migración 143 ejecutada.
+2026-09-24 20:23:47,417 spj.migrations.144 INFO 144: product_bundles / versions / components ensured.
+2026-09-24 20:23:47,423 spj.migrations INFO Migración 144 ejecutada.
+2026-09-24 20:23:47,432 spj.migrations.145 INFO 145: branch_product / assortments / assortment_products ensured.
+2026-09-24 20:23:47,435 spj.migrations INFO Migración 145 ejecutada.
+2026-09-24 20:23:47,445 spj.migrations.146 INFO 146: external catalog sources / records / import batches ensured.
+2026-09-24 20:23:47,466 spj.migrations INFO Migración 146 ejecutada.
+2026-09-24 20:23:47,482 spj.migrations.147 INFO 147: product_notification_log ensured.
+2026-09-24 20:23:47,484 spj.migrations INFO Migración 147 ejecutada.
+2026-09-24 20:23:47,498 spj.migrations.148 INFO 148: backfill productos → products (0 filas nuevas).
+2026-09-24 20:23:47,515 spj.migrations INFO Migración 148 ejecutada.
+2026-09-24 20:23:47,677 spj.migrations.149 INFO 149: canonical pricing/costing schema ensured.
+2026-09-24 20:23:47,680 spj.migrations INFO Migración 149 ejecutada.
+2026-09-24 20:23:47,694 spj.migrations.150 INFO 150: backfill Pricing {'base_price': 0, 'cost': 0, 'lists': 0, 'list_price': 0, 'volume': 0, 'customer': 0, 'branch_price': 0}
+2026-09-24 20:23:47,704 spj.migrations INFO Migración 150 ejecutada.
+2026-09-24 20:23:47,745 spj.migrations.151 INFO 151: product_cost.tracked_quantity agregada.
+2026-09-24 20:23:47,748 spj.migrations INFO Migración 151 ejecutada.
+2026-09-24 20:23:47,761 spj.migrations.152 INFO 152: backfill recetas → canónico {'recetas': 0, 'product_recipes': 0}
+2026-09-24 20:23:47,768 spj.migrations INFO Migración 152 ejecutada.
+2026-09-24 20:23:47,780 spj.migrations.153 INFO 153: backfill rendimientos → yield_profiles (0 perfiles).
+2026-09-24 20:23:47,817 spj.migrations INFO Migración 153 ejecutada.
+2026-09-24 20:23:48,098 spj.migrations INFO Migración 154 ejecutada.
+2026-09-24 20:23:48,107 spj.migrations.155 INFO 155: unidades base sembradas (17 nuevas).
+2026-09-24 20:23:48,116 spj.migrations INFO Migración 155 ejecutada.
+2026-09-24 20:23:48,141 spj.migrations.156 INFO 156: reglas de código sembradas (16 nuevas).
+2026-09-24 20:23:48,145 spj.migrations INFO Migración 156 ejecutada.
+2026-09-24 20:23:48,149 spj.migrations.157 INFO 157: tabla product_categories asegurada.
+2026-09-24 20:23:48,155 spj.migrations INFO Migración 157 ejecutada.
+2026-09-24 20:23:48,163 spj.migrations.158 INFO 158: tabla product_brands asegurada.
+2026-09-24 20:23:48,167 spj.migrations INFO Migración 158 ejecutada.
+2026-09-24 20:23:48,179 spj.migrations.159 INFO 159: tablas product_attributes / product_attribute_options aseguradas.
+2026-09-24 20:23:48,182 spj.migrations INFO Migración 159 ejecutada.
+2026-09-24 20:23:48,195 spj.migrations.160 INFO 160: variantes de producto aseguradas.
+2026-09-24 20:23:48,197 spj.migrations INFO Migración 160 ejecutada.
+2026-09-24 20:23:48,205 spj.migrations.161 INFO 161: tabla product_images asegurada.
+2026-09-24 20:23:48,210 spj.migrations INFO Migración 161 ejecutada.
+2026-09-24 20:23:48,215 spj.migrations.162 INFO 162: recipe_versions.created_by asegurada.
+2026-09-24 20:23:48,224 spj.migrations INFO Migración 162 ejecutada.
+2026-09-24 20:23:48,230 spj.migrations.163 INFO 163: yield_profile_versions.created_by asegurada.
+2026-09-24 20:23:48,242 spj.migrations INFO Migración 163 ejecutada.
+2026-09-24 20:23:48,250 spj.migrations.164 INFO 164: tablas de staging de importación aseguradas.
+2026-09-24 20:23:48,260 spj.migrations INFO Migración 164 ejecutada.
+2026-09-24 20:23:48,264 spj.migrations.165 INFO 165: perfiles de producto ya tienen PK NOT NULL — sin cambios.
+2026-09-24 20:23:48,266 spj.migrations INFO Migración 165 ejecutada.
+2026-09-24 20:23:48,277 spj.migrations.166 INFO 166: no hay categorías legacy que respaldar.
+2026-09-24 20:23:48,280 spj.migrations INFO Migración 166 ejecutada.
+2026-09-24 20:23:48,290 spj.migrations.167 INFO 167: 0 producto(s) enlazado(s) a su categoría canónica.
+2026-09-24 20:23:48,294 spj.migrations INFO Migración 167 ejecutada.
+2026-09-24 20:23:48,299 spj.migrations.168 INFO 168: 0 regla(s) global(es) de reposición respaldada(s) desde stock_minimo.
+2026-09-24 20:23:48,305 spj.migrations INFO Migración 168 ejecutada.
+2026-09-24 20:23:48,317 spj.migrations.169 INFO 169: especies sembradas (12 nuevas).
+2026-09-24 20:23:48,332 spj.migrations INFO Migración 169 ejecutada.
+2026-09-24 20:23:48,346 spj.migrations.170 INFO 170: backfill POS legacy→canónico (0 barcodes, 0 imágenes).
+2026-09-24 20:23:48,351 spj.migrations INFO Migración 170 ejecutada.
+2026-09-24 20:23:48,463 spj.migrations INFO Migración 171 ejecutada.
+2026-09-24 20:23:48,470 spj.migrations INFO Migración 172 ejecutada.
+2026-09-24 20:23:48,493 spj.migrations INFO Migración 173 ejecutada.
+2026-09-24 20:23:48,507 spj.migrations INFO Migración 174 ejecutada.
+2026-09-24 20:23:48,518 spj.migrations INFO Migración 175 ejecutada.
+2026-09-24 20:23:48,529 spj.migrations INFO Migración 176 ejecutada.
+2026-09-24 20:23:48,543 spj.migrations INFO Migración 177 ejecutada.
+2026-09-24 20:23:48,660 spj.migrations.178 INFO 178: proveedores.bloqueado_financiero/motivo_bloqueo/compras_habilitadas aseguradas.
+2026-09-24 20:23:48,664 spj.migrations INFO Migración 178 ejecutada.
+2026-09-24 20:23:48,676 spj.migrations INFO Migración 179 ejecutada.
+2026-09-24 20:23:48,683 spj.migrations.180 INFO 180: warehouses.capacity ya existe; idempotente
+2026-09-24 20:23:48,688 spj.migrations.180 INFO 180: warehouses.capacity_uom ya existe; idempotente
+2026-09-24 20:23:48,692 spj.migrations.180 INFO 180: storage_locations.capacity ya existe; idempotente
+2026-09-24 20:23:48,695 spj.migrations INFO Migración 180 ejecutada.
+2026-09-24 20:23:49,067 spj.migrations.181 INFO 181: customers/CRM bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:49,075 spj.migrations INFO Migración 181 ejecutada.
+2026-09-24 20:23:49,521 spj.migrations.182 INFO 182: CRM (leads) bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:49,527 spj.migrations INFO Migración 182 ejecutada.
+2026-09-24 20:23:49,541 spj.migrations.183 INFO 183: crm_audit_log.opportunity_id ya existe; idempotente
+2026-09-24 20:23:49,542 spj.migrations.183 INFO 183: pipeline por defecto sembrado (6 etapa(s) nueva(s)).
+2026-09-24 20:23:49,545 spj.migrations.183 INFO 183: CRM (oportunidades/pipeline) bounded context schema creado.
+2026-09-24 20:23:49,548 spj.migrations INFO Migración 183 ejecutada.
+2026-09-24 20:23:49,561 spj.migrations.184 INFO 184: inventory_temperature_excursions.resolved_by ya existe; idempotente
+2026-09-24 20:23:49,563 spj.migrations.184 INFO 184: inventory_temperature_excursions.resolved_at ya existe; idempotente
+2026-09-24 20:23:49,566 spj.migrations.184 INFO 184: inventory_temperature_excursions.resolution_note ya existe; idempotente
+2026-09-24 20:23:49,579 spj.migrations INFO Migración 184 ejecutada.
+2026-09-24 20:23:49,592 spj.migrations.185 INFO 185: crm_audit_log.activity_id ya existe; idempotente
+2026-09-24 20:23:49,594 spj.migrations.185 INFO 185: crm_audit_log.task_id ya existe; idempotente
+2026-09-24 20:23:49,595 spj.migrations.185 INFO 185: crm_audit_log.note_id ya existe; idempotente
+2026-09-24 20:23:49,596 spj.migrations.185 INFO 185: CRM (actividades/tareas/notas/recordatorios) bounded context schema creado.
+2026-09-24 20:23:49,599 spj.migrations INFO Migración 185 ejecutada.
+2026-09-24 20:23:49,718 spj.migrations.186 INFO 186: Customer Service (casos/SLA) bounded context schema creado (born-clean UUIDv7).
+2026-09-24 20:23:49,721 spj.migrations INFO Migración 186 ejecutada.
+2026-09-24 20:23:49,917 spj.migrations.187 INFO 187: meat processing bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:49,922 spj.migrations INFO Migración 187 ejecutada.
+2026-09-24 20:23:49,989 spj.migrations.188 INFO 188: Customer Credit (perfil/límites) bounded context schema creado (born-clean UUIDv7).
+2026-09-24 20:23:49,993 spj.migrations INFO Migración 188 ejecutada.
+2026-09-24 20:23:50,081 spj.migrations.189 INFO 189: Customer Privacy (consentimientos/preferencias/solicitudes/retención) bounded context schema creado (born-clean UUIDv7).
+2026-09-24 20:23:50,084 spj.migrations INFO Migración 189 ejecutada.
+2026-09-24 20:23:50,089 spj.migrations.190 INFO 190: CRM (propietario/territorios/carteras/segmentos/etiquetas) bounded context schema creado.
+2026-09-24 20:23:50,092 spj.migrations INFO Migración 190 ejecutada.
+2026-09-24 20:23:50,116 spj.migrations.191 INFO 191: Customer Master (calidad/duplicados/fusión/importación) bounded context schema creado.
+2026-09-24 20:23:50,128 spj.migrations INFO Migración 191 ejecutada.
+2026-09-24 20:23:50,145 spj.migrations.192 INFO 192: customers.last_purchase_at ya existe; idempotente
+2026-09-24 20:23:50,146 spj.migrations.192 INFO 192: customers.purchase_count ya existe; idempotente
+2026-09-24 20:23:50,147 spj.migrations.192 INFO 192: proyección de actividad de venta (CRM-13) creada.
+2026-09-24 20:23:50,157 spj.migrations INFO Migración 192 ejecutada.
+2026-09-24 20:23:50,165 spj.migrations.193 INFO 193: customers.legacy_customer_id ya existe; idempotente
+2026-09-24 20:23:50,171 spj.migrations.193 INFO 193: puente de identidad legacy (CRM-21) creado.
+2026-09-24 20:23:50,182 spj.migrations INFO Migración 193 ejecutada.
+2026-09-24 20:23:50,208 spj.migrations.194 INFO 194: crm_automation_rules/crm_automation_executions creadas (CRM-26).
+2026-09-24 20:23:50,212 spj.migrations INFO Migración 194 ejecutada.
+2026-09-24 20:23:50,225 spj.migrations.195 INFO 195: customer_sync_conflicts/crm_sync_conflicts creadas (CRM-20).
+2026-09-24 20:23:50,228 spj.migrations INFO Migración 195 ejecutada.
+2026-09-24 20:23:50,569 spj.migrations.196 INFO 196: 0 customer_credit_profiles creados desde clientes legacy.
+2026-09-24 20:23:50,582 spj.migrations INFO Migración 196 ejecutada.
+2026-09-24 20:23:50,590 spj.migrations.197 INFO 197: customers.normalized_name ya existe; idempotente
+2026-09-24 20:23:50,591 spj.migrations.197 INFO 197: customers.normalized_legal_name ya existe; idempotente
+2026-09-24 20:23:50,593 spj.migrations.197 INFO 197: 0 clientes backfilled con nombre normalizado.
+2026-09-24 20:23:50,596 spj.migrations INFO Migración 197 ejecutada.
+2026-09-24 20:23:50,782 spj.migrations.198 INFO 198: sales bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:50,808 spj.migrations INFO Migración 198 ejecutada.
+2026-09-24 20:23:50,826 spj.migrations.199 INFO 199: sales.inventory_reservation_id asegurada.
+2026-09-24 20:23:50,860 spj.migrations INFO Migración 199 ejecutada.
+2026-09-24 20:23:50,878 spj.migrations.201 INFO 201: sales.sale_payments asegurada.
+2026-09-24 20:23:50,892 spj.migrations INFO Migración 201 ejecutada.
+2026-09-24 20:23:50,905 spj.migrations.202 INFO 202: sales.loyalty_redeemed_amount asegurada.
+2026-09-24 20:23:50,912 spj.migrations INFO Migración 202 ejecutada.
+2026-09-24 20:23:51,735 spj.migrations.203 INFO 203: sales.sale_returns + sales.reversed_at aseguradas.
+2026-09-24 20:23:51,738 spj.migrations INFO Migración 203 ejecutada.
+2026-09-24 20:23:51,742 spj.migrations.204 INFO 204: sales.sale_invoice_requests asegurada.
+2026-09-24 20:23:51,745 spj.migrations INFO Migración 204 ejecutada.
+2026-09-24 20:23:51,789 spj.migrations.205 INFO 205: purchase_returns + purchase_return_lines schema created.
+2026-09-24 20:23:51,793 spj.migrations INFO Migración 205 ejecutada.
+2026-09-24 20:23:51,877 spj.migrations.206 INFO 206: installation provisioning schema + system_owner role created.
+2026-09-24 20:23:51,884 spj.migrations INFO Migración 206 ejecutada.
+2026-09-24 20:23:51,919 spj.migrations.207 INFO 207: authentication_attempts + account_recovery_tokens schema created.
+2026-09-24 20:23:51,923 spj.migrations INFO Migración 207 ejecutada.
+2026-09-24 20:23:52,078 spj.migrations.208 INFO 208: configuration_definitions + configuration_values schema created.
+2026-09-24 20:23:52,091 spj.migrations INFO Migración 208 ejecutada.
+2026-09-24 20:23:52,130 spj.migrations.209 INFO 209: company_profiles + branch_profiles schema created.
+2026-09-24 20:23:52,140 spj.migrations INFO Migración 209 ejecutada.
+2026-09-24 20:23:52,160 spj.migrations.210 INFO 210: workstations schema created.
+2026-09-24 20:23:52,164 spj.migrations INFO Migración 210 ejecutada.
+2026-09-24 20:23:52,254 spj.migrations.211 INFO 211: device_profiles + devices + workstation_device_assignments schema created.
+2026-09-24 20:23:52,257 spj.migrations INFO Migración 211 ejecutada.
+2026-09-24 20:23:52,280 spj.migrations.212 INFO 212: print_routes + printer_test_results schema created.
+2026-09-24 20:23:52,290 spj.migrations INFO Migración 212 ejecutada.
+2026-09-24 20:23:52,310 spj.migrations.213 INFO 213: device_test_results schema created.
+2026-09-24 20:23:52,324 spj.migrations INFO Migración 213 ejecutada.
+2026-09-24 20:23:52,390 spj.migrations.214 INFO 214: document_templates/document_template_versions/print_jobs schema created.
+2026-09-24 20:23:52,392 spj.migrations INFO Migración 214 ejecutada.
+2026-09-24 20:23:52,418 spj.migrations.215 INFO 215: marketing_campaigns schema created.
+2026-09-24 20:23:52,435 spj.migrations INFO Migración 215 ejecutada.
+2026-09-24 20:23:52,523 spj.migrations.216 INFO 216: document_number_sequences/document_number_reservations schema created.
+2026-09-24 20:23:52,526 spj.migrations INFO Migración 216 ejecutada.
+2026-09-24 20:23:52,576 spj.migrations.217 INFO 217: customer_displays/display_layouts schema created.
+2026-09-24 20:23:52,579 spj.migrations INFO Migración 217 ejecutada.
+2026-09-24 20:23:52,643 spj.migrations.218 INFO 218: display_content/content_campaigns/advertising_slots/campaign_placements/content_impressions schema created.
+2026-09-24 20:23:52,646 spj.migrations INFO Migración 218 ejecutada.
+2026-09-24 20:23:52,730 spj.migrations.219 INFO 219: integration_definitions/integration_instances/integration_health_checks/webhook_endpoints schema created.
+2026-09-24 20:23:52,736 spj.migrations INFO Migración 219 ejecutada.
+2026-09-24 20:23:52,784 spj.migrations.220 INFO 220: notification_accounts/notification_templates/notification_routes schema created.
+2026-09-24 20:23:52,790 spj.migrations INFO Migración 220 ejecutada.
+2026-09-24 20:23:52,843 spj.migrations.221 INFO 221: ff_flags/ff_rules/ff_change_requests schema created.
+2026-09-24 20:23:52,846 spj.migrations INFO Migración 221 ejecutada.
+2026-09-24 20:23:52,906 spj.migrations.222 INFO 222: themes/design_tokens/density_profiles/appearance_preferences schema created.
+2026-09-24 20:23:52,909 spj.migrations INFO Migración 222 ejecutada.
+2026-09-24 20:23:52,951 spj.migrations.223 INFO 223: offline_cache_entries/cache_expiration_policies schema created.
+2026-09-24 20:23:52,955 spj.migrations INFO Migración 223 ejecutada.
+2026-09-24 20:23:52,992 spj.migrations.224 INFO 224: configuracion_authorization_log/configuracion_audit_log schema created.
+2026-09-24 20:23:52,996 spj.migrations INFO Migración 224 ejecutada.
+2026-09-24 20:23:53,172 spj.migrations.225 INFO 225: loyalty bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:53,175 spj.migrations INFO Migración 225 ejecutada.
+2026-09-24 20:23:53,693 spj.migrations.226 INFO 226: orders/delivery bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:53,702 spj.migrations INFO Migración 226 ejecutada.
+2026-09-24 20:23:53,716 spj.migrations.227 INFO 227: loyalty_tiers/loyalty_tier_history schema ensured.
+2026-09-24 20:23:53,721 spj.migrations INFO Migración 227 ejecutada.
+2026-09-24 20:23:53,734 spj.migrations.228 INFO 228: loyalty_rewards/loyalty_reward_redemptions schema ensured.
+2026-09-24 20:23:53,738 spj.migrations INFO Migración 228 ejecutada.
+2026-09-24 20:23:53,742 spj.migrations.229 INFO 229: loyalty gamification schema ensured (challenges/streaks/badges).
+2026-09-24 20:23:53,745 spj.migrations INFO Migración 229 ejecutada.
+2026-09-24 20:23:53,759 spj.migrations.230 INFO 230: loyalty_referrals schema ensured.
+2026-09-24 20:23:53,768 spj.migrations INFO Migración 230 ejecutada.
+2026-09-24 20:23:53,778 spj.migrations.231 INFO 231: loyalty_campaigns schema ensured.
+2026-09-24 20:23:53,789 spj.migrations INFO Migración 231 ejecutada.
+2026-09-24 20:23:53,918 spj.migrations.232 INFO 232: commercial instruments schema created (coupons, born-clean UUIDv7).
+2026-09-24 20:23:53,924 spj.migrations INFO Migración 232 ejecutada.
+2026-09-24 20:23:53,931 spj.migrations.233 INFO 233: voucher tables ensured (definitions/instances/transactions/redemptions).
+2026-09-24 20:23:53,956 spj.migrations INFO Migración 233 ejecutada.
+2026-09-24 20:23:53,968 spj.migrations.234 INFO 234: loyalty_birthday_configs schema ensured.
+2026-09-24 20:23:53,977 spj.migrations INFO Migración 234 ejecutada.
+2026-09-24 20:23:54,089 spj.migrations.235 INFO 235: sweepstakes bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:54,093 spj.migrations INFO Migración 235 ejecutada.
+2026-09-24 20:23:54,239 spj.migrations.236 INFO 236: loyalty cards bounded context schema created (born-clean UUIDv7).
+2026-09-24 20:23:54,242 spj.migrations INFO Migración 236 ejecutada.
+2026-09-24 20:23:54,248 spj.migrations.237 INFO 237: loyalty_card_templates/loyalty_card_template_versions schema ensured.
+2026-09-24 20:23:54,259 spj.migrations INFO Migración 237 ejecutada.
+2026-09-24 20:23:54,278 spj.migrations.238 INFO 238: loyalty_card_sheet_profiles/loyalty_card_imposition_profiles schema ensured.
+2026-09-24 20:23:54,286 spj.migrations INFO Migración 238 ejecutada.
+2026-09-24 20:23:54,293 spj.migrations.239 INFO 239: loyalty_card_batches/loyalty_card_batch_items schema ensured.
+2026-09-24 20:23:54,295 spj.migrations INFO Migración 239 ejecutada.
+2026-09-24 20:23:54,307 spj.migrations.240 INFO 240: loyalty_card_print_jobs schema ensured.
+2026-09-24 20:23:54,309 spj.migrations INFO Migración 240 ejecutada.
+2026-09-24 20:23:54,322 spj.migrations.241 INFO 241: loyalty_digital_card_projections schema ensured.
+2026-09-24 20:23:54,325 spj.migrations INFO Migración 241 ejecutada.
+2026-09-24 20:23:54,330 spj.migrations.242 INFO 242: loyalty_fraud_cases schema ensured.
+2026-09-24 20:23:54,333 spj.migrations INFO Migración 242 ejecutada.
+2026-09-24 20:23:54,567 spj.migrations.243 INFO 243: whatsapp bounded-context schema ensured.
+2026-09-24 20:23:54,569 spj.migrations INFO Migración 243 ejecutada.
+2026-09-24 20:23:54,575 spj.migrations.244 INFO 244: whatsapp_order_drafts schema ensured.
+2026-09-24 20:23:54,577 spj.migrations INFO Migración 244 ejecutada.
+2026-09-24 20:23:54,587 spj.migrations.245 INFO 245: whatsapp_quote_drafts schema ensured.
+2026-09-24 20:23:54,590 spj.migrations INFO Migración 245 ejecutada.
+2026-09-24 20:23:54,603 spj.migrations.246 INFO 246: whatsapp_delivery_requests schema ensured.
+2026-09-24 20:23:54,606 spj.migrations INFO Migración 246 ejecutada.
+2026-09-24 20:23:54,611 spj.migrations.247 INFO 247: whatsapp_handoff_requests schema ensured.
+2026-09-24 20:23:54,622 spj.migrations INFO Migración 247 ejecutada.
+2026-09-24 20:23:54,720 spj.migrations.248 INFO 248: meat processing preparation/execution schema created (material_requirements, operator_assignments, process_step_executions, process_incidents).
+2026-09-24 20:23:54,724 spj.migrations INFO Migración 248 ejecutada.
+2026-09-24 20:23:54,773 spj.migrations.249 INFO 249: meat processing packaging schema created (packaging_executions, production_labels).
+2026-09-24 20:23:54,777 spj.migrations INFO Migración 249 ejecutada.
+2026-09-24 20:23:54,831 spj.migrations.250 INFO 250: meat processing rework schema created (rework_orders).
+2026-09-24 20:23:54,838 spj.migrations INFO Migración 250 ejecutada.
+2026-09-24 20:23:54,888 spj.migrations.251 INFO 251: meat processing genealogy schema created (process_genealogy_links).
+2026-09-24 20:23:54,890 spj.migrations INFO Migración 251 ejecutada.
+2026-09-24 20:23:54,971 spj.migrations.252 INFO 252: meat processing resources schema created (production_areas, work_centers, production_stations, production_equipment, equipment_assignments).
+2026-09-24 20:23:54,979 spj.migrations INFO Migración 252 ejecutada.
+2026-09-24 20:23:54,993 spj.migrations.253 INFO 253: purchase_orders.payment_terms asegurada.
+2026-09-24 20:23:55,001 spj.migrations INFO Migración 253 ejecutada.
+2026-09-24 20:23:55,068 spj.migrations.254 INFO 254: esquema de forecasting (BI-11) asegurado.
+2026-09-24 20:23:55,070 spj.migrations INFO Migración 254 ejecutada.
+2026-09-24 20:23:55,081 spj.migrations.255 INFO 255: backfill de ventas legacy -> agregado canónico. Migradas=0 | omitidas por estado de pedido/entrega=0 | omitidas por identidad no resoluble=0
+2026-09-24 20:23:55,086 spj.migrations INFO Migración 255 ejecutada.
+2026-09-24 20:23:55,106 spj.migrations.256 INFO 256: vista v_ventas_unificada creada (canónico ∪ legacy no migrado).
+2026-09-24 20:23:55,108 spj.migrations INFO Migración 256 ejecutada.
+2026-09-24 20:23:55,126 spj.migrations.257 INFO 257: vista v_detalles_venta_unificada creada (canónico ∪ legacy no migrado).
+2026-09-24 20:23:55,135 spj.migrations INFO Migración 257 ejecutada.
+2026-09-24 20:23:55,144 spj.migrations.258 INFO 258: recipes.reverse_reconstruction_allowed asegurada.
+2026-09-24 20:23:55,157 spj.migrations INFO Migración 258 ejecutada.
+2026-09-24 20:23:55,165 spj.migrations.259 INFO 259: price_list.created_by_user_id asegurada.
+2026-09-24 20:23:55,168 spj.migrations INFO Migración 259 ejecutada.
+2026-09-24 20:23:55,184 spj.migrations.260 INFO 260: 65 permisos PRECIOS concedidos; roles ausentes omitidos: ninguno
+2026-09-24 20:23:55,194 spj.migrations INFO Migración 260 ejecutada.
+2026-09-24 20:23:55,369 spj.migrations INFO Migración 261 ejecutada.
+2026-09-24 20:23:55,381 spj.migrations.262 INFO 262: contado/crédito y forma de pago en supplier_commercial_terms.
+2026-09-24 20:23:55,399 spj.migrations INFO Migración 262 ejecutada.
+2026-09-24 20:23:55,418 spj.migrations.263 INFO 263: proveedores está vacía; nada que migrar.
+2026-09-24 20:23:55,433 spj.migrations INFO Migración 263 ejecutada.
+2026-09-24 20:23:55,750 spj.migrations.264 INFO 264: 2 integraciones de direcciones sembradas.
+2026-09-24 20:23:55,762 spj.migrations INFO Migración 264 ejecutada.
+2026-09-24 20:23:55,776 spj.migrations.265 INFO 265: 0 salidas, 0 recetas traducidas, 0 en revisión.
+2026-09-24 20:23:55,796 spj.migrations INFO Migración 265 ejecutada.
+2026-09-24 20:23:55,820 spj.migrations.266 INFO 266: 3 tolerancias de conciliación sembradas.
+2026-09-24 20:23:55,822 spj.migrations INFO Migración 266 ejecutada.
+2026-09-24 20:23:55,835 spj.migrations.267 INFO 267: 0 columnas agregadas; tablas e índices de Delivery completos.
+2026-09-24 20:23:55,838 spj.migrations INFO Migración 267 ejecutada.
+2026-09-24 20:23:55,854 spj.migrations.268 INFO 268: 109 permisos de POS/reserva concedidos; roles ausentes: ninguno
+2026-09-24 20:23:55,858 spj.migrations INFO Migración 268 ejecutada.
+2026-09-24 20:23:55,867 spj.migrations.269 INFO 269: cutting_schemes.reverse_reconstruction_allowed asegurada.
+2026-09-24 20:23:55,870 spj.migrations INFO Migración 269 ejecutada.
+2026-09-24 20:23:55,890 spj.migrations.270 INFO 270: resultados por salida y tolerancias de rendimiento listos.
+2026-09-24 20:23:55,893 spj.migrations INFO Migración 270 ejecutada.
+2026-09-24 20:23:55,913 spj.migrations.271 INFO 271: 316 permisos PRODUCCION concedidos; roles ausentes: ninguno
+2026-09-24 20:23:55,915 spj.migrations INFO Migración 271 ejecutada.
+2026-09-24 20:23:57,090 spj.migrations.272 INFO 272: outputs reconstruida=False, fotos reconstruidas=0, órdenes devueltas a preparación=0, liberadas con consumo previo (sin tocar)=ninguna
+2026-09-24 20:23:57,093 spj.migrations INFO Migración 272 ejecutada.
+2026-09-24 20:23:57,184 spj.migrations.273 INFO 273: costos históricos movidos a Costos=0; resultados sin columnas de costo=False
+2026-09-24 20:23:57,190 spj.migrations.273 INFO 273: Costos y Calidad listos; 8 permisos concedidos.
+2026-09-24 20:23:57,193 spj.migrations INFO Migración 273 ejecutada.
+2026-09-24 20:23:57,218 spj.migrations.274 INFO 274: 4 concesiones de PRODUCCION.calidad.registrar_decision retiradas.
+2026-09-24 20:23:57,221 spj.migrations INFO Migración 274 ejecutada.
+2026-09-24 20:23:57,222 spj.migrations INFO Migraciones completadas: 252 ejecutadas.
+2026-09-24 20:23:58,799 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-24 20:23:58,800 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-24 20:24:00,945 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-24 20:24:01,634 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-24 20:24:01,803 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-24 20:24:01,803 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-09-24 20:24:01,804 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-24 20:24:01,804 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-09-24 20:24:01,804 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-09-24 20:24:01,804 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-24 20:30:00,893 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-24 20:30:38,749 spj.finance.bootstrap INFO Finance bootstrap: chart, journals, period, treasury and profiles seeded.
+2026-09-24 20:50:53,496 spj.products.presenter ERROR Acción de ciclo de vida activate falló
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\products\presenter.py", line 97, in _run_lifecycle
+    result = self._lifecycle_factory()[action].execute(
+        product_id=product_id, user_id=user_id or "")
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_lifecycle_use_cases.py", line 74, in execute
+    self._check_extra(row, user_id)
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_lifecycle_use_cases.py", line 118, in _check_extra
+    self._auth.ensure_segregation(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        actor_user_id=user_id, creator_user_id=row.get("created_by"),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        approval_permission=ProductPermissions.APPROVE)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\authorization\policy.py", line 117, in ensure_segregation
+    raise SegregationOfDutiesError(
+        "Quien creó el registro no puede aprobarlo ni activarlo "
+        f"({approval_permission}): se requiere un segundo usuario")
+backend.domain.products.exceptions.SegregationOfDutiesError: Quien creó el registro no puede aprobarlo ni activarlo (PRODUCTOS.aprobar): se requiere un segundo usuario
+2026-09-24 21:19:10,330 spj.products.presenter ERROR Acción de rendimiento approve falló
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\products\presenter.py", line 691, in _run_yield
+    res = ucs[action].execute(cmd)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_yield_use_cases.py", line 191, in execute
+    self._auth.ensure_segregation(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        actor_user_id=command.user_id or "", creator_user_id=version.created_by,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        approval_permission=ProductPermissions.YIELD_APPROVE)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\authorization\policy.py", line 117, in ensure_segregation
+    raise SegregationOfDutiesError(
+        "Quien creó el registro no puede aprobarlo ni activarlo "
+        f"({approval_permission}): se requiere un segundo usuario")
+backend.domain.products.exceptions.SegregationOfDutiesError: Quien creó el registro no puede aprobarlo ni activarlo (PRODUCTOS.rendimiento.aprobar): se requiere un segundo usuario
+2026-09-24 21:19:25,288 spj.products.presenter ERROR Acción de rendimiento approve falló
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\products\presenter.py", line 691, in _run_yield
+    res = ucs[action].execute(cmd)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_yield_use_cases.py", line 191, in execute
+    self._auth.ensure_segregation(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        actor_user_id=command.user_id or "", creator_user_id=version.created_by,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        approval_permission=ProductPermissions.YIELD_APPROVE)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\authorization\policy.py", line 117, in ensure_segregation
+    raise SegregationOfDutiesError(
+        "Quien creó el registro no puede aprobarlo ni activarlo "
+        f"({approval_permission}): se requiere un segundo usuario")
+backend.domain.products.exceptions.SegregationOfDutiesError: Quien creó el registro no puede aprobarlo ni activarlo (PRODUCTOS.rendimiento.aprobar): se requiere un segundo usuario
+2026-09-24 21:19:26,529 spj.products.presenter ERROR Acción de rendimiento approve falló
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\products\presenter.py", line 691, in _run_yield
+    res = ucs[action].execute(cmd)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_yield_use_cases.py", line 191, in execute
+    self._auth.ensure_segregation(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        actor_user_id=command.user_id or "", creator_user_id=version.created_by,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        approval_permission=ProductPermissions.YIELD_APPROVE)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\authorization\policy.py", line 117, in ensure_segregation
+    raise SegregationOfDutiesError(
+        "Quien creó el registro no puede aprobarlo ni activarlo "
+        f"({approval_permission}): se requiere un segundo usuario")
+backend.domain.products.exceptions.SegregationOfDutiesError: Quien creó el registro no puede aprobarlo ni activarlo (PRODUCTOS.rendimiento.aprobar): se requiere un segundo usuario
+2026-09-24 21:19:27,750 spj.products.presenter ERROR Acción de rendimiento activate falló
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\products\presenter.py", line 691, in _run_yield
+    res = ucs[action].execute(cmd)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_yield_use_cases.py", line 212, in execute
+    self._auth.ensure_segregation(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        actor_user_id=command.user_id or "", creator_user_id=version.created_by,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        approval_permission=ProductPermissions.YIELD_ACTIVATE)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\authorization\policy.py", line 117, in ensure_segregation
+    raise SegregationOfDutiesError(
+        "Quien creó el registro no puede aprobarlo ni activarlo "
+        f"({approval_permission}): se requiere un segundo usuario")
+backend.domain.products.exceptions.SegregationOfDutiesError: Quien creó el registro no puede aprobarlo ni activarlo (PRODUCTOS.rendimiento.activar): se requiere un segundo usuario
+2026-09-24 21:19:30,135 spj.products.presenter ERROR Acción de rendimiento activate falló
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\products\presenter.py", line 691, in _run_yield
+    res = ucs[action].execute(cmd)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\use_cases\product_yield_use_cases.py", line 212, in execute
+    self._auth.ensure_segregation(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        actor_user_id=command.user_id or "", creator_user_id=version.created_by,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        approval_permission=ProductPermissions.YIELD_ACTIVATE)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\products\authorization\policy.py", line 117, in ensure_segregation
+    raise SegregationOfDutiesError(
+        "Quien creó el registro no puede aprobarlo ni activarlo "
+        f"({approval_permission}): se requiere un segundo usuario")
+backend.domain.products.exceptions.SegregationOfDutiesError: Quien creó el registro no puede aprobarlo ni activarlo (PRODUCTOS.rendimiento.activar): se requiere un segundo usuario
+2026-09-24 21:23:10,122 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-24 21:24:06,337 SPJ.Boot INFO Sesión iniciada: Juana Rodriguez en Corregidora.
+2026-09-24 21:28:21,584 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-24 22:11:46,228 SPJ.Boot INFO =======================================================
+2026-09-24 22:11:46,231 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-24 22:11:46,232 SPJ.Boot INFO =======================================================
+2026-09-24 22:11:51,293 spj.migrations.275 INFO 275: perfiles con código creados=2, folios asignados=0, sucursales sin código=ninguna
+2026-09-24 22:11:51,299 spj.migrations INFO Migración 275 ejecutada.
+2026-09-24 22:11:51,299 spj.migrations INFO Migraciones completadas: 1 ejecutadas.
+2026-09-24 22:11:52,641 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-24 22:11:52,647 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-24 22:11:54,260 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-24 22:11:54,619 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-24 22:11:55,181 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-24 22:11:55,182 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-09-24 22:11:55,182 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-24 22:11:55,182 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-09-24 22:11:55,183 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-09-24 22:11:55,183 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-24 22:12:26,828 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-24 22:20:26,585 SPJ.Boot INFO Sesión iniciada: Juana Rodriguez en Corregidora.
+2026-09-24 22:22:19,243 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-09-24 22:55:30,682 SPJ.Boot INFO =======================================================
+2026-09-24 22:55:30,684 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-24 22:55:30,684 SPJ.Boot INFO =======================================================
+2026-09-24 22:55:37,090 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-24 22:55:37,676 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-24 22:55:37,681 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-24 22:55:41,111 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-24 22:55:42,278 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-24 22:55:43,810 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-24 22:55:43,811 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-09-24 22:55:43,811 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-24 22:55:43,812 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-09-24 22:55:43,812 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-09-24 22:55:43,813 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-24 22:56:15,056 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-24 23:26:56,663 SPJ.Boot INFO Sistema cerrado. Código: 0

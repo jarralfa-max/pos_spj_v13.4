@@ -21,6 +21,8 @@ from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.purchasing.dialogs.enterprise_dialogs import (
     AwardDialog,
     InvoiceFormDialog,
+    AcknowledgeOrderDialog,
+    GenerateOrdersDialog,
     OrderFormDialog,
     QuoteCaptureDialog,
     ReasonDialog,
@@ -29,7 +31,18 @@ from frontend.desktop.modules.purchasing.dialogs.enterprise_dialogs import (
     SupplierSelectionDialog,
 )
 from frontend.desktop.modules.purchasing.document_detail import (
-    OrderDetailPanel, RequisitionDetailPanel, RfqDetailPanel,
+    OrderDetailPanel, RequisitionDetailPanel, RfqDetailPanel, local_datetime_text,
+)
+from frontend.desktop.modules.purchasing.enterprise_view_models import (
+    INVOICE_STATUS_ES,
+    ORDER_STATUS_ES,
+    REQUISITION_STATUS_ES,
+    RFQ_STATUS_ES,
+    invoice_finance_text,
+    invoice_status_es,
+    match_result_es,
+    money,
+    status_filter as status_filter_options,
 )
 
 
@@ -47,9 +60,8 @@ class RequisitionsPage(_ListPageBase):
     columns = [ColumnSpec("Folio", "text"), ColumnSpec("Sucursal", "text"),
                ColumnSpec("Tipo", "text"), ColumnSpec("Prioridad", "text"),
                ColumnSpec("Estado", "status"), ColumnSpec("Fecha", "text")]
-    status_filter = [("", "Todos"), ("DRAFT", "Borrador"),
-                     ("PENDING_APPROVAL", "Pendiente"), ("APPROVED", "Aprobada"),
-                     ("REJECTED", "Rechazada")]
+    status_filter = status_filter_options(REQUISITION_STATUS_ES, (
+        "DRAFT", "PENDING_APPROVAL", "APPROVED", "PARTIALLY_SOURCED", "SOURCED", "REJECTED"))
     empty_message = "No hay solicitudes"
 
     def _create_detail_panel(self):
@@ -163,34 +175,90 @@ class RequisitionsPage(_ListPageBase):
         if not detail:
             self._notify(False, "Selecciona una solicitud aprobada.")
             return
-        try:
-            warehouse_id = self._presenter.default_warehouse()
-        except PermissionError as exc:
-            self._notify(False, str(exc))
-            return
-        dialog = OrderFormDialog(
-            self, source_requisition=detail,
-            branch_id=self._presenter.default_branch(), warehouse_id=warehouse_id,
-            supplier_provider=self._presenter.supplier_options,
-            product_provider=self._presenter.product_options,
-            empty_reason_provider=self._presenter.product_search_reason,
-            supplier_empty_reason=self._presenter.supplier_search_reason,
-            branch_options=self._presenter.branch_options(),
-            warehouse_options=self._presenter.warehouse_options())
-        if not dialog.exec_():
-            return
-        values = dialog.values()
-        values["requisition_id"] = detail.id
-        if not values["supplier_id"] or not values["lines"]:
-            self._notify(False, "Captura proveedor y líneas con precio.")
-            return
-        ok, msg, _ = self._presenter.create_order(**values)
-        self._notify(ok, msg)
+        result = open_order_form(self, self._presenter, source_requisition=detail)
+        if result is not None:
+            self._notify(*result)
+            self.reload()
 
     def _create_direct(self):
         detail = self._selected_detail()
         if detail:
             self.direct_purchase_requested.emit(detail)
+
+
+def open_acknowledge_order(parent, presenter, order_id):
+    """Registra la confirmación del proveedor de una orden enviada. Devuelve
+    ``(ok, mensaje)`` o ``None`` si se canceló."""
+    detail = presenter.order_detail(order_id)
+    if detail is None:
+        return None
+    dialog = AcknowledgeOrderDialog(
+        parent, order_detail=detail,
+        on_submit=lambda values, operation_id: presenter.acknowledge_order(
+            order_id, operation_id=operation_id, **values))
+    if not dialog.exec_() or dialog.result_data is None:
+        return None
+    _ok, message, data = dialog.result_data
+    exceptions = data.get("exceptions") or []
+    return True, message + (": " + "; ".join(exceptions) if exceptions else "")
+
+
+def open_generate_orders(parent, presenter, rfq_id):
+    """Abre «Generar órdenes de compra» para la adjudicación de ``rfq_id``.
+    Devuelve ``(ok, mensaje)`` o ``None`` si se canceló o no hay adjudicación."""
+    award = presenter.award_orders(rfq_id)
+    if not award:
+        return None
+    options = presenter.warehouse_options(award.get("branch_id") or None)
+    dialog = GenerateOrdersDialog(
+        parent, award=award, warehouse_options=options,
+        preselected_warehouse=presenter.preselected_warehouse(options),
+        on_submit=lambda warehouse_id, operation_id: presenter.generate_orders_from_award(
+            award["award_id"], warehouse_id, operation_id=operation_id))
+    if not dialog.exec_() or dialog.result_data is None:
+        return None
+    _ok, message, data = dialog.result_data
+    folios = ", ".join(o["document_number"] for o in data.get("orders", ())
+                       if o.get("document_number"))
+    return True, f"{message}{': ' + folios if folios else ''}"
+
+
+def open_order_form(parent, presenter, *, source_requisition=None):
+    """Abre «Nueva orden de compra» y la crea desde el propio diálogo.
+
+    Antes ambas entradas exigían `default_warehouse()` ANTES de abrir: la sesión
+    real nunca tiene almacén, así que en producción no se podía crear ninguna
+    orden ("La sesión no tiene un almacén activo"). Ahora sucursal y almacén se
+    eligen en el formulario. Devuelve `(ok, mensaje)` o `None` si se canceló."""
+    def submit(values, operation_id):
+        if source_requisition is not None:
+            values = dict(values, requisition_id=source_requisition.id)
+        return presenter.create_order(operation_id=operation_id, **values)
+
+    try:
+        branch = presenter.default_branch()
+    except PermissionError:
+        branch = ""     # sin sucursal en sesión: el usuario la elige
+    dialog = OrderFormDialog(
+        parent, source_requisition=source_requisition, branch_id=branch,
+        supplier_provider=presenter.supplier_options,
+        # Cable muerto histórico: sin `product_provider` el buscador devolvía
+        # cero siempre, hubiera o no catálogo.
+        product_provider=presenter.product_options,
+        empty_reason_provider=presenter.product_search_reason,
+        supplier_empty_reason=presenter.supplier_search_reason,
+        branch_options=presenter.branch_options(),
+        warehouse_provider=presenter.warehouse_options,
+        preselect_warehouse=presenter.preselected_warehouse,
+        profile_provider=presenter.purchase_profile,
+        product_label_provider=presenter.product_label,
+        origin_provider=presenter.supplier_origin_options,
+        on_submit=submit)
+    if not dialog.exec_() or dialog.result_data is None:
+        return None
+    _ok, message, data = dialog.result_data
+    folio = data.get("document_number") or ""
+    return True, f"{message}{' — ' + folio if folio else ''}"
 
 
 class QuotationsPage(_ListPageBase):
@@ -199,21 +267,28 @@ class QuotationsPage(_ListPageBase):
     columns = [ColumnSpec("Folio", "text"), ColumnSpec("Estado", "status"),
                ColumnSpec("Invitados", "text"), ColumnSpec("Cotizados", "text"),
                ColumnSpec("Adjudicada", "text"), ColumnSpec("Fecha", "text")]
-    status_filter = [("", "Todos"), ("DRAFT", "Borrador"), ("SENT", "Enviada"),
-                     ("CLOSED", "Cerrada")]
+    status_filter = status_filter_options(RFQ_STATUS_ES, ("DRAFT", "SENT", "CLOSED"))
     empty_message = "No hay RFQ"
 
     def _create_detail_panel(self):
         self._detail = RfqDetailPanel(self, self._presenter.capabilities())
         self._detail.capture_button.clicked.connect(self._capture_quote)
         self._detail.award_button.clicked.connect(self._award)
+        self._detail.orders_button.clicked.connect(self._generate_orders)
         return self._detail
 
     def _selection_changed(self):
         super()._selection_changed()
         rfq_id = self._selected()
         detail = self._presenter.rfq_detail(rfq_id) if rfq_id else None
-        self._detail.load_detail(detail)
+        self._detail.load_detail(detail, self._presenter.award_orders(rfq_id) if rfq_id else None)
+
+    def _generate_orders(self, *_):
+        rfq_id = self._selected()
+        result = open_generate_orders(self, self._presenter, rfq_id) if rfq_id else None
+        if result is not None:
+            self._notify(*result)
+            self._selection_changed()
 
     def _fetch(self):
         return self._presenter.rfqs(status=self._status_id() or None,
@@ -260,6 +335,13 @@ class QuotationsPage(_ListPageBase):
             return
         ok, msg, _ = self._presenter.award_quote(award_lines=award_lines, reason=dialog.reason())
         self._notify(ok, msg)
+        if ok:
+            # La adjudicación ya no termina aquí: se ofrece generar las órdenes
+            # (una por proveedor) en el mismo paso; cancelar lo deja para después.
+            result = open_generate_orders(self, self._presenter, rfq_id)
+            if result is not None:
+                self._notify(*result)
+            self.reload()
 
 
 class OrdersPage(_ListPageBase):
@@ -268,16 +350,16 @@ class OrdersPage(_ListPageBase):
     columns = [ColumnSpec("Folio", "text"), ColumnSpec("Proveedor", "text"),
                ColumnSpec("Estado", "status"), ColumnSpec("Versión", "text"),
                ColumnSpec("Total", "text"), ColumnSpec("Fecha", "text")]
-    status_filter = [("", "Todos"), ("DRAFT", "Borrador"),
-                     ("PENDING_APPROVAL", "Pendiente"), ("APPROVED", "Aprobada"),
-                     ("SENT", "Enviada"), ("PARTIALLY_RECEIVED", "Recibida parcial"),
-                     ("RECEIVED", "Recibida")]
+    status_filter = status_filter_options(ORDER_STATUS_ES, (
+        "DRAFT", "PENDING_APPROVAL", "APPROVED", "SENT", "ACKNOWLEDGED",
+        "PARTIALLY_RECEIVED", "RECEIVED"))
     empty_message = "No hay órdenes de compra"
 
     def _create_detail_panel(self):
         self._detail = OrderDetailPanel(self, self._presenter.capabilities())
         self._detail.approve_button.clicked.connect(self._approve)
         self._detail.send_button.clicked.connect(self._send)
+        self._detail.acknowledge_button.clicked.connect(self._acknowledge)
         self._detail.receive_button.clicked.connect(self._receive)
         self._detail.change_button.clicked.connect(self._change)
         return self._detail
@@ -299,31 +381,10 @@ class OrdersPage(_ListPageBase):
                                      search=self._search.text().strip(), page=self._page)
 
     def _create(self):
-        try:
-            warehouse_id = self._presenter.default_warehouse()
-        except PermissionError as exc:
-            self._notify(False, str(exc))
-            return
-        dialog = OrderFormDialog(
-            self, branch_id=self._presenter.default_branch(),
-            warehouse_id=warehouse_id,
-            supplier_provider=self._presenter.supplier_options,
-            # Cable muerto: esta ruta construía el diálogo SIN proveedor de
-            # productos, así que su buscador caía al `lambda _q: []` por
-            # omisión y devolvía cero siempre, hubiera o no catálogo.
-            product_provider=self._presenter.product_options,
-            empty_reason_provider=self._presenter.product_search_reason,
-            supplier_empty_reason=self._presenter.supplier_search_reason,
-            branch_options=self._presenter.branch_options(),
-            warehouse_options=self._presenter.warehouse_options())
-        if not dialog.exec_():
-            return
-        values = dialog.values()
-        if not values["supplier_id"] or not values["lines"]:
-            self._notify(False, "Captura proveedor y al menos un producto.")
-            return
-        ok, msg, _ = self._presenter.create_order(**values)
-        self._notify(ok, msg)
+        result = open_order_form(self, self._presenter)
+        if result is not None:
+            self._notify(*result)
+            self.reload()
 
     def start_create(self):
         self._create()
@@ -344,13 +405,24 @@ class OrdersPage(_ListPageBase):
         ok, msg, _ = self._presenter.send_order(oid)
         self._notify(ok, msg)
 
+    def _acknowledge(self, *_):
+        oid = self._selected()
+        if not oid:
+            self._notify(False, "Selecciona una orden.")
+            return
+        result = open_acknowledge_order(self, self._presenter, oid)
+        if result is not None:
+            self._notify(*result)
+            self.reload()
+
     def _receive(self):
         oid = self._selected()
         if not oid:
             self._notify(False, "Selecciona una orden.")
             return
         detail = self._presenter.order_detail(oid)
-        dialog = ReceiveOrderDialog(self, order_detail=detail)
+        dialog = ReceiveOrderDialog(self, order_detail=detail,
+                                    profile_provider=self._presenter.purchase_profile)
         if not dialog.exec_():
             return
         lines = dialog.receipt_lines()
@@ -379,9 +451,8 @@ class InvoicesPage(_ListPageBase):
                ColumnSpec("Factura", "text"), ColumnSpec("Total", "text"),
                ColumnSpec("Estado", "status"), ColumnSpec("Conciliación", "status"),
                ColumnSpec("Fecha", "text")]
-    status_filter = [("", "Todos"), ("CAPTURED", "Capturada"), ("MATCHED", "Conciliada"),
-                     ("WITH_DIFFERENCES", "Con diferencias"), ("APPROVED", "Aprobada"),
-                     ("BLOCKED", "Bloqueada")]
+    status_filter = status_filter_options(INVOICE_STATUS_ES, (
+        "CAPTURED", "MATCHED", "WITH_DIFFERENCES", "APPROVED", "BLOCKED"))
     empty_message = "No hay facturas"
 
     _ACTIONS_BY_STATUS = {
@@ -409,9 +480,13 @@ class InvoicesPage(_ListPageBase):
         layout.addWidget(self._invoice_commands)
         self._invoice_summary = QLabel("Selecciona una factura", panel)
         self._invoice_summary.setWordWrap(True); layout.addWidget(self._invoice_summary)
+        self._invoice_finance = QLabel("", panel)
+        self._invoice_finance.setWordWrap(True)
+        self._invoice_finance.setProperty("role", "muted")
+        layout.addWidget(self._invoice_finance)
         self._invoice_lines = StandardTable([
             ColumnSpec("Producto"), ColumnSpec("Aceptado"), ColumnSpec("Facturado"),
-            ColumnSpec("Precio acordado"), ColumnSpec("Precio factura"),
+            ColumnSpec("Precio pactado (neto)"), ColumnSpec("Precio factura"),
             ColumnSpec("Impuesto"),
         ], panel)
         layout.addWidget(self._invoice_lines)
@@ -432,27 +507,37 @@ class InvoicesPage(_ListPageBase):
         if not detail:
             self._invoice_commands.setVisible(False)
             return
+        # Sólo las acciones que aplican al estado de ESTA factura (§9: nada de
+        # botones grises deshabilitados).
+        capabilities = self._presenter.capabilities()
         allowed = self._ACTIONS_BY_STATUS.get(str(detail.status or ""), set())
-        self._match_button.setEnabled("Conciliar" in allowed)
-        self._release_button.setEnabled("Liberar diferencia" in allowed)
-        self._invoice_commands.setVisible(True)
+        self._match_button.setVisible(capabilities.invoice_match and "Conciliar" in allowed)
+        self._release_button.setVisible(capabilities.invoice_release_variance
+                                        and "Liberar diferencia" in allowed)
+        self._invoice_commands.setVisible(bool(allowed))
         comparisons = {line["source_line_id"]: line for line in detail.comparison}
         rows = []
         for line in detail.lines:
             source_id = line.purchase_order_line_id or line.direct_purchase_line_id
             expected = comparisons.get(source_id, {})
-            rows.append([line.product_id, str(expected.get("accepted_quantity", "0")),
-                         line.invoiced_quantity, str(expected.get("unit_price", "—")),
-                         line.unit_price, line.tax])
+            rows.append([line.product_name, str(expected.get("accepted_quantity", "0")),
+                         line.invoiced_quantity,
+                         money(expected["unit_price"]) if expected.get("unit_price") else "—",
+                         money(line.unit_price), money(line.tax)])
         self._invoice_lines.load_rows(rows, row_ids=[str(i) for i in range(len(rows))])
         self._match_history.load_rows([[
-            item.result, item.released_by_user_id or "—",
-            item.notes or "—", item.created_at,
+            match_result_es(item.result), item.released_by_name or "—",
+            item.notes or "—", local_datetime_text(item.created_at),
         ] for item in detail.matches],
             row_ids=[str(i) for i, _ in enumerate(detail.matches)])
+        estado = invoice_status_es(detail.status)
+        resultado = (match_result_es(detail.match_result) if detail.match_result
+                     else "Sin conciliar")
         self._invoice_summary.setText(
             f"{detail.document_number} · Factura {detail.invoice_number} · "
-            f"{detail.status} · {detail.match_result or 'Sin conciliar'}")
+            f"{detail.supplier_name} · Total {money(detail.total)} · {estado}"
+            + ("" if resultado == estado else f" · {resultado}"))
+        self._invoice_finance.setText(invoice_finance_text(detail))
 
     def _build_actions(self):
         capabilities = self._presenter.capabilities()

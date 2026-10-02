@@ -75,14 +75,15 @@ class DirectPurchaseReadService(_Base):
             return None
         line_rows = self._query(
             "SELECT product_id, description, quantity, unit_cost, discount, tax, line_total,"
-            " purchase_unit, inventory_unit, conversion_factor"
+            " purchase_unit, inventory_unit, conversion_factor, net_weight, pricing_basis"
             " FROM direct_purchase_lines WHERE direct_purchase_id=? ORDER BY id",
             (direct_purchase_id,))
         lines = [DirectPurchaseLineDTO(
             product_id=lr["product_id"], description=lr["description"] or "",
             quantity=lr["quantity"], unit_cost=lr["unit_cost"], discount=lr["discount"],
             tax=lr["tax"], line_total=lr["line_total"], purchase_unit=lr["purchase_unit"],
-            inventory_unit=lr["inventory_unit"], conversion_factor=lr["conversion_factor"])
+            inventory_unit=lr["inventory_unit"], conversion_factor=lr["conversion_factor"],
+            net_weight=lr.get("net_weight") or None, pricing_basis=lr.get("pricing_basis") or "")
             for lr in line_rows]
         return DirectPurchaseDetailDTO(
             id=row["id"], document_number=row["document_number"],
@@ -92,7 +93,26 @@ class DirectPurchaseReadService(_Base):
             subtotal=row["subtotal"], tax_total=row["tax_total"], total=row["total"],
             authorization_reason=row["authorization_reason"] or "",
             authorized_by_user_id=row["authorized_by_user_id"],
-            created_by_user_id=row["created_by_user_id"], lines=lines)
+            created_by_user_id=row["created_by_user_id"], lines=lines,
+            supplier_name=self.supplier_name(row["supplier_id"]),
+            branch_name=self.branch_name(row["branch_id"]),
+            warehouse_name=self.warehouse_name(row["warehouse_id"]),
+            payment_source=row["payment_source"],
+            fulfillment_mode=row.get("fulfillment_mode") or "",
+            origin_display=_origin_display(row.get("origin_address_snapshot")))
+
+    def branch_name(self, branch_id: str) -> str:
+        row = self._query_one("SELECT nombre FROM sucursales WHERE id=?", (branch_id,))
+        return str(row["nombre"]) if row and row["nombre"] else "Sucursal no disponible"
+
+    def warehouse_name(self, warehouse_id: str) -> str:
+        row = self._query_one(
+            "SELECT code, name FROM warehouses WHERE id=?", (warehouse_id,))
+        if not row:
+            return "Almacén no disponible"
+        code = str(row["code"] or "").strip()
+        name = str(row["name"] or "").strip()
+        return f"{code} · {name}" if code and name else (name or code or "Almacén no disponible")
 
     def _where(self, status: str | None, search: str) -> tuple[str, list]:
         clauses, params = [], []
@@ -159,3 +179,17 @@ class SupplierPickerQueryService(_Base):
             return self._search.explain_empty(SupplierSearchQuery(text=query))
         except sqlite3.OperationalError:
             return None
+
+
+def _origin_display(snapshot) -> str:
+    """«Bodega Norte · San Juan del Río, Querétaro» desde la foto guardada."""
+    if not snapshot:
+        return ""
+    try:
+        from backend.application.suppliers.queries.supplier_origin_query_service import (
+            origin_display,
+        )
+        import json
+        return origin_display(json.loads(snapshot))
+    except Exception:
+        return ""

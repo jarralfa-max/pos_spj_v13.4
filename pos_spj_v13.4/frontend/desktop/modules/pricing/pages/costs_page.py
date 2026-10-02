@@ -30,6 +30,7 @@ class CostsPage(QWidget):
 
         self.table = StandardTable(columns=[
             ColumnSpec("Producto", "product"),
+            ColumnSpec("Alcance", "scope"),
             ColumnSpec("Promedio", "average_cost"),
             ColumnSpec("Último", "last_cost"),
             ColumnSpec("Estándar", "standard_cost"),

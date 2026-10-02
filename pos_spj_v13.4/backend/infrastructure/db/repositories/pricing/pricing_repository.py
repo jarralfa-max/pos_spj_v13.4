@@ -50,6 +50,12 @@ class PricingRepository:
         row = self._conn.execute("SELECT * FROM price_list WHERE id=?", (list_id,)).fetchone()
         return self._row_to_list(row) if row else None
 
+    def active_lists_of_kind(self, kind: PriceListKind) -> list[PriceList]:
+        rows = self._conn.execute(
+            "SELECT * FROM price_list WHERE kind=? AND status='ACTIVE' ORDER BY code",
+            (kind.value,)).fetchall()
+        return [self._row_to_list(row) for row in rows]
+
     def active_list_of_kind(self, kind: PriceListKind) -> PriceList | None:
         row = self._conn.execute(
             "SELECT * FROM price_list WHERE kind=? AND status='ACTIVE' "

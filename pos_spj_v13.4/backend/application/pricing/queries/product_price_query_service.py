@@ -93,13 +93,28 @@ class ProductPriceQueryService:
 
 
 class ProductCostQueryService:
+    """Costo que RIGE según la política (§32). Con GLOBAL se ignora la sucursal
+    aunque exista su fila (la proyección las mantiene siempre); con PER_BRANCH se
+    usa la de la sucursal y, si aún no tiene historia, la de empresa."""
+
     def __init__(self, connection) -> None:
+        from backend.application.pricing.cost_policy import CostPolicySettings
         self._repo = PricingRepository(connection)
+        self._policy = CostPolicySettings(connection)
+
+    def _cost(self, product_id: str, branch_id: str | None):
+        from backend.application.pricing.cost_policy import CostPolicy
+        if self._policy.current() is CostPolicy.PER_BRANCH:
+            return self._repo.get_cost(product_id, branch_id)   # sucursal → empresa
+        # GLOBAL: el de empresa; sólo si no existe, el de la sucursal (datos que
+        # únicamente se costearon por sucursal no deben quedar "sin costo").
+        return self._repo.get_cost(product_id, None) or (
+            self._repo.get_cost(product_id, branch_id) if branch_id else None)
 
     def get_average_cost(self, product_id: str, branch_id: str | None = None) -> Money | None:
-        cost = self._repo.get_cost(product_id, branch_id)
+        cost = self._cost(product_id, branch_id)
         return cost.average_cost if cost else None
 
     def get_effective_cost(self, product_id: str, branch_id: str | None = None) -> Money | None:
-        cost = self._repo.get_cost(product_id, branch_id)
+        cost = self._cost(product_id, branch_id)
         return cost.effective_cost() if cost else None

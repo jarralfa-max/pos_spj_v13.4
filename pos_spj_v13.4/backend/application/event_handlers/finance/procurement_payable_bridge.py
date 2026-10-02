@@ -34,6 +34,7 @@ from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.money import Money
 from backend.domain.finance.value_objects.posting_reference import PostingReference
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
+from backend.shared.business_dates import local_business_date
 
 #: purchase_nature -> posting-profile account role. SERVICE has no dedicated
 #: role in the chart of accounts; a purchased service is an operating expense.
@@ -140,10 +141,6 @@ def _due_date(issue_date: date, payload: dict) -> date | None:
 
 
 def _issue_date(payload: dict) -> date:
-    timestamp = str(payload.get("timestamp") or "")
-    if timestamp:
-        try:
-            return date.fromisoformat(timestamp[:10])
-        except ValueError:
-            pass
-    return date.today()
+    # Día LOCAL del negocio, no el de UTC (el último día del mes, el asiento
+    # caía en el periodo siguiente).
+    return local_business_date(payload.get("timestamp"))

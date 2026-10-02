@@ -15,6 +15,7 @@ class SearchOption:
     id: str
     label: str
     subtitle: str = ""
+    tooltip: str = ""
 
 
 SearchProvider = Callable[[str], Iterable[SearchOption]]

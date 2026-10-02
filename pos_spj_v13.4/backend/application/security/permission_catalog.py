@@ -61,6 +61,7 @@ _CONTEXT_PERMISSION_MODULES = (
     "backend.application.crm.permissions",
     "backend.application.customers.permissions",
     "backend.application.inventory.permissions",
+    "backend.application.logistics.permissions",
     "backend.application.loyalty.permissions",
     "backend.application.loyalty_cards.permissions",
     "backend.application.meat_processing.permissions",

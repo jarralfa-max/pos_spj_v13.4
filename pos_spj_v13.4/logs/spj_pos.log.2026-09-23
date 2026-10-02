@@ -1,0 +1,73 @@
+2026-09-23 18:24:43,757 SPJ.Boot INFO =======================================================
+2026-09-23 18:24:43,888 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-09-23 18:24:43,955 SPJ.Boot INFO =======================================================
+2026-09-23 18:24:54,847 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-09-23 18:24:59,086 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-09-23 18:24:59,087 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-09-23 18:24:59,851 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-09-23 18:25:00,204 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-09-23 18:25:00,802 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-09-23 18:25:00,803 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-09-23 18:25:00,804 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-09-23 18:25:00,804 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-09-23 18:26:38,596 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-09-23 18:27:29,476 frontend.desktop.components.icons WARNING Unknown icon identifier '📦'; using file symbol
+2026-09-23 18:27:29,481 frontend.desktop.components.icons WARNING Unknown icon identifier '📦'; using file symbol
+2026-09-23 18:27:29,483 frontend.desktop.components.icons WARNING Unknown icon identifier '🔄'; using file symbol
+2026-09-23 18:27:29,487 frontend.desktop.components.icons WARNING Unknown icon identifier '🔄'; using file symbol
+2026-09-23 18:27:29,489 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-09-23 18:27:29,495 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-09-23 18:27:34,933 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-23 18:27:34,940 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-23 18:27:34,945 frontend.desktop.components.icons WARNING Unknown icon identifier '🧮'; using file symbol
+2026-09-23 18:27:34,952 frontend.desktop.components.icons WARNING Unknown icon identifier '🧮'; using file symbol
+2026-09-23 18:27:34,958 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-23 18:27:34,967 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-23 18:27:53,838 frontend.desktop.components.icons WARNING Unknown icon identifier '📦'; using file symbol
+2026-09-23 18:27:53,841 frontend.desktop.components.icons WARNING Unknown icon identifier '🔄'; using file symbol
+2026-09-23 18:27:53,843 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-09-23 18:27:55,311 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-09-23 18:27:55,318 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-09-23 18:27:55,324 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-09-23 18:27:55,334 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-09-23 18:28:10,895 frontend.desktop.components.icons WARNING Unknown icon identifier '🏷️'; using file symbol
+2026-09-23 18:28:10,901 frontend.desktop.components.icons WARNING Unknown icon identifier '🏷️'; using file symbol
+2026-09-23 18:28:10,904 frontend.desktop.components.icons WARNING Unknown icon identifier '📈'; using file symbol
+2026-09-23 18:28:10,906 frontend.desktop.components.icons WARNING Unknown icon identifier '📈'; using file symbol
+2026-09-23 18:28:10,909 frontend.desktop.components.icons WARNING Unknown icon identifier '％'; using file symbol
+2026-09-23 18:28:10,912 frontend.desktop.components.icons WARNING Unknown icon identifier '％'; using file symbol
+2026-09-23 18:28:10,914 frontend.desktop.components.icons WARNING Unknown icon identifier '🗂️'; using file symbol
+2026-09-23 18:28:10,919 frontend.desktop.components.icons WARNING Unknown icon identifier '🗂️'; using file symbol
+2026-09-23 18:28:33,106 frontend.desktop.components.icons WARNING Unknown icon identifier '🏷️'; using file symbol
+2026-09-23 18:28:33,108 frontend.desktop.components.icons WARNING Unknown icon identifier '📈'; using file symbol
+2026-09-23 18:28:33,110 frontend.desktop.components.icons WARNING Unknown icon identifier '％'; using file symbol
+2026-09-23 18:28:33,112 frontend.desktop.components.icons WARNING Unknown icon identifier '🗂️'; using file symbol
+2026-09-23 18:28:43,888 frontend.desktop.components.icons WARNING Unknown icon identifier '🏬'; using file symbol
+2026-09-23 18:28:43,896 frontend.desktop.components.icons WARNING Unknown icon identifier '🏬'; using file symbol
+2026-09-23 18:28:43,901 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-09-23 18:28:43,909 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-09-23 18:28:43,914 frontend.desktop.components.icons WARNING Unknown icon identifier '🥇'; using file symbol
+2026-09-23 18:28:43,924 frontend.desktop.components.icons WARNING Unknown icon identifier '🥇'; using file symbol
+2026-09-23 18:28:43,929 frontend.desktop.components.icons WARNING Unknown icon identifier '⚖️'; using file symbol
+2026-09-23 18:28:43,938 frontend.desktop.components.icons WARNING Unknown icon identifier '⚖️'; using file symbol
+2026-09-23 18:28:58,998 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-23 18:28:59,001 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-09-23 18:28:59,004 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-09-23 18:28:59,008 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-09-23 18:28:59,010 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-09-23 18:28:59,015 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-09-23 18:28:59,017 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-09-23 18:28:59,024 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-09-23 18:28:59,027 frontend.desktop.components.icons WARNING Unknown icon identifier '👥'; using file symbol
+2026-09-23 18:28:59,030 frontend.desktop.components.icons WARNING Unknown icon identifier '👥'; using file symbol
+2026-09-23 18:28:59,033 frontend.desktop.components.icons WARNING Unknown icon identifier '🚚'; using file symbol
+2026-09-23 18:28:59,039 frontend.desktop.components.icons WARNING Unknown icon identifier '🚚'; using file symbol
+2026-09-23 18:29:19,346 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-09-23 18:29:19,349 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-09-23 18:29:19,352 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-09-23 18:29:19,358 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-09-23 18:29:19,361 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-09-23 18:29:19,364 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-09-23 18:29:19,369 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-23 18:29:19,373 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-09-23 18:39:37,463 SPJ.Boot INFO Sistema cerrado. Código: 0

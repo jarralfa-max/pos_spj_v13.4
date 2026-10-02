@@ -9,8 +9,10 @@ for why.
 """
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QHBoxLayout, QStackedWidget, QWidget
+from PyQt5.QtWidgets import QStackedWidget, QWidget
 
+from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.business_intelligence.business_intelligence_routes import build_page
 from frontend.desktop.modules.business_intelligence.widgets import BusinessIntelligenceSidebarWidget
 from frontend.desktop.themes.tokens import ResponsiveBreakpoints
@@ -26,7 +28,6 @@ class BusinessIntelligenceView(QWidget):
         self.setAccessibleDescription(
             "Espacio de trabajo de analítica, forecasting y recomendaciones del negocio."
         )
-        self.setMinimumSize(640, 480)
         if page_builder is not None:
             self._page_builder = page_builder
         else:
@@ -35,14 +36,13 @@ class BusinessIntelligenceView(QWidget):
         self._pages = {}
         self._active_route = None
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
         self.sidebar = BusinessIntelligenceSidebarWidget(
             has_permission=has_permission, badges=badges, parent=self)
         self.stack = QStackedWidget(self)
-        layout.addWidget(self.sidebar)
-        layout.addWidget(self.stack, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Inteligencia de Negocios", icon=Icons.ANALYTICS,
+            sidebar=self.sidebar, content=self.stack,
+        )
         self.sidebar.route_requested.connect(self.show_route)
         if self.sidebar.count():
             self.show_route(str(self.sidebar.item(0).data(Qt.UserRole)))

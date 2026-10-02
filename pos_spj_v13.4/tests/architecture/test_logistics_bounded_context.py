@@ -38,16 +38,23 @@ def test_procurement_does_not_own_new_logistics_tables():
 
 
 def test_logistics_runtime_wiring_is_called_from_composition_root():
-    wiring = (ROOT / "core/events/wiring.py").read_text(encoding="utf-8")
-    assert "_wire_logistics_pipeline(bus, container)" in wiring
-    assert "wire_logistics(bus, service)" in wiring
+    # `core/events/wiring.py` se borró con el shell legado y con él el único
+    # lugar que armaba Logística. Ahora la composición de Compras la construye
+    # (`build_logistics_services`) cuando no se la inyectan.
+    assert not (ROOT / "core/events/wiring.py").exists()
+    routes = (ROOT / "frontend/desktop/modules/purchasing/enterprise_routes.py").read_text(
+        encoding="utf-8")
+    assert "build_logistics_services(" in routes
+    composition = (ROOT / "backend/application/logistics/composition.py").read_text(
+        encoding="utf-8")
+    assert "LogisticsApplicationService(" in composition and "qr_signing_secret" in composition
     engine = (ROOT / "migrations/engine.py").read_text()
     assert '"172",  "migrations.standalone.172_logistics_loading_authorizations"' in engine
 
 
 def test_origin_purchase_workspace_is_operational_not_placeholder():
-    page = (ROOT / "frontend/desktop/modules/purchasing/pages/logistics_related_page.py").read_text()
-    coordinator = (ROOT / "backend/application/logistics/origin_purchase_workspace.py").read_text()
+    page = (ROOT / "frontend/desktop/modules/purchasing/pages/logistics_related_page.py").read_text(encoding="utf-8")
+    coordinator = (ROOT / "backend/application/logistics/origin_purchase_workspace.py").read_text(encoding="utf-8")
     assert "originPurchaseWorkspacePage" in page
     assert all(value in page for value in (
         "Crear o abrir embarque", "Abrir sesión móvil", "Asignación de líneas",

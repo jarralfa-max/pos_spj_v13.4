@@ -127,11 +127,31 @@ class RfqRepository(ProcurementRepositoryBase):
                 (line.id, award.id, line.quote_line_id, line.supplier_id,
                  dec_str(line.awarded_quantity), line.justification))
 
+    def get_award(self, award_id: str) -> PurchaseAward | None:
+        row = self._query_one("SELECT * FROM purchase_awards WHERE id=?", (award_id,))
+        return self._hydrate_award(row) if row else None
+
+    def get_award_for_rfq(self, rfq_id: str) -> PurchaseAward | None:
+        row = self._query_one("SELECT * FROM purchase_awards WHERE rfq_id=?"
+                              " ORDER BY created_at DESC LIMIT 1", (rfq_id,))
+        return self._hydrate_award(row) if row else None
+
     def get_award_by_operation(self, operation_id: str) -> PurchaseAward | None:
         row = self._query_one("SELECT * FROM purchase_awards WHERE operation_id=?",
                               (operation_id,))
-        if not row:
+        return self._hydrate_award(row) if row else None
+
+    def get_quote_line(self, quote_line_id: str) -> tuple[str, "SupplierQuoteLine"] | None:
+        """``(supplier_id, línea)`` de una línea cotizada."""
+        row = self._query_one("SELECT quote_id FROM supplier_quote_lines WHERE id=?",
+                              (quote_line_id,))
+        quote = self.get_quote(row["quote_id"]) if row else None
+        if quote is None:
             return None
+        line = next((ln for ln in quote.lines if ln.id == quote_line_id), None)
+        return (quote.supplier_id, line) if line is not None else None
+
+    def _hydrate_award(self, row) -> PurchaseAward:
         lines = [PurchaseAwardLine(
             id=line["id"], award_id=line["award_id"], quote_line_id=line["quote_line_id"],
             supplier_id=line["supplier_id"],

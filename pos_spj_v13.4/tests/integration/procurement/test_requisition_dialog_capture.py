@@ -124,7 +124,8 @@ class TestTheReportedScenarios:
         d.accept()
         assert aceptado == [1]
         assert d.values()["lines"] == [
-            {"product_id": "p1", "quantity": "10.000", "purchase_nature": "INVENTORY"}]
+            {"product_id": "p1", "description": "Pollo Entero", "quantity": "10.000",
+             "purchase_nature": "INVENTORY"}]
         d.close()
 
 
@@ -151,5 +152,6 @@ class TestTheOrderDialog:
         aceptado = []
         d.accepted.connect(lambda: aceptado.append(1))
         d.accept()
-        assert aceptado == [] and "proveedor" in avisos[-1]
+        # El aviso vive DENTRO del diálogo (banner), no en un QMessageBox aparte.
+        assert aceptado == [] and "proveedor" in d.error_text()
         d.close()

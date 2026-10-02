@@ -117,10 +117,12 @@ def product_prices_table(rows: list[dict]) -> TableViewModel:
 def costs_table(rows: list[dict]) -> TableViewModel:
     out, ids = [], []
     for r in rows:
-        ids.append(str(r.get("product_id") or ""))
+        branch_id = str(r.get("branch_id") or "")
+        ids.append(f'{r.get("product_id") or ""}:{branch_id}')
         cur = r.get("currency") or "MXN"
         out.append([
             _product_label(r),
+            "Empresa" if not branch_id else str(r.get("branch_name") or "Sucursal"),
             format_money(r.get("average_cost"), cur),
             format_money(r.get("last_cost"), cur),
             format_money(r.get("standard_cost"), cur),
@@ -204,7 +206,14 @@ def settings_table(summary: dict) -> TableViewModel:
                     if not por_sucursal else
                     "El resto rige en todas las sucursales")
 
+    politica = str(summary.get("cost_policy") or "GLOBAL")
+    politica_valor, politica_nota = (
+        ("Por sucursal", "Cada sucursal usa su propio costo promedio; sin historia, el de "
+                         "empresa") if politica == "PER_BRANCH" else
+        ("Global", "Un solo costo promedio para toda la empresa"))
+
     filas = [
+        ["Política de costo", politica_valor, politica_nota],
         ["Lista de precio base activa", base_valor, base_nota],
         ["Listas por tipo", tipos_valor, "Incluye borradores e inactivas"],
         ["Moneda", moneda_valor, moneda_nota],
