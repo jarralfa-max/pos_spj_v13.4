@@ -57,9 +57,13 @@ class _ReturnBaseUseCase(_SalesBaseUseCase):
     raíz de composición inyecta `AuthorizerPermissionChecker`."""
 
     def __init__(self, authorization=None, inventory_authorization=None,
-                 customer_authorization=None, *, authorizer_authorization=None) -> None:
+                 customer_authorization=None, *, authorizer_authorization=None,
+                 cash_refund_service=None) -> None:
         super().__init__(authorization, inventory_authorization, customer_authorization)
         self._authorizer_auth = authorizer_authorization or self._auth
+        #: `CashRefundIntegrationService` de Caja (con su política). Sin él, la
+        #: devolución no registra la salida de efectivo (pruebas, Delivery).
+        self._cash_refunds = cash_refund_service
 
 
 class ReturnSaleLineUseCase(_ReturnBaseUseCase):
@@ -94,28 +98,77 @@ class ReturnSaleLineUseCase(_ReturnBaseUseCase):
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
-            product_id = next(l.product_id for l in sale.lines if l.id == line_id)
+            # Por dónde se reembolsa (método original, efectivo primero).
+            refunds = sale.refund_plan(sale_return.amount)
+            if self._cash_refunds is not None and any(m == "CASH" for m, _ in refunds):
+                # El efectivo sale del cajón de quien devuelve: sin su turno
+                # abierto, Caja lo rechazaría DESPUÉS de haber devuelto la
+                # mercancía. Se valida antes de tocar nada.
+                problema = self._open_shift_problem(connection, sale.branch_id, actor_user_id)
+                if problema:
+                    return SaleResult.fail(problema, "NO_OPEN_CASH_SHIFT",
+                                           operation_id=operation_id)
+
+            line = next(l for l in sale.lines if l.id == line_id)
             try:
-                self._inventory_client(
+                cogs = self._inventory_client(
                     connection, branch_id=sale.branch_id,
                     actor_user_id=actor_user_id).restore_for_return(
-                    product_id=product_id, quantity=quantity, sale_id=sale.id,
+                    product_id=line.product_id, quantity=quantity, sale_id=sale.id,
                     operation_id=operation_id, actor_user_id=actor_user_id,
                     reason_code="SALE_RETURN", source_document_type="SALE_RETURN")
             except SalesDomainError as exc:
                 uow.rollback()
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
+            tax_amount = (line.tax_total * quantity / line.quantity.value).quantize(Decimal("0.01"))
+            # Bruto de lo devuelto, antes del descuento a nivel venta: Finanzas
+            # revierte el descuento por la diferencia con el importe neto.
+            gross_amount = max((line.line_total * quantity / line.quantity.value).quantize(
+                Decimal("0.01")), sale_return.amount)
             uow.sales.save(sale)
             self._emit(uow, SaleEvents.RETURNED, entity_id=sale.id, operation_id=operation_id,
                        branch_id=sale.branch_id, actor_user_id=actor_user_id,
-                       line_id=line_id, quantity=str(quantity), amount=str(sale_return.amount),
+                       line_id=line_id, product_id=line.product_id,
+                       quantity=str(quantity), amount=str(sale_return.amount),
+                       gross_amount=str(gross_amount), tax_amount=str(tax_amount),
+                       cogs_amount=str(cogs or Decimal("0")),
+                       refunds=[{"method": m, "amount": str(a)} for m, a in refunds],
+                       return_id=sale_return.id, folio=sale.sale_number or sale.id[-8:],
+                       sale_total=str(sale.totals.total),
+                       refunded_total=str(sum((r.amount for r in sale.returns), Decimal("0"))),
+                       customer_id=sale.customer_id, currency_code=sale.currency_code,
                        authorized_by=authorizer_user_id, reason=reason,
                        fully_returned=sale.status.value == "RETURNED_FULLY")
+
+        cash_effects_error: str | None = None
+        if self._cash_refunds is not None:
+            try:
+                SalesCashEffectsClient().refund_returned_line(
+                    connection, self._cash_refunds, refund_id=sale_return.id, sale_id=sale.id,
+                    branch_id=sale.branch_id, actor_user_id=actor_user_id,
+                    authorized_by=authorizer_user_id, operation_id=operation_id,
+                    payments=sale.payments, change=sale.change_given, refunds=refunds,
+                    reason=reason)
+            except Exception as exc:  # noqa: BLE001 - la mercancía ya volvió; se informa
+                cash_effects_error = str(exc)
         return SaleResult.ok(
             "Devolución registrada", entity_id=sale.id, operation_id=operation_id,
             sale=SaleDTO.from_entity(sale), return_id=sale_return.id,
-            amount=sale_return.amount)
+            amount=sale_return.amount, refunds=refunds, cash_effects_error=cash_effects_error)
+
+    @staticmethod
+    def _open_shift_problem(connection, branch_id: str, actor_user_id: str) -> str | None:
+        import sqlite3
+
+        from backend.domain.cash_register.exceptions import CashRegisterError
+        try:
+            SalesCashEffectsClient().require_open_shift(
+                connection, branch_id=branch_id, cashier_user_id=actor_user_id)
+        except (CashRegisterError, sqlite3.OperationalError):
+            return ("Para devolver efectivo necesitas tu turno de caja abierto: el reembolso "
+                    "sale de tu cajón.")
+        return None
 
 
 class ReverseSaleUseCase(_ReturnBaseUseCase):
@@ -171,7 +224,9 @@ class ReverseSaleUseCase(_ReturnBaseUseCase):
             uow.sales.save(sale)
             self._emit(uow, SaleEvents.REVERSED, entity_id=sale.id, operation_id=operation_id,
                        branch_id=sale.branch_id, actor_user_id=actor_user_id, reason=reason,
-                       authorized_by=authorizer_user_id)
+                       authorized_by=authorizer_user_id, customer_id=sale.customer_id,
+                       sale_total=str(sale.totals.total),
+                       folio=sale.sale_number or sale.id[-8:])
 
         cash_effects_error: str | None = None
         if sale.payments:

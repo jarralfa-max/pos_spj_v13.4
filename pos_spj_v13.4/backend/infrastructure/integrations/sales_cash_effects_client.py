@@ -89,3 +89,35 @@ class SalesCashEffectsClient:
         return self._service.reverse_sale_cash(
             connection, sale_id=sale_id, branch_id=branch_id, actor_user_id=actor_user_id,
             operation_id=operation_id, reason=reason)
+
+    def refund_returned_line(
+        self, connection, refund_service, *, refund_id: str, sale_id: str, branch_id: str,
+        actor_user_id: str, authorized_by: str, operation_id: str, payments: list,
+        change: Decimal, refunds: list[tuple[str, Decimal]], reason: str,
+    ):
+        """El reembolso de una devolución parcial en Caja (decisión del
+        usuario 2026-10-02: método original, efectivo primero).
+
+        `refunds` es el reparto que decidió Ventas (`Sale.refund_plan`). Caja
+        valida: turno abierto de quien devuelve, efectivo suficiente en el
+        cajón, que no se reembolse más de lo cobrado por método, tope por
+        operación, y que autorice OTRA persona. El crédito no pasa por Caja (no
+        mueve dinero): baja la CxC en Finanzas con el evento de la devolución.
+        """
+        originales: dict[str, Decimal] = {}
+        for payment in payments:
+            tipo = _SETTLEMENT_TYPE_BY_METHOD[payment.method]
+            originales[tipo] = originales.get(tipo, Decimal("0")) + payment.amount
+        if "CASH" in originales:
+            originales["CASH"] = max(originales["CASH"] - Decimal(str(change)), Decimal("0"))
+        pedidos = [{"type": _SETTLEMENT_TYPE_BY_METHOD[PaymentMethod(m)], "amount": str(a)}
+                   for m, a in refunds if PaymentMethod(m) is not PaymentMethod.CREDIT]
+        if not pedidos:
+            return None
+        return refund_service.process(
+            connection, refund_id=refund_id, sale_id=sale_id, branch_id=branch_id,
+            cashier_user_id=actor_user_id, authorized_by=authorized_by,
+            operation_id=operation_id,
+            original_payment_lines=[{"type": t, "amount": str(a)} for t, a in originales.items()],
+            refund_lines=pedidos, reason=reason)
+

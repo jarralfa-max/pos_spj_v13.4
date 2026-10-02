@@ -14,35 +14,75 @@ import logging
 
 from backend.application.sales.integrations.finance_translator import (
     sale_completed_to_finance,
+    sale_returned_to_finance,
+    sale_reversed_to_finance,
 )
 
 logger = logging.getLogger("spj.sales.wiring")
 
 SALE_COMPLETED = "SALE_COMPLETED"
+SALE_RETURNED = "SALE_RETURNED"
+SALE_REVERSED = "SALE_REVERSED"
+SALE_CANCELLED = "SALE_CANCELLED"
 
-#: Eventos con impacto financiero: sin un consumidor que los atienda NO se
-#: marcan despachados. Si el cableado de arranque fallara, el bus los
-#: entregaría a nadie y la venta no llegaría nunca a contabilidad.
-REQUIRES_CONSUMER = frozenset({SALE_COMPLETED})
+#: Eventos con impacto financiero o de puntos: sin un consumidor que los
+#: atienda NO se marcan despachados. Si el cableado de arranque fallara, el bus
+#: los entregaría a nadie y la venta no llegaría nunca a contabilidad (ni el
+#: canje de una venta cancelada volvería al cliente).
+REQUIRES_CONSUMER = frozenset({SALE_COMPLETED, SALE_RETURNED, SALE_REVERSED, SALE_CANCELLED})
 
 
 def wire_sales(bus, connection) -> dict:
+    """Suscribe los consumidores de Finanzas de la venta, su devolución parcial
+    y su reverso. Hasta el 2026-10-02 sólo había el de la venta: una devolución
+    no tocaba la contabilidad y `SaleReversedHandler` existía sin suscriptor."""
     from backend.application.event_handlers.finance.sale_completed_handler import (
         SaleCompletedHandler,
     )
-    finanzas = SaleCompletedHandler(connection)
+    from backend.application.event_handlers.finance.sale_returned_handler import (
+        SaleReturnedHandler,
+    )
+    from backend.application.event_handlers.finance.sale_reversed_handler import (
+        SaleReversedHandler,
+    )
+    consumidores = (
+        (SALE_COMPLETED, SaleCompletedHandler(connection), sale_completed_to_finance),
+        (SALE_RETURNED, SaleReturnedHandler(connection), sale_returned_to_finance),
+        (SALE_REVERSED, SaleReversedHandler(connection), sale_reversed_to_finance),
+    )
 
-    def _a_finanzas(envelope: dict) -> None:
-        finanzas.handle(sale_completed_to_finance(envelope))
+    from backend.application.loyalty.integrations.sales_events import SaleLoyaltyEventHandlers
+
+    fidelidad = SaleLoyaltyEventHandlers(connection)
+    # Puntos por compra (2026-10-02): Fidelidad acredita al completar y retira
+    # al devolver/reversar. Prioridad menor que Finanzas (§EventBus: 10).
+    puntos = (
+        (SALE_COMPLETED, fidelidad.on_sale_completed),
+        (SALE_RETURNED, fidelidad.on_sale_returned),
+        (SALE_REVERSED, fidelidad.on_sale_reversed),
+        # El canje se descuenta antes de cobrar: cancelar lo devuelve.
+        (SALE_CANCELLED, fidelidad.on_sale_cancelled),
+    )
 
     subscribe = getattr(bus, "subscribe", None)
     if subscribe is None:
         raise RuntimeError("El bus no expone subscribe()")
-    try:
-        subscribe(SALE_COMPLETED, _a_finanzas, priority=50, label="sales_finance")
-    except TypeError:
-        subscribe(SALE_COMPLETED, _a_finanzas)
-    return {"subscribed": [f"out:{SALE_COMPLETED}->finance"], "count": 1}
+    suscritos = []
+    for evento, manejador in puntos:
+        try:
+            subscribe(evento, manejador, priority=10, label=f"sales_loyalty_{evento.lower()}")
+        except TypeError:
+            subscribe(evento, manejador)
+        suscritos.append(f"out:{evento}->loyalty")
+    for evento, manejador, traducir in consumidores:
+        def _a_finanzas(envelope: dict, _m=manejador, _t=traducir) -> None:
+            _m.handle(_t(envelope))
+        try:
+            subscribe(evento, _a_finanzas, priority=50, label=f"sales_finance_{evento.lower()}")
+        except TypeError:
+            subscribe(evento, _a_finanzas)
+        suscritos.append(f"out:{evento}->finance")
+    return {"subscribed": suscritos, "count": len(suscritos)}
 
 
 def dispatch_sales_outbox(connection, bus, *, limit: int = 500) -> dict:

@@ -115,6 +115,11 @@ class FidelidadWorkspace(QWidget):
     def _create_page(self, route_id: str, label: str, tooltip: str) -> QWidget:
         if route_id in self._page_factories:
             return self._page_factories[route_id](self)
+        if route_id == "fidelidad.settings":
+            from frontend.desktop.modules.fidelidad.pages.program_settings_page import (
+                ProgramSettingsPage,
+            )
+            return ProgramSettingsPage(self._presenter, self)
         if route_id == "fidelidad.overview":
             return FidelidadOverviewPage(self._presenter, self)
         if route_id == "loyalty.programs":

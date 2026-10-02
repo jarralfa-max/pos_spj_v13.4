@@ -2,7 +2,8 @@
 
 Venta de mostrador por omisión ("Público en general"); buscar y asignar con el
 buscador estándar (`CustomerSearchBox`), crear cliente rápido, quitar el
-cliente, y mostrar nivel y puntos que reporta Fidelidad (§23).
+cliente, y mostrar nivel y puntos que reporta Fidelidad (§23). "Canjear"
+aparece cuando el cliente tiene puntos y la venta aún no tiene canje (§38).
 
 Re-auditoría POS (2026-10-01): al asignar un cliente el panel seguía diciendo
 "Público en general" — nada le pasaba el cliente asignado — y la lista de
@@ -32,6 +33,7 @@ WALK_IN_LABEL = "Público en general"
 class CustomerPanel(QFrame):
     customer_selected = pyqtSignal(str)  # customer_id
     clear_requested = pyqtSignal()
+    redeem_requested = pyqtSignal()
 
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
@@ -58,6 +60,12 @@ class CustomerPanel(QFrame):
         self._btn_clear.setVisible(False)
         self._btn_clear.clicked.connect(self.clear_requested)
         info_row.addWidget(self._btn_clear)
+        self._btn_redeem = create_secondary_button(
+            self, "Canjear", tooltip="Pagar parte del ticket con puntos del cliente")
+        self._btn_redeem.setObjectName("posRedeemPointsButton")
+        self._btn_redeem.setVisible(False)
+        self._btn_redeem.clicked.connect(self.redeem_requested)
+        info_row.addWidget(self._btn_redeem)
         self._btn_quick_create = create_secondary_button(
             self, "Nuevo", tooltip="Registrar un cliente con nombre y teléfono")
         IconProvider.bind(self._btn_quick_create, Icons.ADD)
@@ -75,14 +83,17 @@ class CustomerPanel(QFrame):
         self._search.selected.connect(self._on_selected)
         root.addWidget(self._search)
 
-    def set_customer(self, summary) -> None:
-        """`summary`: `CustomerSummary` del presentador, o None (mostrador)."""
+    def set_customer(self, summary, *, can_redeem: bool = True) -> None:
+        """`summary`: `CustomerSummary` del presentador, o None (mostrador).
+        `can_redeem`: False si la venta ya tiene un canje aplicado."""
         if summary is None:
             self._display.setText(WALK_IN_LABEL)
             self._details.setVisible(False)
             self._tier.setVisible(False)
             self._btn_clear.setVisible(False)
+            self._btn_redeem.setVisible(False)
             return
+        self._btn_redeem.setVisible(bool(can_redeem and summary.points))
         self._display.setText(summary.name)
         detalles = []
         if summary.phone:
@@ -95,6 +106,9 @@ class CustomerPanel(QFrame):
         self._tier.setVisible(bool(summary.tier))
         self._btn_clear.setVisible(True)
         self._search.clear()
+
+    def redeem_button(self):
+        return self._btn_redeem
 
     def quick_create_button(self):
         return self._btn_quick_create

@@ -79,10 +79,13 @@ from frontend.desktop.modules.sales_pos.sales_pos_presenter import SalesPosPrese
 
 
 def _after_commit(handler, connection):
-    """Tras un cobro exitoso, entrega `sales_outbox` al bus de la aplicación
-    (Finanzas asienta la venta). Mismo patrón que Compras
+    """Tras un cobro, cancelación, devolución o reverso exitoso, entrega
+    `sales_outbox` al bus de la aplicación (Finanzas asienta, Fidelidad acredita,
+    retira o devuelve el canje). Mismo patrón que Compras
     (`direct_purchase_routes._post_commit_dispatcher`). Un fallo aquí no
-    deshace la venta: el evento queda pendiente y sale en el siguiente cobro."""
+    deshace la operación: el evento queda pendiente y sale en el siguiente
+    despacho. Hasta el 2026-10-02 sólo el cobro despachaba: el asiento de una
+    devolución esperaba a la siguiente venta."""
     def run(**kwargs):
         result = handler(**kwargs)
         if getattr(result, "success", False):
@@ -114,10 +117,70 @@ def _cash_shift_problem(connection):
     return check
 
 
+def _cash_refund_service(connection, session_context):
+    """Reembolso de devoluciones en Caja (decisión del usuario 2026-10-02).
+
+    Dos personas: quien devuelve (sesión, `CAJA.reembolso.solicitar`) y quien
+    autoriza (otro usuario, `CAJA.reembolso.autorizar`, resuelto contra
+    `rol_permisos`). Tope: `cash_operation_limits` de tipo REFUND."""
+    from backend.application.cash_register.authorization import CashAuthorizationPolicy
+    from backend.application.cash_register.refund_integration import CashRefundIntegrationService
+    from backend.application.cash_register.session_authorization import (
+        CashSessionBranchScopeChecker,
+        CashSessionPermissionChecker,
+    )
+    from backend.application.security.authorizer_permission_checker import (
+        AuthorizerPermissionChecker,
+    )
+    from backend.application.security.session_or_authorizer_checker import (
+        SessionOrAuthorizerBranchScopeChecker,
+        SessionOrAuthorizerPermissionChecker,
+    )
+    from backend.infrastructure.db.repositories.cash_register.operation_limits import (
+        cash_limit_policy,
+    )
+
+    branch_id = getattr(session_context, "active_branch_id", None) or None
+    policy = CashAuthorizationPolicy(
+        permissions=SessionOrAuthorizerPermissionChecker(
+            session=session_context,
+            session_checker=CashSessionPermissionChecker(session_context),
+            authorizer_checker=AuthorizerPermissionChecker(connection, branch_id=branch_id)),
+        scopes=SessionOrAuthorizerBranchScopeChecker(
+            session=session_context,
+            session_scopes=CashSessionBranchScopeChecker(session_context)))
+
+    class _Lazy:
+        """El tope se lee al reembolsar, no al abrir el POS: un cambio en Caja
+        aplica sin reabrir la pantalla (y una base sin Caja no impide abrirla)."""
+
+        def process(self, connection, **kwargs):
+            return CashRefundIntegrationService(
+                policy, cash_limit_policy(connection, "REFUND")).process(connection, **kwargs)
+
+    return _Lazy()
+
+
 def _loyalty_summary(connection):
     from backend.infrastructure.integrations.sales_loyalty_client import SalesLoyaltyClient
 
     return SalesLoyaltyClient(connection)
+
+
+def _points_to_earn(connection):
+    """Puntos que daría la venta con las reglas de Fidelidad (Ajustes): se
+    leen al calcular, así un cambio aplica sin reabrir el POS. El crédito se
+    desconoce hasta cobrar; la estimación es sobre el total."""
+    def estimate(*, total) -> int:
+        from backend.application.loyalty.queries.program_settings_query import (
+            LoyaltyProgramSettingsQuery,
+        )
+        from backend.domain.loyalty.policies.accrual_policy import LoyaltyAccrualPolicy
+
+        return LoyaltyAccrualPolicy.points_for(
+            total, LoyaltyProgramSettingsQuery(connection).accrual())
+
+    return estimate
 
 
 def _cash_tender(*, total, received):
@@ -196,6 +259,7 @@ def build_sales_pos_presenter(
         "customer_search": CustomerLookupQueryService(connection, customer_auth),
         # Saldo y nivel del cliente (lectura sin efectos de Fidelidad, §23).
         "loyalty_summary": _loyalty_summary(connection),
+        "points_to_earn": _points_to_earn(connection),
         "pricing": pricing_client,
         # Prueba quién autoriza con su usuario y clave (mismas reglas y
         # bloqueo que el login); el permiso lo decide el caso de uso.
@@ -241,11 +305,15 @@ def build_sales_pos_presenter(
             costs=pricing_client).execute), connection),
         "suspend_sale": _h(SuspendSaleUseCase(auth, inventory_auth).execute),
         "resume_sale": _h(ResumeSaleUseCase(auth).execute),
-        "cancel_sale": _h(CancelSaleUseCase(auth, inventory_auth).execute),
-        "return_line": _h(ReturnSaleLineUseCase(
+        "cancel_sale": _after_commit(
+            _h(CancelSaleUseCase(auth, inventory_auth).execute), connection),
+        "return_line": _after_commit(_h(ReturnSaleLineUseCase(
+            auth, inventory_auth, authorizer_authorization=authorizer_auth,
+            cash_refund_service=_cash_refund_service(connection, session_context)).execute),
+            connection),
+        "reverse_sale": _after_commit(_h(ReverseSaleUseCase(
             auth, inventory_auth, authorizer_authorization=authorizer_auth).execute),
-        "reverse_sale": _h(ReverseSaleUseCase(
-            auth, inventory_auth, authorizer_authorization=authorizer_auth).execute),
+            connection),
         "request_invoice": _h(RequestInvoiceUseCase(auth).execute),
         "print_receipt": _receipt_handler(PrintSaleReceiptUseCase(auth), connection, printer),
         "reprint_receipt": _receipt_handler(ReprintReceiptUseCase(auth), connection, printer),

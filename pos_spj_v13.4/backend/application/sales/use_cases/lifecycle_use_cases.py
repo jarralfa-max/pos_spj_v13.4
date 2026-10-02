@@ -33,7 +33,11 @@ from backend.application.sales.permissions import SalesPermissions
 from backend.application.sales.result import SaleResult, fail_from_domain_error
 from backend.application.sales.use_cases._base import _SalesBaseUseCase
 from backend.domain.sales.events import SaleEvents
-from backend.domain.sales.exceptions import SalesDomainError, SaleNotFoundError
+from backend.domain.sales.exceptions import (
+    InventoryShortageError,
+    SalesDomainError,
+    SaleNotFoundError,
+)
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
 
 
@@ -65,6 +69,14 @@ class SuspendSaleUseCase(_SalesBaseUseCase):
                     connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
                 try:
                     sale.inventory_reservation_id = client.reserve_for_sale(sale)
+                except InventoryShortageError:
+                    # Decisión del usuario (2026-10-02): con faltante sí se
+                    # suspende, apartando lo que haya; la autorización de venta
+                    # sin existencia se pide al cobrar, como en cualquier venta.
+                    try:
+                        sale.inventory_reservation_id = client.reserve_available_for_sale(sale)
+                    except SalesDomainError as exc:
+                        return fail_from_domain_error(exc, operation_id=operation_id)
                 except SalesDomainError as exc:
                     return fail_from_domain_error(exc, operation_id=operation_id)
             uow.sales.save(sale)
@@ -126,8 +138,11 @@ class CancelSaleUseCase(_SalesBaseUseCase):
                 client.release(sale.inventory_reservation_id, reason="cancelada")
                 sale.inventory_reservation_id = None
             uow.sales.save(sale)
+            # `customer_id`: Fidelidad devuelve lo canjeado en esta venta.
             self._emit(uow, SaleEvents.CANCELLED, entity_id=sale.id, operation_id=operation_id,
-                       branch_id=sale.branch_id, actor_user_id=actor_user_id, reason=reason)
+                       branch_id=sale.branch_id, actor_user_id=actor_user_id, reason=reason,
+                       customer_id=sale.customer_id,
+                       loyalty_redeemed=str(sale.loyalty_redeemed_amount))
         return SaleResult.ok("Venta cancelada", entity_id=sale.id, operation_id=operation_id,
                              sale=SaleDTO.from_entity(sale))
 

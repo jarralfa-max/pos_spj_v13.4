@@ -209,6 +209,44 @@ class SalesInventoryClient:
             raise InventoryReservationFailedError("La venta no tiene líneas que reservar.")
         return sale.id
 
+    def reserve_available_for_sale(self, sale: Sale) -> str | None:
+        """Aparta LO QUE HAYA de cada producto (decisión del usuario 2026-10-02:
+        una venta con faltante sí se puede suspender). Devuelve el asa si apartó
+        algo, o None. El faltante se resuelve al cobrar: el cobro ve que la
+        reserva no cubre todo y pide la autorización de venta sin existencia."""
+        from backend.application.inventory.use_cases.sale_reservation_use_cases import (
+            plan_sale_issue,
+        )
+        use_case = ReserveStockForSaleUseCase(self._authorization)
+        apartado = False
+        for product_id, cantidad in self._quantities_by_product(sale).items():
+            rebanadas, _faltante = plan_sale_issue(
+                self._connection, product_id=product_id, branch_id=self._branch_id,
+                warehouse_id=self.warehouse_id, quantity=cantidad)
+            disponible = sum((r.quantity for r in rebanadas), Decimal("0"))
+            if disponible <= 0:
+                continue
+            result = use_case.execute(
+                self._connection, product_id=product_id, branch_id=self._branch_id,
+                warehouse_id=self.warehouse_id, quantity=disponible,
+                source_document_id=sale.id,
+                operation_id=_reserve_operation_id(sale.id, product_id),
+                actor_user_id=self._actor_user_id, lot_required=False)
+            if not result.success:
+                self._release_all(sale.id, reason="reserva incompleta")
+                raise InventoryReservationFailedError(result.message)
+            apartado = True
+        return sale.id if apartado else None
+
+    def covers(self, reservation_handle: str, sale: Sale) -> bool:
+        """¿La reserva activa cubre TODO lo que la venta saca?"""
+        apartado: dict[str, Decimal] = {}
+        for reservation in self._active_reservations(reservation_handle or sale.id):
+            apartado[reservation.product_id] = apartado.get(
+                reservation.product_id, Decimal("0")) + reservation.quantity
+        return all(apartado.get(product_id, Decimal("0")) >= cantidad
+                   for product_id, cantidad in self._quantities_by_product(sale).items())
+
     def _product_name(self, product_id: str) -> str:
         """Para los mensajes al cajero: el nombre, no el identificador."""
         try:
@@ -478,14 +516,18 @@ class SalesInventoryClient:
             source_document_id)
 
     def _returnable_slices(self, sale_id: str, product_id: str):
-        """(lote, ubicación, cantidad aún devolvible) de lo que la venta sacó de
-        `product_id`, en el orden en que salió. Lo ya devuelto por devoluciones
-        anteriores de la misma venta se descuenta, lote por lote."""
+        """(lote, ubicación, cantidad aún devolvible, costo unitario) de lo que
+        la venta sacó de `product_id`, en el orden en que salió. Lo ya devuelto
+        por devoluciones anteriores de la misma venta se descuenta, lote por
+        lote. El costo es el promedio con que salió ese lote (None si salió sin
+        costo)."""
         from backend.infrastructure.db.repositories.inventory.inventory_ledger_repository import (
             InventoryLedgerRepository,
         )
         ledger = InventoryLedgerRepository(self._connection)
         salidas: dict[tuple, Decimal] = {}
+        valor: dict[tuple, Decimal] = {}
+        con_costo: dict[tuple, Decimal] = {}
         devueltas: dict[tuple, Decimal] = {}
         rows = self._connection.execute(
             "SELECT id, movement_type FROM inventory_ledger WHERE source_document_id = ?"
@@ -498,12 +540,22 @@ class SalesInventoryClient:
                 if movement_type == "SALE_ISSUE":
                     clave = (line["lot_id"] or None, line["from_location_id"] or self._branch_id)
                     salidas[clave] = salidas.get(clave, Decimal("0")) + cantidad
+                    if line["unit_cost"] not in (None, ""):
+                        valor[clave] = valor.get(clave, Decimal("0")) + cantidad * Decimal(
+                            str(line["unit_cost"]))
+                        con_costo[clave] = con_costo.get(clave, Decimal("0")) + cantidad
                 elif movement_type == "SALE_RETURN":
                     clave = (line["lot_id"] or None, line["to_location_id"] or self._branch_id)
                     devueltas[clave] = devueltas.get(clave, Decimal("0")) + cantidad
-        return [(lot_id, location_id, libre)
-                for (lot_id, location_id), salio in salidas.items()
-                if (libre := salio - devueltas.get((lot_id, location_id), Decimal("0"))) > 0]
+        resultado = []
+        for (lot_id, location_id), salio in salidas.items():
+            libre = salio - devueltas.get((lot_id, location_id), Decimal("0"))
+            if libre <= 0:
+                continue
+            costo = (valor[(lot_id, location_id)] / con_costo[(lot_id, location_id)]
+                     if con_costo.get((lot_id, location_id)) else None)
+            resultado.append((lot_id, location_id, libre, costo))
+        return resultado
 
     # ── caducidad ────────────────────────────────────────────────────────
     def expire_orphaned(self) -> int:
@@ -520,8 +572,13 @@ class SalesInventoryClient:
     def restore_for_return(
         self, *, product_id: str, quantity: Decimal, sale_id: str, operation_id: str,
         actor_user_id: str, reason_code: str, source_document_type: str,
-    ) -> None:
+    ) -> Decimal:
         """POS-16/§42-44: devuelve mercancía devuelta al stock vendible.
+
+        Devuelve el COSTO de lo repuesto (cantidad × costo con que salió), que
+        es lo que Finanzas revierte del costo de venta. La mercancía vuelve al
+        mismo costo con que salió; sin costo conocido, la línea va sin costo y
+        no suma (nunca se inventa).
 
         Usa `MovementType.SALE_RETURN`, reutilizando `branch_id` como
         `warehouse_id` (la simplificación ya establecida en este repositorio).
@@ -545,23 +602,32 @@ class SalesInventoryClient:
         # un saldo sin lote partía la existencia en dos filas y perdía la
         # trazabilidad del lote devuelto.
         lines = []
+        costo_total = Decimal("0")
         for componente, cantidad in self._explode(product_id, quantity).items():
             if cantidad <= 0:
                 continue
             pendiente = cantidad
-            for lot_id, location_id, libre in self._returnable_slices(sale_id, componente):
+            ultimo_costo = None
+            for lot_id, location_id, libre, costo in self._returnable_slices(sale_id, componente):
                 if pendiente <= 0:
                     break
                 tomar = min(pendiente, libre)
                 lines.append(InventoryMovementLine.create(
                     product_id=componente, quantity=tomar, lot_id=lot_id,
                     to_location_id=location_id,
-                    to_status=InventoryStatus.AVAILABLE, reason_code=reason_code))
+                    to_status=InventoryStatus.AVAILABLE, reason_code=reason_code,
+                    unit_cost=costo))
+                if costo is not None:
+                    costo_total += tomar * costo
+                    ultimo_costo = costo
                 pendiente -= tomar
             if pendiente > 0:
                 lines.append(InventoryMovementLine.create(
                     product_id=componente, quantity=pendiente, to_location_id=self._branch_id,
-                    to_status=InventoryStatus.AVAILABLE, reason_code=reason_code))
+                    to_status=InventoryStatus.AVAILABLE, reason_code=reason_code,
+                    unit_cost=ultimo_costo))
+                if ultimo_costo is not None:
+                    costo_total += pendiente * ultimo_costo
         movement = InventoryMovement.create(
             movement_type=MovementType.SALE_RETURN, branch_id=self._branch_id,
             warehouse_id=self.warehouse_id, source_module="sales",
@@ -573,3 +639,4 @@ class SalesInventoryClient:
         if not result.success:
             raise InventoryReservationFailedError(
                 result.message or "No se pudo restaurar inventario.")
+        return costo_total.quantize(Decimal("0.01"))

@@ -77,7 +77,8 @@ DARK_HANDLERS = frozenset({
     # Inventario
     "CanonicalProductionInventoryHandler",
     "SlaughterExecutedStubHandler",          # costura futura, SLAUGHTER_ENABLED=False
-    # Caja  ⚠ `CheckoutSaleUseCase` ya llama a `SalesCashEffectsClient`
+    # Caja  ⚠ `CheckoutSaleUseCase` (cobro/reverso) y `ReturnSaleLineUseCase`
+    #   (reembolso, 2026-10-02) ya llaman a `SalesCashEffectsClient` directo
     "SaleCancelledCashHandler",
     "SaleCompletedCashHandler",
     "SaleRefundedCashHandler",
@@ -104,7 +105,6 @@ DARK_HANDLERS = frozenset({
     "InventoryAdjustmentHandler",
     "PayrollPaidHandler",
     "PurchaseReceivedHandler",
-    "SaleReversedHandler",
     "WasteRegisteredHandler",
 })
 

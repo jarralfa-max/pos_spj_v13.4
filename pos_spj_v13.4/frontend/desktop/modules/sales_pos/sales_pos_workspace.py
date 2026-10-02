@@ -48,6 +48,7 @@ from frontend.desktop.modules.sales_pos.dialogs.receipt_options_dialog import (
     PostedSalePickerDialog,
     folio_of,
 )
+from frontend.desktop.modules.sales_pos.dialogs.redeem_points_dialog import RedeemPointsDialog
 from frontend.desktop.modules.sales_pos.dialogs.resume_sale_dialog import ResumeSaleDialog
 from frontend.desktop.modules.sales_pos.dialogs.return_sale_dialog import ReturnSaleDialog
 from frontend.desktop.modules.sales_pos.dialogs.weight_confirmation_dialog import (
@@ -74,6 +75,7 @@ _DIALOG_NAMES = {
     "payment": "PaymentDialog",
     "discount": "DiscountDialog",
     "quick_customer": "QuickCustomerDialog",
+    "redeem": "RedeemPointsDialog",
 }
 
 
@@ -131,6 +133,7 @@ class SalesPosWorkspace(QWidget):
 
         self.checkout.customer.quick_create_button().clicked.connect(
             self._on_quick_create_customer)
+        self.checkout.customer.redeem_requested.connect(self._on_redeem_requested)
 
         # El catálogo absorbe el ancho extra; el panel de venta conserva su ancho
         # acotado (380-600 px, en `CheckoutPanel`).
@@ -298,6 +301,22 @@ class SalesPosWorkspace(QWidget):
         dialog = self.dialogs["quick_customer"](self._presenter, self)
         if dialog.exec_() and dialog.customer_id and self._sale_id:
             self._on_customer_selected(dialog.customer_id)
+
+    def _on_redeem_requested(self) -> None:
+        """Canje de puntos (§38): descuenta del ticket lo que Fidelidad permita."""
+        if self._sale is None or not self._sale.customer_id:
+            return
+        if not self._has_lines():
+            self._info("Canjear puntos", "Agrega productos antes de canjear puntos.")
+            return
+        preview = self._presenter.redemption_preview(self._sale)
+        if preview is None:
+            self._warn("Canjear puntos", "Fidelidad no respondió; intenta de nuevo.")
+            return
+        dialog = self.dialogs["redeem"](self._presenter, sale=self._sale, preview=preview,
+                                        parent=self)
+        if dialog.exec_():
+            self._refresh()
 
     def aplicar_contexto(self, context: dict) -> None:
         """Llega desde el perfil de cliente ("Nueva venta"): asigna el cliente

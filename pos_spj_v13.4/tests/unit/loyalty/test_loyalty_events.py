@@ -28,6 +28,9 @@ class TestLoyaltyEventsCatalog:
             # first written for LOY-2's own (smaller) §62 vocabulary.
             "LOYALTY_FRAUD_CASE_OPENED", "LOYALTY_FRAUD_CASE_CONFIRMED",
             "LOYALTY_FRAUD_CASE_DISMISSED",
+            # 2026-10-02: auditoría de los Ajustes del programa (acumulación,
+            # canje, caducidad) editables desde Fidelidad.
+            "LOYALTY_PROGRAM_SETTINGS_UPDATED",
         }
         assert expected == ALL_LOYALTY_EVENTS
 

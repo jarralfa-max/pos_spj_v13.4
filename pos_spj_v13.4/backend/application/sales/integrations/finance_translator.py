@@ -71,3 +71,48 @@ def sale_completed_to_finance(envelope: dict) -> dict:
         "settlements": liquidaciones,
         "cogs_total": str(_dec(datos.get("cogs_total"))),
     }
+
+
+def sale_returned_to_finance(envelope: dict) -> dict:
+    """SALE_RETURNED (devolución parcial) → payload de `SaleReturnedHandler`.
+
+    Los reembolsos viajan por método de pago del POS y se traducen al mismo
+    vocabulario de liquidación que la venta (`SETTLEMENT_BY_METHOD`)."""
+    datos = dict(envelope.get("payload") or {})
+    reembolsos = []
+    for refund in datos.get("refunds") or []:
+        metodo = str(refund.get("method") or "")
+        tipo = SETTLEMENT_BY_METHOD.get(metodo)
+        if tipo is None:
+            raise ValueError(f"Método de reembolso sin traducción a Finanzas: {metodo!r}")
+        reembolsos.append({"type": tipo, "amount": str(_dec(refund.get("amount")))})
+    return {
+        "event_id": envelope.get("event_id"),
+        "operation_id": envelope.get("operation_id"),
+        "occurred_at": envelope.get("timestamp"),
+        "branch_id": envelope.get("branch_id"),
+        "sale_id": envelope.get("entity_id"),
+        "return_id": datos.get("return_id"),
+        "folio": datos.get("folio"),
+        "customer_id": datos.get("customer_id"),
+        "currency_code": datos.get("currency_code") or "MXN",
+        "amount": str(_dec(datos.get("amount"))),
+        "gross_amount": str(_dec(datos.get("gross_amount") or datos.get("amount"))),
+        "tax_amount": str(_dec(datos.get("tax_amount"))),
+        "cogs_amount": str(_dec(datos.get("cogs_amount"))),
+        "refunds": reembolsos,
+    }
+
+
+def sale_reversed_to_finance(envelope: dict) -> dict:
+    """SALE_REVERSED → payload de `SaleReversedHandler` (revierte los asientos
+    originales y cancela la CxC abierta)."""
+    datos = dict(envelope.get("payload") or {})
+    return {
+        "event_id": envelope.get("event_id"),
+        "operation_id": envelope.get("operation_id"),
+        "occurred_at": envelope.get("timestamp"),
+        "branch_id": envelope.get("branch_id"),
+        "sale_id": envelope.get("entity_id"),
+        "reason": datos.get("reason") or "Venta reversada",
+    }

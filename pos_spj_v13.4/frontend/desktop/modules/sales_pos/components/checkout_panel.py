@@ -88,11 +88,13 @@ class CheckoutPanel(QWidget):
             self.totals.set_totals(_ZeroTotals())
             self.actions.set_total("$0.00")
             self.customer.set_customer(None)
+            self.totals.set_points_to_earn(None)
             return
         self.cart.set_lines(sale.lines)
         self.totals.set_totals(sale)
+        self.totals.set_points_to_earn(self._presenter.points_to_earn(sale))
         self.actions.set_total(f"${sale.total:,.2f}")
-        self.customer.set_customer(customer)
+        self.customer.set_customer(customer, can_redeem=not sale.loyalty_total)
 
     def refresh_suspended_count(self) -> None:
         self.actions.set_suspended_count(self._presenter.count_suspended())

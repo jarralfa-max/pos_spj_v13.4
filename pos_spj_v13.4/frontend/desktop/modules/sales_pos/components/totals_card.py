@@ -5,11 +5,10 @@ Todo valor viene ya calculado por el agregado (`SaleDTO`): esta tarjeta no
 suma nada. El TOTAL usa el énfasis de monto del sistema de diseño
 (`role="amount"`), sin QSS propio.
 
-"Puntos a ganar" (§29) lo estima Fidelidad. Medido en la re-auditoría POS
-(2026-10-01): Fidelidad NO tiene regla de acumulación por compra (existe
-`AccrueLoyaltyPointsUseCase`, pero ninguna regla dice cuántos puntos vale un
-peso ni quién la aplica al cobrar). La fila lo dice en vez de mostrar un
-número inventado — el legacy pintaba `int(total)`.
+"Puntos a ganar" (§29) lo estima Fidelidad con sus Ajustes (1 punto por cada
+$10 de inicio, 2026-10-02). Hasta entonces no había regla de acumulación y la
+fila lo decía en vez de inventar un número — el legacy pintaba `int(total)`.
+Si Fidelidad no responde, vuelve a decirlo.
 """
 
 from __future__ import annotations
@@ -19,7 +18,7 @@ from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 from frontend.desktop.components import apply_tooltip
 from frontend.desktop.themes.tokens import Spacing
 
-NO_ACCRUAL_RULE = "Sin regla de acumulación"
+NO_ACCRUAL_RULE = "No disponible"
 
 
 def _row(parent, label_text: str) -> tuple[QHBoxLayout, QLabel]:
@@ -70,8 +69,8 @@ class TotalsCard(QFrame):
         self._points_value = QLabel(NO_ACCRUAL_RULE, self)
         self._points_value.setObjectName("posPointsToEarn")
         apply_tooltip(self._points_value,
-                      "La estimación la da Fidelidad. Hoy no hay regla de acumulación por "
-                      "compra configurada, así que no se muestra un número.")
+                      "Estimación de Fidelidad sobre el total (reglas en Fidelidad → "
+                      "Ajustes). Se acreditan al cobrar.")
         points_box.addWidget(self._points_value)
         row_total.addLayout(points_box)
         row_total.addStretch(1)

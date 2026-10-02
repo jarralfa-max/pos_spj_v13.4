@@ -262,6 +262,13 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
             connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
         creada = False
         faltante = None
+        if sale.inventory_reservation_id and not inv_client.covers(
+                sale.inventory_reservation_id, sale):
+            # Una venta suspendida con faltante apartó sólo lo que había: se
+            # suelta y se resuelve como cualquier cobro (reserva completa o
+            # autorización de venta sin existencia).
+            inv_client.release(sale.inventory_reservation_id, reason="reserva parcial")
+            sale.inventory_reservation_id = None
         try:
             if not sale.inventory_reservation_id:
                 sale.inventory_reservation_id = inv_client.reserve_for_sale(sale)

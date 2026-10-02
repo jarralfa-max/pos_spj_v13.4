@@ -352,15 +352,10 @@ class ExpireLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
     `ExpireOrphanedInventoryReservationsUseCase`/CRM-26's time-based-trigger
     sweep: a maintenance hook, not a per-user action).
 
-    **Known simplification, flagged not hidden**: expires the FULL original
-    amount of any AVAILABLE EARN/BONUS transaction whose `expires_at` has
-    passed — there is no lot-level FIFO tracking of which specific earn a
-    later redemption drew down from, so a partially-redeemed earn still
-    expires for its full original amount rather than only its remaining
-    portion. A correct partial-expiry system needs per-lot consumption
-    tracking that does not exist anywhere in this bounded context yet (the
-    master prompt gives no algorithm for this either) — real gap, not
-    fabricated sophistication.
+    Caduca sólo lo que QUEDA de cada acumulación vencida, con consumo FIFO
+    (`LoyaltyBalancePolicy.fifo_remaining`, 2026-10-02). Antes caducaba el
+    monto original completo aunque ya se hubiera canjeado parte, y con ello
+    se llevaba puntos ganados después.
     """
 
     def execute(self, connection, *, before_iso: str, operation_id_prefix: str,
@@ -370,15 +365,23 @@ class ExpireLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
             expired_ids: list[str] = []
             for original in expirable:
                 op_id = new_uuid()
-                expiry = LoyaltyTransaction.expire_of(
-                    original, points_amount=-original.points_amount, operation_id=op_id)
+                # Sólo caduca lo que AÚN queda de la acumulación (FIFO); el
+                # resto ya se canjeó. Se recalcula por cuenta en cada vuelta:
+                # la caducidad anterior de la misma cuenta ya bajó su saldo.
+                queda = LoyaltyBalancePolicy.fifo_remaining(
+                    original, uow.transactions.list_for_account(original.loyalty_account_id))
                 original.mark_expired()
                 uow.transactions.save(original)
-                uow.transactions.save(expiry)
-                self._emit(uow, LoyaltyEvents.POINTS_EXPIRED, entity_id=expiry.id,
-                           operation_id=op_id, branch_id=original.branch_id or SYSTEM_ACTOR_ID,
-                           actor_user_id=SYSTEM_ACTOR_ID, original_transaction_id=original.id,
-                           points_amount=str(-original.points_amount))
+                if queda > 0:
+                    expiry = LoyaltyTransaction.expire_of(
+                        original, points_amount=-queda, operation_id=op_id)
+                    uow.transactions.save(expiry)
+                    self._emit(uow, LoyaltyEvents.POINTS_EXPIRED, entity_id=expiry.id,
+                               operation_id=op_id,
+                               branch_id=original.branch_id or SYSTEM_ACTOR_ID,
+                               actor_user_id=SYSTEM_ACTOR_ID,
+                               original_transaction_id=original.id,
+                               points_amount=str(-queda))
                 expired_ids.append(original.id)
         return LoyaltyResult.ok(
             f"{len(expired_ids)} transacciones expiradas", operation_id=operation_id_prefix,

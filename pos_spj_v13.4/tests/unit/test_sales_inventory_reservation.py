@@ -470,7 +470,10 @@ class TestSuspendReservesInventoryForReal:
         assert result.success
         assert _available(conn, branch_id=branch_id, product_id=product_id) == Decimal("8")
 
-    def test_suspend_fails_when_stock_insufficient_and_does_not_suspend(self, conn):
+    def test_suspend_with_shortage_holds_what_exists(self, conn):
+        """Decisión del usuario (2026-10-02): con faltante SÍ se suspende,
+        apartando lo que haya. Antes la regla de SALES-9 lo rechazaba aunque el
+        cobro sí permite vender sin existencia con autorización."""
         branch_id, product_id = new_uuid(), new_uuid()
         _seed_stock(conn, branch_id=branch_id, product_id=product_id, quantity="1")
         sale_id, cashier = _sale_with_line(
@@ -479,7 +482,44 @@ class TestSuspendReservesInventoryForReal:
         result = SuspendSaleUseCase(_sales_auth(), _inventory_auth()).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid(),
             max_suspended_sales=10)
-        assert not result.success
+        conn.commit()
+
+        assert result.success, result.message
+        assert _available(conn, branch_id=branch_id, product_id=product_id) == Decimal("0")
+
+    def test_charging_a_partially_held_sale_asks_for_the_stock_authorization(self, conn):
+        from backend.application.sales.use_cases.checkout_use_cases import CheckoutSaleUseCase
+        from backend.application.sales.use_cases.lifecycle_use_cases import (
+            BeginSaleCheckoutUseCase,
+            ResumeSaleUseCase,
+        )
+        from backend.application.sales.use_cases.payment_use_cases import (
+            RecordSalePaymentUseCase,
+        )
+
+        branch_id, product_id = new_uuid(), new_uuid()
+        _seed_stock(conn, branch_id=branch_id, product_id=product_id, quantity="1")
+        sale_id, cashier = _sale_with_line(
+            conn, branch_id=branch_id, product_id=product_id, quantity="5")
+        SuspendSaleUseCase(_sales_auth(), _inventory_auth()).execute(
+            conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid(),
+            max_suspended_sales=10)
+        ResumeSaleUseCase(_sales_auth()).execute(
+            conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
+        BeginSaleCheckoutUseCase(_sales_auth()).execute(
+            conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
+        RecordSalePaymentUseCase(_sales_auth()).execute(
+            conn, sale_id=sale_id, method="CASH", amount=Decimal("50"), actor_user_id=cashier,
+            operation_id=new_uuid())
+
+        result = CheckoutSaleUseCase(
+            _sales_auth(), _inventory_auth(), require_cash_shift=False).execute(
+            conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
+        conn.commit()
+
+        assert result.error_code == "STOCK_AUTHORIZATION_REQUIRED"
+        # Lo apartado al suspender se soltó: nada queda retenido de una venta no cobrada.
+        assert _available(conn, branch_id=branch_id, product_id=product_id) == Decimal("1")
 
 
 class TestCancelReleasesInventoryForReal:

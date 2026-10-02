@@ -53,3 +53,30 @@ class LoyaltyBalancePolicy:
              and t.counts_toward_balance()),
             Decimal("0"),
         )
+
+    @staticmethod
+    def fifo_remaining(credit: LoyaltyTransaction,
+                       transactions: Iterable[LoyaltyTransaction]) -> Decimal:
+        """Lo que AÚN queda de una acumulación, consumiendo primero lo más viejo
+        (FIFO) — lo que caduca cuando vence (2026-10-02).
+
+        Con FIFO, lo más nuevo se gasta al último: si de `credit` queda algo,
+        todo lo acumulado después sigue intacto, así que
+        ``queda = saldo - acumulado posterior``, acotado entre 0 y el monto
+        original. Antes el barrido caducaba el monto ORIGINAL aunque ya se
+        hubiera canjeado parte, y le quitaba al cliente puntos ganados después.
+        Las liberaciones de apartados no cuentan como acumulación nueva.
+        """
+        transactions = list(transactions)
+        saldo = LoyaltyBalancePolicy.balance(transactions)
+        posterior = sum(
+            (t.points_amount for t in transactions
+             if t.id != credit.id and t.points_amount > 0
+             and t.transaction_type in (TransactionType.EARN, TransactionType.BONUS,
+                                        TransactionType.TRANSFER_IN, TransactionType.ADJUSTMENT)
+             and t.status not in (TransactionStatus.PENDING, TransactionStatus.REVERSED,
+                                  TransactionStatus.CANCELLED, TransactionStatus.EXPIRED)
+             and (t.created_at, t.id) > (credit.created_at, credit.id)),
+            Decimal("0"))
+        return max(min(saldo - posterior, credit.points_amount), Decimal("0"))
+

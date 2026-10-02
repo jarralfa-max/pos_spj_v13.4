@@ -197,6 +197,9 @@ class PostingPurpose(str, Enum):
     SALE_REVENUE = "SALE_REVENUE"
     SALE_COGS = "SALE_COGS"
     SALE_REVERSAL = "SALE_REVERSAL"
+    #: Devolución parcial: ingreso/reembolso y su costo (uno por devolución).
+    SALE_RETURN = "SALE_RETURN"
+    SALE_RETURN_COGS = "SALE_RETURN_COGS"
     PURCHASE_RECEIPT = "PURCHASE_RECEIPT"
     SUPPLIER_INVOICE = "SUPPLIER_INVOICE"
     SUPPLIER_PAYMENT = "SUPPLIER_PAYMENT"

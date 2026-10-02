@@ -243,6 +243,34 @@ class SalesPosPresenter:
             "scan_loyalty_card", sale_id=sale_id, card_code=card_code,
             actor_user_id=self.current_user_id(), operation_id=_new_op())
 
+    def points_to_earn(self, sale) -> str | None:
+        """Texto de "Puntos a ganar" (§29) con las reglas de Fidelidad. None si
+        Fidelidad no responde: la tarjeta lo dice en vez de inventar."""
+        estimate = self.query_service("points_to_earn")
+        if estimate is None or sale is None:
+            return None
+        if not sale.customer_id:
+            return "Asigna un cliente"
+        try:
+            puntos = int(estimate(total=sale.total))
+        except Exception:
+            logger.exception("Estimación de puntos no disponible")
+            return None
+        return f"{puntos} pts"
+
+    def redemption_preview(self, sale) -> dict | None:
+        """Qué puede canjear el cliente de la venta (mínimo, tope y saldo los
+        aplica Fidelidad). None si no hay cliente o Fidelidad no responde."""
+        loyalty = self.query_service("loyalty_summary")
+        if loyalty is None or sale is None or not sale.customer_id:
+            return None
+        try:
+            return loyalty.preview_redemption(
+                customer_id=sale.customer_id, subtotal=sale.gross_subtotal)
+        except Exception:
+            logger.exception("Vista previa de canje no disponible")
+            return None
+
     def redeem_loyalty_points(self, *, sale_id: str, points: int) -> SaleResult:
         return self._run(
             "redeem_loyalty_points", sale_id=sale_id, points=points,

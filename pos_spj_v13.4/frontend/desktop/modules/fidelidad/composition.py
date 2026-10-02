@@ -68,6 +68,20 @@ def _list_active_sweepstakes_campaigns(connection):
         return uow.campaigns.list_active()
 
 
+def _program_settings(connection):
+    from backend.application.loyalty.queries.program_settings_query import (
+        LoyaltyProgramSettingsQuery,
+    )
+    return LoyaltyProgramSettingsQuery(connection).current()
+
+
+def _settings_use_case():
+    from backend.application.loyalty.use_cases.program_settings_use_cases import (
+        UpdateLoyaltyProgramSettingsUseCase,
+    )
+    return UpdateLoyaltyProgramSettingsUseCase
+
+
 def build_fidelidad_presenter(connection, session_context=None) -> FidelidadPresenter:
     checker = LoyaltySessionPermissionChecker(session_context)
     loyalty_auth = LoyaltyAuthorizationPolicy(checker)
@@ -77,12 +91,15 @@ def build_fidelidad_presenter(connection, session_context=None) -> FidelidadPres
         "programs": lambda: _list_active_programs(connection),
         "member_profile": LoyaltyMemberProfileQueryService(connection),
         "sweepstakes_campaigns": lambda: _list_active_sweepstakes_campaigns(connection),
+        "program_settings": lambda: _program_settings(connection),
     }
 
     def _run(use_case_cls, auth, **kwargs):
         return use_case_cls(auth).execute(connection, **kwargs)
 
     command_handlers = {
+        "update_program_settings": lambda **kw: _run(
+            _settings_use_case(), loyalty_auth, **kw),
         "create_program": lambda **kw: _run(CreateLoyaltyProgramUseCase, loyalty_auth, **kw),
         "approve_program": lambda **kw: _run(ApproveLoyaltyProgramUseCase, loyalty_auth, **kw),
         "activate_program": lambda **kw: _run(ActivateLoyaltyProgramUseCase, loyalty_auth, **kw),

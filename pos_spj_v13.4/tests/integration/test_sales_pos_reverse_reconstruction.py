@@ -178,9 +178,11 @@ def test_checkout_reconstructs_a_zero_stock_product_from_its_parts(conn):
     assert _available(conn, chicken, branch_id) == Decimal("0")
 
 
-def test_checkout_fails_cleanly_when_parts_are_also_insufficient(conn):
-    """No silent partial sale, no phantom stock — the normal "insufficient
-    availability" path still applies when reconstruction can't cover it."""
+def test_insufficient_parts_consume_nothing_when_the_sale_is_suspended(conn):
+    """No phantom stock: when reconstruction can't cover the line, nothing is
+    consumed. Since 2026-10-02 (user decision) suspending with a shortage is
+    ALLOWED — it reserves what exists (here, none of the whole chicken) and the
+    without-stock authorization is asked at checkout instead."""
     branch_id = new_uuid()
     chicken, breast, leg, wing = new_uuid(), new_uuid(), new_uuid(), new_uuid()
     _despiece(conn, product_id=chicken, outputs=[
@@ -203,7 +205,7 @@ def test_checkout_fails_cleanly_when_parts_are_also_insufficient(conn):
     assert added.success, added.message
 
     suspended = presenter.suspend_sale(sale_id=sale_id)
-    assert not suspended.success
+    assert suspended.success, suspended.message
 
     # Nothing was consumed — the failed reconstruction attempt released
     # whatever it provisionally reserved.

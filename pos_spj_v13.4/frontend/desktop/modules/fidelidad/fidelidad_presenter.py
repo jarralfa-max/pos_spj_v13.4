@@ -62,6 +62,30 @@ class FidelidadPresenter:
     def command_handler(self, key: str) -> Callable[..., object] | None:
         return self._command_handlers.get(key)
 
+    # -- Configuración del programa de puntos (2026-10-02) ----------------
+    def program_settings(self):
+        """Reglas vigentes de acumulación, caducidad y canje, o None."""
+        service = self.query_service("program_settings")
+        return service() if service is not None else None
+
+    def can_edit_settings(self) -> bool:
+        checker = getattr(self._session, "tiene_permiso", None)
+        from backend.application.loyalty.permissions import LoyaltyPermissions
+        return bool(callable(checker) and checker(LoyaltyPermissions.CONFIG_EDIT))
+
+    def save_program_settings(self, *, pesos_per_point: Decimal, credit_earns: bool,
+                              expiration_months: int, point_value: Decimal, min_points: int,
+                              max_percent: Decimal) -> LoyaltyResult:
+        handler = self.command_handler("update_program_settings")
+        if handler is None:
+            return LoyaltyResult.fail(_NOT_WIRED, "NOT_WIRED")
+        return handler(
+            pesos_per_point=pesos_per_point, credit_earns=credit_earns,
+            expiration_months=expiration_months, point_value=point_value,
+            min_points=min_points, max_percent=max_percent,
+            actor_user_id=self.current_user_id(), branch_id=self.current_branch_id() or None,
+            operation_id=new_uuid())
+
     # -- Programas ------------------------------------------------------
     def list_programs(self) -> list:
         service = self.query_service("programs")

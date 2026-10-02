@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Any, Mapping
 
 from backend.shared.ids import new_uuid, validate_uuidv7
@@ -427,9 +427,18 @@ class Sale:
             line_quantity=line.quantity.value, already_returned=already_returned,
             requested=quantity)
 
-        per_unit_value = (line.line_total / line.quantity.value).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP)
-        amount = money(per_unit_value * quantity)
+        # Neto PAGADO por la línea: incluye su parte del descuento a nivel venta
+        # y del canje de puntos (`refund_service`, decisión del usuario
+        # 2026-10-02). Antes se usaba `line_total`, que no los incluye.
+        from backend.domain.sales.services import refund_service
+
+        line_net = refund_service.line_net_values(self.lines, total=self.totals.total)[line_id]
+        already_amount = sum(
+            (r.amount for r in self.returns if r.line_id == line_id), Decimal("0"))
+        amount = money(refund_service.return_amount(
+            line_net=line_net, line_quantity=line.quantity.value,
+            already_returned_quantity=already_returned,
+            already_returned_amount=already_amount, quantity=quantity))
         sale_return = SaleReturn.create(
             sale_id=self.id, line_id=line_id, quantity=quantity, amount=amount, reason=reason,
             requested_by_user_id=requested_by_user_id,
@@ -444,6 +453,22 @@ class Sale:
             self.status = target
         self._bump_version()
         return sale_return
+
+    @property
+    def change_given(self) -> Decimal:
+        """El cambio entregado: lo pagado de más (sólo el efectivo lo admite)."""
+        return max(self.total_paid - self.totals.total, Decimal("0"))
+
+    def refund_plan(self, amount: Decimal) -> list[tuple[str, Decimal]]:
+        """Por dónde se reembolsa `amount`, contando lo ya reembolsado por las
+        devoluciones anteriores (la última de `self.returns` es la que se
+        reparte). Efectivo primero; ver `refund_service`."""
+        from backend.domain.sales.services import refund_service
+
+        previo = sum((r.amount for r in self.returns), Decimal("0")) - Decimal(str(amount))
+        return refund_service.allocate_refund(
+            refund_service.net_payments(self.payments, change=self.change_given),
+            already_refunded=max(previo, Decimal("0")), amount=amount)
 
     def reverse(self, reason: str) -> None:
         """POS-16/§42-44: voids a COMPLETED sale outright — a distinct

@@ -4365,6 +4365,30 @@ outbox por su cuenta en el bus global; ahora usa el despachador del presentador.
 6. FASE 4 verificada: Compras no tiene campos para editar unidad ni factor; el que
    manda la compra rápida se ignora (manda Productos).
 
+## Ventas/POS — devoluciones con reembolso, puntos por compra y canje (2026-10-02, migración 289)
+
+Cierra las decisiones que la re-auditoría de Ventas dejó abiertas (detalle en
+`docs/refactor/SALES-23_reauditoria.md` §5).
+
+1. **Devolución parcial:** reembolso por el método original, efectivo primero
+   (dominio `refund_service`; el importe absorbe la parte del descuento a nivel
+   venta); crédito → nota de crédito sobre la CxC; efectivo desde el turno con tope
+   y autorizador; `SaleReturnedHandler` (espejo de la venta + costo de venta) y
+   `SaleReversedHandler` suscritos en `wire_sales`.
+2. **Puntos por compra:** `LoyaltyAccrualPolicy` + `AccrueSalePointsUseCase` /
+   `RemoveSalePointsUseCase` / `RestoreSaleRedemptionUseCase`, por el bus de Ventas
+   con política DELEGADA (`SALES_GRANT`). Caducidad FIFO sobre el remanente.
+   Ajustes en Fidelidad → Configuración (`UpdateLoyaltyProgramSettingsUseCase`).
+3. **POS:** «Puntos a ganar» real, botón/diálogo de canje, cancelar/reversar
+   devuelve el canje, el outbox se despacha también tras devolver/reversar/cancelar.
+4. **Suspender con faltante** reserva lo disponible.
+5. **Migración 289** (idempotente, sin pisar nada): permisos `GROWTH_ENGINE.puntos.
+   canjear` (cajero, gerente, admin, system_owner), `CAJA.reembolso.ver/solicitar/
+   autorizar` (gerente, admin, system_owner), `GROWTH_ENGINE.ver/configuracion.ver/
+   configuracion.editar` (admin, system_owner); tope REFUND $5,000 (sólo si no hay
+   ninguno); reglas de puntos en `configuraciones`. Verificada en copia de la base
+   real: 19 permisos, tope y 3 reglas.
+
 ## Ventas/POS — re-auditoría del prompt maestro (2026-10-01/02, migración 288)
 
 Re-pegado del prompt maestro de Ventas/POS sobre un POS ya construido (SALES-0..22).

@@ -108,26 +108,51 @@ por permiso, crédito sólo con cliente; énfasis `emphasis="dominant"` y
 - Suite de Ventas: 607 pasan; los 26 fallos y 4 errores restantes ya fallaban en
   HEAD (importan `core.*`/`application.*` borrados), medido en un worktree de HEAD.
 
-## 5. Pendiente — decisiones del usuario
+## 5. Decisiones del usuario — CERRADAS (2026-10-02, migración 289)
 
-1. **Devolución parcial sin efecto en caja ni contabilidad.** El reverso total sí
-   revierte caja; una devolución parcial repone inventario pero no registra el
-   reembolso en el turno ni el asiento. Falta decidir: ¿se reembolsa en efectivo o
-   por el método original (tarjeta)? ¿se revierte el costo de venta proporcional?
-2. **Fidelidad sin regla de acumulación.** Ningún cliente gana puntos por comprar:
-   no existe regla "N puntos por peso" ni quién la aplica al cobrar. "Puntos a
-   ganar" lo dice en vez de inventar un número.
-3. **Permiso de canje no sembrado.** `GROWTH_ENGINE.puntos.canjear` no lo tiene
-   ningún rol; el canje ya está cableado pero nadie puede ejecutarlo.
-4. **Suspender con un producto sin existencia** sigue rechazándose (regla de
-   SALES-9, conservada): el cobro sí lo permite con autorización. ¿Alinear?
-5. **Configuración que falta en la base real** (no son errores de código): precios
-   de venta (ninguno capturado), impresora de tickets + ruta «Ticket de venta»,
-   báscula.
+1. **Devolución parcial → reembolso por el MÉTODO ORIGINAL, efectivo primero.**
+   `refund_service` (dominio puro): el importe devuelto es lo que el cliente pagó
+   por esa parte —incluido su pedazo del descuento a nivel venta, antes se
+   reembolsaba de más— y se reparte efectivo primero (neto del cambio), luego el
+   resto; acumulado entre devoluciones, nunca se reembolsa dos veces lo mismo.
+   Lo pagado a crédito baja la CxC (nota de crédito). El efectivo sale del turno
+   abierto (`refund_returned_line`, tope de $5,000 por operación) con autorizador
+   (gerente/admin). `SaleReturnedHandler` asienta el espejo de la venta (ingreso,
+   IVA, descuento, medio de reembolso) y revierte el costo de venta.
+   `SaleReversedHandler` existía sin suscriptor: ahora `wire_sales` lo cablea.
+2. **Puntos por compra, configurables desde Fidelidad.** 1 punto por cada $10 del
+   total pagado (después de descuentos y canje), hacia abajo; el crédito acumula
+   (configurable); vigencia de 12 meses (configurable, 0 = no caducan). La cuenta
+   de puntos se abre con la primera venta cobrada. Devolver retira en proporción;
+   caducar quita sólo lo que QUEDA de cada acumulación (FIFO) — antes caducaba el
+   original completo aunque ya se hubiera canjeado. Fidelidad → Configuración
+   (ruta que existía como estado vacío) edita acumulación, vigencia y canje con
+   `GROWTH_ENGINE.configuracion.editar`.
+3. **Canje en el POS.** `GROWTH_ENGINE.puntos.canjear` sembrado a cajero, gerente,
+   admin y system_owner. Botón «Canjear» junto al cliente cuando tiene puntos;
+   diálogo con saldo, mínimo, tope y equivalencia. «Puntos a ganar» ya muestra la
+   estimación con las reglas de Fidelidad. **Hueco encontrado al construirlo:** el
+   canje descuenta los puntos ANTES de cobrar y cancelar la venta no los devolvía
+   (se perdían). Ahora `SALE_CANCELLED` y `SALE_REVERSED` devuelven el canje
+   (`RestoreSaleRedemptionUseCase`, idempotente).
+4. **Suspender con faltante: se permite**, reservando lo que hay; la autorización
+   de vender sin existencia se pide al cobrar (antes se rechazaba al suspender).
+5. **Despacho del outbox tras devolver, reversar y cancelar.** Sólo el cobro
+   despachaba `sales_outbox`: el asiento de una devolución esperaba a la siguiente
+   venta. `SALE_CANCELLED` pasa a exigir consumidor.
+
+Configuración que sigue faltando en la base real (no son errores de código):
+precios de venta, impresora de tickets + ruta «Ticket de venta», báscula.
 
 ## 6. No hecho en esta fase (honesto)
 
 - POS-21 Offline (caché, sincronización, conflictos): no existe.
+- **Puntos sin asiento contable.** El outbox de Fidelidad no tiene despachador:
+  `POINTS_ISSUED`/`POINTS_REDEEMED` no llegan a Finanzas (no hay pasivo por puntos
+  emitidos). El canje sí reduce el total cobrado de la venta.
+- **Sin planificador.** La caducidad se barre al acreditar (cada cobro con
+  cliente); un cliente que no vuelve a comprar conserva puntos vencidos en su
+  saldo hasta su siguiente compra.
 - Golden master por píxel: las pruebas visuales son estructurales (orden,
   proporciones, dominancia), no comparan imágenes.
 - Driver real de báscula y SDK de terminal de pago: no hay ninguno en el repo.

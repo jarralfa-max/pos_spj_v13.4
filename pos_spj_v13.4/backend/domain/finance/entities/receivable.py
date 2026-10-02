@@ -60,6 +60,23 @@ class Receivable:
                        else ReceivableStatus.PARTIALLY_COLLECTED)
         self.updated_at = _utcnow()
 
+    def apply_credit_note(self, amount: Money) -> None:
+        """Una nota de crédito (devolución de una venta a crédito) baja lo que
+        el cliente debe. No puede exceder el saldo: eso sería un saldo a favor
+        del cliente, que es otro instrumento (`STORE_CREDIT`)."""
+        if self.status in (ReceivableStatus.CANCELLED, ReceivableStatus.WRITTEN_OFF):
+            raise FinanceDomainError(f"Cannot credit a {self.status.value} receivable")
+        if not amount.is_positive():
+            raise FinanceDomainError("Credit note amount must be positive")
+        if amount > self.outstanding_amount:
+            raise InsufficientOutstandingError(
+                f"Credit note {amount.to_string()} exceeds outstanding "
+                f"{self.outstanding_amount.to_string()}")
+        self.outstanding_amount = self.outstanding_amount.subtract(amount)
+        self.status = (ReceivableStatus.SETTLED if self.outstanding_amount.is_zero()
+                       else ReceivableStatus.PARTIALLY_COLLECTED)
+        self.updated_at = _utcnow()
+
     def cancel(self) -> None:
         if self.status is ReceivableStatus.SETTLED:
             raise FinanceDomainError("A settled receivable cannot be cancelled; use a credit note")
