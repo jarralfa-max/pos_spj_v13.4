@@ -191,6 +191,9 @@ class LoyaltyTransaction:
             TransactionType.EXPIRE, loyalty_account_id=original.loyalty_account_id,
             membership_id=original.membership_id, points_amount=points_amount,
             operation_id=operation_id, source_module=original.source_module,
+            # La acumulación que caduca (2026-10-03): Finanzas libera ESA
+            # acumulación, no la más vieja del saldo.
+            source_document_type="LOYALTY_TRANSACTION", source_document_id=original.id,
             created_by_user_id=created_by_user_id,
         )
 

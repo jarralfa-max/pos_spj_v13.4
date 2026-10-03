@@ -8,6 +8,10 @@ que cablea `composition.py`.
 
 from __future__ import annotations
 
+from backend.application.loyalty.integrations.finance_posting import (
+    LoyaltyFinancePostingStatus,
+    LoyaltyFinanceSourceType,
+)
 from backend.application.loyalty.permissions import LoyaltyPermissions as LP
 from backend.application.loyalty.queries.records_query_service import LoyaltyRecord as R
 from backend.domain.commercial_instruments.enums import (
@@ -583,6 +587,22 @@ AUDIT = P(
              C("Entidad", "entidad"), C("Referencia", "entidad_id")),
     empty_message="Sin registros de auditoría.")
 
+ACCOUNTING = P(
+    key="accounting", title="Contabilidad", record=R.FINANCE_POSTINGS,
+    status_enum=LoyaltyFinancePostingStatus,
+    subtitle=("Asiento contable de puntos, vales, cupones y premios de sorteo. Lo que falla "
+              "(sin perfil contable, periodo cerrado) se reintenta solo en cada operación."),
+    columns=(C("Fecha", "updated_at", "date"),
+             C("Origen", "source_type", "enum", LoyaltyFinanceSourceType),
+             C("Referencia", "source_id"), C("Importe", "amount", "money"),
+             C("Estado", "status", "status"), C("Detalle", "detail"),
+             C("Intentos", "attempts", "numeric")),
+    actions=(
+        A("post_loyalty_finance", "Contabilizar pendientes", LP.AUDIT_VIEW, variant="primary",
+          success="Pendientes procesados."),
+    ),
+    empty_message="Aún no hay movimientos de fidelidad contabilizados.")
+
 #: route_id → especificación (página simple o con pestañas).
 FIDELIDAD_RECORD_ROUTES: dict[str, P | TabbedSpec] = {
     "loyalty.programs": PROGRAMS,
@@ -600,6 +620,7 @@ FIDELIDAD_RECORD_ROUTES: dict[str, P | TabbedSpec] = {
     "sweepstakes.draws": DRAWS_TABS,
     "fidelidad.fraud": FRAUD,
     "fidelidad.audit": AUDIT,
+    "fidelidad.accounting": ACCOUNTING,
 }
 
 __all__ = ["FIDELIDAD_RECORD_ROUTES", "REWARD_CATALOG", "REWARD_REDEMPTIONS"]

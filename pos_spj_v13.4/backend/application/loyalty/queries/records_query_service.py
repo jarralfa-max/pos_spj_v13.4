@@ -60,6 +60,7 @@ class LoyaltyRecord(str, Enum):
     BIRTHDAYS = "birthdays"
     FRAUD_CASES = "fraud_cases"
     LOYALTY_AUDIT = "loyalty_audit"
+    FINANCE_POSTINGS = "finance_postings"
     COUPON_DEFINITIONS = "coupon_definitions"
     COUPONS = "coupons"
     VOUCHER_DEFINITIONS = "voucher_definitions"
@@ -102,6 +103,7 @@ _REGISTROS: dict[LoyaltyRecord, tuple[RecordSpec, str]] = {
     R.BIRTHDAYS: (specs.BIRTHDAYS, LP.BIRTHDAY_VIEW),
     R.FRAUD_CASES: (specs.FRAUD_CASES, LP.FRAUD_VIEW),
     R.LOYALTY_AUDIT: (specs.LOYALTY_AUDIT, LP.AUDIT_VIEW),
+    R.FINANCE_POSTINGS: (specs.FINANCE_POSTINGS, LP.AUDIT_VIEW),
     R.COUPON_DEFINITIONS: (specs.COUPON_DEFINITIONS, LP.COUPON_VIEW),
     R.COUPONS: (specs.COUPONS, LP.COUPON_VIEW),
     R.VOUCHER_DEFINITIONS: (specs.VOUCHER_DEFINITIONS, LP.VOUCHER_VIEW),
@@ -168,6 +170,11 @@ class LoyaltyRecordsQueryService:
         record = LoyaltyRecord(record)
         spec, permission = _REGISTROS[record]
         self._require(actor_user_id, permission)
+        if record is R.FINANCE_POSTINGS and not self._reader.scalar(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'"
+                " AND name = 'loyalty_finance_links'"):
+            # Base sin la migración 294: nada contabilizado todavía.
+            return RecordPage(rows=[], total=0)
         result = self._reader.page(spec, query=query, status=status, filters=filters,
                                    limit=page_size, offset=max(page, 0) * page_size)
         if record is R.ACCOUNTS:
@@ -263,6 +270,11 @@ class LoyaltyRecordsQueryService:
              contar("SELECT COUNT(*) FROM loyalty_transactions WHERE transaction_type IN"
                     " ('EARN', 'BONUS') AND expires_at IS NOT NULL AND expires_at >= ?"
                     " AND expires_at <= ?", (ahora, hasta)), "loyalty.points"),
+            ("danger", "Contabilidad", "movimientos de fidelidad no se pudieron contabilizar",
+             contar("SELECT COUNT(*) FROM loyalty_finance_links WHERE status = 'FAILED'")
+             if self._reader.scalar("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'"
+                                    " AND name = 'loyalty_finance_links'") else 0,
+             "fidelidad.accounting"),
             ("warning", "Sorteos", "campañas de sorteo esperan aprobación",
              contar("SELECT COUNT(*) FROM sweepstakes_campaigns WHERE status = 'PENDING_APPROVAL'"),
              "sweepstakes.campaigns"),

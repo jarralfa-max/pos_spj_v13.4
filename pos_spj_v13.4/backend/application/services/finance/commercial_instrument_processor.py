@@ -16,6 +16,7 @@ from backend.application.services.finance.posting_engine import PostingEngine
 from backend.domain.finance.entities.commercial_obligation import CommercialObligation
 from backend.domain.finance.enums import (
     CommercialInstrumentType,
+    CommercialObligationStatus,
     JournalType,
     PostingPurpose,
     RecognitionBasis,
@@ -146,11 +147,14 @@ class CommercialInstrumentProcessor:
         operation_id: str,
         redemption_id: str | None = None,
         actual_cost: Money | None = None,
+        credit_account_id: str | None = None,
     ) -> CommercialObligation:
         """Redeem against the obligation and post the configured effect.
 
         Standalone redemptions (outside a sale entry). Redemptions embedded in a
         sale settlement are posted by the sale handler instead.
+        ``credit_account_id`` overrides the credited account (a points canje the
+        sale already booked as a discount credits that discount account).
         """
         obligation = self._require_obligation(uow, instrument_type, source_instrument_id)
         redemption_key = redemption_id or operation_id
@@ -166,7 +170,8 @@ class CommercialInstrumentProcessor:
         uow.commercial_obligations.update(obligation)
         profile = self._find_profile(uow, instrument_type, on_date)
         lines = self._accounting.redemption_lines(obligation, profile, amount,
-                                                  actual_cost=actual_cost)
+                                                  actual_cost=actual_cost,
+                                                  credit_account_id=credit_account_id)
         if lines:
             self._engine.post(
                 uow, self._journal_for(instrument_type), on_date,
@@ -205,6 +210,61 @@ class CommercialInstrumentProcessor:
                 lines, currency_code=released.currency_code, branch_id=obligation.branch_id,
             )
         self._emit(uow, EventName.COMMERCIAL_OBLIGATION_RELEASED, obligation, operation_id)
+        return obligation
+
+    # ── partial release (2026-10-03) ──────────────────────────────────────
+    def release(self, uow: FinanceUnitOfWork, *, instrument_type: CommercialInstrumentType,
+                source_instrument_id: str, amount: Money, on_date: date,
+                operation_id: str, release_id: str, breakage: bool,
+                description: str = "") -> CommercialObligation:
+        """Libera UNA PARTE de la obligación sin cerrar el resto.
+
+        ``breakage=True`` es una caducidad (Dr pasivo, Cr ingreso por
+        expiración); ``False`` es un retiro (Dr pasivo, Cr la cuenta que cargó
+        el reconocimiento: ajuste negativo, reverso, campaña cancelada).
+        Idempotente por ``release_id``."""
+        obligation = self._require_obligation(uow, instrument_type, source_instrument_id)
+        purpose = (PostingPurpose.INSTRUMENT_EXPIRATION if breakage
+                   else PostingPurpose.INSTRUMENT_REVERSAL)
+        key = f"{instrument_type.value}:{source_instrument_id}:release:{release_id}"
+        if uow.journal_entries.find_by_posting_reference(
+                "commercial_instruments", key, purpose) is not None:
+            return obligation
+        obligation.release(amount, final_status=(
+            CommercialObligationStatus.EXPIRED if breakage
+            else CommercialObligationStatus.REVERSED))
+        uow.commercial_obligations.update(obligation)
+        profile = self._find_profile(uow, instrument_type, on_date)
+        lines = (self._accounting.expiration_lines(obligation, profile, amount) if breakage
+                 else self._accounting.withdrawal_lines(obligation, profile, amount))
+        if lines:
+            self._engine.post(
+                uow, self._journal_for(instrument_type), on_date,
+                description or (f"{'Expiración' if breakage else 'Retiro'} "
+                                f"{instrument_type.value} {source_instrument_id[:8]}"),
+                PostingReference("commercial_instruments", key, purpose, new_uuid()),
+                lines, currency_code=amount.currency_code, branch_id=obligation.branch_id,
+            )
+        self._emit(uow, EventName.COMMERCIAL_OBLIGATION_RELEASED, obligation, operation_id)
+        return obligation
+
+    def restore(self, uow: FinanceUnitOfWork, *, instrument_type: CommercialInstrumentType,
+                source_instrument_id: str, amount: Money, on_date: date, operation_id: str,
+                effect_key: str, effect_purpose: PostingPurpose, from_redeemed: bool,
+                reason: str) -> CommercialObligation:
+        """Deshace un canje o una liberación ya asentados: espejo del asiento
+        original (nunca se edita) y la obligación recupera ese saldo."""
+        obligation = self._require_obligation(uow, instrument_type, source_instrument_id)
+        original = uow.journal_entries.find_by_posting_reference(
+            "commercial_instruments", effect_key, effect_purpose)
+        if original is not None and original.reversed_by_entry_id:
+            return obligation
+        obligation.restore(amount, from_redeemed=from_redeemed)
+        uow.commercial_obligations.update(obligation)
+        if original is not None:
+            self._engine.reverse(uow, original, on_date, reason, new_uuid(),
+                                 posting_purpose=PostingPurpose.INSTRUMENT_REVERSAL)
+        self._emit(uow, EventName.COMMERCIAL_OBLIGATION_REVERSED, obligation, operation_id)
         return obligation
 
     # ── reversal ──────────────────────────────────────────────────────────

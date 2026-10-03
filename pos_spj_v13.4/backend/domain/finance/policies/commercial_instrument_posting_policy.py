@@ -24,6 +24,7 @@ DEFAULT_RECOGNITION_BASIS: dict[CommercialInstrumentType, RecognitionBasis] = {
     CommercialInstrumentType.PROMOTIONAL_BALANCE: RecognitionBasis.PROMOTIONAL_EXPENSE,
     CommercialInstrumentType.CUSTOMER_WALLET: RecognitionBasis.LIABILITY,
     CommercialInstrumentType.THIRD_PARTY_VOUCHER: RecognitionBasis.THIRD_PARTY_RECEIVABLE,
+    CommercialInstrumentType.SWEEPSTAKES_PRIZE: RecognitionBasis.LIABILITY,
 }
 
 #: Instrument types whose issuance requires cash/bank settlement (sold instruments).

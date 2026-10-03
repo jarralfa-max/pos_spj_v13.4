@@ -97,6 +97,12 @@ def _after_commit(handler, connection):
                 import logging
                 logging.getLogger("spj.sales_pos.composition").exception(
                     "despacho de sales_outbox fallido")
+            # Fidelidad → Finanzas (2026-10-03): los puntos que la venta acumuló,
+            # canjeó o devolvió llegan a contabilidad. Nunca propaga.
+            from backend.application.loyalty.integrations.finance_posting import (
+                post_loyalty_finance,
+            )
+            post_loyalty_finance(connection)
         return result
     return run
 

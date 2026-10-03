@@ -430,7 +430,7 @@ CREATE TABLE IF NOT EXISTS commercial_obligations (
     instrument_type TEXT NOT NULL CHECK (instrument_type IN (
         'LOYALTY_POINTS','PROMOTIONAL_COUPON','DISCOUNT_COUPON','REFUND_VOUCHER',
         'STORE_CREDIT','GIFT_CARD','PREPAID_VOUCHER','PROMOTIONAL_BALANCE',
-        'CUSTOMER_WALLET','THIRD_PARTY_VOUCHER')),
+        'CUSTOMER_WALLET','THIRD_PARTY_VOUCHER','SWEEPSTAKES_PRIZE')),
     source_module TEXT NOT NULL,
     source_instrument_id TEXT NOT NULL,
     recognition_basis TEXT NOT NULL CHECK (recognition_basis IN (

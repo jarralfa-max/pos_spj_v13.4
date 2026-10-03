@@ -131,6 +131,9 @@ FIDELIDAD_ROUTES: tuple[FidelidadRoute, ...] = (
        LP.FRAUD_VIEW, "fraud", Icons.INVESTIGATION),
     _r("fidelidad.audit", "Auditoría", "Control", "Rastro de auditoría de Fidelidad.",
        LP.AUDIT_VIEW, "audit", Icons.AUDIT),
+    _r("fidelidad.accounting", "Contabilidad", "Control",
+       "Asientos de puntos, vales, cupones y premios; lo que falló y por qué.",
+       LP.AUDIT_VIEW, "audit", Icons.FINANCE),
     _r("fidelidad.settings", "Configuración", "Control",
        "Reglas de acumulación, canje y caducidad.", LP.CONFIG_VIEW, "settings", Icons.SETTINGS),
 )

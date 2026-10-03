@@ -56,6 +56,7 @@ _CHART = (
     ("2133", "Saldo a favor de clientes (store credit)", AccountType.LIABILITY, CashFlowCategory.NONE, True),
     ("2134", "Saldos promocionales no reembolsables", AccountType.LIABILITY, CashFlowCategory.NONE, True),
     ("2135", "Obligación por monederos de clientes", AccountType.LIABILITY, CashFlowCategory.NONE, True),
+    ("2136", "Provisión de premios de sorteos", AccountType.LIABILITY, CashFlowCategory.NONE, True),
     ("2140", "Anticipos de clientes", AccountType.LIABILITY, CashFlowCategory.OPERATING, True),
     ("2150", "Préstamos por pagar", AccountType.LIABILITY, CashFlowCategory.FINANCING, True),
     # Equity
@@ -110,6 +111,7 @@ def bootstrap_finance(connection, *, today: date | None = None) -> None:
     with FinanceUnitOfWork(connection) as uow:
         if uow.accounts.get_by_code("1101") is not None:
             logger.info("Finance bootstrap: chart already seeded; skipping")
+            _ensure_late_additions(uow, today)
             return
         code_to_id: dict[str, str] = {}
         for code, name, acc_type, cash_flow, posting_allowed in _CHART:
@@ -140,6 +142,57 @@ def _seed_treasury(uow: FinanceUnitOfWork, ids: dict[str, str]) -> None:
         "Banco principal", TreasuryAccountType.BANK, ids["1110"]))
     uow.treasury.save(TreasuryAccount.create(
         "Procesador de tarjetas", TreasuryAccountType.PAYMENT_PROCESSOR, ids["1115"]))
+
+
+def ensure_finance_catalog_additions(connection, *, today: date | None = None) -> bool:
+    """Agrega a un catálogo YA sembrado las cuentas y perfiles que llegaron
+    después de su siembra (la siembra se salta entera si el catálogo existe).
+    Devuelve False si Finanzas aún no se ha sembrado: entonces no hay nada que
+    completar, la siembra completa los traerá."""
+    if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table'"
+                          " AND name='accounts'").fetchone() is None:
+        return False
+    with FinanceUnitOfWork(connection) as uow:
+        if uow.accounts.get_by_code("1101") is None:
+            return False
+        _ensure_late_additions(uow, today or date.today())
+    return True
+
+
+#: Cuentas y perfiles agregados después de la siembra original: (código de
+#: cuenta, perfil que la usa). Idempotente: sólo crea lo que falta.
+def _ensure_late_additions(uow: FinanceUnitOfWork, today: date) -> None:
+    chart = {code: (name, acc_type, cash_flow, posting)
+             for code, name, acc_type, cash_flow, posting in _CHART}
+    ids: dict[str, str] = {}
+    for code in ("2136", "6110", "4120", "1120"):
+        account = uow.accounts.get_by_code(code)
+        if account is None:
+            name, acc_type, cash_flow, posting = chart[code]
+            account = Account.create(code, name, acc_type, posting_allowed=posting,
+                                     cash_flow_category=cash_flow)
+            uow.accounts.save(account)
+            logger.info("Finance: cuenta %s agregada al catálogo existente", code)
+        ids[code] = account.id
+    if uow.posting_profiles.find_effective(
+            "SWEEPSTAKES_PRIZE", today,
+            instrument_type=CommercialInstrumentType.SWEEPSTAKES_PRIZE) is None:
+        uow.posting_profiles.save(_sweepstakes_profile(ids, date(today.year, 1, 1)))
+        logger.info("Finance: perfil SWEEPSTAKES_PRIZE agregado")
+
+
+def _sweepstakes_profile(ids: dict[str, str], effective: date) -> PostingProfile:
+    """Premios de sorteo: al activar la campaña se provisiona su costo
+    estimado (Dr gasto promocional, Cr provisión); al entregar el premio la
+    provisión se usa contra el mismo gasto, porque el costo REAL del premio lo
+    asienta quien lo compró o lo sacó del inventario. Una campaña cancelada o
+    cerrada sin entregar libera lo que quede."""
+    return _profile("SWEEPSTAKES_PRIZE", "Premios de sorteos (provisión)", {
+        "expense_account_id": ids["6110"],
+        "liability_account_id": ids["2136"],
+        "breakage_income_account_id": ids["4120"],
+        "clearing_account_id": ids["1120"],
+    }, effective, CommercialInstrumentType.SWEEPSTAKES_PRIZE)
 
 
 def _profile(key: str, description: str, accounts: dict[str, str], effective: date,
@@ -281,6 +334,7 @@ def _seed_posting_profiles(uow: FinanceUnitOfWork, ids: dict[str, str], today: d
             "clearing_account_id": ids["1120"],
             "expense_account_id": ids["6110"],
         }, effective, CommercialInstrumentType.CUSTOMER_WALLET),
+        _sweepstakes_profile(ids, effective),
     ]
     for profile in profiles:
         uow.posting_profiles.save(profile)

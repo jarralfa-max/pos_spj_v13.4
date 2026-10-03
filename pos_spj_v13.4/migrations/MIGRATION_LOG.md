@@ -4458,3 +4458,16 @@ hacía fallar el RENAME y, con él, el arranque. Filas previas: huella con versi
 reconstrucción con `foreign_keys=OFF` + `legacy_alter_table=ON` y
 `foreign_key_check` al final. Nueva `loyalty_card_assignments` (una por tarjeta,
 idempotente por `operation_id`).
+
+### 294 — Fidelidad, vales, cupones y sorteos llegan a contabilidad (2026-10-03)
+
+Decisión del usuario: contabilizar puntos, cupones, vales, boletos y cualquier
+programa de fidelidad. Tablas de estado del puente (`loyalty_finance_links`,
+`loyalty_finance_point_credits`, `loyalty_finance_point_allocations`);
+`commercial_obligations` se reconstruye para admitir `SWEEPSTAKES_PRIZE` (el
+CHECK enumera los tipos; `foreign_keys=OFF` + `legacy_alter_table=ON` por la
+vista legacy rota de la base real); en un catálogo de Finanzas ya sembrado se
+agregan la cuenta 2136 "Provisión de premios de sorteos" y el perfil
+`SWEEPSTAKES_PRIZE` (la siembra se salta si el catálogo existe; ahora completa
+lo que falte). Real: 0 obligaciones previas; la copia real asentó 4 pólizas
+cuadradas. Detalle en `docs/refactor/LOY-29_reauditoria.md` §3e.

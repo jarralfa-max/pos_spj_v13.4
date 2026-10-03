@@ -95,6 +95,7 @@ class CommercialInstrumentAccountingService:
         redeemed_amount: Money,
         *,
         actual_cost: Money | None = None,
+        credit_account_id: str | None = None,
     ) -> list[LineSpec]:
         """Lines for a redemption.
 
@@ -103,6 +104,10 @@ class CommercialInstrumentAccountingService:
         or expense.
         Without prior recognition (promotional coupon): Dr contra-revenue,
         Cr clearing/revenue at redemption time.
+
+        ``credit_account_id`` (2026-10-03) sustituye la cuenta acreedora: un
+        canje DENTRO de una venta acredita el descuento que la venta ya cargó
+        (la venta registra el canje como descuento), no un segundo ingreso.
         """
         basis = obligation.recognition_basis
         lines: list[LineSpec] = []
@@ -112,7 +117,7 @@ class CommercialInstrumentAccountingService:
                            else "revenue_account_id")
             lines.append(LineSpec(profile.account_for("contra_revenue_account_id"),
                                   debit=redeemed_amount, description="Canje de cupón promocional"))
-            lines.append(LineSpec(profile.account_for(credit_role),
+            lines.append(LineSpec(credit_account_id or profile.account_for(credit_role),
                                   credit=redeemed_amount, description="Aplicación de canje"))
             return lines
 
@@ -124,8 +129,8 @@ class CommercialInstrumentAccountingService:
                        else "clearing_account_id")
         lines.append(LineSpec(profile.account_for(liability_role), debit=redeemed_amount,
                               description="Cancelación de obligación por canje"))
-        lines.append(LineSpec(profile.account_for(credit_role), credit=redeemed_amount,
-                              description="Reconocimiento por canje"))
+        lines.append(LineSpec(credit_account_id or profile.account_for(credit_role),
+                              credit=redeemed_amount, description="Reconocimiento por canje"))
 
         if actual_cost is not None and actual_cost.amount != redeemed_amount.amount:
             difference = actual_cost.subtract(redeemed_amount)
@@ -144,6 +149,27 @@ class CommercialInstrumentAccountingService:
                                       credit=gain,
                                       description="Ingreso por diferencia de estimación"))
         return lines
+
+    # ── partial withdrawal (reverse part of the recognition) ──────────────
+    def withdrawal_lines(self, obligation: CommercialObligation, profile: PostingProfile,
+                         amount: Money) -> list[LineSpec]:
+        """Retiro de una parte ya reconocida (ajuste negativo, reverso de una
+        acumulación ya canjeada en parte, campaña cancelada): el espejo de
+        `recognition_lines` por ese importe — Dr pasivo, Cr la misma cuenta que
+        se cargó al reconocer. No toca ingresos por canje ni breakage."""
+        if amount.is_zero() or obligation.recognition_basis is RecognitionBasis.NO_INITIAL_RECOGNITION:
+            return []
+        recognition = self.recognition_lines(obligation, profile, settlement_amount=amount)
+        if not recognition:
+            return []
+        debit = next(spec for spec in recognition if spec.debit is not None)
+        credit = next(spec for spec in recognition if spec.credit is not None)
+        return [
+            LineSpec(credit.account_id, debit=amount,
+                     description="Retiro de obligación reconocida"),
+            LineSpec(debit.account_id, credit=amount,
+                     description="Reverso parcial del reconocimiento"),
+        ]
 
     # ── expiration (breakage) ─────────────────────────────────────────────
     def expiration_lines(self, obligation: CommercialObligation, profile: PostingProfile,

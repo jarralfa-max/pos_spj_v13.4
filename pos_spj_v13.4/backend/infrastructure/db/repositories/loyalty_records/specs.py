@@ -167,6 +167,17 @@ def _audit(module: str) -> RecordSpec:
 
 LOYALTY_AUDIT = _audit("GROWTH_ENGINE")
 
+#: Contabilidad de Fidelidad (2026-10-03): qué movimiento se asentó, cuál espera
+#: y cuál falló y por qué.
+FINANCE_POSTINGS = RecordSpec(
+    columns=(("id", "f.source_key"), ("updated_at", "f.updated_at"),
+             ("source_type", "f.source_type"), ("source_id", "f.source_id"),
+             ("status", "f.status"), ("amount", "f.amount"), ("detail", "f.detail"),
+             ("attempts", "f.attempts")),
+    source="loyalty_finance_links f", order="f.updated_at DESC, f.source_key DESC",
+    status="f.status", search_in=("f.source_id", "f.detail"),
+    filters={"source_type": "f.source_type"})
+
 # ── Instrumentos comerciales ─────────────────────────────────────────────────
 COUPON_DEFINITIONS = RecordSpec(
     columns=(("id", "d.id"), ("code", "d.code"), ("name", "d.name"),

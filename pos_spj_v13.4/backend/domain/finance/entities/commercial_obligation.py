@@ -164,6 +164,50 @@ class CommercialObligation:
         self.updated_at = _utcnow()
         return outstanding
 
+    def release(self, amount: Money, *,
+                final_status: CommercialObligationStatus) -> Money:
+        """Liberación PARCIAL (2026-10-03): caducidad o retiro de una parte sin
+        cerrar el resto. `release_by_expiration` cierra la obligación entera
+        como EXPIRED aunque quede saldo, y un saldo de puntos se consume, caduca
+        y se ajusta por partes durante meses. Sólo al quedar en cero toma
+        `final_status` (EXPIRED o REVERSED); antes conserva su estado."""
+        if self.status not in _REDEEMABLE:
+            raise ObligationStateError(
+                f"Cannot release obligation in status {self.status.value}")
+        if not amount.is_positive():
+            raise FinanceDomainError("Release amount must be positive")
+        if amount > self.outstanding_amount:
+            raise ObligationAmountError(
+                f"Release {amount.to_string()} exceeds outstanding "
+                f"{self.outstanding_amount.to_string()}")
+        self.released_amount = self.released_amount.add(amount)
+        if self.outstanding_amount.is_zero():
+            self.status = final_status
+        self.updated_at = _utcnow()
+        return amount
+
+    def restore(self, amount: Money, *, from_redeemed: bool) -> None:
+        """Deshace un canje o una liberación (la venta se canceló, el reverso
+        devolvió los puntos): el saldo vuelve a estar pendiente. Nunca más de
+        lo que se canjeó o liberó."""
+        if self.status in (CommercialObligationStatus.CANCELLED,):
+            raise ObligationStateError("Cannot restore a cancelled obligation")
+        if not amount.is_positive():
+            raise FinanceDomainError("Restore amount must be positive")
+        base = self.redeemed_amount if from_redeemed else self.released_amount
+        if amount > base:
+            raise ObligationAmountError(
+                f"Restore {amount.to_string()} exceeds {'redeemed' if from_redeemed else 'released'} "
+                f"{base.to_string()}")
+        if from_redeemed:
+            self.redeemed_amount = self.redeemed_amount.subtract(amount)
+        else:
+            self.released_amount = self.released_amount.subtract(amount)
+        self.status = (CommercialObligationStatus.PARTIALLY_REDEEMED
+                       if self.redeemed_amount.is_positive()
+                       else CommercialObligationStatus.OPEN)
+        self.updated_at = _utcnow()
+
     def cancel(self) -> None:
         if self.redeemed_amount.is_positive():
             raise ObligationStateError("Cannot cancel an obligation with redemptions; reverse it")

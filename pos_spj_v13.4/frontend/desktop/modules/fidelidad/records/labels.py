@@ -118,6 +118,12 @@ _POR_ENUM: dict[str, dict[str, str]] = {
         "DESIGN_CHANGE": "Cambio de diseño", "CUSTOMER_REQUEST": "Solicitud del cliente"},
     "LoyaltyCardType": {"PHYSICAL": "Física", "DIGITAL": "Digital"},
     "SheetOrientation": {"PORTRAIT": "Vertical", "LANDSCAPE": "Horizontal"},
+    "LoyaltyFinancePostingStatus": {"POSTED": "Contabilizado", "HELD": "En espera",
+                                    "SKIPPED": "Sin efecto contable", "FAILED": "Falló"},
+    "LoyaltyFinanceSourceType": {
+        "LOYALTY_TRANSACTION": "Movimiento de puntos", "VOUCHER_TRANSACTION": "Movimiento de vale",
+        "VOUCHER_INSTANCE": "Cierre de vale", "COUPON_REDEMPTION": "Canje de cupón",
+        "SWEEPSTAKES_PRIZE": "Premio de sorteo", "SWEEPSTAKES_WINNER": "Entrega de premio"},
 }
 
 

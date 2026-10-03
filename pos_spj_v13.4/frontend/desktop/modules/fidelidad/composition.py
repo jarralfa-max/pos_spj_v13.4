@@ -363,6 +363,48 @@ def _card_command_table(connection, cards_auth) -> dict:
     }
 
 
+def _with_finance(handler, connection):
+    """Tras un comando exitoso, la pasada Fidelidad → Finanzas asienta lo que
+    ese comando movió. Nunca deshace ni hace fallar el comando: lo que no se
+    pueda asentar queda FAILED, visible en Control → Contabilidad."""
+    def run(**kwargs):
+        result = handler(**kwargs)
+        if getattr(result, "success", False):
+            from backend.application.loyalty.integrations.finance_posting import (
+                post_loyalty_finance,
+            )
+            post_loyalty_finance(connection)
+        return result
+    return run
+
+
+def _post_finance_handler(connection, auth):
+    def run(*, actor_user_id, actor_branch_id=None, operation_id=None, **_):
+        from backend.application.loyalty.integrations.finance_posting import (
+            LoyaltyFinancePostingService,
+        )
+        from backend.application.loyalty.permissions import LoyaltyPermissions
+        from backend.application.loyalty.result import LoyaltyResult, fail_from_domain_error
+        from backend.domain.loyalty.exceptions import LoyaltyDomainError
+
+        try:
+            auth.require(actor_user_id, LoyaltyPermissions.AUDIT_VIEW)
+        except LoyaltyDomainError as exc:
+            return fail_from_domain_error(exc, operation_id=operation_id)
+        resumen = LoyaltyFinancePostingService(connection).run()
+        if not resumen.ready:
+            return LoyaltyResult.fail(
+                "Finanzas aún no tiene catálogo de cuentas: abre Finanzas una vez para "
+                "sembrarlo y vuelve a intentar.", "FINANCE_NOT_READY")
+        mensaje = (f"Contabilizados: {resumen.posted}. En espera: {resumen.held}. "
+                   f"Sin efecto contable: {resumen.skipped}. Fallidos: {resumen.failed}.")
+        if resumen.failed:
+            return LoyaltyResult.fail(mensaje + " Revisa el detalle de los fallidos.",
+                                      "POSTING_FAILED")
+        return LoyaltyResult.ok(mensaje, operation_id=operation_id)
+    return run
+
+
 def build_fidelidad_presenter(connection, session_context=None) -> FidelidadPresenter:
     checker = LoyaltySessionPermissionChecker(session_context)
     loyalty_auth = LoyaltyAuthorizationPolicy(checker)
@@ -389,8 +431,13 @@ def build_fidelidad_presenter(connection, session_context=None) -> FidelidadPres
         return lambda **kw: use_case_cls(loyalty_auth).execute(connection, **kw)
 
     command_handlers = _command_table(connection, loyalty_auth)
-    command_handlers.update(_card_command_table(connection, cards_auth))
     command_handlers["adjust_points"] = _adjust_points_handler(connection, session_context)
+    # Todo lo que mueve puntos, vales, cupones o premios llega a contabilidad
+    # al confirmarse (2026-10-03); las tarjetas no tienen efecto contable.
+    command_handlers = {nombre: _with_finance(handler, connection)
+                        for nombre, handler in command_handlers.items()}
+    command_handlers["post_loyalty_finance"] = _post_finance_handler(connection, loyalty_auth)
+    command_handlers.update(_card_command_table(connection, cards_auth))
     command_handlers.update({
         "update_program_settings": _legacy_shape(_settings_use_case()),
     })
@@ -404,6 +451,11 @@ def create_fidelidad_view(connection, session_context=None, parent=None):
     itself — only what it needs, already unwrapped."""
     from frontend.desktop.modules.fidelidad.fidelidad_workspace import FidelidadWorkspace
 
+    from backend.application.loyalty.integrations.finance_posting import post_loyalty_finance
+
+    # Al abrir: asienta lo que llegó por otra vía (WhatsApp, sorteos resueltos,
+    # catálogo de Finanzas sembrado después) o falló antes.
+    post_loyalty_finance(connection)
     presenter = build_fidelidad_presenter(connection, session_context)
     return FidelidadWorkspace(presenter, parent)
 

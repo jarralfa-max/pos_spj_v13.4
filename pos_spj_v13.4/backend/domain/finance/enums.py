@@ -169,6 +169,9 @@ class CommercialInstrumentType(str, Enum):
     PROMOTIONAL_BALANCE = "PROMOTIONAL_BALANCE"
     CUSTOMER_WALLET = "CUSTOMER_WALLET"
     THIRD_PARTY_VOUCHER = "THIRD_PARTY_VOUCHER"
+    #: Provisión por los premios comprometidos de un sorteo (2026-10-03): el
+    #: compromiso nace al activar la campaña y se usa al entregar el premio.
+    SWEEPSTAKES_PRIZE = "SWEEPSTAKES_PRIZE"
 
 
 class CommercialObligationStatus(str, Enum):

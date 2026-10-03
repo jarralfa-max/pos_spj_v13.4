@@ -126,17 +126,48 @@ cada acción recorrida con los dos usuarios reales (JoseR y Juanis, ambos
   ticket de venta) DESPUÉS de validar y ANTES de registrar; sin impresora no se
   registra impresión fantasma. La copia lleva «(COPIA)».
 
+## 3e. Contabilidad de Fidelidad (2026-10-03, migración 294)
+
+Decisión del usuario: "contabiliza los puntos, cupones, vales, boletos y
+cualquier programa de fidelidad". Medido antes: **ningún** movimiento de
+Fidelidad llegaba a contabilidad (los manejadores de Finanzas existían sin
+suscriptor) y los bonos de cumpleaños, retos y referidos ni siquiera emitían
+evento. El puente (`backend/application/loyalty/integrations/finance_posting.py`)
+lee los LIBROS, no los eventos:
+
+| Movimiento | Asiento (cuentas del perfil contable) |
+|---|---|
+| Acumulación / bono / ajuste a favor | Dr 4202 contra-ingreso de fidelidad / Cr 2130 pasivo por puntos, al valor del punto vigente |
+| Canje en una venta | Dr 2130 / Cr 4201 descuento (la venta ya cargó el canje como descuento: no hay doble ingreso) |
+| Canje fuera de venta (recompensa, boleto por puntos) | Dr 2130 / Cr 4101 ingreso |
+| Caducidad | Dr 2130 / Cr 4120 breakage, sólo lo que queda (FIFO) |
+| Ajuste en contra, reverso de acumulación | espejo parcial del reconocimiento |
+| Reverso de un canje (venta cancelada) | espejo del asiento del canje |
+| Apartado (RESERVE) | nada hasta confirmarse; liberado no asienta |
+| Vale emitido / canjeado / vencido / cancelado | pasivo según su naturaleza / Dr pasivo Cr ingreso / breakage / retiro |
+| Cupón en venta | reclasificación Dr 4203 (o 1135 si lo financia el proveedor) / Cr 4201 |
+| Premio de sorteo | provisión al activar (Dr 6110 / Cr **2136** nueva), uso al entregar, liberación al resolver o cancelar |
+
+Cada consumo de puntos se asigna FIFO a sus acumulaciones (cada una a su valor
+reconocido); el estado vive en `loyalty_finance_links` y lo fallido queda
+FAILED, se reintenta solo y se ve en **Control → Contabilidad** (con alerta).
+Se dispara tras cada comando de Fidelidad, tras cada venta/cancelación/
+devolución y al abrir Fidelidad. Verificado sobre copia de la base real:
+4 pólizas, todas cuadradas.
+
 ## 4. Pendientes honestos (no hechos en esta ronda)
 
-* **Decisión contable pendiente:** Finanzas ya tiene manejadores para
-  `LOYALTY_POINTS_ISSUED/REDEEMED/EXPIRED`, cupones y vales, pero nadie los
-  suscribe ni drena los outbox. Conectarlos genera asientos por cada punto
-  acumulado (pasivo por puntos a valor razonable) y requiere elegir cuentas.
+* **Contabilidad — límites declarados:** el costo de una recompensa de PRODUCTO
+  no se asienta porque la recompensa no descuenta inventario; el vale
+  PREPAGADO queda FAILED a la vista (exigiría un cobro que el sistema no
+  registra); un canje de cupón sin venta no se asienta (el descuento lo asienta
+  quien lo aplicó); los vales no tienen canje en el POS (ningún llamador de
+  `ReserveVoucherAmountUseCase`). Los boletos no se venden: no tienen asiento
+  propio.
 * Tipos y estados ampliados de §31 (PHYSICAL_AND_DIGITAL, LOST/STOLEN…) no
   existen; la reposición no registra el motivo.
 * Ajuste de puntos con autorización de otra persona no tiene pantalla.
-* Ningún despachador drena los outbox de los cuatro contextos (Finanzas y BI no
-  reaccionan a Fidelidad).
+* BI no reacciona a Fidelidad (Finanzas ya sí, por el puente de libros).
 * La acumulación viva usa los ajustes de `configuraciones` que el usuario
   decidió en SALES-23; el motor declarativo `LoyaltyRule` (§13), stacking (§24)
   y `EvaluateCustomerBenefitsQuery` completo (§25) no están conectados al POS.
