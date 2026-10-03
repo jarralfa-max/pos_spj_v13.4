@@ -151,6 +151,19 @@ def _card_render(connection):
     return LoyaltyCardRenderDataQuery(connection)
 
 
+def _print_ticket_handler(connection, auth):
+    """Imprimir/reimprimir boleto: por la impresora de tickets que Document
+    Output asigna a la sucursal (la misma ruta que el ticket de venta)."""
+    from backend.infrastructure.hardware.sales_ticket_printer import SalesTicketPrinter
+
+    def handler(*, actor_branch_id=None, **kw):
+        printer = SalesTicketPrinter(connection, branch_id=actor_branch_id)
+        return sw_entries.PrintSweepstakesTicketUseCase(auth, printer=printer).execute(
+            connection, actor_branch_id=actor_branch_id, **kw)
+
+    return handler
+
+
 def _command_table(connection, auth) -> dict:
     b = lambda cls, **d: _bind(connection, cls, auth, **d)  # noqa: E731
     return {
@@ -208,7 +221,7 @@ def _command_table(connection, auth) -> dict:
         "add_sweepstakes_prize": b(sw_campaigns.AddSweepstakesPrizeUseCase),
         "grant_sweepstakes_entry": b(sw_entries.GrantSweepstakesEntryUseCase),
         "issue_sweepstakes_ticket": b(sw_entries.IssueSweepstakesTicketUseCase),
-        "print_sweepstakes_ticket": b(sw_entries.PrintSweepstakesTicketUseCase),
+        "print_sweepstakes_ticket": _print_ticket_handler(connection, auth),
         "void_sweepstakes_ticket": b(sw_entries.VoidSweepstakesTicketUseCase),
         "schedule_sweepstakes_draw": b(sw_draws.ScheduleSweepstakesDrawUseCase),
         "execute_sweepstakes_draw": b(sw_draws.ExecuteSweepstakesDrawUseCase),

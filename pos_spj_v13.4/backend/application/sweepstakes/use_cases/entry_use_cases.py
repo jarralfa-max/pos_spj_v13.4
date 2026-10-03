@@ -196,7 +196,16 @@ class PrintSweepstakesTicketUseCase(_SweepstakesBaseUseCase):
     La reimpresión conserva la participación y el folio (no crea nada nuevo),
     exige su propio permiso y —desde LOY-29— un MOTIVO, que viaja en el evento
     y en la auditoría. Antes se reimprimía sin decir por qué.
+
+    Con `printer` (LOY-29) el boleto sale de verdad por la impresora que Document
+    Output asigna a la sucursal: se envía DESPUÉS de validar permiso, motivo y
+    estado y ANTES de registrar la impresión, así que una impresora apagada no
+    deja una impresión fantasma en el contador. La copia lleva la marca COPIA.
     """
+
+    def __init__(self, authorization=None, *, printer=None) -> None:
+        super().__init__(authorization)
+        self._printer = printer
 
     def execute(self, connection, *, ticket_id: str, actor_user_id: str, actor_branch_id: str,
                 operation_id: str, reason: str | None = None) -> SweepstakesResult:
@@ -216,6 +225,19 @@ class PrintSweepstakesTicketUseCase(_SweepstakesBaseUseCase):
                 if is_reprint and not motivo:
                     raise InvalidSweepstakesTicketStateError(
                         "La reimpresión de un boleto requiere un motivo")
+                if ticket.status.value == "VOID":
+                    raise InvalidSweepstakesTicketStateError("Un boleto anulado no se imprime")
+                if self._printer is not None:
+                    campana = uow.campaigns.get(ticket.campaign_id)
+                    folio = ticket.ticket_number + (" (COPIA)" if is_reprint else "")
+                    try:
+                        self._printer.print_raffle_ticket({
+                            "folio": folio, "codigo": ticket.ticket_number,
+                            "nombre_sorteo": campana.name if campana else "Sorteo",
+                            "fecha": ticket.created_at[:10]})
+                    except Exception as exc:  # noqa: BLE001 - impresora: se informa, no se registra
+                        raise InvalidSweepstakesTicketStateError(
+                            f"El boleto no se imprimió: {exc}") from exc
                 ticket.record_print()
                 uow.tickets.save(ticket)
                 self._emit(uow, SweepstakesEvents.TICKET_PRINTED, entity_id=ticket.id,

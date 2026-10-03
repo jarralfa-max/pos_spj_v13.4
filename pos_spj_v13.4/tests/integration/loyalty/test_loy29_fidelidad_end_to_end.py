@@ -153,9 +153,13 @@ class TestInstrumentsAndSweepstakes:
         assert _first(a, R.VOUCHERS)["balance"] == Decimal("75.50")
 
     def test_entry_exists_before_ticket_and_reprint_needs_reason_and_keeps_entry(
-            self, conn, two_users):
+            self, conn, two_users, monkeypatch):
         from backend.domain.sweepstakes.enums import SweepstakesEntryMethod
+        from backend.infrastructure.hardware.sales_ticket_printer import SalesTicketPrinter
 
+        impresos = []
+        monkeypatch.setattr(SalesTicketPrinter, "print_raffle_ticket",
+                            lambda self, datos, **_: impresos.append(datos) or "job")
         a, b = two_users
         _ok(a.run_command("create_sweepstakes_campaign", code="S1", name="Rifa"))
         campana = _first(a, R.SWEEPSTAKES_CAMPAIGNS)
@@ -174,6 +178,26 @@ class TestInstrumentsAndSweepstakes:
         assert a.records(R.SWEEPSTAKES_ENTRIES).total == 1
         assert a.records(R.SWEEPSTAKES_TICKETS).total == 1
         assert _first(a, R.SWEEPSTAKES_TICKETS)["print_count"] == 2
+        assert [d["folio"].endswith("(COPIA)") for d in impresos] == [False, True]
+
+    def test_without_a_printer_the_print_is_not_recorded(self, conn, two_users):
+        from backend.domain.sweepstakes.enums import SweepstakesEntryMethod
+
+        a, b = two_users
+        _ok(a.run_command("create_sweepstakes_campaign", code="S2", name="Rifa"))
+        campana = _first(a, R.SWEEPSTAKES_CAMPAIGNS)
+        _ok(b.run_command("approve_sweepstakes_campaign", campaign_id=campana["id"]))
+        _ok(a.run_command("activate_sweepstakes_campaign", campaign_id=campana["id"]))
+        _ok(a.run_command("grant_sweepstakes_entry", campaign_id=campana["id"],
+                          customer_id=_customer(conn), chances_granted=1, notes="x",
+                          entry_method=SweepstakesEntryMethod.MANUAL_GRANT))
+        participacion = _first(a, R.SWEEPSTAKES_ENTRIES)
+        _ok(a.run_command("issue_sweepstakes_ticket", entry_id=participacion["id"],
+                          campaign_id=participacion["campaign_id"]))
+        boleto = _first(a, R.SWEEPSTAKES_TICKETS)
+        resultado = a.run_command("print_sweepstakes_ticket", ticket_id=boleto["id"])
+        assert not resultado.success and "impresora" in resultado.message.lower()
+        assert _first(a, R.SWEEPSTAKES_TICKETS)["print_count"] == 0
 
 
 class TestLoyaltyCards:

@@ -117,6 +117,15 @@ cada acción recorrida con los dos usuarios reales (JoseR y Juanis, ambos
   (llaves foráneas desactivadas durante la copia y verificadas al final).
 * Instalación desde cero verificada: ninguna tabla legacy, modelo nuevo.
 
+## 3d. Cuarta tanda
+
+* **Importar diseño** (PNG/JPEG/SVG) desde Plantillas: crea una versión nueva por
+  aprobar; un SVG con script o un PDF se rechazan.
+* **Boletos impresos de verdad**: «Imprimir»/«Reimprimir» envían el boleto a la
+  impresora de tickets de la sucursal (ruta de Document Output, la misma del
+  ticket de venta) DESPUÉS de validar y ANTES de registrar; sin impresora no se
+  registra impresión fantasma. La copia lleva «(COPIA)».
+
 ## 4. Pendientes honestos (no hechos en esta ronda)
 
 * **Decisión contable pendiente:** Finanzas ya tiene manejadores para
@@ -125,15 +134,12 @@ cada acción recorrida con los dos usuarios reales (JoseR y Juanis, ambos
   acumulado (pasivo por puntos a valor razonable) y requiere elegir cuentas.
 * Tipos y estados ampliados de §31 (PHYSICAL_AND_DIGITAL, LOST/STOLEN…) no
   existen; la reposición no registra el motivo.
-* Importar plantillas (`ImportLoyaltyCardDesignUseCase` existe) no tiene pantalla.
 * Ajuste de puntos con autorización de otra persona no tiene pantalla.
 * Ningún despachador drena los outbox de los cuatro contextos (Finanzas y BI no
   reaccionan a Fidelidad).
 * La acumulación viva usa los ajustes de `configuraciones` que el usuario
   decidió en SALES-23; el motor declarativo `LoyaltyRule` (§13), stacking (§24)
   y `EvaluateCustomerBenefitsQuery` completo (§25) no están conectados al POS.
-* Imprimir/reimprimir boletos desde Fidelidad registra la impresión pero no
-  envía nada a una impresora.
 * La pantalla de ajustes de privacidad de tarjetas (las claves ya existen).
 
 ## 5. Verificación
