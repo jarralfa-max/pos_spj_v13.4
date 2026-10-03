@@ -56,6 +56,14 @@ class LoyaltyCardRenderDataQuery:
             (membership_id,)).fetchone()
         return str(fila[0]) if fila else None
 
+    def owner_of_membership(self, membership_id: str) -> tuple[str, str] | None:
+        """(customer_id, loyalty_account_id) de una membresía, o None."""
+        fila = self._conn.execute(
+            "SELECT a.customer_id, a.id FROM loyalty_memberships m"
+            " JOIN loyalty_accounts a ON a.id = m.loyalty_account_id WHERE m.id = ?",
+            (membership_id,)).fetchone()
+        return (str(fila[0]), str(fila[1])) if fila else None
+
     def recipients_without_card(self, program_id: str) -> list[tuple[str, str]]:
         """(customer_id, membership_id) de cada membresía ACTIVA del programa
         sin una tarjeta vigente — nunca dos tarjetas vigentes por lote (§12)."""

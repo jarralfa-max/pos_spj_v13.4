@@ -105,14 +105,26 @@ cada acción recorrida con los dos usuarios reales (JoseR y Juanis, ambos
   verificados como en el login; el autorizador necesita `puntos.ajustar`); ni el
   ajuste ni el reverso pueden dejar saldo negativo.
 
+## 3c. Tercera tanda (migración 293): tarjetas preimpresas (§44-45)
+
+* Estado `UNASSIGNED`: la tarjeta nace con número y QR, sin cliente ni
+  membresía. «Lote preimpreso» genera N tarjetas así; «Asignar» la entrega a una
+  membresía (una sola vez, nunca se reasigna; una membresía no puede tener dos
+  tarjetas vigentes) y queda en `loyalty_card_assignments` con quién, cuándo,
+  dónde y por qué. Después se activa como cualquier tarjeta. Escanear una tarjeta
+  sin asignar no identifica a nadie y lo dice.
+* La 293 reconstruye `loyalty_cards` para admitir NULL en cliente/membresía
+  (llaves foráneas desactivadas durante la copia y verificadas al final).
+* Instalación desde cero verificada: ninguna tabla legacy, modelo nuevo.
+
 ## 4. Pendientes honestos (no hechos en esta ronda)
 
 * **Decisión contable pendiente:** Finanzas ya tiene manejadores para
   `LOYALTY_POINTS_ISSUED/REDEEMED/EXPIRED`, cupones y vales, pero nadie los
   suscribe ni drena los outbox. Conectarlos genera asientos por cada punto
   acumulado (pasivo por puntos a valor razonable) y requiere elegir cuentas.
-* Tarjetas preimpresas sin asignar y la entidad `LoyaltyCardAssignment`
-  (§44-45) no existen en el dominio; tampoco los tipos/estados ampliados de §31.
+* Tipos y estados ampliados de §31 (PHYSICAL_AND_DIGITAL, LOST/STOLEN…) no
+  existen; la reposición no registra el motivo.
 * Importar plantillas (`ImportLoyaltyCardDesignUseCase` existe) no tiene pantalla.
 * Ajuste de puntos con autorización de otra persona no tiene pantalla.
 * Ningún despachador drena los outbox de los cuatro contextos (Finanzas y BI no

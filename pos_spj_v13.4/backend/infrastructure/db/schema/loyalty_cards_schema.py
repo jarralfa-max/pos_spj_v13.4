@@ -25,6 +25,7 @@ LOYALTY_CARDS_TABLES: tuple[str, ...] = (
     "loyalty_digital_card_projections",
     "loyalty_cards_outbox",
     "loyalty_card_secrets",
+    "loyalty_card_assignments",
 )
 
 _DDL = (
@@ -34,8 +35,9 @@ _DDL = (
         id TEXT NOT NULL PRIMARY KEY,
         card_number TEXT NOT NULL UNIQUE,
         card_type TEXT NOT NULL,
-        customer_id TEXT NOT NULL,
-        membership_id TEXT NOT NULL,
+        -- LOY-29 (§44): NULL sólo mientras la tarjeta preimpresa no se asigna.
+        customer_id TEXT,
+        membership_id TEXT,
         status TEXT NOT NULL DEFAULT 'ISSUED',
         issued_at TEXT NOT NULL,
         activated_at TEXT,
@@ -198,6 +200,21 @@ _DDL = (
         id TEXT NOT NULL PRIMARY KEY,
         value TEXT NOT NULL,
         created_at TEXT NOT NULL
+    )
+    """,
+    # ── asignación de tarjetas preimpresas (LOY-29, §45) ─────────────────
+    """
+    CREATE TABLE IF NOT EXISTS loyalty_card_assignments (
+        id TEXT NOT NULL PRIMARY KEY,
+        card_id TEXT NOT NULL UNIQUE REFERENCES loyalty_cards(id),
+        loyalty_account_id TEXT NOT NULL,
+        membership_id TEXT NOT NULL,
+        customer_id TEXT NOT NULL,
+        assigned_by_user_id TEXT NOT NULL,
+        assignment_reason TEXT NOT NULL DEFAULT '',
+        branch_id TEXT,
+        operation_id TEXT NOT NULL UNIQUE,
+        assigned_at TEXT NOT NULL
     )
     """,
     # ── transactional outbox ─────────────────────────────────────────────

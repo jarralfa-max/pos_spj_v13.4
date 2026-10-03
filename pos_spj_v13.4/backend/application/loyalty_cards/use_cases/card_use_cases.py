@@ -16,6 +16,7 @@ from backend.domain.loyalty_cards.entities.loyalty_card_token import LoyaltyCard
 from backend.domain.loyalty_cards.enums import LoyaltyCardType
 from backend.domain.loyalty_cards.events import LoyaltyCardEvents
 from backend.domain.loyalty_cards.exceptions import (
+    InvalidLoyaltyCardStateError,
     LoyaltyCardDomainError,
     LoyaltyCardNotFoundError,
 )
@@ -181,5 +182,52 @@ class CancelLoyaltyCardUseCase(_LoyaltyCardsBaseUseCase):
                            actor_user_id=actor_user_id, reason=reason)
             return LoyaltyCardResult.ok("Tarjeta cancelada", entity_id=card.id,
                                         operation_id=operation_id)
+        except LoyaltyCardDomainError as exc:
+            return fail_from_domain_error(exc, operation_id=operation_id)
+
+
+class AssignLoyaltyCardUseCase(_LoyaltyCardsBaseUseCase):
+    """Asigna una tarjeta PREIMPRESA a una membresía (LOY-29, §44-45).
+
+    Una sola vez: una tarjeta ya asignada no se reasigna (si cambia de dueño se
+    cancela y se emite otra). Una membresía no puede tener dos tarjetas vigentes
+    (§46: política de múltiples tarjetas). La asignación queda registrada con
+    quién, cuándo, dónde y por qué; después la tarjeta se activa como cualquier
+    otra. Cliente y cuenta los resuelve quien llama a partir de la membresía:
+    Tarjetas no lee las tablas de Fidelidad.
+    """
+
+    def execute(self, connection, *, card_id: str, membership_id: str, customer_id: str,
+                loyalty_account_id: str, reason: str = "", actor_user_id: str,
+                actor_branch_id: str, operation_id: str) -> LoyaltyCardResult:
+        from backend.domain.loyalty_cards.entities.loyalty_card_assignment import (
+            LoyaltyCardAssignment,
+        )
+
+        try:
+            self._auth.require(actor_user_id, LoyaltyCardsPermissions.CARD_ASSIGN)
+            with LoyaltyCardsUnitOfWork(connection) as uow:
+                card = uow.cards.get(card_id)
+                if card is None:
+                    return fail_from_domain_error(
+                        LoyaltyCardNotFoundError(f"Tarjeta {card_id} no existe"),
+                        operation_id=operation_id)
+                if uow.cards.live_for_membership(membership_id):
+                    raise InvalidLoyaltyCardStateError(
+                        "Esa membresía ya tiene una tarjeta vigente; repón o cancela la "
+                        "anterior primero")
+                card.assign(customer_id=customer_id, membership_id=membership_id)
+                uow.cards.save(card)
+                uow.assignments.add(LoyaltyCardAssignment.record(
+                    card_id=card.id, loyalty_account_id=loyalty_account_id,
+                    membership_id=membership_id, customer_id=customer_id,
+                    assigned_by_user_id=actor_user_id, assignment_reason=reason or "",
+                    branch_id=actor_branch_id, operation_id=operation_id))
+                self._emit(uow, LoyaltyCardEvents.CARD_ASSIGNED, entity_id=card.id,
+                           operation_id=operation_id, branch_id=actor_branch_id,
+                           actor_user_id=actor_user_id, card_number=card.card_number,
+                           membership_id=membership_id, reason=reason or None)
+            return LoyaltyCardResult.ok("Tarjeta asignada", entity_id=card.id,
+                                        operation_id=operation_id, card_number=card.card_number)
         except LoyaltyCardDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)

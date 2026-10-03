@@ -84,6 +84,8 @@ class ResolveLoyaltyCardQuery:
             elegible = False if aviso_qr else True
         if card.status in _MOTIVOS:
             avisos.append(_MOTIVOS[card.status])
+        if card.status is LoyaltyCardStatus.UNASSIGNED:
+            avisos.append("La tarjeta aún no está asignada a un cliente.")
         if datos and datos["membership_status"] != "ACTIVE":
             avisos.append("La membresía del cliente no está activa.")
         return ResolvedLoyaltyCard(

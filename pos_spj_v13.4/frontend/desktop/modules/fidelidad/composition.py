@@ -277,6 +277,19 @@ def _card_command_table(connection, cards_auth) -> dict:
         valores = datos.placeholders_for_batch(batch_id) if batch_id else {}
         return reprint(original_job_id=original_job_id, card_placeholder_values=valores, **kw)
 
+    assign = b(cc.AssignLoyaltyCardUseCase)
+
+    def assign_card(*, membership_id, **kw):
+        dueno = datos.owner_of_membership(membership_id)
+        if dueno is None:
+            return LoyaltyCardResult.fail("La membresía no existe.", "NOT_FOUND")
+        customer_id, account_id = dueno
+        return assign(membership_id=membership_id, customer_id=customer_id,
+                      loyalty_account_id=account_id, **kw)
+
+    def create_preprinted_batch(**kw):
+        return create_batch(**kw)
+
     create_projection = b(cd.CreateLoyaltyDigitalCardProjectionUseCase)
     refresh_projection = b(cd.RefreshLoyaltyDigitalCardProjectionUseCase)
 
@@ -287,6 +300,8 @@ def _card_command_table(connection, cards_auth) -> dict:
 
     return {
         "issue_card": issue_card,
+        "assign_card": assign_card,
+        "create_preprinted_batch": create_preprinted_batch,
         "activate_card": b(cc.ActivateLoyaltyCardUseCase),
         "block_card": b(cc.BlockLoyaltyCardUseCase),
         "unblock_card": b(cc.UnblockLoyaltyCardUseCase),

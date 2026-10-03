@@ -19,6 +19,8 @@ class LoyaltyCardRepository(LoyaltyCardsRepositoryBase):
                 cancelled_at, cancel_reason, expires_at, created_at, updated_at
             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(id) DO UPDATE SET
+                customer_id=excluded.customer_id,
+                membership_id=excluded.membership_id,
                 status=excluded.status,
                 activated_at=excluded.activated_at,
                 blocked_at=excluded.blocked_at,
@@ -55,6 +57,14 @@ class LoyaltyCardRepository(LoyaltyCardsRepositoryBase):
 
     def count_all(self) -> int:
         return self._scalar("SELECT COUNT(*) FROM loyalty_cards", (), default=0)
+
+    def live_for_membership(self, membership_id: str) -> list[LoyaltyCard]:
+        """Tarjetas vigentes (emitida, activa o bloqueada) de una membresía."""
+        rows = self._query(
+            "SELECT * FROM loyalty_cards WHERE membership_id=?"
+            " AND status IN ('ISSUED', 'ACTIVE', 'BLOCKED') ORDER BY created_at",
+            (membership_id,))
+        return [self._hydrate(row) for row in rows]
 
     def count_for_membership(self, membership_id: str) -> int:
         return self._scalar(

@@ -26,8 +26,8 @@ class LoyaltyCard:
     id: str
     card_number: str
     card_type: LoyaltyCardType
-    customer_id: str
-    membership_id: str
+    customer_id: str | None
+    membership_id: str | None
     status: LoyaltyCardStatus = LoyaltyCardStatus.ISSUED
     issued_at: str = field(default_factory=_utcnow)
     activated_at: str | None = None
@@ -44,6 +44,11 @@ class LoyaltyCard:
     def __post_init__(self) -> None:
         if not self.card_number or not self.card_number.strip():
             raise InvalidLoyaltyCardError("card_number es obligatorio")
+        if self.status is LoyaltyCardStatus.UNASSIGNED:
+            if self.customer_id or self.membership_id:
+                raise InvalidLoyaltyCardError(
+                    "Una tarjeta sin asignar no tiene cliente ni membresía")
+            return
         if not self.customer_id:
             raise InvalidLoyaltyCardError("customer_id es obligatorio")
         if not self.membership_id:
@@ -54,6 +59,25 @@ class LoyaltyCard:
               membership_id: str, **kwargs) -> "LoyaltyCard":
         return cls(id=new_uuid(), card_number=card_number.strip(), card_type=card_type,
                     customer_id=customer_id, membership_id=membership_id, **kwargs)
+
+    @classmethod
+    def generate_unassigned(cls, card_number: str, card_type: LoyaltyCardType) -> "LoyaltyCard":
+        """§44: tarjeta preimpresa — número y QR propios, sin cliente todavía."""
+        return cls(id=new_uuid(), card_number=card_number.strip(), card_type=card_type,
+                   customer_id=None, membership_id=None, status=LoyaltyCardStatus.UNASSIGNED)
+
+    def assign(self, *, customer_id: str, membership_id: str) -> None:
+        """§45: asignar es una operación explícita y única. Una tarjeta ya
+        asignada NO se reasigna: si cambia de dueño, se cancela y se emite otra."""
+        if self.status is not LoyaltyCardStatus.UNASSIGNED:
+            raise InvalidLoyaltyCardStateError(
+                f"Sólo se asigna una tarjeta sin asignar (actual: {self.status.value})")
+        if not customer_id or not membership_id:
+            raise InvalidLoyaltyCardError("La asignación requiere cliente y membresía")
+        self.customer_id = customer_id
+        self.membership_id = membership_id
+        self.status = LoyaltyCardStatus.ISSUED
+        self.updated_at = _utcnow()
 
     @classmethod
     def issue_replacement(cls, old_card: "LoyaltyCard", card_number: str) -> "LoyaltyCard":

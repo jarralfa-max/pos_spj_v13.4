@@ -72,6 +72,7 @@ class LoyaltyRecord(str, Enum):
     SWEEPSTAKES_WINNERS = "sweepstakes_winners"
     CARDS = "cards"
     CARD_REPLACEMENTS = "card_replacements"
+    CARD_ASSIGNMENTS = "card_assignments"
     CARD_TEMPLATES = "card_templates"
     CARD_TEMPLATE_VERSIONS = "card_template_versions"
     CARD_SHEETS = "card_sheets"
@@ -113,6 +114,7 @@ _REGISTROS: dict[LoyaltyRecord, tuple[RecordSpec, str]] = {
     R.SWEEPSTAKES_WINNERS: (specs.SWEEPSTAKES_WINNERS, LP.SWEEPSTAKES_VIEW),
     R.CARDS: (specs.CARDS, CP.CARD_VIEW),
     R.CARD_REPLACEMENTS: (specs.CARD_REPLACEMENTS, CP.CARD_VIEW),
+    R.CARD_ASSIGNMENTS: (specs.CARD_ASSIGNMENTS, CP.CARD_VIEW),
     R.CARD_TEMPLATES: (specs.CARD_TEMPLATES, CP.TEMPLATE_VIEW),
     R.CARD_TEMPLATE_VERSIONS: (specs.CARD_TEMPLATE_VERSIONS, CP.TEMPLATE_VIEW),
     R.CARD_SHEETS: (specs.CARD_SHEETS, CP.VIEW),
@@ -220,6 +222,7 @@ class LoyaltyRecordsQueryService:
         por_estado = {estado: int(n) for estado, n in self._conn.execute(
             "SELECT status, COUNT(*) FROM loyalty_cards GROUP BY status").fetchall()}
         return {
+            "unassigned": por_estado.get("UNASSIGNED", 0),
             "active": por_estado.get("ACTIVE", 0),
             "issued": por_estado.get("ISSUED", 0),
             "blocked": por_estado.get("BLOCKED", 0),

@@ -363,3 +363,45 @@ class TestAuthorizedAdjustment:
         assert not a.run_command("adjust_points", loyalty_account_id=cuenta,
                                  points_amount=Decimal("-11"), reason_code="ERROR",
                                  authorizer_user_id=ids["admin"]).success
+
+
+class TestPreprintedCards:
+    """§44-45: tarjetas preimpresas sin cliente, asignadas una sola vez."""
+
+    def test_preprinted_batch_assign_activate_and_no_reassignment(self, conn, two_users):
+        from backend.application.loyalty_cards.queries.card_render_data_query import (
+            LoyaltyCardRenderDataQuery,
+        )
+
+        a, b = two_users
+        programa, plantilla, _tarjeta = TestLoyaltyCards()._card_setup(conn, a, b)
+        _ok(a.run_command("create_standard_sheet"))
+        _ok(a.run_command("create_imposition", sheet_profile_id=_first(a, R.CARD_SHEETS)["id"],
+                          card_width_mm=Decimal("85.6"), card_height_mm=Decimal("53.98")))
+        _ok(a.run_command("create_preprinted_batch", blank_quantity=3,
+                          template_id=plantilla["id"],
+                          imposition_profile_id=_first(a, R.CARD_IMPOSITIONS)["id"]))
+        sin_asignar = a.records(R.CARDS, status="UNASSIGNED").rows
+        assert len(sin_asignar) == 3
+        datos = LoyaltyCardRenderDataQuery(conn)
+        impreso = datos.placeholders_for_card(sin_asignar[0]["id"])
+        assert impreso["customer_name"] == "" and impreso["card_token"].startswith("SPJ-CARD:")
+        resuelta = a.resolve_card(impreso["card_token"])
+        assert resuelta.found and not resuelta.eligible
+        assert any("asignada" in aviso for aviso in resuelta.warnings)
+
+        # La única membresía ya tiene su tarjeta personalizada: no admite otra.
+        membresia = _first(a, R.MEMBERSHIPS)
+        assert not a.run_command("assign_card", card_id=sin_asignar[0]["id"],
+                                 membership_id=membresia["id"]).success
+        otro = _active_program(a, b, code="P3")
+        _ok(a.run_command("enroll_membership", customer_id=membresia["customer_id"],
+                          program_id=otro))
+        nueva = [m for m in a.records(R.MEMBERSHIPS).rows if m["program_id"] == otro][0]
+        _ok(a.run_command("assign_card", card_id=sin_asignar[0]["id"],
+                          membership_id=nueva["id"], reason="Entregada en mostrador"))
+        assert a.records(R.CARD_ASSIGNMENTS).total == 1
+        assert not a.run_command("assign_card", card_id=sin_asignar[0]["id"],
+                                 membership_id=nueva["id"]).success  # no se reasigna
+        _ok(a.run_command("activate_card", card_id=sin_asignar[0]["id"]))
+        assert a.resolve_card(impreso["card_token"]).eligible

@@ -98,6 +98,8 @@ FIDELIDAD_ROUTES: tuple[FidelidadRoute, ...] = (
     _r("cards.cards", "Tarjetas", "Tarjetas de fidelidad",
        "Emitir, activar, bloquear, reponer y rotar QR.", CP.CARD_VIEW, "cards",
        Icons.LOYALTY_CARDS),
+    _r("cards.assignments", "Asignaciones", "Tarjetas de fidelidad",
+       "Tarjetas preimpresas entregadas a clientes.", CP.CARD_VIEW, "cards", Icons.USERS),
     _r("cards.templates", "Plantillas", "Tarjetas de fidelidad",
        "Plantillas versionadas y su aprobación.", CP.TEMPLATE_VIEW, "card_templates",
        Icons.DOCUMENT),

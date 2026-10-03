@@ -280,6 +280,16 @@ CARDS = RecordSpec(
     search_in=("k.card_number", "cu.display_name"),
     filters={"customer_id": "k.customer_id", "card_type": "k.card_type"})
 
+CARD_ASSIGNMENTS = RecordSpec(
+    columns=(("id", "x.id"), ("assigned_at", "x.assigned_at"), ("card_number", "k.card_number"),
+             ("customer_name", "cu.display_name"), ("assignment_reason", "x.assignment_reason"),
+             ("assigned_by", "COALESCE(u.nombre, x.assigned_by_user_id)"),
+             ("card_status", "k.status")),
+    source=("loyalty_card_assignments x JOIN loyalty_cards k ON k.id = x.card_id "
+            + _cliente("cu", "x.customer_id") + " LEFT JOIN usuarios u ON u.id = x.assigned_by_user_id"),
+    order="x.assigned_at DESC, x.id DESC", status="k.status",
+    search_in=("k.card_number", "cu.display_name"))
+
 CARD_REPLACEMENTS = RecordSpec(
     columns=CARDS.columns, source=CARDS.source, order=CARDS.order, status=CARDS.status,
     search_in=CARDS.search_in, where="(k.replaces_card_id IS NOT NULL OR k.replaced_by_card_id IS NOT NULL)")

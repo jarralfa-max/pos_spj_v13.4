@@ -13,7 +13,10 @@ class LoyaltyCardType(str, Enum):
 
 class LoyaltyCardStatus(str, Enum):
     """§31. ``ISSUED`` = printed/provisioned but not yet handed to the
-    customer and activated; a card only earns/redeems once ``ACTIVE``."""
+    customer and activated; a card only earns/redeems once ``ACTIVE``.
+    ``UNASSIGNED`` (LOY-29, §44): preprinted card with its QR but no customer
+    yet; it is assigned later and only then can be activated."""
+    UNASSIGNED = "UNASSIGNED"
     ISSUED = "ISSUED"
     ACTIVE = "ACTIVE"
     BLOCKED = "BLOCKED"

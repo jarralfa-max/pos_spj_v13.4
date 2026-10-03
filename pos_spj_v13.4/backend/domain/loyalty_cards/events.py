@@ -12,6 +12,7 @@ from backend.shared.ids import new_uuid, validate_uuidv7
 
 class LoyaltyCardEvents:
     CARD_ISSUED = "LOYALTY_CARD_ISSUED"
+    CARD_ASSIGNED = "LOYALTY_CARD_ASSIGNED"
     CARD_ACTIVATED = "LOYALTY_CARD_ACTIVATED"
     CARD_BLOCKED = "LOYALTY_CARD_BLOCKED"
     CARD_UNBLOCKED = "LOYALTY_CARD_UNBLOCKED"

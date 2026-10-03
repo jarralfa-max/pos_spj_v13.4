@@ -48,6 +48,12 @@ CARDS = P(
               record_filters={"status": "ACTIVE"}),
             F("card_type", "Tipo", K.CHOICE, enum=LoyaltyCardType, default="PHYSICAL")),
           success="Tarjeta emitida con su QR."),
+        A("assign_card", "Asignar", CP.CARD_ASSIGN, selection_param="card_id", fields=(
+            F("membership_id", "Membresía", K.RECORD, record=R.MEMBERSHIPS,
+              record_label=("customer_name", "program_name"),
+              record_filters={"status": "ACTIVE"}),
+            F("reason", "Motivo", required=False)),
+          success="Tarjeta asignada; actívala al entregarla."),
         A("activate_card", "Activar", CP.CARD_ACTIVATE, selection_param="card_id",
           success="Tarjeta activa."),
         A("block_card", "Bloquear", CP.CARD_BLOCK, selection_param="card_id", variant="danger",
@@ -175,6 +181,14 @@ BATCHES = P(
             F("imposition_profile_id", "Imposición", K.RECORD, record=R.CARD_IMPOSITIONS,
               record_label=("sheet_name", "columns", "rows"))),
           success="Lote creado."),
+        A("create_preprinted_batch", "Lote preimpreso", CP.BATCH_CREATE, fields=(
+            F("blank_quantity", "Cantidad de tarjetas", K.INTEGER,
+              helper="Tarjetas con número y QR, sin cliente; se asignan al entregarlas."),
+            F("template_id", "Plantilla", K.RECORD, record=R.CARD_TEMPLATES,
+              record_label=("name", "code"), record_filters={"status": "ACTIVE"}),
+            F("imposition_profile_id", "Imposición", K.RECORD, record=R.CARD_IMPOSITIONS,
+              record_label=("sheet_name", "columns", "rows"))),
+          success="Lote preimpreso creado."),
         A("submit_card_batch", "Enviar a aprobación", CP.BATCH_CREATE, selection_param="batch_id",
           success="Lote enviado a aprobación."),
         A("approve_card_batch", "Aprobar", CP.BATCH_APPROVE, selection_param="batch_id",
@@ -229,6 +243,15 @@ DIGITAL = P(
     ),
     empty_message="Sin tarjetas digitales publicadas.")
 
+ASSIGNMENTS = P(
+    key="card_assignments", title="Asignaciones", record=R.CARD_ASSIGNMENTS,
+    status_enum=LoyaltyCardStatus,
+    subtitle="A quién se entregó cada tarjeta preimpresa, quién la asignó y por qué.",
+    columns=(C("Fecha", "assigned_at", "date"), C("Tarjeta", "card_number"),
+             C("Cliente", "customer_name"), C("Motivo", "assignment_reason"),
+             C("Asignó", "assigned_by"), C("Estado de la tarjeta", "card_status", "status")),
+    empty_message="Sin asignaciones. Asigna tarjetas preimpresas desde «Tarjetas».")
+
 CARD_AUDIT = P(
     key="card_audit", title="Auditoría de tarjetas", record=R.CARD_AUDIT,
     subtitle="Emisión, activación, bloqueo, reposición, impresión y rotación de QR.",
@@ -241,6 +264,7 @@ CARD_RECORD_ROUTES: dict[str, P | TabbedSpec] = {
     "cards.templates": TEMPLATES_TABS,
     "cards.sheets": SHEETS_TABS,
     "cards.batches": BATCHES,
+    "cards.assignments": ASSIGNMENTS,
     "cards.printing": PRINT_JOBS,
     "cards.reprints": REPRINTS,
     "cards.digital": DIGITAL,

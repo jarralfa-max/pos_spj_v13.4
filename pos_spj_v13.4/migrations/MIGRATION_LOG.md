@@ -4451,3 +4451,10 @@ COPIA de la base real con los dos usuarios reales. Detalle completo:
 con `legacy_alter_table=ON` porque la base real trae una vista legacy rota que
 hacía fallar el RENAME y, con él, el arranque. Filas previas: huella con versión
 0 (resuelven; para reimprimir hay que rotar el QR). Real: 0 filas.
+
+### 293 — tarjetas preimpresas y asignación (2026-10-03)
+
+`loyalty_cards.customer_id`/`membership_id` admiten NULL (estado `UNASSIGNED`);
+reconstrucción con `foreign_keys=OFF` + `legacy_alter_table=ON` y
+`foreign_key_check` al final. Nueva `loyalty_card_assignments` (una por tarjeta,
+idempotente por `operation_id`).

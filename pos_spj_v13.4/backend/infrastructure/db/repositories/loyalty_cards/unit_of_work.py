@@ -6,6 +6,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.infrastructure.db.repositories.loyalty_cards.assignment_repository import (
+    LoyaltyCardAssignmentRepository,
+)
+
 from backend.infrastructure.db.repositories.loyalty_cards.card_repository import (
     LoyaltyCardRepository,
     LoyaltyCardTokenRepository,
@@ -38,6 +42,7 @@ class LoyaltyCardsUnitOfWork:
         self.connection = connection
         self._owns_transaction = owns_transaction
         self.cards = LoyaltyCardRepository(connection)
+        self.assignments = LoyaltyCardAssignmentRepository(connection)
         self.tokens = LoyaltyCardTokenRepository(connection)
         self.templates = LoyaltyCardTemplateRepository(connection)
         self.template_versions = LoyaltyCardTemplateVersionRepository(connection)

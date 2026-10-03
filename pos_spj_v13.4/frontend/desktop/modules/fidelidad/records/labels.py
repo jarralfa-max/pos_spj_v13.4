@@ -103,7 +103,7 @@ _POR_ENUM: dict[str, dict[str, str]] = {
         "PENDING_VALIDATION": "Por validar", "VALIDATED": "Validado",
         "DISQUALIFIED": "Descalificado", "PRIZE_DELIVERED": "Premio entregado",
         "EXPIRED": "Vencido"},
-    "LoyaltyCardStatus": {"ISSUED": "Emitida", "ACTIVE": "Activa", "BLOCKED": "Bloqueada",
+    "LoyaltyCardStatus": {"UNASSIGNED": "Sin asignar", "ISSUED": "Emitida", "ACTIVE": "Activa", "BLOCKED": "Bloqueada",
                           "REPLACED": "Repuesta", "CANCELLED": "Cancelada", "EXPIRED": "Vencida"},
     "LoyaltyCardBatchStatus": {"PRINTING": "Imprimiendo", "COMPLETED": "Terminado"},
     "LoyaltyCardBatchItemStatus": {},

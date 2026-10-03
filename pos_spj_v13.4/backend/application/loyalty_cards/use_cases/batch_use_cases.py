@@ -34,14 +34,23 @@ from backend.infrastructure.db.repositories.loyalty_cards.unit_of_work import Lo
 class CreateLoyaltyCardBatchUseCase(_LoyaltyCardsBaseUseCase):
     def execute(
         self, connection, *, template_id: str, imposition_profile_id: str,
-        recipients: list[tuple[str, str]], actor_user_id: str, actor_branch_id: str,
-        operation_id: str, card_type: LoyaltyCardType = LoyaltyCardType.PHYSICAL,
+        recipients: list[tuple[str, str]] | None = None, actor_user_id: str,
+        actor_branch_id: str, operation_id: str,
+        card_type: LoyaltyCardType = LoyaltyCardType.PHYSICAL, blank_quantity: int = 0,
     ) -> LoyaltyCardResult:
-        """`recipients` is a list of `(customer_id, membership_id)` pairs —
-        one physical card is issued per pair, in list order (which fixes
-        each item's `sheet_number`/`position_in_sheet`, §43-44)."""
+        """Personalizadas: `recipients` es una lista de `(customer_id,
+        membership_id)` — una tarjeta por par, en orden (que fija pliego y
+        posición, §43-44). Preimpresas (LOY-29, §44): `blank_quantity` tarjetas
+        SIN asignar, cada una con su número y su QR; se asignan después."""
+        recipients = list(recipients or [])
         try:
             self._auth.require(actor_user_id, LoyaltyCardsPermissions.BATCH_CREATE)
+            if recipients and blank_quantity:
+                raise InvalidLoyaltyCardBatchError(
+                    "Un lote es de tarjetas personalizadas (destinatarios) o preimpresas "
+                    "(cantidad), no ambas")
+            if blank_quantity < 0:
+                raise InvalidLoyaltyCardBatchError("La cantidad no puede ser negativa")
             with LoyaltyCardsUnitOfWork(connection) as uow:
                 template = uow.templates.get(template_id)
                 if template is None:
@@ -60,17 +69,21 @@ class CreateLoyaltyCardBatchUseCase(_LoyaltyCardsBaseUseCase):
                             f"Perfil de imposición {imposition_profile_id} no existe"),
                         operation_id=operation_id)
 
+                total = len(recipients) or int(blank_quantity)
                 batch = LoyaltyCardBatch.create(
-                    template_id, imposition_profile_id, len(recipients),
+                    template_id, imposition_profile_id, total,
                     imposition.cards_per_sheet, created_by_user_id=actor_user_id)
                 uow.batches.save(batch)
 
                 sequence = uow.cards.count_all()
                 codec = self._codec(connection)
-                for index, (customer_id, membership_id) in enumerate(recipients):
+                destinos = recipients or [(None, None)] * int(blank_quantity)
+                for index, (customer_id, membership_id) in enumerate(destinos):
                     sequence += 1
-                    card = LoyaltyCard.issue(
+                    card = (LoyaltyCard.issue(
                         f"LC-{sequence:08d}", card_type, customer_id, membership_id)
+                        if customer_id else LoyaltyCard.generate_unassigned(
+                            f"LC-{sequence:08d}", card_type))
                     uow.cards.save(card)
                     token = LoyaltyCardPublicToken.issue(card.id, codec)
                     uow.tokens.save(token)

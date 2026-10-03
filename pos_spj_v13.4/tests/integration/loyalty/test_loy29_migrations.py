@@ -161,3 +161,40 @@ class TestTokenHash292:
         c.execute("PRAGMA legacy_alter_table=OFF")
         self._292.run(c)
         assert "token_hash" in {f[1] for f in c.execute("PRAGMA table_info(loyalty_card_tokens)")}
+
+
+class TestPreprinted293:
+    _293 = importlib.import_module("migrations.standalone.293_loyalty_card_preprinted_assignment")
+
+    def test_cards_accept_unassigned_rows_and_children_survive(self):
+        from backend.infrastructure.db.schema.loyalty_cards_schema import (
+            create_loyalty_cards_schema,
+        )
+
+        c = sqlite3.connect(":memory:")
+        c.execute("PRAGMA foreign_keys=ON")
+        create_loyalty_cards_schema(c)
+        c.executescript(
+            "DROP TABLE loyalty_card_assignments; DROP TABLE loyalty_card_tokens;"
+            "DROP TABLE loyalty_cards;"
+            "CREATE TABLE loyalty_cards (id TEXT NOT NULL PRIMARY KEY, card_number TEXT NOT NULL"
+            " UNIQUE, card_type TEXT NOT NULL, customer_id TEXT NOT NULL, membership_id TEXT NOT"
+            " NULL, status TEXT NOT NULL DEFAULT 'ISSUED', issued_at TEXT NOT NULL, activated_at"
+            " TEXT, blocked_at TEXT, block_reason TEXT, replaces_card_id TEXT, replaced_by_card_id"
+            " TEXT, cancelled_at TEXT, cancel_reason TEXT, expires_at TEXT, created_at TEXT NOT"
+            " NULL, updated_at TEXT NOT NULL);"
+            "INSERT INTO loyalty_cards (id, card_number, card_type, customer_id, membership_id,"
+            " issued_at, created_at, updated_at) VALUES ('c1','LC-1','PHYSICAL','cu','m1','x','x','x');")
+        create_loyalty_cards_schema(c)  # recrea tokens con FK a loyalty_cards
+        c.execute("INSERT INTO loyalty_card_tokens (id, card_id, token_hash, token_prefix,"
+                  " status, created_at) VALUES ('t1','c1',?, 'abcdef', 'ACTIVE', 'x')", ("a" * 64,))
+        c.commit()
+        self._293.run(c)
+        nulos = {f[1]: f[3] for f in c.execute("PRAGMA table_info(loyalty_cards)")}
+        assert nulos["customer_id"] == 0 and nulos["membership_id"] == 0
+        assert c.execute("SELECT COUNT(*) FROM loyalty_card_tokens").fetchone()[0] == 1
+        assert c.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+        c.execute("INSERT INTO loyalty_cards (id, card_number, card_type, status, issued_at,"
+                  " created_at, updated_at) VALUES ('c2','LC-2','PHYSICAL','UNASSIGNED','x','x','x')")
+        assert c.execute("SELECT 1 FROM sqlite_master WHERE name='loyalty_card_assignments'").fetchone()
+        self._293.run(c)  # idempotente
