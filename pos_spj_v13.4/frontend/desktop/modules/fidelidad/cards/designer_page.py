@@ -89,13 +89,15 @@ class CardDesignerPage(StandardPage):
         self.face.set_current_id("elements")
         self.face.selection_changed.connect(self._change_face)
         barra.addWidget(self.face)
+        layout.addLayout(barra)
+        # Validar y guardar viven en la barra fija de acciones de la página: siempre
+        # visibles, sin importar el ancho de la ventana.
         validar = create_secondary_button(self, "Validar")
         validar.clicked.connect(self.validate)
-        barra.addWidget(validar)
+        self.add_action(validar)
         self.save_button = create_primary_button(self, "Guardar versión")
         self.save_button.clicked.connect(self.save)
-        barra.addWidget(self.save_button)
-        layout.addLayout(barra)
+        self.add_action(self.save_button)
 
         self.notice = QLabel("", self)
         self.notice.setObjectName("fidelidadDesignerNotice")
@@ -108,19 +110,21 @@ class CardDesignerPage(StandardPage):
         col = QVBoxLayout(izquierda)
         col.setContentsMargins(0, 0, 0, 0)
         self.layers = StandardTable([
-            ColumnSpec("Capa", "numeric"), ColumnSpec("Tipo"), ColumnSpec("Contenido"),
-            ColumnSpec("X", "numeric"), ColumnSpec("Y", "numeric"),
-            ColumnSpec("Ancho", "numeric"), ColumnSpec("Alto", "numeric")], izquierda)
+            ColumnSpec("Capa", "numeric"), ColumnSpec("Tipo"), ColumnSpec("Contenido")],
+            izquierda)
         self.layers.itemSelectionChanged.connect(self._select_layer)
         col.addWidget(self.layers, stretch=1)
-        agregar = QHBoxLayout()
-        for clave, texto in (("TEXT", "Texto"), ("VARIABLE", "Variable"), ("QR", "QR"),
-                             ("BARCODE", "Código de barras"), ("RECTANGLE", "Rectángulo"),
-                             ("LINE", "Línea"), ("LOGO", "Logo")):
+        agregar = QGridLayout()
+        agregar.setHorizontalSpacing(Spacing.SM)
+        agregar.setVerticalSpacing(Spacing.XS)
+        for indice, (clave, texto) in enumerate((
+                ("TEXT", "Texto"), ("VARIABLE", "Variable"), ("QR", "QR"),
+                ("BARCODE", "Código de barras"), ("RECTANGLE", "Rectángulo"),
+                ("LINE", "Línea"), ("LOGO", "Logo"))):
             boton = create_secondary_button(izquierda, texto)
             boton.setObjectName(f"fidelidadDesignerAdd_{clave}")
             boton.clicked.connect(lambda _=False, k=clave: self.add_element(k))
-            agregar.addWidget(boton)
+            agregar.addWidget(boton, indice // 4, indice % 4)
         col.addLayout(agregar)
         orden = QHBoxLayout()
         for texto, accion in (("Subir capa", -1), ("Bajar capa", 1)):
@@ -152,10 +156,10 @@ class CardDesignerPage(StandardPage):
         for indice, (etiqueta, campo) in enumerate((
                 ("X (mm)", self.x_mm), ("Y (mm)", self.y_mm), ("Ancho (mm)", self.w_mm),
                 ("Alto (mm)", self.h_mm))):
-            rejilla.addWidget(FormField(etiqueta, campo, derecha), 0, indice)
-        rejilla.addWidget(FormField("Texto", self.content, derecha), 1, 0, 1, 2)
-        rejilla.addWidget(FormField("Variable", self.variable, derecha), 1, 2)
-        rejilla.addWidget(FormField("Alineación", self.align, derecha), 1, 3)
+            rejilla.addWidget(FormField(etiqueta, campo, derecha), indice // 2, indice % 2)
+        rejilla.addWidget(FormField("Texto", self.content, derecha), 2, 0, 1, 2)
+        rejilla.addWidget(FormField("Variable", self.variable, derecha), 3, 0)
+        rejilla.addWidget(FormField("Alineación", self.align, derecha), 3, 1)
         col2.addLayout(rejilla)
         aplicar = create_secondary_button(derecha, "Aplicar cambios a la capa")
         aplicar.clicked.connect(self.apply_properties)
@@ -286,9 +290,8 @@ class CardDesignerPage(StandardPage):
         capas = self._faces[self._face]
         self.layers.load_rows(
             [[str(i + 1), _ETIQUETAS.get(c.get("type"), c.get("type", "")),
-              c.get("content") or c.get("shape_type") or c.get("source") or c.get("format") or "",
-              str(c.get("x_mm")), str(c.get("y_mm")), str(c.get("width_mm")),
-              str(c.get("height_mm"))] for i, c in enumerate(capas)],
+              c.get("content") or c.get("shape_type") or c.get("source") or c.get("format") or ""]
+             for i, c in enumerate(capas)],
             row_ids=[str(i) for i in range(len(capas))])
         if select is not None and 0 <= select < len(capas):
             self.layers.selectRow(select)
