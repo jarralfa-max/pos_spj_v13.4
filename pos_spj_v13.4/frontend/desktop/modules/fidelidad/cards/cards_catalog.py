@@ -87,6 +87,13 @@ TEMPLATES = P(
                     default="PHYSICAL"),
                   F("description", "Descripción", K.MULTILINE, required=False)),
           success="Plantilla creada y enviada a aprobación. Diséñala en «Diseñador»."),
+        A("import_card_design", "Importar diseño", CP.TEMPLATE_IMPORT,
+          selection_param="template_id", fields=(
+              F("file_path", "Archivo (PNG, JPEG o SVG)", K.FILE,
+                file_filter="Diseños (*.png *.jpg *.jpeg *.svg)",
+                helper="Se valida tipo, tamaño (10 MB), dimensiones y que el SVG no traiga "
+                       "scripts ni enlaces externos. Crea una versión nueva por aprobar."),),
+          success="Diseño importado como versión nueva; complétalo en el Diseñador."),
         A("approve_card_template", "Aprobar", CP.TEMPLATE_APPROVE, selection_param="template_id",
           confirm="Quien creó la plantilla no puede aprobarla.", success="Plantilla aprobada."),
         A("archive_card_template", "Archivar", CP.TEMPLATE_ARCHIVE, selection_param="template_id",

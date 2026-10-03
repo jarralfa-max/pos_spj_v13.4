@@ -22,6 +22,7 @@ from frontend.desktop.components import (
 )
 from frontend.desktop.components.date_input import DateInput
 from frontend.desktop.components.decimal_input import DecimalInput
+from frontend.desktop.components.file_path_input import FilePathInput
 from frontend.desktop.components.dialogs import StandardDialog
 from frontend.desktop.components.search_selector import SearchOption
 from frontend.desktop.components.selection_controls import StandardCheckBox
@@ -146,6 +147,8 @@ class ActionDialog(StandardDialog):
             return _CustomerField(self._presenter.customer_options, self)
         if kind is FieldKind.AUTHORIZER:
             return _AuthorizerField(self)
+        if kind is FieldKind.FILE:
+            return FilePathInput(self, caption=spec.label, file_filter=spec.file_filter)
         if kind is FieldKind.RECORD:
             widget = SearchableComboBox(self)
             widget.set_options(self._presenter.record_options(
@@ -201,6 +204,8 @@ class ActionDialog(StandardDialog):
             return spec.enum(valor) if (valor and spec.enum is not None) else None
         if kind is FieldKind.CUSTOMER:
             return widget.customer_id
+        if kind is FieldKind.FILE:
+            return widget.path() or None
         if kind is FieldKind.AUTHORIZER:
             usuario = widget.user.text().strip()
             if not usuario:

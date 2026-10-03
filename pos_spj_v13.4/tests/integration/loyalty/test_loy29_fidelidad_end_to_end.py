@@ -405,3 +405,30 @@ class TestPreprintedCards:
                                  membership_id=nueva["id"]).success  # no se reasigna
         _ok(a.run_command("activate_card", card_id=sin_asignar[0]["id"]))
         assert a.resolve_card(impreso["card_token"]).eligible
+
+
+class TestTemplateImport:
+    """§41: importar crea una versión nueva y rechaza contenido peligroso."""
+
+    def test_svg_import_creates_a_version_and_scripts_are_rejected(self, conn, two_users, tmp_path):
+        from backend.domain.loyalty_cards.enums import LoyaltyCardTemplateTargetType
+
+        a, _b = two_users
+        _ok(a.run_command("create_card_template", code="T9", name="Importada",
+                          target_type=LoyaltyCardTemplateTargetType.PHYSICAL))
+        plantilla = _first(a, R.CARD_TEMPLATES)["id"]
+        bueno = tmp_path / "tarjeta.svg"
+        bueno.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 856 539.8">'
+                         '<rect width="10" height="10"/></svg>', encoding="utf-8")
+        _ok(a.run_command("import_card_design", template_id=plantilla, file_path=str(bueno)))
+        assert a.records(R.CARD_TEMPLATE_VERSIONS).total == 1
+        malo = tmp_path / "malo.svg"
+        malo.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 856 540">'
+                        '<script>alert(1)</script></svg>', encoding="utf-8")
+        assert not a.run_command("import_card_design", template_id=plantilla,
+                                 file_path=str(malo)).success
+        otro = tmp_path / "plantilla.pdf"
+        otro.write_bytes(b"%PDF-1.4")
+        assert not a.run_command("import_card_design", template_id=plantilla,
+                                 file_path=str(otro)).success
+        assert a.records(R.CARD_TEMPLATE_VERSIONS).total == 1

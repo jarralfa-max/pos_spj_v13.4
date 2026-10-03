@@ -29,6 +29,7 @@ class FieldKind(str, Enum):
     CUSTOMER = "customer"        # buscador estándar de Clientes
     RECORD = "record"            # elegir una fila de otro registro (programa, plantilla…)
     AUTHORIZER = "authorizer"    # usuario y clave de OTRA persona; entrega su id verificado
+    FILE = "file"                # ruta de un archivo a importar
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,8 @@ class FieldSpec:
     record_filters: Mapping[str, str] = field(default_factory=dict)
     default: Any = None
     helper: str = ""
+    #: FILE: filtro del selector de archivos.
+    file_filter: str = "Todos los archivos (*.*)"
 
 
 @dataclass(frozen=True)

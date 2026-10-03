@@ -236,6 +236,7 @@ def _card_command_table(connection, cards_auth) -> dict:
         batch_use_cases as cb,
         card_use_cases as cc,
         digital_card_use_cases as cd,
+        import_use_cases as cim,
         print_use_cases as cpr,
         privacy_settings_use_cases as cps,
         sheet_use_cases as cs,
@@ -287,6 +288,25 @@ def _card_command_table(connection, cards_auth) -> dict:
         return assign(membership_id=membership_id, customer_id=customer_id,
                       loyalty_account_id=account_id, **kw)
 
+    importar = b(cim.ImportLoyaltyCardDesignUseCase)
+    formatos = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".svg": "SVG"}
+
+    def import_card_design(*, file_path, **kw):
+        """Lee el archivo elegido y lo entrega al caso de uso, que valida tipo,
+        tamaño, dimensiones y contenido (SVG sin scripts ni enlaces)."""
+        from pathlib import Path
+
+        ruta = Path(file_path)
+        formato = formatos.get(ruta.suffix.lower())
+        if formato is None:
+            return LoyaltyCardResult.fail(
+                "Formato no admitido: usa PNG, JPEG o SVG.", "UNSUPPORTED_FORMAT")
+        try:
+            contenido = ruta.read_bytes()
+        except OSError as exc:
+            return LoyaltyCardResult.fail(f"No se pudo leer el archivo: {exc}", "FILE_ERROR")
+        return importar(file_bytes=contenido, source_format=formato, **kw)
+
     def create_preprinted_batch(**kw):
         return create_batch(**kw)
 
@@ -301,6 +321,7 @@ def _card_command_table(connection, cards_auth) -> dict:
     return {
         "issue_card": issue_card,
         "assign_card": assign_card,
+        "import_card_design": import_card_design,
         "create_preprinted_batch": create_preprinted_batch,
         "activate_card": b(cc.ActivateLoyaltyCardUseCase),
         "block_card": b(cc.BlockLoyaltyCardUseCase),
