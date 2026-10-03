@@ -11,6 +11,7 @@ from __future__ import annotations
 from backend.application.loyalty.queries.records_query_service import LoyaltyRecord as R
 from backend.application.loyalty_cards.permissions import LoyaltyCardsPermissions as CP
 from backend.domain.loyalty_cards.enums import (
+    CardReplacementReason,
     LoyaltyCardBatchStatus,
     LoyaltyCardPrintJobStatus,
     LoyaltyCardStatus,
@@ -61,6 +62,7 @@ CARDS = P(
         A("unblock_card", "Desbloquear", CP.CARD_BLOCK, selection_param="card_id",
           success="Tarjeta desbloqueada."),
         A("replace_card", "Reponer", CP.CARD_REPLACE, selection_param="card_id",
+          fields=(F("reason", "Motivo", K.CHOICE, enum=CardReplacementReason),),
           confirm="Se bloquea esta tarjeta, se revoca su QR y se emite una nueva con QR nuevo. "
                   "Puntos y nivel se conservan.",
           success="Tarjeta repuesta."),

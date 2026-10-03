@@ -112,6 +112,10 @@ _POR_ENUM: dict[str, dict[str, str]] = {
                                   "APPROVED": "Aprobada"},
     "LoyaltyCardTemplateVersionStatus": {"ACTIVE": "Activa", "ARCHIVED": "Archivada",
                                          "APPROVED": "Aprobada"},
+    "CardReplacementReason": {
+        "LOST": "Extravío", "STOLEN": "Robo", "DAMAGED": "Daño",
+        "COMPROMISED_QR": "QR comprometido", "EXPIRED": "Vencimiento",
+        "DESIGN_CHANGE": "Cambio de diseño", "CUSTOMER_REQUEST": "Solicitud del cliente"},
     "LoyaltyCardType": {"PHYSICAL": "Física", "DIGITAL": "Digital"},
     "SheetOrientation": {"PORTRAIT": "Vertical", "LANDSCAPE": "Horizontal"},
 }

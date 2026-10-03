@@ -13,7 +13,7 @@ from backend.application.loyalty_cards.result import LoyaltyCardResult, fail_fro
 from backend.application.loyalty_cards.use_cases._base import _LoyaltyCardsBaseUseCase
 from backend.domain.loyalty_cards.entities.loyalty_card import LoyaltyCard
 from backend.domain.loyalty_cards.entities.loyalty_card_token import LoyaltyCardPublicToken
-from backend.domain.loyalty_cards.enums import LoyaltyCardType
+from backend.domain.loyalty_cards.enums import CardReplacementReason, LoyaltyCardType
 from backend.domain.loyalty_cards.events import LoyaltyCardEvents
 from backend.domain.loyalty_cards.exceptions import (
     InvalidLoyaltyCardStateError,
@@ -127,10 +127,16 @@ class UnblockLoyaltyCardUseCase(_LoyaltyCardsBaseUseCase):
 
 
 class ReplaceLoyaltyCardUseCase(_LoyaltyCardsBaseUseCase):
+    """§47: bloquear/revocar la anterior, emitir otra con QR nuevo, conservar
+    cuenta y puntos. LOY-29: el MOTIVO (extravío, robo, daño, QR comprometido…)
+    queda en el evento y en la auditoría."""
+
     def execute(self, connection, *, card_id: str, actor_user_id: str, actor_branch_id: str,
-                operation_id: str) -> LoyaltyCardResult:
+                operation_id: str, reason=None) -> LoyaltyCardResult:
         try:
             self._auth.require(actor_user_id, LoyaltyCardsPermissions.CARD_REPLACE)
+            if reason is not None:
+                reason = CardReplacementReason(reason)
             with LoyaltyCardsUnitOfWork(connection) as uow:
                 old_card = uow.cards.get(card_id)
                 if old_card is None:
@@ -152,7 +158,8 @@ class ReplaceLoyaltyCardUseCase(_LoyaltyCardsBaseUseCase):
 
                 self._emit(uow, LoyaltyCardEvents.CARD_REPLACED, entity_id=new_card.id,
                            operation_id=operation_id, branch_id=actor_branch_id,
-                           actor_user_id=actor_user_id, replaces_card_id=old_card.id)
+                           actor_user_id=actor_user_id, replaces_card_id=old_card.id,
+                           reason=getattr(reason, "value", reason))
             return LoyaltyCardResult.ok(
                 "Tarjeta repuesta", entity_id=new_card.id, operation_id=operation_id,
                 card_number=new_card.card_number, token_id=new_token.id)

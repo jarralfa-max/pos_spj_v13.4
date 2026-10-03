@@ -456,3 +456,24 @@ class TestTemplateImport:
         assert not a.run_command("import_card_design", template_id=plantilla,
                                  file_path=str(otro)).success
         assert a.records(R.CARD_TEMPLATE_VERSIONS).total == 1
+
+
+class TestReplacementReason:
+    def test_replacement_keeps_points_rotates_qr_and_audits_the_reason(self, conn, two_users):
+        import json as _json
+
+        from backend.application.loyalty_cards.queries.card_render_data_query import (
+            LoyaltyCardRenderDataQuery,
+        )
+        from backend.domain.loyalty_cards.enums import CardReplacementReason
+
+        a, b = two_users
+        _programa, _plantilla, tarjeta = TestLoyaltyCards()._card_setup(conn, a, b)
+        _ok(a.run_command("activate_card", card_id=tarjeta["id"]))
+        qr_viejo = LoyaltyCardRenderDataQuery(conn).placeholders_for_card(tarjeta["id"])["card_token"]
+        _ok(a.run_command("replace_card", card_id=tarjeta["id"],
+                          reason=CardReplacementReason.STOLEN))
+        assert not a.resolve_card(qr_viejo).eligible
+        fila = conn.execute("SELECT valor_despues FROM audit_logs WHERE accion = ?",
+                            ("LOYALTY_CARD_REPLACED",)).fetchone()
+        assert _json.loads(fila["valor_despues"])["reason"] == "STOLEN"

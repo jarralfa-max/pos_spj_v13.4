@@ -11,6 +11,17 @@ class LoyaltyCardType(str, Enum):
     DIGITAL = "DIGITAL"
 
 
+class CardReplacementReason(str, Enum):
+    """§47: por qué se repone una tarjeta. Queda en el evento y la auditoría."""
+    LOST = "LOST"
+    STOLEN = "STOLEN"
+    DAMAGED = "DAMAGED"
+    COMPROMISED_QR = "COMPROMISED_QR"
+    EXPIRED = "EXPIRED"
+    DESIGN_CHANGE = "DESIGN_CHANGE"
+    CUSTOMER_REQUEST = "CUSTOMER_REQUEST"
+
+
 class LoyaltyCardStatus(str, Enum):
     """§31. ``ISSUED`` = printed/provisioned but not yet handed to the
     customer and activated; a card only earns/redeems once ``ACTIVE``.
