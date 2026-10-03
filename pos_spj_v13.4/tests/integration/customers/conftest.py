@@ -93,14 +93,6 @@ CREATE TABLE IF NOT EXISTS delivery_order_history (
     reason TEXT,
     fecha DATETIME DEFAULT (datetime('now'))
 );
-CREATE TABLE IF NOT EXISTS loyalty_snapshots (
-    id TEXT NOT NULL PRIMARY KEY,
-    cliente_id TEXT UNIQUE,
-    puntos_actuales INTEGER DEFAULT 0,
-    nivel TEXT DEFAULT 'Bronce',
-    visitas INTEGER DEFAULT 0,
-    importe_total REAL DEFAULT 0
-);
 """
 
 
@@ -131,6 +123,11 @@ def full_crm_conn():
     create_customer_credit_schema(conn)
     create_customer_privacy_schema(conn)
     conn.execute(_CXC_DDL)
+    # LOY-29: Cliente 360 lee el resumen de fidelidad del libro canónico de
+    # Fidelidad (antes, de `loyalty_snapshots`, legacy y sin escritores).
+    from backend.infrastructure.db.schema.loyalty_schema import create_loyalty_schema
+
+    create_loyalty_schema(conn)
     conn.commit()
     yield conn
     conn.close()

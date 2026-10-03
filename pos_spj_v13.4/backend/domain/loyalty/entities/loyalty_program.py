@@ -16,7 +16,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from backend.domain.loyalty.enums import ProgramStatus
-from backend.domain.loyalty.exceptions import InvalidLoyaltyProgramStateError
+from backend.domain.loyalty.exceptions import (
+    InvalidLoyaltyProgramStateError,
+    LoyaltySegregationOfDutiesError,
+)
 from backend.shared.ids import new_uuid
 
 
@@ -85,6 +88,13 @@ class LoyaltyProgram:
                 f"No se puede aprobar desde {self.status.value}")
         if not approved_by_user_id:
             raise InvalidLoyaltyProgramStateError("La aprobación requiere approved_by_user_id")
+        # LOY-29: la segregación de funciones (§60) faltaba aquí — el creador
+        # podía aprobar su propio programa, y una segunda aprobación pisaba a
+        # la primera. Se detectó recorriendo el flujo con dos usuarios reales.
+        if self.approved_by_user_id:
+            raise InvalidLoyaltyProgramStateError("El programa ya está aprobado")
+        if self.created_by_user_id and approved_by_user_id == self.created_by_user_id:
+            raise LoyaltySegregationOfDutiesError("Quien crea el programa no puede aprobarlo")
         self.approved_by_user_id = approved_by_user_id
         self.approved_at = _utcnow()
         self._touch()

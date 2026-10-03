@@ -106,6 +106,10 @@ class _MembershipTransitionUseCase(_LoyaltyBaseUseCase):
                 self._emit(uow, self.event_name, entity_id=membership.id,
                            operation_id=operation_id, branch_id=actor_branch_id,
                            actor_user_id=actor_user_id)
+            else:
+                self._audit(uow, type(self).__name__.removesuffix("UseCase"), entity_id=membership.id,
+                           operation_id=operation_id, branch_id=actor_branch_id,
+                           actor_user_id=actor_user_id)
         return LoyaltyResult.ok(self.success_message, entity_id=membership.id,
                                 operation_id=operation_id,
                                 membership=LoyaltyMembershipDTO.from_entity(membership))

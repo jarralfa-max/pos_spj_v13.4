@@ -26,16 +26,17 @@ from frontend.desktop.components import (
     create_primary_button,
 )
 from frontend.desktop.components.selection_controls import StandardCheckBox
+from frontend.desktop.components.pages import StandardPage
 from frontend.desktop.themes.tokens import Spacing
 
 
-class ProgramSettingsPage(QWidget):
+class ProgramSettingsPage(StandardPage):
     def __init__(self, presenter, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title="Configuración", subtitle="Reglas de acumulación, canje y caducidad.")
         self.setObjectName("fidelidadProgramSettingsPage")
         self._presenter = presenter
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(Spacing.MD)
 

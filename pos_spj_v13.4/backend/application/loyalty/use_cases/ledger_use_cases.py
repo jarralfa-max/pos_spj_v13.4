@@ -328,6 +328,15 @@ class ReverseLoyaltyTransactionUseCase(_LoyaltyBaseUseCase):
                 reversal = LoyaltyTransaction.reversal_of(
                     original, operation_id=operation_id, reason_code=reason_code,
                     created_by_user_id=actor_user_id)
+                # LOY-29: reversar una acumulación de la que el cliente ya canjeó
+                # dejaba el saldo NEGATIVO (§29: "saldo negativo" es fraude, no un
+                # estado válido). Se rechaza con el motivo.
+                saldo = LoyaltyBalancePolicy.balance(
+                    uow.transactions.list_for_account(original.loyalty_account_id))
+                if reversal.points_amount < 0 and saldo + reversal.points_amount < 0:
+                    raise InsufficientLoyaltyPointsError(
+                        f"No se puede reversar: el cliente sólo conserva {saldo} de esos "
+                        f"puntos; ya usó el resto.")
                 original.mark_reversed(reversal.id)
             except LoyaltyDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)

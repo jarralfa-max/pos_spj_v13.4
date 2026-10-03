@@ -30,6 +30,8 @@ class LoyaltyMemberProfileView:
     memberships: tuple[LoyaltyMembership, ...] = field(default_factory=tuple)
     recent_transactions: tuple[LoyaltyTransaction, ...] = field(default_factory=tuple)
     available_rewards: tuple[Reward, ...] = field(default_factory=tuple)
+    #: program_id → nombre, para no mostrar identificadores en pantalla (LOY-29).
+    program_names: dict = field(default_factory=dict)
 
 
 class LoyaltyMemberProfileQueryService:
@@ -45,9 +47,13 @@ class LoyaltyMemberProfileQueryService:
             balance = LoyaltyBalancePolicy.balance(ledger)
             memberships = tuple(uow.memberships.list_for_account(account.id))
             rewards: list[Reward] = []
+            program_names: dict[str, str] = {}
             for membership in memberships:
                 rewards.extend(uow.rewards.list_active_for_program(membership.program_id))
+                program = uow.programs.get(membership.program_id)
+                program_names[membership.program_id] = program.name if program else ""
             recent = tuple(sorted(ledger, key=lambda t: t.created_at, reverse=True)[:recent_limit])
             return LoyaltyMemberProfileView(
                 found=True, account=account, balance=balance, memberships=memberships,
-                recent_transactions=recent, available_rewards=tuple(rewards))
+                recent_transactions=recent, available_rewards=tuple(rewards),
+                program_names=program_names)

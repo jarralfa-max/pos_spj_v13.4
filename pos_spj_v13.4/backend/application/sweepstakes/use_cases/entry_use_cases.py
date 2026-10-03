@@ -22,6 +22,7 @@ from backend.domain.sweepstakes.enums import SweepstakesEntryMethod
 from backend.domain.sweepstakes.events import SweepstakesEvents
 from backend.domain.sweepstakes.exceptions import (
     InvalidSweepstakesCampaignStateError,
+    InvalidSweepstakesTicketStateError,
     SweepstakesCampaignNotFoundError,
     SweepstakesDomainError,
     SweepstakesEntryNotFoundError,
@@ -190,8 +191,15 @@ class IssueSweepstakesTicketUseCase(_SweepstakesBaseUseCase):
 
 
 class PrintSweepstakesTicketUseCase(_SweepstakesBaseUseCase):
+    """Impresión y reimpresión de un boleto (§28).
+
+    La reimpresión conserva la participación y el folio (no crea nada nuevo),
+    exige su propio permiso y —desde LOY-29— un MOTIVO, que viaja en el evento
+    y en la auditoría. Antes se reimprimía sin decir por qué.
+    """
+
     def execute(self, connection, *, ticket_id: str, actor_user_id: str, actor_branch_id: str,
-                operation_id: str) -> SweepstakesResult:
+                operation_id: str, reason: str | None = None) -> SweepstakesResult:
         try:
             with SweepstakesUnitOfWork(connection) as uow:
                 ticket = uow.tickets.get(ticket_id)
@@ -204,12 +212,16 @@ class PrintSweepstakesTicketUseCase(_SweepstakesBaseUseCase):
                     actor_user_id,
                     LoyaltyPermissions.SWEEPSTAKES_TICKET_REPRINT if is_reprint
                     else LoyaltyPermissions.SWEEPSTAKES_TICKET_PRINT)
+                motivo = str(reason or "").strip()
+                if is_reprint and not motivo:
+                    raise InvalidSweepstakesTicketStateError(
+                        "La reimpresión de un boleto requiere un motivo")
                 ticket.record_print()
                 uow.tickets.save(ticket)
                 self._emit(uow, SweepstakesEvents.TICKET_PRINTED, entity_id=ticket.id,
                            operation_id=operation_id, branch_id=actor_branch_id,
                            actor_user_id=actor_user_id, print_count=ticket.print_count,
-                           is_reprint=is_reprint)
+                           is_reprint=is_reprint, reason=motivo or None)
             return SweepstakesResult.ok(
                 "Boleto reimpreso" if is_reprint else "Boleto impreso",
                 entity_id=ticket.id, operation_id=operation_id, print_count=ticket.print_count)

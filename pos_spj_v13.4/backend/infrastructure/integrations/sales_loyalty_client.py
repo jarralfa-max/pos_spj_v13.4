@@ -25,10 +25,9 @@ como deuda:
   números    Decimal → float, porque el servicio legacy hablaba en float. La
              política canónica trabaja en Decimal de extremo a extremo.
 
-EL SALDO SUMA LOS DOS LIBROS. `loyalty_ledger` (legacy, sin escritores desde la
-reconstrucción pero con saldo real) y `loyalty_transactions` (canónico). Ver
-`LoyaltyPointsBalanceRepository`: leer sólo el canónico dejaría en cero a todo
-cliente que acumuló antes, sin ningún error visible.
+UN SOLO LIBRO. El saldo se deriva de `loyalty_transactions`. Hasta LOY-29
+también se sumaba `loyalty_ledger` (legacy); tenía cero filas y cero
+escritores en la base real, y la migración 291 lo retiró.
 
 FORMA DEL RESULTADO. `preview_redemption` sigue devolviendo el diccionario en
 español que sus dos consumidores ya leen (`benefit_evaluation_service`,
@@ -74,6 +73,16 @@ class SalesLoyaltyClient:
         balance = self._query.balance(customer_id) if str(customer_id or "").strip() else 0
         return LoyaltySummary.create(
             points_balance=balance, tier="", available=balance > 0)
+
+    def resolve_card(self, scanned: str):
+        """Qué tarjeta de fidelidad es lo que leyó el escáner (§49). Lectura sin
+        efectos; Fidelidad decide si la tarjeta identifica al cliente."""
+        from backend.application.loyalty_cards.queries.resolve_card_query import (
+            ResolveLoyaltyCardQuery,
+        )
+        codigo = str(scanned or "").strip()
+        return ResolveLoyaltyCardQuery(self._connection).resolve(
+            public_token=codigo, card_number=codigo)
 
     def preview_redemption(self, *, customer_id: str, subtotal: Decimal) -> dict[str, Any]:
         """Qué podría canjear el cliente. Sin efectos secundarios."""

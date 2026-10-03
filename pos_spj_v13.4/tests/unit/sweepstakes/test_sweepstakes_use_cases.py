@@ -178,9 +178,13 @@ class TestEntryAndTicketFlow:
             actor_branch_id=new_uuid(), operation_id=new_uuid())
         assert first.success
         assert first.data["print_count"] == 1
-        second = PrintSweepstakesTicketUseCase(auth).execute(
+        sin_motivo = PrintSweepstakesTicketUseCase(auth).execute(
             conn, ticket_id=ticket.entity_id, actor_user_id=new_uuid(),
             actor_branch_id=new_uuid(), operation_id=new_uuid())
+        assert not sin_motivo.success, "LOY-29: reimprimir exige motivo (§28)"
+        second = PrintSweepstakesTicketUseCase(auth).execute(
+            conn, ticket_id=ticket.entity_id, actor_user_id=new_uuid(),
+            actor_branch_id=new_uuid(), operation_id=new_uuid(), reason="atasco de papel")
         assert second.success
         assert second.data["print_count"] == 2
 

@@ -29,3 +29,10 @@ class FidelidadCapabilities:
     sweepstakes: bool = False
     fraud: bool = False
     settings: bool = False
+    # LOY-29
+    alerts: bool = False
+    retention: bool = False
+    audit: bool = False
+    cards: bool = False
+    card_templates: bool = False
+    card_designer: bool = False

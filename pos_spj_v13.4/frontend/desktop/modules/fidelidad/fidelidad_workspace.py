@@ -1,11 +1,11 @@
-"""LOY-25 workspace shell for the Fidelidad desktop UI.
+"""Workspace shell for the Fidelidad desktop UI (LOY-25, LOY-29).
 
 Mirrors ``frontend/desktop/modules/customers_crm/customers_crm_workspace.py``'s
-shape and responsibilities exactly, scaled to what LOY-25 built: real pages
-for Resumen/Programas/Miembros/Recompensas/Cupones/Vales/Sorteos; every
-other declared route falls back to the canonical ``ViewState.EMPTY``
-placeholder (never ``None``), same incremental-build convention as every
-other large module in this codebase.
+shape. LOY-29: every route has a real page — declarative record pages
+(``records/catalog.py``, ``records/cards_catalog.py``) or a purpose-built one
+(resumen, alertas, perfil de miembro, recompensas, diseñador, QR, ajustes).
+There is no "en construcción" fallback any more: an unknown route is a bug and
+raises.
 """
 
 from __future__ import annotations
@@ -18,20 +18,20 @@ from PyQt5.QtWidgets import QFrame, QScrollArea, QStackedWidget, QVBoxLayout, QW
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.side_nav import SideNav
-from frontend.desktop.components.tooltip import apply_tooltip
 from frontend.desktop.components.view_states import ViewState, create_state_widget
 from frontend.desktop.modules.fidelidad.fidelidad_routes import (
     GROUP_ICONS,
-    FIDELIDAD_ROUTES,
     grouped_routes,
     visible_routes,
 )
-from frontend.desktop.modules.fidelidad.pages.coupons_vouchers_page import CouponsVouchersPage
+from frontend.desktop.modules.fidelidad.pages.alerts_page import FidelidadAlertsPage
 from frontend.desktop.modules.fidelidad.pages.member_profile_page import MemberProfilePage
 from frontend.desktop.modules.fidelidad.pages.overview_page import FidelidadOverviewPage
-from frontend.desktop.modules.fidelidad.pages.programs_page import ProgramsPage
 from frontend.desktop.modules.fidelidad.pages.rewards_page import RewardsPage
-from frontend.desktop.modules.fidelidad.pages.sweepstakes_page import SweepstakesPage
+from frontend.desktop.modules.fidelidad.records import catalog
+from frontend.desktop.modules.fidelidad.records.record_page import LoyaltyRecordPage
+from frontend.desktop.modules.fidelidad.records.specs import RecordPageSpec, TabbedSpec
+from frontend.desktop.modules.fidelidad.records.tabbed_page import LoyaltyTabbedRecordPage
 from frontend.desktop.themes.tokens import Spacing
 
 
@@ -92,7 +92,8 @@ class FidelidadWorkspace(QWidget):
                 page_index += 1
 
     def _visible_grouped_routes(self) -> list[tuple[str, list]]:
-        return grouped_routes(visible_routes(self._presenter.capabilities()))
+        return grouped_routes(visible_routes(self._presenter.capabilities(),
+                                             can=getattr(self._presenter, "can", None)))
 
     def _wrap_page(self, route_id: str, label: str, tooltip: str) -> QWidget:
         page = QFrame(self)
@@ -115,31 +116,32 @@ class FidelidadWorkspace(QWidget):
     def _create_page(self, route_id: str, label: str, tooltip: str) -> QWidget:
         if route_id in self._page_factories:
             return self._page_factories[route_id](self)
+        if route_id == "fidelidad.overview":
+            return FidelidadOverviewPage(self._presenter, self, navigate=self.select_route)
+        if route_id == "fidelidad.alerts":
+            return FidelidadAlertsPage(self._presenter, self, navigate=self.select_route)
         if route_id == "fidelidad.settings":
             from frontend.desktop.modules.fidelidad.pages.program_settings_page import (
                 ProgramSettingsPage,
             )
             return ProgramSettingsPage(self._presenter, self)
-        if route_id == "fidelidad.overview":
-            return FidelidadOverviewPage(self._presenter, self)
-        if route_id == "loyalty.programs":
-            return ProgramsPage(self._presenter, self)
         if route_id == "loyalty.member_profile":
             return MemberProfilePage(self._presenter, self)
         if route_id == "loyalty.rewards":
-            return RewardsPage(self._presenter, self)
-        if route_id == "instruments.coupons":
-            return CouponsVouchersPage(self._presenter, self, mode="coupon")
-        if route_id == "instruments.vouchers":
-            return CouponsVouchersPage(self._presenter, self, mode="voucher")
-        if route_id == "sweepstakes.campaigns":
-            return SweepstakesPage(self._presenter, self)
-
-        placeholder = create_state_widget(
-            ViewState.EMPTY, self,
-            message=f"{label}: seccion en construccion (proxima fase).")
-        apply_tooltip(placeholder, tooltip, help_id=f"fidelidad.{route_id}")
-        return placeholder
+            return LoyaltyTabbedRecordPage(
+                self._presenter, TabbedSpec(
+                    key="rewards", title="Recompensas",
+                    subtitle="Catálogo, canje por cliente y entregas.",
+                    tabs=(("Catálogo", catalog.REWARD_CATALOG),
+                          ("Canjes", catalog.REWARD_REDEMPTIONS))),
+                self, extra_tabs=(("Canjear", RewardsPage(self._presenter, self), 1),))
+        if route_id.startswith("cards."):
+            from frontend.desktop.modules.fidelidad.cards.card_pages import create_card_page
+            return create_card_page(route_id, self._presenter, self)
+        spec = catalog.FIDELIDAD_RECORD_ROUTES[route_id]
+        if isinstance(spec, RecordPageSpec):
+            return LoyaltyRecordPage(self._presenter, spec, self)
+        return LoyaltyTabbedRecordPage(self._presenter, spec, self)
 
     def _on_navigated(self, nav_row: int) -> None:
         item = self._nav.item(nav_row)

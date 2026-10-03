@@ -4422,3 +4422,23 @@ Se midió el POS vivo contra una COPIA de la base real (capturas a 1366×768 y
    línea, Devolución F10, Reimprimir/Factura sobre la venta cobrada elegida,
    Reanudar con selector, Cancelar con motivo, cambio visible, descuentos rápidos,
    cliente asignado visible, filtro de categorías (mandaba el nombre, filtraba por id).
+
+## Fidelidad — re-auditoría LOY-29 (2026-10-02, migraciones 290 y 291)
+
+Re-pegado del prompt maestro de Fidelidad; se midió el módulo vivo contra una
+COPIA de la base real con los dos usuarios reales. Detalle completo:
+`docs/refactor/LOY-29_reauditoria.md`.
+
+* **290 — permisos.** El dueño tenía 4/58 acciones de `GROWTH_ENGINE` y 0/27 de
+  `TARJETAS_FIDELIDAD`: módulo visible e inoperable. Dueño y admin reciben todo;
+  gerente el juego operativo; cajero nada nuevo. Idempotente; un rol ausente se
+  omite.
+* **291 — tablas legacy.** Retira 38 tablas de Fidelidad/Growth Engine/Tarjetas/
+  Rifas que no tienen lector ni escritor y estaban vacías (más la configuración de
+  fábrica `config_programa_fidelidad`). Una tabla con filas se conserva y se avisa.
+  En el mismo cambio se retiró la doble lectura de saldo sobre `loyalty_ledger` y
+  Cliente 360 dejó de leer `loyalty_snapshots`.
+* Sin cambios de esquema canónico: la UI completa, la consulta de registros, la
+  resolución de tarjeta del POS, la auditoría de eventos y las correcciones de
+  dominio (segregación de programas, reverso sin saldo negativo, motivo de
+  reimpresión, reverso de tarjeta) son código.

@@ -66,6 +66,11 @@ class _SweepstakesCampaignTransitionUseCase(_SweepstakesBaseUseCase):
                                operation_id=operation_id,
                                branch_id=campaign.branch_id or actor_user_id,
                                actor_user_id=actor_user_id)
+                else:
+                    self._audit(uow, type(self).__name__.removesuffix("UseCase"), entity_id=campaign.id,
+                               operation_id=operation_id,
+                               branch_id=campaign.branch_id or actor_user_id,
+                               actor_user_id=actor_user_id)
             return SweepstakesResult.ok(self.success_message, entity_id=campaign.id,
                                          operation_id=operation_id)
         except SweepstakesDomainError as exc:

@@ -49,7 +49,7 @@ class TestLoyaltySchema:
             ).fetchone()[0]
             assert "AUTOINCREMENT" not in ddl.upper()
             assert "REAL" not in ddl.upper()
-            assert "id TEXT PRIMARY KEY" in ddl
+            assert ("id TEXT PRIMARY KEY" in ddl or "id TEXT NOT NULL PRIMARY KEY" in ddl)
 
     def test_operation_id_unique_constraint_on_transactions(self, conn):
         account_id = new_uuid()

@@ -2,11 +2,8 @@
 customer by id, show their loyalty account balance/memberships/recent
 ledger, and act on it (acreditar/canjear puntos).
 
-No `CustomerSearchBox`-style picker is wired here — that component needs a
-`SearchProvider` querying Customer Master, a separate piece of wiring out
-of scope for this phase (documented, not silently skipped). The field
-accepts a raw ``customer_id`` (UUIDv7) directly; a nicer picker is a
-follow-up, not a structural limitation of this page.
+LOY-29: el cliente se elige con el buscador estándar de Clientes
+(`CustomerSearchBox`); antes había que pegar su UUID.
 """
 
 from __future__ import annotations
@@ -15,9 +12,16 @@ from decimal import Decimal, InvalidOperation
 
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
-from frontend.desktop.components import ColumnSpec, FormField, StandardForm, StandardTable
+from frontend.desktop.components import (
+    ColumnSpec,
+    CustomerSearchBox,
+    FormField,
+    StandardForm,
+    StandardTable,
+)
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
 from frontend.desktop.components.text_inputs import StandardLineEdit
+from frontend.desktop.components.pages import StandardPage
 from frontend.desktop.themes.tokens import Spacing
 
 _MEMBERSHIP_LABELS = {
@@ -25,15 +29,15 @@ _MEMBERSHIP_LABELS = {
 }
 
 
-class MemberProfilePage(QWidget):
+class MemberProfilePage(StandardPage):
     def __init__(self, presenter, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title="Perfil de miembro", subtitle="Cuenta, membresías, saldo y movimientos de un cliente.")
         self.setObjectName("fidelidadMemberProfilePage")
         self._presenter = presenter
         self._current_customer_id: str | None = None
         self._current_account_id: str | None = None
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(Spacing.MD)
 
@@ -42,14 +46,11 @@ class MemberProfilePage(QWidget):
         self._status.hide()
         layout.addWidget(self._status)
 
-        search_row = QHBoxLayout()
-        self._customer_id_input = StandardLineEdit(self)
-        self._customer_id_input.setPlaceholderText("ID de cliente (UUIDv7)")
-        search_row.addWidget(self._customer_id_input, stretch=1)
-        search_btn = create_secondary_button(self, "Buscar")
-        search_btn.clicked.connect(self._search)
-        search_row.addWidget(search_btn)
-        layout.addLayout(search_row)
+        # LOY-29: buscador estándar de Clientes (antes había que pegar el UUID).
+        self._selected_customer_id: str | None = None
+        self._customer_search = CustomerSearchBox(self, provider=presenter.customer_options)
+        self._customer_search.selected.connect(self._on_customer_selected)
+        layout.addWidget(self._customer_search)
 
         self._balance_label = QLabel("", self)
         self._balance_label.setObjectName("fidelidadMemberBalance")
@@ -92,13 +93,18 @@ class MemberProfilePage(QWidget):
         pass  # nothing to load until a customer id is searched
 
     def show_customer(self, customer_id: str) -> None:
-        self._customer_id_input.setText(customer_id)
+        self._selected_customer_id = customer_id
+        self._search()
+
+    def _on_customer_selected(self, option) -> None:
+        self._selected_customer_id = option.id
+        self._customer_search.set_selected_label(option.label)
         self._search()
 
     def _search(self) -> None:
-        customer_id = self._customer_id_input.text().strip()
+        customer_id = self._selected_customer_id or ""
         if not customer_id:
-            self._show_message("Ingresa un ID de cliente.", error=True)
+            self._show_message("Busca y elige un cliente.", error=True)
             return
         try:
             view = self._presenter.member_profile(customer_id)
@@ -119,7 +125,7 @@ class MemberProfilePage(QWidget):
         self._current_account_id = view.account.id
         self._balance_label.setText(f"Saldo de puntos: {view.balance}")
         self._memberships_table.load_rows(
-            [[m.program_id, _MEMBERSHIP_LABELS.get(m.status.value, m.status.value)]
+            [[view.program_names.get(m.program_id) or m.program_id, _MEMBERSHIP_LABELS.get(m.status.value, m.status.value)]
              for m in view.memberships],
             row_ids=[m.id for m in view.memberships])
         self._ledger_table.load_rows([

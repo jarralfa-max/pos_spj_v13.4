@@ -5,9 +5,10 @@ Cubre lo que reemplazó a `core/services/loyalty_service.py`. Las reglas
 contrato sobrevive en `tests/test_loyalty_redemption_source.py`, y estos tests
 las vuelven a fijar sobre la implementación canónica.
 
-Lo que más importa aquí es el SALDO. Conviven dos libros de puntos y sólo uno
-recibe escrituras hoy; leer únicamente el canónico dejaría en cero a todo
-cliente que acumuló antes de la reconstrucción, sin ningún error visible.
+Lo que más importa aquí es el SALDO: sale de UN solo libro,
+`loyalty_transactions`. Hasta LOY-29 se sumaba también el legacy
+`loyalty_ledger`; tenía cero filas y cero escritores en la base real, así que
+se retiró (migración 291) y aquí se fija que ya no se lee.
 """
 from __future__ import annotations
 
@@ -37,14 +38,6 @@ def conn():
     c.executescript(
         """
         CREATE TABLE configuraciones (clave TEXT PRIMARY KEY, valor TEXT);
-        -- Libro legacy: sin escritores desde la reconstrucción, con saldo real.
-        -- `cliente_id` es el id LEGACY, no el de Customer Master.
-        CREATE TABLE loyalty_ledger (
-            id TEXT PRIMARY KEY, cliente_id TEXT NOT NULL, tipo TEXT NOT NULL,
-            puntos INTEGER NOT NULL, saldo_post INTEGER DEFAULT 0
-        );
-        -- El puente entre las dos identidades.
-        CREATE TABLE customers (id TEXT PRIMARY KEY, legacy_customer_id TEXT);
         """
     )
     c.commit()
@@ -65,25 +58,6 @@ def _client(conn, **kwargs) -> SalesLoyaltyClient:
 def _settings(conn, **valores):
     for clave, valor in valores.items():
         conn.execute("INSERT OR REPLACE INTO configuraciones VALUES (?,?)", (clave, str(valor)))
-    conn.commit()
-
-
-def _legacy_points(conn, customer_id: str, puntos: int, tipo: str = "acumulacion"):
-    """Apunta puntos históricos en el libro legacy, bajo su id LEGACY.
-
-    Sembrarlos con el id de Customer Master no daría error: darían cero, que es
-    indistinguible de "este cliente no tiene puntos". El enlace real es
-    `customers.legacy_customer_id`, y por ahí es por donde se consultan.
-    """
-    fila = conn.execute(
-        "SELECT legacy_customer_id FROM customers WHERE id=?", (customer_id,)).fetchone()
-    legacy_id = (fila["legacy_customer_id"] if fila else None) or new_uuid()
-    conn.execute(
-        "INSERT OR REPLACE INTO customers (id, legacy_customer_id) VALUES (?,?)",
-        (customer_id, legacy_id))
-    conn.execute(
-        "INSERT INTO loyalty_ledger (id, cliente_id, tipo, puntos) VALUES (?,?,?,?)",
-        (new_uuid(), legacy_id, tipo, puntos))
     conn.commit()
 
 
@@ -155,60 +129,29 @@ class TestRedemptionPolicy:
 
 
 # ── el saldo, que abarca los dos libros ─────────────────────────────────────
-class TestBalanceSpansBothLedgers:
-    def test_historical_legacy_points_still_count(self, conn):
-        """Si no se leyeran, el cliente vería cero y no podría canjear nada."""
-        customer_id = new_uuid()
-        _legacy_points(conn, customer_id, 300)
-        assert LoyaltyRedemptionPreviewQuery(conn).balance(customer_id) == 300
-
+class TestSingleLedgerBalance:
     def test_canonical_points_count(self, conn):
         customer_id = new_uuid()
         _canonical_account(conn, customer_id, puntos=120)
         assert LoyaltyRedemptionPreviewQuery(conn).balance(customer_id) == 120
 
-    def test_both_ledgers_add_up(self, conn):
-        customer_id = new_uuid()
-        _legacy_points(conn, customer_id, 300)
-        _canonical_account(conn, customer_id, puntos=120)
-        assert LoyaltyRedemptionPreviewQuery(conn).balance(customer_id) == 420
-
-    def test_legacy_redemptions_subtract(self, conn):
-        """Los movimientos ya vienen con signo; sumar basta."""
-        customer_id = new_uuid()
-        _legacy_points(conn, customer_id, 300)
-        _legacy_points(conn, customer_id, -50, tipo="canje")
-        assert LoyaltyRedemptionPreviewQuery(conn).balance(customer_id) == 250
-
     def test_another_customers_points_are_not_counted(self, conn):
         mine, other = new_uuid(), new_uuid()
-        _legacy_points(conn, other, 900)
+        _canonical_account(conn, other, puntos=900)
         assert LoyaltyRedemptionPreviewQuery(conn).balance(mine) == 0
 
-    def test_legacy_points_are_read_under_the_legacy_identity(self, conn):
-        """El error que estas pruebas destaparon: `loyalty_ledger.cliente_id` es
-        el id LEGACY, no el de Customer Master.
-
-        Consultarlo con el id equivocado no falla — devuelve cero, que se lee
-        como "este cliente no tiene puntos". Un cliente con saldo histórico se
-        quedaría sin poder canjearlo y nadie sabría por qué.
-        """
-        customer_id, legacy_id = new_uuid(), new_uuid()
-        conn.execute("INSERT INTO customers (id, legacy_customer_id) VALUES (?,?)",
-                     (customer_id, legacy_id))
-        conn.execute("INSERT INTO loyalty_ledger (id, cliente_id, tipo, puntos)"
-                     " VALUES (?,?,?,?)", (new_uuid(), legacy_id, "acumulacion", 175))
-        conn.commit()
-
-        assert LoyaltyRedemptionPreviewQuery(conn).balance(customer_id) == 175
-
-    def test_a_customer_born_in_customer_master_has_no_legacy_points(self, conn):
-        """Sin enlace legacy no hay historia que sumar, y eso no es un error."""
+    def test_the_legacy_ledger_is_not_a_second_source(self, conn):
+        """LOY-29: un `loyalty_ledger` que sobreviviera en alguna base no suma.
+        Un solo libro de puntos (§11, §73)."""
         customer_id = new_uuid()
-        conn.execute("INSERT INTO customers (id, legacy_customer_id) VALUES (?, NULL)",
-                     (customer_id,))
+        _canonical_account(conn, customer_id, puntos=100)
+        conn.executescript(
+            "CREATE TABLE loyalty_ledger (id TEXT PRIMARY KEY, cliente_id TEXT, tipo TEXT,"
+            " puntos INTEGER);")
+        conn.execute("INSERT INTO loyalty_ledger VALUES (?,?,?,?)",
+                     (new_uuid(), customer_id, "acumulacion", 500))
         conn.commit()
-        assert LoyaltyRedemptionPreviewQuery(conn).balance(customer_id) == 0
+        assert LoyaltyRedemptionPreviewQuery(conn).balance(customer_id) == 100
 
     def test_a_customer_without_any_history_has_no_points(self, conn):
         assert LoyaltyRedemptionPreviewQuery(conn).balance(new_uuid()) == 0
@@ -235,7 +178,7 @@ class TestSettings:
 class TestSalesLoyaltyClient:
     def test_preview_keeps_the_shape_its_consumers_read(self, conn):
         customer_id = new_uuid()
-        _legacy_points(conn, customer_id, 1000)
+        _canonical_account(conn, customer_id, puntos=1000)
         preview = SalesLoyaltyClient(conn).preview_redemption(
             customer_id=customer_id, subtotal=Decimal("100"))
 
@@ -256,7 +199,7 @@ class TestSalesLoyaltyClient:
     def test_peek_never_fabricates_points_earned(self, conn):
         """Un cero se leería en el ticket como "esta compra no generó puntos"."""
         customer_id = new_uuid()
-        _legacy_points(conn, customer_id, 40)
+        _canonical_account(conn, customer_id, puntos=40)
         resumen = SalesLoyaltyClient(conn).peek_loyalty_summary(customer_id=customer_id)
         assert resumen.points_balance == 40
         assert resumen.points_earned is None

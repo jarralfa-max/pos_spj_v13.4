@@ -252,6 +252,9 @@ CUSTOMERS_CRM_LEGACY_CONSUMERS = {
     # CRM-24; its one real capability, get_crm_loyalty_summary, is
     # redundant with LoyaltyCustomerSummaryQuery already wired into
     # Customer 360) — see docs/refactor/CRM-34_legacy_purge.md.
+    # LOY-29 (2026-10-02) retiró create_customer_use_case.py (escribía la
+    # tabla legacy tarjetas_fidelidad) y queries/customer_history_query_service.py
+    # (leía loyalty_ledger): cero consumidores en producción.
     'pos_spj_v13.4/core/use_cases/cliente.py':
         'GestionarClienteUC (español). Fusionar con CreateCustomerUseCase '
         '(backend/application/use_cases/create_customer_use_case.py) en CRM-3.',
@@ -264,14 +267,7 @@ CUSTOMERS_CRM_LEGACY_CONSUMERS = {
     'pos_spj_v13.4/application/services/customer_credit_service.py':
         'Validación de crédito en checkout, fuera de core/ y backend/. '
         'Migrar a backend/application/customer_credit (CRM-8).',
-    'pos_spj_v13.4/backend/application/use_cases/create_customer_use_case.py':
-        'UC nuevo (inglés) sin repositorio propio, SQL fallback propio. '
-        'Mover a backend/application/customers/use_cases (CRM-3).',
     'pos_spj_v13.4/backend/application/commands/customer_commands.py':
         'UpdateCustomerCommand aislado. Mover a backend/application/customers/'
         'commands (CRM-3).',
-    'pos_spj_v13.4/backend/application/queries/customer_history_query_service.py':
-        'Único QueryService "en inglés" ya en producción (usado por '
-        'DialogoHistorialCliente). Mover a backend/application/customers/'
-        'queries sin romper el consumidor (CRM-3).',
 }

@@ -171,7 +171,7 @@ _ACCESSIBLE_NAMES = {
     Icons.SALES: "Ventas", Icons.CUSTOMERS: "Clientes", Icons.CASH: "Caja",
     Icons.FINANCE: "Finanzas", Icons.DELIVERY: "Reparto", Icons.HR: "Recursos Humanos",
     Icons.SETTINGS: "Configuración", Icons.TRANSFERS: "Transferencias",
-    Icons.LOYALTY: "Fidelización", Icons.LOYALTY_CARDS: "Tarjetas de fidelidad",
+    Icons.LOYALTY: "Fidelidad", Icons.LOYALTY_CARDS: "Tarjetas de fidelidad",
     Icons.ASSETS: "Activos", Icons.MAINTENANCE: "Mantenimiento",
     Icons.ANALYTICS: "Inteligencia de Negocios",
     Icons.ADD: "Agregar", Icons.EDIT: "Editar",

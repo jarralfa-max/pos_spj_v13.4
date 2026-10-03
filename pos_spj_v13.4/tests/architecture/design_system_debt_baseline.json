@@ -297,54 +297,6 @@
       "expression": "class CustomersCrmOverviewPage(QWidget)"
     },
     {
-      "path": "frontend/desktop/modules/fidelidad/pages/coupons_vouchers_page.py",
-      "rule": "screen_without_explicit_overflow",
-      "fingerprint": "faab5034f7d4b9492ced",
-      "count": 1,
-      "line": 25,
-      "expression": "class CouponsVouchersPage(QWidget)"
-    },
-    {
-      "path": "frontend/desktop/modules/fidelidad/pages/member_profile_page.py",
-      "rule": "screen_without_explicit_overflow",
-      "fingerprint": "e67e20c334313c9dd3a5",
-      "count": 1,
-      "line": 28,
-      "expression": "class MemberProfilePage(QWidget)"
-    },
-    {
-      "path": "frontend/desktop/modules/fidelidad/pages/overview_page.py",
-      "rule": "screen_without_explicit_overflow",
-      "fingerprint": "782ff562a68f29eb623a",
-      "count": 1,
-      "line": 16,
-      "expression": "class FidelidadOverviewPage(QWidget)"
-    },
-    {
-      "path": "frontend/desktop/modules/fidelidad/pages/programs_page.py",
-      "rule": "screen_without_explicit_overflow",
-      "fingerprint": "6537f095c31e8010a2d0",
-      "count": 1,
-      "line": 23,
-      "expression": "class ProgramsPage(QWidget)"
-    },
-    {
-      "path": "frontend/desktop/modules/fidelidad/pages/rewards_page.py",
-      "rule": "screen_without_explicit_overflow",
-      "fingerprint": "e56b5720e9b9ecd9356a",
-      "count": 1,
-      "line": 25,
-      "expression": "class RewardsPage(QWidget)"
-    },
-    {
-      "path": "frontend/desktop/modules/fidelidad/pages/sweepstakes_page.py",
-      "rule": "screen_without_explicit_overflow",
-      "fingerprint": "dbc98a075ed3769ce301",
-      "count": 1,
-      "line": 28,
-      "expression": "class SweepstakesPage(QWidget)"
-    },
-    {
       "path": "frontend/desktop/modules/finance/dialogs/_form_dialog.py",
       "rule": "noncanonical_dialog",
       "fingerprint": "1b6b3283da87138e89cf",
@@ -1243,30 +1195,6 @@
       "count": 1,
       "line": 47,
       "expression": "class SalesPosWorkspace(QWidget)"
-    },
-    {
-      "path": "frontend/desktop/modules/tarjetas_fidelidad/pages/cards_page.py",
-      "rule": "screen_without_explicit_overflow",
-      "fingerprint": "ad091668bb93242f94ed",
-      "count": 1,
-      "line": 23,
-      "expression": "class CardsPage(QWidget)"
-    },
-    {
-      "path": "frontend/desktop/modules/tarjetas_fidelidad/pages/overview_page.py",
-      "rule": "screen_without_explicit_overflow",
-      "fingerprint": "83a03c795f26c69810ad",
-      "count": 1,
-      "line": 17,
-      "expression": "class TarjetasFidelidadOverviewPage(QWidget)"
-    },
-    {
-      "path": "frontend/desktop/modules/tarjetas_fidelidad/pages/templates_page.py",
-      "rule": "screen_without_explicit_overflow",
-      "fingerprint": "3c124384a23d8bf6f473",
-      "count": 1,
-      "line": 35,
-      "expression": "class TemplatesPage(QWidget)"
     },
     {
       "path": "frontend/desktop/modules/transfers/pages/base_page.py",

@@ -64,11 +64,6 @@ from frontend.desktop.modules.fidelidad.shell_registration import (
     FIDELIDAD_REQUIRED_PERMISSION,
     FIDELIDAD_ROUTE_ID,
 )
-from frontend.desktop.modules.tarjetas_fidelidad.shell_registration import (
-    TARJETAS_FIDELIDAD_MODULE_ID,
-    TARJETAS_FIDELIDAD_REQUIRED_PERMISSION,
-    TARJETAS_FIDELIDAD_ROUTE_ID,
-)
 from frontend.desktop.modules.cash_register.shell_registration import (
     CASH_REGISTER_MODULE_ID,
     CASH_REGISTER_REQUIRED_PERMISSION,
@@ -198,14 +193,11 @@ MIGRATED_MODULES_NAVIGATION_ITEMS: tuple[NavigationItemDefinition, ...] = (
     ),
     NavigationItemDefinition(
         item_id="nav.fidelidad", module_id=FIDELIDAD_MODULE_ID, route_id=FIDELIDAD_ROUTE_ID,
-        label="Fidelización", icon=Icons.LOYALTY, order=150, group=MIGRATED_MODULES_GROUP,
+        label="Fidelidad", icon=Icons.LOYALTY, order=150, group=MIGRATED_MODULES_GROUP,
         required_permission=FIDELIDAD_REQUIRED_PERMISSION,
     ),
-    NavigationItemDefinition(
-        item_id="nav.tarjetas_fidelidad", module_id=TARJETAS_FIDELIDAD_MODULE_ID, route_id=TARJETAS_FIDELIDAD_ROUTE_ID,
-        label="Tarjetas de Fidelidad", icon=Icons.LOYALTY_CARDS, order=160, group=MIGRATED_MODULES_GROUP,
-        required_permission=TARJETAS_FIDELIDAD_REQUIRED_PERMISSION,
-    ),
+    # Tarjetas de fidelidad ya no es entrada global: vive DENTRO de Fidelidad
+    # como su propia sección (prompt maestro §5-6, LOY-29).
     # Activos estaba CONSTRUIDO y sin puerta: 12 archivos de UI que nadie podía
     # abrir. Ojo con lo que muestra — el módulo no tiene capa de persistencia
     # (ni repositorios ni tablas), así que abre en estado vacío. El motivo

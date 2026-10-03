@@ -1,15 +1,11 @@
-"""Fidelidad (Growth Engine) registration into the new shell.
+"""Fidelidad registration into the shell.
 
-Parte del lote que el usuario pidió cablear explícitamente sabiendo que
-parte de sus páginas siguen siendo placeholder; su relleno queda para
-una sesión posterior.
+LOY-29: todas sus rutas tienen página real, incluida la sección Tarjetas de
+fidelidad (§5-6: no hay entrada global aparte para Tarjetas).
 
 Sigue la misma forma que `transfers/shell_registration.py`: descriptor,
 route definition y activator con dependencias explícitas — nunca el
 `AppContainer` legacy.
-
-No se cablea en `main.py`/`MainWindow`/`MenuLateral` en esta ronda. El slot
-`GROWTH_ENGINE` del menú legacy sigue siendo la ruta viva.
 """
 from __future__ import annotations
 
@@ -30,7 +26,7 @@ FIDELIDAD_REQUIRED_PERMISSION = LoyaltyPermissions.VIEW
 def build_fidelidad_module_descriptor() -> ModuleDescriptor:
     return ModuleDescriptor(
         module_id=FIDELIDAD_MODULE_ID,
-        display_name="Fidelización",
+        display_name="Fidelidad",
         startup_mode=StartupMode.LAZY,
         routes=(FIDELIDAD_ROUTE_ID,),
         permissions=frozenset({FIDELIDAD_REQUIRED_PERMISSION}),
@@ -41,9 +37,9 @@ def build_fidelidad_route_definition() -> RouteDefinition:
     return RouteDefinition(
         route_id=FIDELIDAD_ROUTE_ID,
         module_id=FIDELIDAD_MODULE_ID,
-        title="Fidelización",
+        title="Fidelidad",
         view_factory_id=FIDELIDAD_VIEW_FACTORY_ID,
-        breadcrumb=("Fidelización",),
+        breadcrumb=("Fidelidad",),
         required_permission=FIDELIDAD_REQUIRED_PERMISSION,
     )
 

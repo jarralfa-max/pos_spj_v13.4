@@ -23,6 +23,8 @@ from backend.application.loyalty.queries.member_profile_query_service import (
     LoyaltyMemberProfileView,
 )
 from backend.application.loyalty.result import LoyaltyResult
+from backend.domain.loyalty.exceptions import LoyaltyDomainError
+from backend.domain.loyalty_cards.exceptions import LoyaltyCardDomainError
 from backend.application.sweepstakes.result import SweepstakesResult
 from backend.shared.ids import new_uuid
 from frontend.desktop.modules.fidelidad.capability_resolver import (
@@ -61,6 +63,96 @@ class FidelidadPresenter:
 
     def command_handler(self, key: str) -> Callable[..., object] | None:
         return self._command_handlers.get(key)
+
+    # -- Registros (LOY-29) -------------------------------------------------
+    def records(self, record, *, query: str = "", status: str | None = None,
+                filters: dict | None = None, page: int = 0, page_size: int | None = None):
+        """Una página de un registro del módulo, validada contra el permiso de
+        lectura de ese registro en el backend."""
+        from backend.infrastructure.db.repositories.loyalty_records.engine import RecordPage
+
+        service = self.query_service("records")
+        if service is None:
+            return RecordPage(rows=[], total=0)
+        extra = {} if page_size is None else {"page_size": page_size}
+        return service.page(record, actor_user_id=self.current_user_id(), query=query,
+                            status=status, filters=filters, page=page, **extra)
+
+    def record_options(self, record, label_columns: tuple[str, ...],
+                       filters: dict | None = None) -> list[tuple[str, str]]:
+        """Opciones (id, etiqueta) para elegir una fila de otro registro."""
+        filtros = dict(filters or {})
+        status = filtros.pop("status", None)
+        try:
+            pagina = self.records(record, status=status, filters=filtros, page_size=500)
+        except (LoyaltyDomainError, LoyaltyCardDomainError) as exc:
+            # Sin permiso de lectura de ese registro: no hay opciones que ofrecer.
+            import logging
+            logging.getLogger("spj.fidelidad").warning(
+                "No se pudieron listar opciones de %s: %s", record, exc)
+            return []
+        opciones = []
+        for fila in pagina.rows:
+            partes = [str(fila.get(col)) for col in label_columns if fila.get(col)]
+            opciones.append((str(fila["id"]), " — ".join(partes) or str(fila["id"])[-8:]))
+        return opciones
+
+    def customer_options(self, query: str):
+        """Proveedor del buscador estándar de clientes (Clientes es el dueño de
+        la identidad; aquí sólo se elige)."""
+        from frontend.desktop.components.search_selector import SearchOption
+
+        service = self.query_service("customer_search")
+        if service is None or not str(query or "").strip():
+            return []
+        return [SearchOption(id=r.customer_id, label=r.display_name, subtitle=r.code)
+                for r in service.lookup(query, actor_user_id=self.current_user_id())]
+
+    def run_command(self, command: str, **kwargs):
+        """Ejecuta una acción de una página de registros. El presenter añade
+        quién, dónde y la operación; el caso de uso decide si procede."""
+        handler = self.command_handler(command)
+        if handler is None:
+            return LoyaltyResult.fail(_NOT_WIRED, "NOT_WIRED")
+        return handler(actor_user_id=self.current_user_id(),
+                       actor_branch_id=self.current_branch_id(),
+                       operation_id=new_uuid(), **kwargs)
+
+    def overview(self):
+        service = self.query_service("records")
+        return None if service is None else service.overview(actor_user_id=self.current_user_id())
+
+    def cards_overview(self) -> dict | None:
+        service = self.query_service("records")
+        return None if service is None else service.cards_overview(
+            actor_user_id=self.current_user_id())
+
+    def resolve_card(self, scanned: str):
+        from backend.application.loyalty_cards.permissions import LoyaltyCardsPermissions
+        service = self.query_service("card_resolver")
+        if service is None or not self.can(LoyaltyCardsPermissions.CARD_VIEW):
+            return None
+        return service.resolve(public_token=scanned, card_number=scanned)
+
+    def card_design(self, template_id: str) -> tuple[int, str] | None:
+        service = self.query_service("card_render")
+        return None if service is None else service.design_for_template(template_id)
+
+    @staticmethod
+    def validate_card_design(design_json: str) -> tuple[bool, str]:
+        """La validación es del dominio (lista blanca declarativa, §34): la UI
+        sólo muestra su veredicto."""
+        from backend.domain.loyalty_cards.design_schema import validate_design_schema
+        from backend.domain.loyalty_cards.exceptions import InvalidCardDesignSchemaError
+        try:
+            validate_design_schema(design_json)
+        except InvalidCardDesignSchemaError as exc:
+            return False, str(exc)
+        return True, "El diseño es válido."
+
+    def alerts(self) -> list:
+        service = self.query_service("records")
+        return [] if service is None else service.alerts(actor_user_id=self.current_user_id())
 
     # -- Configuración del programa de puntos (2026-10-02) ----------------
     def program_settings(self):

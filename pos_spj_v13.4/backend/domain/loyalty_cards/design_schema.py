@@ -42,6 +42,11 @@ _PLACEHOLDER_RE = re.compile(r"\{\{(.*?)\}\}")
 _IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 _HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
+#: Claves de primer nivel permitidas. `back_elements` es el REVERSO (§33-34,
+#: LOY-29); una clave desconocida se rechaza: nada fuera de la lista blanca
+#: viaja dentro de una plantilla.
+TOP_LEVEL_KEYS = frozenset({"canvas", "elements", "back_elements"})
+
 
 def _require(condition: bool, message: str) -> None:
     if not condition:
@@ -114,9 +119,18 @@ def validate_design_schema(design_schema_json: str) -> dict:
         _require(_HEX_COLOR_RE.match(str(canvas["background_color"])) is not None,
                   "canvas.background_color debe ser un color hex #RRGGBB")
 
+    desconocidas = set(schema) - TOP_LEVEL_KEYS
+    _require(not desconocidas, f"claves no permitidas en el esquema: {sorted(desconocidas)}")
+
     elements = schema.get("elements")
     _require(isinstance(elements, list), "elements debe ser una lista")
     for element in elements:
         _validate_element(element)
+
+    if "back_elements" in schema:
+        reverso = schema["back_elements"]
+        _require(isinstance(reverso, list), "back_elements (reverso) debe ser una lista")
+        for element in reverso:
+            _validate_element(element)
 
     return schema

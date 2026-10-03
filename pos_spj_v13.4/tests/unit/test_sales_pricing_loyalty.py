@@ -3,11 +3,9 @@ Loyalty, Coupons, Vouchers, Tests.
 
 Builds real Pricing schema (`create_pricing_schema` + `PricingRepository`,
 same fixture shape as tests/integration/pricing/test_pricing_query_services.py)
-and a minimal hand-rolled `loyalty_ledger` (the exact final DDL from
-migrations/standalone/092_loyalty_ledger_canonicalization.py, confirmed by
-executing `LoyaltyService.preview_redemption` directly against an empty DB
-first — it only needs this one table, `configuraciones`/`_cfg()` already
-degrades gracefully without it).
+and the canonical Loyalty schema. LOY-29 (2026-10-02): points are awarded on
+the ONE ledger (`loyalty_transactions`) keyed by `customers.id`; the legacy
+`loyalty_ledger` + `clientes` bridge these tests used to seed was retired.
 """
 
 from __future__ import annotations
@@ -106,21 +104,9 @@ def conn():
     c.row_factory = sqlite3.Row
     create_sales_schema(c)
     create_customers_crm_schema(c)
-    c.execute("""
-        CREATE TABLE clientes (
-            id TEXT PRIMARY KEY, nombre TEXT NOT NULL, telefono TEXT, email TEXT,
-            codigo_qr TEXT, codigo_fidelidad TEXT, activo INTEGER DEFAULT 1, puntos INTEGER DEFAULT 0
-        )
-    """)
-    c.execute("""
-        CREATE TABLE loyalty_ledger (
-            id TEXT NOT NULL PRIMARY KEY, cliente_id TEXT NOT NULL,
-            tipo TEXT NOT NULL CHECK(tipo IN ('acumulacion','canje','reversa','ajuste')),
-            puntos INTEGER NOT NULL, monto_equiv REAL DEFAULT 0, saldo_post INTEGER DEFAULT 0,
-            referencia TEXT DEFAULT '', descripcion TEXT DEFAULT '', sucursal_id TEXT,
-            usuario TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-    """)
+    from backend.infrastructure.db.schema.loyalty_schema import create_loyalty_schema
+
+    create_loyalty_schema(c)
     c.commit()
     yield c
     c.close()
@@ -132,27 +118,30 @@ def _create_customer(conn, *, display_name="Ana Torres") -> str:
         display_name=display_name).entity_id
 
 
-def _award_points(conn, *, legacy_customer_id: str, points: int) -> None:
-    conn.execute(
-        "INSERT INTO loyalty_ledger (id, cliente_id, tipo, puntos, saldo_post) "
-        "VALUES (?, ?, 'acumulacion', ?, ?)",
-        (new_uuid(), legacy_customer_id, points, points))
-    conn.commit()
+def _award_points(conn, *, customer_id: str, points: int) -> None:
+    """Puntos en el libro canónico, por la vía real (ledger, no un campo)."""
+    from backend.domain.loyalty.entities.loyalty_account import LoyaltyAccount
+    from backend.domain.loyalty.entities.loyalty_transaction import LoyaltyTransaction
+    from backend.infrastructure.db.repositories.loyalty.unit_of_work import LoyaltyUnitOfWork
+
+    with LoyaltyUnitOfWork(conn) as uow:
+        account = uow.accounts.get_by_customer_id(customer_id)
+        if account is None:
+            account = LoyaltyAccount.create(customer_id=customer_id)
+            uow.accounts.save(account)
+        uow.transactions.save(LoyaltyTransaction.earn(
+            loyalty_account_id=account.id, points_amount=Decimal(points),
+            operation_id=new_uuid(), branch_id=new_uuid(), created_by_user_id=new_uuid()))
+
+
+def _ledger_rows(conn) -> int:
+    return conn.execute("SELECT COUNT(*) AS n FROM loyalty_transactions").fetchone()["n"]
 
 
 class TestSalesLoyaltyClient:
     def test_preview_redemption_bridges_identity_and_returns_real_preview(self, conn):
         customer_id = _create_customer(conn)
-        # Bridge customer -> legacy id the same way the client itself will,
-        # so we can award points on the LEGACY side before previewing.
-        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
-            EnsureLegacyCustomerBridgeUseCase,
-        )
-        legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(conn, customer_id=customer_id)
-        conn.execute("INSERT OR IGNORE INTO clientes (id, nombre) VALUES (?, 'Bridge stub')",
-                     (legacy_id,))
-        conn.commit()
-        _award_points(conn, legacy_customer_id=legacy_id, points=100)
+        _award_points(conn, customer_id=customer_id, points=100)
 
         client = SalesLoyaltyClient(conn)
         preview = client.preview_redemption(customer_id=customer_id, subtotal=Decimal("500.00"))
@@ -167,15 +156,9 @@ class TestSalesLoyaltyClient:
         assert preview["puntos_disponibles"] == 0
 
     def test_peek_loyalty_summary_reads_balance_and_tier_without_side_effects(self, conn):
-        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
-            EnsureLegacyCustomerBridgeUseCase,
-        )
 
         customer_id = _create_customer(conn)
-        legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(conn, customer_id=customer_id)
-        conn.execute("INSERT OR IGNORE INTO clientes (id, nombre) VALUES (?, 'Bridge stub')", (legacy_id,))
-        conn.commit()
-        _award_points(conn, legacy_customer_id=legacy_id, points=250)
+        _award_points(conn, customer_id=customer_id, points=250)
 
         summary = SalesLoyaltyClient(conn).peek_loyalty_summary(customer_id=customer_id)
 
@@ -184,9 +167,7 @@ class TestSalesLoyaltyClient:
         assert summary.points_earned is None  # sales_pos has no earning pipeline yet
 
         # Never earns or redeems — the ledger must be untouched by a peek.
-        rows = conn.execute(
-            "SELECT COUNT(*) AS n FROM loyalty_ledger WHERE cliente_id=?", (legacy_id,)).fetchone()
-        assert rows["n"] == 1  # only the one _award_points insert above
+        assert _ledger_rows(conn) == 1  # only the one _award_points insert above
 
     def test_peek_loyalty_summary_customer_with_no_points(self, conn):
         customer_id = _create_customer(conn)
@@ -269,15 +250,7 @@ class TestSaleBenefitEvaluationService:
         AssignCustomerToSaleUseCase(_allow_all_sales()).execute(
             conn, sale_id=sale_id, customer_id=customer_id, actor_user_id=cashier,
             operation_id=new_uuid())
-
-        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
-            EnsureLegacyCustomerBridgeUseCase,
-        )
-        legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(conn, customer_id=customer_id)
-        conn.execute("INSERT OR IGNORE INTO clientes (id, nombre) VALUES (?, 'Bridge stub')",
-                     (legacy_id,))
-        conn.commit()
-        _award_points(conn, legacy_customer_id=legacy_id, points=200)
+        _award_points(conn, customer_id=customer_id, points=200)
 
         service = SaleBenefitEvaluationService(conn, _allow_all_sales())
         dto = service.evaluate(sale_id, requester_user_id=cashier)

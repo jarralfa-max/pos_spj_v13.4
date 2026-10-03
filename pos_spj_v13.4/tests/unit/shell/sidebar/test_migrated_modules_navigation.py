@@ -2,7 +2,7 @@
 
 Este archivo fijaba NUEVE módulos, que eran los de SHELL-16. Desde entonces
 se registraron nueve más (Configuración, Inteligencia de Negocios, Mermas,
-Producción, Pedidos y Reparto, Fidelización, Tarjetas de Fidelidad, Activos y
+Producción, Pedidos y Reparto, Fidelidad, Tarjetas de Fidelidad, Activos y
 Precios) y el test se quedó atrás: pasó de proteger a estorbar.
 
 POR QUÉ AHORA SE DESCUBREN SOLOS
@@ -78,10 +78,6 @@ from frontend.desktop.modules.purchasing.shell_registration import (
 from frontend.desktop.modules.sales_pos.shell_registration import (
     SALES_POS_MODULE_ID, SALES_POS_REQUIRED_PERMISSION, SALES_POS_ROUTE_ID,
 )
-from frontend.desktop.modules.tarjetas_fidelidad.shell_registration import (
-    TARJETAS_FIDELIDAD_MODULE_ID, TARJETAS_FIDELIDAD_REQUIRED_PERMISSION,
-    TARJETAS_FIDELIDAD_ROUTE_ID,
-)
 from frontend.desktop.modules.transfers.shell_registration import (
     TRANSFERS_MODULE_ID, TRANSFERS_REQUIRED_PERMISSION, TRANSFERS_ROUTE_ID,
 )
@@ -108,8 +104,7 @@ _EXPECTED = {
     MEAT_PROCESSING_MODULE_ID: (MEAT_PROCESSING_ROUTE_ID, MEAT_PROCESSING_REQUIRED_PERMISSION),
     ORDERS_DELIVERY_MODULE_ID: (ORDERS_DELIVERY_ROUTE_ID, ORDERS_DELIVERY_REQUIRED_PERMISSION),
     FIDELIDAD_MODULE_ID: (FIDELIDAD_ROUTE_ID, FIDELIDAD_REQUIRED_PERMISSION),
-    TARJETAS_FIDELIDAD_MODULE_ID: (
-        TARJETAS_FIDELIDAD_ROUTE_ID, TARJETAS_FIDELIDAD_REQUIRED_PERMISSION),
+    # Tarjetas de fidelidad: sección DENTRO de Fidelidad desde LOY-29 (§5-6).
     ASSETS_MODULE_ID: (ASSETS_ROUTE_ID, ASSETS_REQUIRED_PERMISSION),
     PRICING_MODULE_ID: (PRICING_ROUTE_ID, PRICING_REQUIRED_PERMISSION),
 }

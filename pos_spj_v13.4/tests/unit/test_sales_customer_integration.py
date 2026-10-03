@@ -34,6 +34,12 @@ def conn():
     c.row_factory = sqlite3.Row
     create_sales_schema(c)
     create_customers_crm_schema(c)
+    # LOY-29: el escaneo pregunta primero a Fidelidad qué tarjeta es.
+    from backend.infrastructure.db.schema.loyalty_cards_schema import create_loyalty_cards_schema
+    from backend.infrastructure.db.schema.loyalty_schema import create_loyalty_schema
+
+    create_loyalty_schema(c)
+    create_loyalty_cards_schema(c)
     c.execute("""
         CREATE TABLE clientes (
             id TEXT PRIMARY KEY, nombre TEXT NOT NULL, telefono TEXT, email TEXT,
@@ -145,6 +151,63 @@ class TestAssignCustomerToSaleUseCase:
             operation_id=new_uuid())
         assert result.success
         assert result.data["sale"].customer_id is None
+
+
+def _canonical_card(conn, customer_id: str, *, block: bool = False) -> str:
+    """Tarjeta del módulo canónico (cuenta → membresía → tarjeta + QR).
+    Devuelve el contenido del QR tal como lo lee el escáner."""
+    from backend.domain.loyalty.entities.loyalty_account import LoyaltyAccount
+    from backend.domain.loyalty.entities.loyalty_membership import LoyaltyMembership
+    from backend.domain.loyalty.entities.loyalty_program import LoyaltyProgram
+    from backend.domain.loyalty_cards.entities.loyalty_card import LoyaltyCard
+    from backend.domain.loyalty_cards.entities.loyalty_card_token import LoyaltyCardPublicToken
+    from backend.domain.loyalty_cards.enums import LoyaltyCardType
+    from backend.infrastructure.db.repositories.loyalty.unit_of_work import LoyaltyUnitOfWork
+    from backend.infrastructure.db.repositories.loyalty_cards.unit_of_work import (
+        LoyaltyCardsUnitOfWork,
+    )
+
+    with LoyaltyUnitOfWork(conn) as uow:
+        program = LoyaltyProgram.create(code=new_uuid()[-6:], name="Puntos", currency_name="Puntos",
+                                        created_by_user_id=new_uuid())
+        uow.programs.save(program)
+        account = LoyaltyAccount.create(customer_id)
+        uow.accounts.save(account)
+        membership = LoyaltyMembership.enroll(account.id, program.id)
+        uow.memberships.save(membership)
+    with LoyaltyCardsUnitOfWork(conn) as uow:
+        card = LoyaltyCard.issue(f"LC-{new_uuid()[-8:]}", LoyaltyCardType.PHYSICAL, customer_id,
+                                 membership.id)
+        card.activate()
+        if block:
+            card.block("extraviada")
+        uow.cards.save(card)
+        token = LoyaltyCardPublicToken.issue(card.id)
+        uow.tokens.save(token)
+    return f"SPJ-CARD:{token.token}"
+
+
+class TestScanCanonicalLoyaltyCard:
+    """LOY-29: antes el escaneo buscaba SÓLO en la tabla legacy `clientes`;
+    ninguna tarjeta emitida por el módulo canónico identificaba al cliente."""
+
+    def test_canonical_card_identifies_and_assigns_the_customer(self, conn):
+        sale_id, cashier = _start_sale(conn)
+        customer_id = _create_real_customer(conn, display_name="Lucia Mar")
+        qr = _canonical_card(conn, customer_id)
+        result = ScanLoyaltyCardForSaleUseCase(_allow_all_sales()).execute(
+            conn, sale_id=sale_id, card_code=qr, actor_user_id=cashier, operation_id=new_uuid())
+        assert result.success, result.message
+        assert result.data["sale"].customer_id == customer_id
+
+    def test_blocked_card_is_rejected_with_the_reason(self, conn):
+        sale_id, cashier = _start_sale(conn)
+        customer_id = _create_real_customer(conn, display_name="Raul Paz")
+        qr = _canonical_card(conn, customer_id, block=True)
+        result = ScanLoyaltyCardForSaleUseCase(_allow_all_sales()).execute(
+            conn, sale_id=sale_id, card_code=qr, actor_user_id=cashier, operation_id=new_uuid())
+        assert not result.success
+        assert "bloqueada" in result.message
 
 
 class TestScanLoyaltyCardForSaleUseCase:

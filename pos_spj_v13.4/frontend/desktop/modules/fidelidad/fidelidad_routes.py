@@ -1,22 +1,23 @@
-"""Navigation model for the Fidelidad desktop workspace (LOY-25).
+"""Navigation model for the Fidelidad desktop workspace (LOY-25, LOY-29).
 
-Mirrors ``frontend/desktop/modules/customers_crm/customers_crm_routes.py``'s
-shape (route dataclass + ``visible_routes``/``grouped_routes``). Every
-route the master prompt's own §6 sidebar envisions for Fidelidad is
-declared here up front, even though only a handful have a real page today
-— ``fidelidad_workspace.py`` resolves any route without a built page to
-the canonical ``ViewState.EMPTY`` placeholder, never to ``None``, the same
-incremental-build convention ``customers_crm`` and ``orders_delivery``
-already established (each later phase adds the page for one more route).
+The sidebar the master prompt asks for (§6), including the Loyalty Cards
+sub-domain as its own group INSIDE Fidelidad (§5: no separate global entry).
+Every route is visible only if the session holds that route's own granular
+read permission — the coarse per-group flags of LOY-25 hid nothing a user
+could not open and showed routes a user could not use.
+
+LOY-29 removed every "en construcción" placeholder: a route is declared here
+only if it has a real page behind it.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
+from backend.application.loyalty.permissions import LoyaltyPermissions as LP
+from backend.application.loyalty_cards.permissions import LoyaltyCardsPermissions as CP
 from frontend.desktop.components.icons import Icons
-
-from backend.application.loyalty.permissions import LoyaltyPermissions
 from frontend.desktop.modules.fidelidad.view_models import FidelidadCapabilities
 
 
@@ -35,100 +36,110 @@ GROUP_ICONS: dict[str, str] = {
     "Resumen": Icons.DASHBOARD,
     "Programas": Icons.LOYALTY,
     "Miembros": Icons.CUSTOMERS,
-    "Recompensas y retos": Icons.GRADE,
-    "Referidos y ciclo de vida": Icons.SCENARIO,
+    "Beneficios": Icons.GRADE,
+    "Campañas": Icons.RECOVERY,
     "Instrumentos comerciales": Icons.PRICE,
     "Sorteos": Icons.FLAG,
+    "Tarjetas de fidelidad": Icons.LOYALTY_CARDS,
     "Control": Icons.AUDIT,
 }
 
 
+def _r(route_id, label, group, tooltip, permission, capability, icon) -> FidelidadRoute:
+    return FidelidadRoute(route_id=route_id, label=label, group=group, tooltip=tooltip,
+                          required_permission=permission, capability=capability, icon=icon)
+
+
 FIDELIDAD_ROUTES: tuple[FidelidadRoute, ...] = (
-    # -- Resumen --------------------------------------------------------
-    FidelidadRoute(
-        route_id="fidelidad.overview", icon=Icons.DASHBOARD, label="Resumen", group="Resumen",
-        tooltip="Estado general del programa de fidelidad.",
-        required_permission=LoyaltyPermissions.VIEW, capability="module_view"),
+    _r("fidelidad.overview", "Resumen", "Resumen", "Indicadores del programa de lealtad.",
+       LP.VIEW, "module_view", Icons.DASHBOARD),
+    _r("fidelidad.alerts", "Alertas", "Resumen", "Lo que espera aprobación o atención.",
+       LP.DASHBOARD_VIEW, "alerts", Icons.WARNING),
 
-    # -- Programas --------------------------------------------------------
-    FidelidadRoute(
-        route_id="loyalty.programs", icon=Icons.LOYALTY, label="Programas", group="Programas",
-        tooltip="Programas de fidelidad activos.",
-        required_permission=LoyaltyPermissions.PROGRAM_VIEW, capability="programs"),
+    _r("loyalty.programs", "Programas", "Programas", "Programas de lealtad y su aprobación.",
+       LP.PROGRAM_VIEW, "programs", Icons.LOYALTY),
+    _r("loyalty.tiers", "Niveles", "Programas", "Niveles y umbrales de cada programa.",
+       LP.TIER_VIEW, "members", Icons.GRADE),
 
-    # -- Miembros ---------------------------------------------------------
-    FidelidadRoute(
-        route_id="loyalty.member_profile", icon=Icons.USER, label="Perfil de miembro", group="Miembros",
-        tooltip="Cuenta, membresías, saldo de puntos y movimientos de un cliente.",
-        required_permission=LoyaltyPermissions.MEMBERSHIP_VIEW, capability="members"),
-    FidelidadRoute(
-        route_id="loyalty.tiers", icon=Icons.GRADE, label="Niveles", group="Miembros",
-        tooltip="Niveles de membresía del programa.",
-        required_permission=LoyaltyPermissions.TIER_VIEW, capability="members"),
+    _r("loyalty.memberships", "Membresías", "Miembros", "Clientes inscritos en cada programa.",
+       LP.MEMBERSHIP_VIEW, "members", Icons.CHECKLIST),
+    _r("loyalty.member_profile", "Perfil de miembro", "Miembros",
+       "Cuenta, saldo y movimientos de un cliente.", LP.MEMBERSHIP_VIEW, "members", Icons.USER),
+    _r("loyalty.points", "Puntos", "Miembros", "Saldos y libro de movimientos de puntos.",
+       LP.POINTS_VIEW, "points", Icons.PRICE),
 
-    # -- Recompensas y retos ------------------------------------------------
-    FidelidadRoute(
-        route_id="loyalty.rewards", icon=Icons.PACKAGE, label="Recompensas", group="Recompensas y retos",
-        tooltip="Catálogo de recompensas y canje.",
-        required_permission=LoyaltyPermissions.REWARD_VIEW, capability="rewards"),
-    FidelidadRoute(
-        route_id="loyalty.challenges", icon=Icons.FLAG, label="Retos", group="Recompensas y retos",
-        tooltip="Retos, misiones y metas.",
-        required_permission=LoyaltyPermissions.CHALLENGE_VIEW, capability="challenges"),
+    _r("loyalty.rewards", "Recompensas", "Beneficios", "Catálogo, canje y entregas.",
+       LP.REWARD_VIEW, "rewards", Icons.PACKAGE),
+    _r("loyalty.challenges", "Retos y misiones", "Beneficios", "Metas que otorgan puntos.",
+       LP.CHALLENGE_VIEW, "challenges", Icons.FLAG),
+    _r("loyalty.referrals", "Referidos", "Beneficios", "Programa de referidos.",
+       LP.REFERRAL_VIEW, "referrals", Icons.SCENARIO),
+    _r("loyalty.birthdays", "Cumpleaños", "Beneficios", "Beneficio de cumpleaños.",
+       LP.BIRTHDAY_VIEW, "birthdays", Icons.CALENDAR),
 
-    # -- Referidos y ciclo de vida -------------------------------------------
-    FidelidadRoute(
-        route_id="loyalty.referrals", icon=Icons.SCENARIO, label="Referidos", group="Referidos y ciclo de vida",
-        tooltip="Programa de referidos.",
-        required_permission=LoyaltyPermissions.REFERRAL_VIEW, capability="referrals"),
-    FidelidadRoute(
-        route_id="loyalty.birthdays", icon=Icons.CALENDAR, label="Cumpleaños", group="Referidos y ciclo de vida",
-        tooltip="Configuración de beneficios de cumpleaños.",
-        required_permission=LoyaltyPermissions.BIRTHDAY_VIEW, capability="birthdays"),
-    FidelidadRoute(
-        route_id="loyalty.campaigns", icon=Icons.RECOVERY, label="Campañas", group="Referidos y ciclo de vida",
-        tooltip="Campañas de retención y win-back.",
-        required_permission=LoyaltyPermissions.CAMPAIGN_VIEW, capability="campaigns"),
+    _r("loyalty.campaigns", "Campañas", "Campañas", "Campañas con presupuesto y aprobación.",
+       LP.CAMPAIGN_VIEW, "campaigns", Icons.RECOVERY),
+    _r("loyalty.retention", "Retención", "Campañas", "Retención y recuperación de clientes.",
+       LP.RETENTION_VIEW, "retention", Icons.RETURN),
 
-    # -- Instrumentos comerciales --------------------------------------------
-    FidelidadRoute(
-        route_id="instruments.coupons", icon=Icons.PRICE, label="Cupones", group="Instrumentos comerciales",
-        tooltip="Emisión y canje de cupones.",
-        required_permission=LoyaltyPermissions.COUPON_VIEW, capability="coupons"),
-    FidelidadRoute(
-        route_id="instruments.vouchers", icon=Icons.DOCUMENT, label="Vales", group="Instrumentos comerciales",
-        tooltip="Emisión y canje de vales.",
-        required_permission=LoyaltyPermissions.VOUCHER_VIEW, capability="vouchers"),
+    _r("instruments.coupons", "Cupones", "Instrumentos comerciales", "Definición y emisión de cupones.",
+       LP.COUPON_VIEW, "coupons", Icons.PRICE),
+    _r("instruments.vouchers", "Vales", "Instrumentos comerciales", "Vales con saldo y canje parcial.",
+       LP.VOUCHER_VIEW, "vouchers", Icons.DOCUMENT),
 
-    # -- Sorteos ------------------------------------------------------------
-    FidelidadRoute(
-        route_id="sweepstakes.campaigns", icon=Icons.SCHEDULE, label="Campañas de sorteo", group="Sorteos",
-        tooltip="Campañas, reglas, premios y derechos de sorteo.",
-        required_permission=LoyaltyPermissions.SWEEPSTAKES_VIEW, capability="sweepstakes"),
-    FidelidadRoute(
-        route_id="sweepstakes.draws", icon=Icons.SUCCESS, label="Sorteo y ganadores", group="Sorteos",
-        tooltip="Ejecución del sorteo y validación de ganadores.",
-        required_permission=LoyaltyPermissions.SWEEPSTAKES_VIEW, capability="sweepstakes"),
+    _r("sweepstakes.campaigns", "Campañas de sorteo", "Sorteos",
+       "Campañas, participaciones, boletos y premios.", LP.SWEEPSTAKES_VIEW, "sweepstakes",
+       Icons.SCHEDULE),
+    _r("sweepstakes.draws", "Sorteo y ganadores", "Sorteos", "Sorteo auditable y ganadores.",
+       LP.SWEEPSTAKES_VIEW, "sweepstakes", Icons.SUCCESS),
 
-    # -- Control -------------------------------------------------------------
-    FidelidadRoute(
-        route_id="fidelidad.fraud", icon=Icons.INVESTIGATION, label="Antifraude", group="Control",
-        tooltip="Casos de fraude y revisión.",
-        required_permission=LoyaltyPermissions.FRAUD_VIEW, capability="fraud"),
-    FidelidadRoute(
-        route_id="fidelidad.settings", icon=Icons.SETTINGS, label="Configuración", group="Control",
-        tooltip="Configuración general del módulo.",
-        required_permission=LoyaltyPermissions.CONFIG_VIEW, capability="settings"),
+    _r("cards.overview", "Resumen de tarjetas", "Tarjetas de fidelidad",
+       "Tarjetas emitidas, activas, bloqueadas y producción.", CP.VIEW, "cards", Icons.DASHBOARD),
+    _r("cards.cards", "Tarjetas", "Tarjetas de fidelidad",
+       "Emitir, activar, bloquear, reponer y rotar QR.", CP.CARD_VIEW, "cards",
+       Icons.LOYALTY_CARDS),
+    _r("cards.templates", "Plantillas", "Tarjetas de fidelidad",
+       "Plantillas versionadas y su aprobación.", CP.TEMPLATE_VIEW, "card_templates",
+       Icons.DOCUMENT),
+    _r("cards.designer", "Diseñador", "Tarjetas de fidelidad",
+       "Diseño declarativo de anverso y reverso, con vista previa.", CP.DESIGNER_ACCESS,
+       "card_designer", Icons.EDIT),
+    _r("cards.sheets", "Formatos y pliegos", "Tarjetas de fidelidad",
+       "Pliegos (12 × 18 pulgadas y personalizados) e imposición.", CP.VIEW, "cards",
+       Icons.LIST),
+    _r("cards.batches", "Lotes", "Tarjetas de fidelidad", "Lotes de tarjetas y su aprobación.",
+       CP.VIEW, "cards", Icons.LOTS),
+    _r("cards.printing", "Impresión", "Tarjetas de fidelidad",
+       "Trabajos de impresión de lotes.", CP.VIEW, "cards", Icons.PRINT),
+    _r("cards.reprints", "Reimpresiones", "Tarjetas de fidelidad",
+       "Reimpresiones con motivo; no crean tarjetas ni QR nuevos.", CP.VIEW, "cards",
+       Icons.REDO),
+    _r("cards.digital", "Tarjetas digitales", "Tarjetas de fidelidad",
+       "Proyección digital de cada tarjeta.", CP.CARD_VIEW, "cards", Icons.DEVICE),
+    _r("cards.qr", "QR y validación", "Tarjetas de fidelidad",
+       "Validar el QR de una tarjeta como lo haría el punto de venta.", CP.CARD_VIEW, "cards",
+       Icons.SEARCH),
+    _r("cards.audit", "Auditoría de tarjetas", "Tarjetas de fidelidad",
+       "Emisión, bloqueo, reposición, impresión y rotación de QR.", CP.AUDIT_VIEW, "cards",
+       Icons.AUDIT),
+
+    _r("fidelidad.fraud", "Antifraude", "Control", "Casos de fraude y revisión.",
+       LP.FRAUD_VIEW, "fraud", Icons.INVESTIGATION),
+    _r("fidelidad.audit", "Auditoría", "Control", "Rastro de auditoría de Fidelidad.",
+       LP.AUDIT_VIEW, "audit", Icons.AUDIT),
+    _r("fidelidad.settings", "Configuración", "Control",
+       "Reglas de acumulación, canje y caducidad.", LP.CONFIG_VIEW, "settings", Icons.SETTINGS),
 )
 
 
-def visible_routes(capabilities: FidelidadCapabilities) -> tuple[FidelidadRoute, ...]:
-    """Return routes authorized by UI capabilities, not raw route permissions."""
+def visible_routes(capabilities: FidelidadCapabilities,
+                   can: Callable[[str], bool] | None = None) -> tuple[FidelidadRoute, ...]:
+    """Routes the session may open: module access + that route's own permission."""
     if not capabilities.module_view:
         return ()
-    return tuple(
-        route for route in FIDELIDAD_ROUTES
-        if bool(getattr(capabilities, route.capability, False)))
+    if can is None:
+        return tuple(r for r in FIDELIDAD_ROUTES if bool(getattr(capabilities, r.capability, False)))
+    return tuple(r for r in FIDELIDAD_ROUTES if can(r.required_permission))
 
 
 def grouped_routes(

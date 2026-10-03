@@ -72,9 +72,11 @@ class _RaisingSalesMarketingClient:
 
 @pytest.fixture
 def conn():
-    # make_db() already applies migrations 057/092 (real loyalty_ledger)
-    # and m000 (real clientes) — reuse those, don't hand-roll duplicates.
+    # LOY-29: los puntos viven en el libro canónico de Fidelidad.
+    from backend.infrastructure.db.schema.loyalty_schema import create_loyalty_schema
+
     connection = make_db()
+    create_loyalty_schema(connection)
     create_sales_schema(connection)
     create_customers_crm_schema(connection)
     connection.commit()
@@ -82,11 +84,17 @@ def conn():
     connection.close()
 
 
-def _award_points(conn, *, legacy_customer_id: str, points: int) -> None:
-    conn.execute(
-        "INSERT INTO loyalty_ledger (id, cliente_id, tipo, puntos, saldo_post) VALUES (?, ?, 'acumulacion', ?, ?)",
-        (new_uuid(), legacy_customer_id, points, points))
-    conn.commit()
+def _award_points(conn, *, customer_id: str, points: int) -> None:
+    from backend.domain.loyalty.entities.loyalty_account import LoyaltyAccount
+    from backend.domain.loyalty.entities.loyalty_transaction import LoyaltyTransaction
+    from backend.infrastructure.db.repositories.loyalty.unit_of_work import LoyaltyUnitOfWork
+
+    with LoyaltyUnitOfWork(conn) as uow:
+        account = LoyaltyAccount.create(customer_id=customer_id)
+        uow.accounts.save(account)
+        uow.transactions.save(LoyaltyTransaction.earn(
+            loyalty_account_id=account.id, points_amount=Decimal(points),
+            operation_id=new_uuid(), branch_id=new_uuid(), created_by_user_id=new_uuid()))
 
 
 def _sale_with_customer(conn, *, customer_id: str | None, price="100.00") -> tuple[str, str]:
@@ -128,16 +136,9 @@ class TestNothingConfiguredIsUnchanged:
 
 class TestConfiguredLoyaltyAndMarketing:
     def test_reprint_shows_real_loyalty_summary_and_campaign_messages(self, conn):
-        from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
-            EnsureLegacyCustomerBridgeUseCase,
-        )
-
         customer_id = QuickCreateCustomerForSaleUseCase(_allow_all_customers()).execute(
             conn, actor_user_id=new_uuid(), operation_id=new_uuid(), display_name="Ana Torres").entity_id
-        legacy_id = EnsureLegacyCustomerBridgeUseCase().execute(conn, customer_id=customer_id)
-        conn.execute("INSERT OR IGNORE INTO clientes (id, nombre) VALUES (?, 'Bridge stub')", (legacy_id,))
-        conn.commit()
-        _award_points(conn, legacy_customer_id=legacy_id, points=30)
+        _award_points(conn, customer_id=customer_id, points=30)
 
         CreateMarketingCampaignUseCase(conn).execute(
             code="low_balance", category="FOMO", message_template="¡Solo {points_balance} puntos, canjéalos ya!",

@@ -42,15 +42,17 @@ class QuickCreateCustomerForSaleUseCase:
 
 
 class ScanLoyaltyCardForSaleUseCase:
-    """§21 "escanear tarjeta" — a single real POS action, not two separate
-    steps: look up the card (legacy `clientes` table, the only real card-scan
-    path in this repository — confirmed by research, nothing touches the new
-    `customers` table for card lookups), bridge the result into Customer
-    Master's identity space (`ResolveLegacyCustomerUseCase`, CRM-21's own
-    bridge — never skip this, `Sale.customer_id` must hold a `customers.id`,
-    never a legacy `clientes.id`), then assign it to the sale — reusing
-    `AssignCustomerToSaleUseCase` rather than duplicating its existence-check
-    and event-emission logic.
+    """§21 "escanear tarjeta" — una sola acción del POS: identificar y asignar.
+
+    LOY-29: primero se pregunta a Fidelidad qué tarjeta es
+    (`ResolveLoyaltyCardQuery`, vía `SalesLoyaltyClient.resolve_card`). Antes el
+    código se buscaba SÓLO en la tabla legacy `clientes`, así que ninguna
+    tarjeta emitida por el módulo canónico identificaba al cliente. Una tarjeta
+    bloqueada, repuesta o con QR revocado se rechaza con el motivo de Fidelidad.
+
+    Si lo escaneado no es una tarjeta, se sigue buscando como antes en Clientes
+    (credencial, teléfono, código impreso): esa búsqueda es de Clientes, no un
+    respaldo de tarjetas. La asignación reutiliza `AssignCustomerToSaleUseCase`.
     """
 
     def __init__(self, sales_authorization: SalesAuthorizationPolicy | None = None) -> None:
@@ -58,15 +60,26 @@ class ScanLoyaltyCardForSaleUseCase:
 
     def execute(self, connection, *, sale_id: str, card_code: str, actor_user_id: str,
                 operation_id: str):
-        client = SalesCustomerClient(connection)
-        legacy_row = client.lookup_by_card(card_code)
-        if legacy_row is None:
-            from backend.application.sales.result import fail_from_domain_error
+        from backend.application.sales.result import fail_from_domain_error
+        from backend.infrastructure.integrations.sales_loyalty_client import SalesLoyaltyClient
 
-            return fail_from_domain_error(
-                SaleCustomerNotFoundError(f"Ninguna tarjeta/cliente coincide con {card_code!r}"),
-                operation_id=operation_id)
-        customer_id = client.resolve_legacy_customer(legacy_row["id"])
+        tarjeta = SalesLoyaltyClient(connection).resolve_card(card_code)
+        if tarjeta.found:
+            if not tarjeta.eligible or not tarjeta.customer_id:
+                return fail_from_domain_error(
+                    SaleCustomerNotFoundError(" ".join(tarjeta.warnings)
+                                              or "La tarjeta no puede usarse."),
+                    operation_id=operation_id)
+            customer_id = tarjeta.customer_id
+        else:
+            client = SalesCustomerClient(connection)
+            legacy_row = client.lookup_by_card(card_code)
+            if legacy_row is None:
+                return fail_from_domain_error(
+                    SaleCustomerNotFoundError(
+                        f"Ninguna tarjeta/cliente coincide con {card_code!r}"),
+                    operation_id=operation_id)
+            customer_id = client.resolve_legacy_customer(legacy_row["id"])
         return AssignCustomerToSaleUseCase(self._sales_auth).execute(
             connection, sale_id=sale_id, customer_id=customer_id,
             actor_user_id=actor_user_id, operation_id=operation_id)

@@ -77,15 +77,91 @@ def _draw_barcode(c: pdfcanvas.Canvas, value: str, fmt: str, x_pt: float, y_pt: 
                 preserveAspectRatio=True, mask="auto")
 
 
+_CROP_MARK_MM = Decimal("3")
+
+
+def _draw_crop_marks(c: pdfcanvas.Canvas, x_mm: Decimal, y_mm: Decimal, w_mm: Decimal,
+                     h_mm: Decimal, offset_mm: Decimal) -> None:
+    """Marcas de corte en las cuatro esquinas del área final de la tarjeta,
+    por fuera del sangrado para que el corte no las arrastre."""
+    largo = float(_CROP_MARK_MM) * mm
+    gap = float(offset_mm) * mm
+    x0, y0 = float(x_mm) * mm, float(y_mm) * mm
+    x1, y1 = x0 + float(w_mm) * mm, y0 + float(h_mm) * mm
+    c.setLineWidth(0.25)
+    for x, dx in ((x0, -1), (x1, 1)):
+        for y, dy in ((y0, -1), (y1, 1)):
+            c.line(x + dx * gap, y, x + dx * (gap + largo), y)
+            c.line(x, y + dy * gap, x, y + dy * (gap + largo))
+
+
+def _draw_elements(c: pdfcanvas.Canvas, elements: list, unit: PrintUnit, *,
+                   origin_x_pt: float, origin_y_pt: float, card_height_mm: Decimal,
+                   scale_x: Decimal, scale_y: Decimal) -> None:
+    for element in elements:
+        ex_mm = Decimal(str(element["x_mm"])) * scale_x
+        ey_top_mm = Decimal(str(element["y_mm"])) * scale_y
+        ew_mm = Decimal(str(element["width_mm"])) * scale_x
+        eh_mm = Decimal(str(element["height_mm"])) * scale_y
+        ex_pt = origin_x_pt + float(ex_mm) * mm
+        ew_pt = float(ew_mm) * mm
+        eh_pt = float(eh_mm) * mm
+        # element y is measured from the TOP of the card canvas.
+        ey_pt = origin_y_pt + float(card_height_mm) * mm - float(ey_top_mm) * mm - eh_pt
+
+        element_type = element["type"]
+        if element_type == "TEXT":
+            text = _resolve_text(element.get("content", ""), unit.placeholder_values)
+            c.setFont("Helvetica", max(eh_pt * 0.6, 4))
+            align = element.get("align", "LEFT")
+            if align == "CENTER":
+                c.drawCentredString(ex_pt + ew_pt / 2, ey_pt, text)
+            elif align == "RIGHT":
+                c.drawRightString(ex_pt + ew_pt, ey_pt, text)
+            else:
+                c.drawString(ex_pt, ey_pt, text)
+        elif element_type == "QR":
+            value = unit.placeholder_values.get("card_token")
+            if not value:
+                raise InvalidCardDesignSchemaError("Falta card_token para el elemento QR")
+            _draw_qr(c, value, ex_pt, ey_pt, ew_pt, eh_pt)
+        elif element_type == "BARCODE":
+            value = unit.placeholder_values.get("card_number")
+            if not value:
+                raise InvalidCardDesignSchemaError("Falta card_number para el elemento BARCODE")
+            _draw_barcode(c, value, element["format"], ex_pt, ey_pt, ew_pt, eh_pt)
+        elif element_type == "SHAPE":
+            shape_type = element["shape_type"]
+            if shape_type == "RECTANGLE":
+                c.rect(ex_pt, ey_pt, ew_pt, eh_pt, stroke=1, fill=0)
+            elif shape_type == "CIRCLE":
+                c.ellipse(ex_pt, ey_pt, ex_pt + ew_pt, ey_pt + eh_pt, stroke=1, fill=0)
+            elif shape_type == "LINE":
+                c.line(ex_pt, ey_pt, ex_pt + ew_pt, ey_pt + eh_pt)
+        elif element_type == "IMAGE":
+            # No asset store wired yet (honest gap) — draws a labeled
+            # placeholder box instead of fabricating image content.
+            c.rect(ex_pt, ey_pt, ew_pt, eh_pt, stroke=1, fill=0)
+            c.setFont("Helvetica", 6)
+            c.drawCentredString(ex_pt + ew_pt / 2, ey_pt + eh_pt / 2, "[IMAGE]")
+
+
 def render_batch_pdf(
     *, sheet_width_mm: Decimal, sheet_height_mm: Decimal, margin_left_mm: Decimal,
     margin_top_mm: Decimal, columns: int, rows: int, card_width_mm: Decimal,
     card_height_mm: Decimal, bleed_mm: Decimal, gutter_horizontal_mm: Decimal,
     gutter_vertical_mm: Decimal, design_schema: dict, print_units: list[PrintUnit],
+    crop_marks: bool = True,
 ) -> bytes:
     """One page per distinct `sheet_number` present in `print_units` — a
     reprint of a single sheet is just calling this again with a
     `print_units` list filtered to that sheet, never touching the others.
+
+    LOY-29: si el diseño trae REVERSO (`back_elements`), cada pliego lleva una
+    segunda página con el reverso, con las columnas en espejo para impresión
+    dúplex por el borde largo: la tarjeta de la columna 1 del anverso cae
+    detrás de sí misma al voltear el pliego. Y cada tarjeta lleva marcas de
+    corte fuera del sangrado.
     """
     if not print_units:
         raise InvalidCardDesignSchemaError("No hay unidades de impresión para renderizar")
@@ -102,77 +178,38 @@ def render_batch_pdf(
     for unit in print_units:
         sheets.setdefault(unit.sheet_number, []).append(unit)
 
+    caras = [design_schema.get("elements", [])]
+    if design_schema.get("back_elements"):
+        caras.append(design_schema["back_elements"])
+
     buf = BytesIO()
     page_size = (float(sheet_width_mm) * mm, float(sheet_height_mm) * mm)
     c = pdfcanvas.Canvas(buf, pagesize=page_size)
 
     for sheet_number in sorted(sheets.keys()):
-        for unit in sheets[sheet_number]:
-            if not (1 <= unit.position_in_sheet <= columns * rows):
-                raise InvalidCardDesignSchemaError(
-                    f"position_in_sheet {unit.position_in_sheet} fuera de rango para "
-                    f"{columns}x{rows}")
-            col = (unit.position_in_sheet - 1) % columns
-            row = (unit.position_in_sheet - 1) // columns
-            cell_x_mm = margin_left_mm + col * (cell_width_mm + gutter_horizontal_mm) + bleed_mm
-            # PDF y-origin is bottom-left; row 0 is the TOP row of the sheet.
-            cell_y_from_top_mm = (
-                margin_top_mm + row * (cell_height_mm + gutter_vertical_mm) + bleed_mm)
-            cell_y_mm = sheet_height_mm - cell_y_from_top_mm - card_height_mm
-
-            origin_x_pt = float(cell_x_mm) * mm
-            origin_y_pt = float(cell_y_mm) * mm
-
-            for element in design_schema.get("elements", []):
-                ex_mm = Decimal(str(element["x_mm"])) * scale_x
-                ey_top_mm = Decimal(str(element["y_mm"])) * scale_y
-                ew_mm = Decimal(str(element["width_mm"])) * scale_x
-                eh_mm = Decimal(str(element["height_mm"])) * scale_y
-                ex_pt = origin_x_pt + float(ex_mm) * mm
-                ew_pt = float(ew_mm) * mm
-                eh_pt = float(eh_mm) * mm
-                # element y is measured from the TOP of the card canvas.
-                ey_pt = origin_y_pt + float(card_height_mm) * mm - float(ey_top_mm) * mm - eh_pt
-
-                element_type = element["type"]
-                if element_type == "TEXT":
-                    text = _resolve_text(element.get("content", ""), unit.placeholder_values)
-                    c.setFont("Helvetica", max(eh_pt * 0.6, 4))
-                    align = element.get("align", "LEFT")
-                    if align == "CENTER":
-                        c.drawCentredString(ex_pt + ew_pt / 2, ey_pt, text)
-                    elif align == "RIGHT":
-                        c.drawRightString(ex_pt + ew_pt, ey_pt, text)
-                    else:
-                        c.drawString(ex_pt, ey_pt, text)
-                elif element_type == "QR":
-                    value = unit.placeholder_values.get("card_token")
-                    if not value:
-                        raise InvalidCardDesignSchemaError(
-                            "Falta card_token para el elemento QR")
-                    _draw_qr(c, value, ex_pt, ey_pt, ew_pt, eh_pt)
-                elif element_type == "BARCODE":
-                    value = unit.placeholder_values.get("card_number")
-                    if not value:
-                        raise InvalidCardDesignSchemaError(
-                            "Falta card_number para el elemento BARCODE")
-                    _draw_barcode(c, value, element["format"], ex_pt, ey_pt, ew_pt, eh_pt)
-                elif element_type == "SHAPE":
-                    shape_type = element["shape_type"]
-                    if shape_type == "RECTANGLE":
-                        c.rect(ex_pt, ey_pt, ew_pt, eh_pt, stroke=1, fill=0)
-                    elif shape_type == "CIRCLE":
-                        c.ellipse(ex_pt, ey_pt, ex_pt + ew_pt, ey_pt + eh_pt, stroke=1, fill=0)
-                    elif shape_type == "LINE":
-                        c.line(ex_pt, ey_pt, ex_pt + ew_pt, ey_pt + eh_pt)
-                elif element_type == "IMAGE":
-                    # No asset store wired yet (honest gap) — draws a
-                    # labeled placeholder box instead of fabricating image
-                    # content.
-                    c.rect(ex_pt, ey_pt, ew_pt, eh_pt, stroke=1, fill=0)
-                    c.setFont("Helvetica", 6)
-                    c.drawCentredString(ex_pt + ew_pt / 2, ey_pt + eh_pt / 2, "[IMAGE]")
-        c.showPage()
+        for cara, elementos in enumerate(caras):
+            for unit in sheets[sheet_number]:
+                if not (1 <= unit.position_in_sheet <= columns * rows):
+                    raise InvalidCardDesignSchemaError(
+                        f"position_in_sheet {unit.position_in_sheet} fuera de rango para "
+                        f"{columns}x{rows}")
+                col = (unit.position_in_sheet - 1) % columns
+                if cara == 1:
+                    col = columns - 1 - col  # dúplex por borde largo: espejo horizontal
+                row = (unit.position_in_sheet - 1) // columns
+                cell_x_mm = (margin_left_mm + col * (cell_width_mm + gutter_horizontal_mm)
+                             + bleed_mm)
+                # PDF y-origin is bottom-left; row 0 is the TOP row of the sheet.
+                cell_y_from_top_mm = (
+                    margin_top_mm + row * (cell_height_mm + gutter_vertical_mm) + bleed_mm)
+                cell_y_mm = sheet_height_mm - cell_y_from_top_mm - card_height_mm
+                if crop_marks:
+                    _draw_crop_marks(c, cell_x_mm, cell_y_mm, card_width_mm, card_height_mm,
+                                     bleed_mm)
+                _draw_elements(c, elementos, unit, origin_x_pt=float(cell_x_mm) * mm,
+                               origin_y_pt=float(cell_y_mm) * mm,
+                               card_height_mm=card_height_mm, scale_x=scale_x, scale_y=scale_y)
+            c.showPage()
 
     c.save()
     return buf.getvalue()

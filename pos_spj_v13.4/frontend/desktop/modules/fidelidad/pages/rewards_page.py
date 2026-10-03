@@ -10,11 +10,11 @@ trying to pre-filter memberships by program itself.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-from frontend.desktop.components import ColumnSpec, StandardTable
-from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
-from frontend.desktop.components.text_inputs import StandardLineEdit
+from frontend.desktop.components import ColumnSpec, CustomerSearchBox, StandardTable
+from frontend.desktop.components.buttons import create_primary_button
+from frontend.desktop.components.pages import StandardPage
 from frontend.desktop.themes.tokens import Spacing
 
 _MEMBERSHIP_LABELS = {
@@ -22,13 +22,13 @@ _MEMBERSHIP_LABELS = {
 }
 
 
-class RewardsPage(QWidget):
+class RewardsPage(StandardPage):
     def __init__(self, presenter, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title="Canjear recompensa", subtitle="Elige al cliente, su membresía y la recompensa.")
         self.setObjectName("fidelidadRewardsPage")
         self._presenter = presenter
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(Spacing.MD)
 
@@ -37,14 +37,11 @@ class RewardsPage(QWidget):
         self._status.hide()
         layout.addWidget(self._status)
 
-        search_row = QHBoxLayout()
-        self._customer_id_input = StandardLineEdit(self)
-        self._customer_id_input.setPlaceholderText("ID de cliente (UUIDv7)")
-        search_row.addWidget(self._customer_id_input, stretch=1)
-        search_btn = create_secondary_button(self, "Buscar")
-        search_btn.clicked.connect(self._search)
-        search_row.addWidget(search_btn)
-        layout.addLayout(search_row)
+        # LOY-29: buscador estándar de Clientes (antes había que pegar el UUID).
+        self._selected_customer_id: str | None = None
+        self._customer_search = CustomerSearchBox(self, provider=presenter.customer_options)
+        self._customer_search.selected.connect(self._on_customer_selected)
+        layout.addWidget(self._customer_search)
 
         layout.addWidget(QLabel("Membresías del cliente", self))
         self._memberships_table = StandardTable(
@@ -65,10 +62,15 @@ class RewardsPage(QWidget):
     def ensure_loaded(self) -> None:
         pass
 
+    def _on_customer_selected(self, option) -> None:
+        self._selected_customer_id = option.id
+        self._customer_search.set_selected_label(option.label)
+        self._search()
+
     def _search(self) -> None:
-        customer_id = self._customer_id_input.text().strip()
+        customer_id = self._selected_customer_id or ""
         if not customer_id:
-            self._show_message("Ingresa un ID de cliente.", error=True)
+            self._show_message("Busca y elige un cliente.", error=True)
             return
         try:
             view = self._presenter.member_profile(customer_id)
@@ -82,7 +84,7 @@ class RewardsPage(QWidget):
                 "Este cliente no tiene una cuenta de fidelidad todavía.", error=True)
             return
         self._memberships_table.load_rows(
-            [[m.program_id, _MEMBERSHIP_LABELS.get(m.status.value, m.status.value)]
+            [[view.program_names.get(m.program_id) or m.program_id, _MEMBERSHIP_LABELS.get(m.status.value, m.status.value)]
              for m in view.memberships],
             row_ids=[m.id for m in view.memberships])
         self._rewards_table.load_rows(

@@ -103,6 +103,10 @@ class _ProgramTransitionUseCase(_LoyaltyBaseUseCase):
                 self._emit(uow, self.event_name, entity_id=program.id,
                            operation_id=operation_id, branch_id=actor_branch_id,
                            actor_user_id=actor_user_id)
+            else:
+                self._audit(uow, type(self).__name__.removesuffix("UseCase"), entity_id=program.id,
+                           operation_id=operation_id, branch_id=actor_branch_id,
+                           actor_user_id=actor_user_id)
         return LoyaltyResult.ok(self.success_message, entity_id=program.id,
                                 operation_id=operation_id,
                                 program=LoyaltyProgramDTO.from_entity(program))

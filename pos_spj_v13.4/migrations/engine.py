@@ -293,6 +293,8 @@ MIGRATIONS = [
     _Migration("287",  "migrations.standalone.287_purchase_order_weight_pricing"),
     _Migration("288",  "migrations.standalone.288_sales_commercial_folio"),
     _Migration("289",  "migrations.standalone.289_sales_returns_loyalty_seed"),
+    _Migration("290",  "migrations.standalone.290_seed_loyalty_role_permissions"),
+    _Migration("291",  "migrations.standalone.291_drop_legacy_loyalty_tables"),
 ]
 
 def _ensure_tracking_table(conn):

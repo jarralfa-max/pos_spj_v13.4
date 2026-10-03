@@ -289,9 +289,12 @@ def test_sincronizacion_tables_are_born_clean_single_uuid_identity():
 
 
 def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
-    """The canonical loyalty_ledger carries a TEXT UUIDv7 id (minted by the repo,
-    not autoincrement) with TEXT cliente_id/sucursal_id, and the dead points
-    tables (puntos, loyalty_points_log) are gone from the schema.
+    """Un solo libro de puntos, nacido limpio (LOY-29).
+
+    Tras la cadena completa de migraciones el libro legacy `loyalty_ledger`
+    ya no existe (la 291 lo retira junto con las demás tablas legacy de
+    Fidelidad) y el canónico `loyalty_transactions` lleva id TEXT UUIDv7.
+    Las tablas muertas de puntos (puntos, loyalty_points_log) tampoco.
     """
     import migrations.m000_base_schema as base
     from migrations import engine as migrator
@@ -302,32 +305,28 @@ def test_loyalty_ledger_born_clean_and_dead_points_tables_removed():
     migrator.up(conn)
     conn.commit()
 
-    led = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(loyalty_ledger)").fetchall()}
-    assert led["id"] == "TEXT"
-    assert led["cliente_id"] == "TEXT"
-    assert led["sucursal_id"] == "TEXT"
-
     tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+    assert "loyalty_ledger" not in tables
     assert "puntos" not in tables
     assert "loyalty_points_log" not in tables
 
+    led = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(
+        "PRAGMA table_info(loyalty_transactions)").fetchall()}
+    assert led["id"] == ("TEXT", 1)
+    assert led["loyalty_account_id"][0] == "TEXT"
 
-    # Los escritores legacy que esta prueba leía para comprobar que acuñaban
-    # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
-    # identidad. Se comprueba sobre los escritores que HAY.
     assert_no_production_writer("loyalty_ledger")
+    assert _insert_statements("loyalty_transactions"), "el libro canónico no tiene escritor"
+    assert_every_writer_mints_the_id("loyalty_transactions")
 
 
 def test_raffle_subsystem_born_clean_and_ddl_lives_in_migration():
-    """El subsistema legacy de rifas (migración 113) nació limpio y quedó como esquema.
+    """El subsistema legacy de rifas ya no existe tras la cadena de migraciones.
 
-    Cada tabla `raffle_*` lleva PK TEXT UUIDv7 y FKs funcionales TEXT, y la
-    migración 113 sigue registrada en la cadena del engine.
-
-    La mitad que leía `repositories/loyalty_repository.py` se reorientó: ese
-    repositorio se borró. El sorteo canónico escribe `sweepstakes_*`; por eso
-    se fija que nadie vuelva a escribir `raffle_*` y que los escritores de
-    `sweepstakes_*` —que sí existen— acuñen su id.
+    La migración 113 sigue registrada (la historia no se reescribe), pero la
+    291 retira las `raffle_*` (LOY-29): el sorteo canónico escribe
+    `sweepstakes_*`. Se fija que nadie escriba `raffle_*` y que los escritores
+    de `sweepstakes_*` acuñen su id.
     """
     import migrations.m000_base_schema as base
     from migrations import engine as migrator
@@ -338,27 +337,14 @@ def test_raffle_subsystem_born_clean_and_ddl_lives_in_migration():
     migrator.up(conn)
     conn.commit()
 
-    text_pk = {
-        "raffles": (),
-        "raffle_tickets": ("raffle_id", "cliente_id", "venta_id"),
-        "raffle_financial_ledger": ("raffle_id",),
-        "raffle_winners": ("raffle_id", "ticket_id", "prize_id", "cliente_id"),
-        "raffle_rules": ("raffle_id",),
-        "raffle_prizes": ("raffle_id",),
-        "raffle_eligible_products": ("raffle_id", "product_id"),
-        "raffle_eligible_categories": ("raffle_id", "category_id"),
-        "raffle_eligible_branches": ("raffle_id", "sucursal_id"),
-    }
-    for table, fks in text_pk.items():
-        cols = {r[1]: (r[2].upper(), r[5]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
-        assert cols, f"{table} missing after migration 113"
-        assert cols["id"] == ("TEXT", 1), f"{table}.id must be TEXT PRIMARY KEY"
-        for fk in fks:
-            assert cols[fk][0] == "TEXT", f"{table}.{fk} must be TEXT (no integer surrogate)"
+    text_pk = ("raffles", "raffle_tickets", "raffle_financial_ledger", "raffle_winners",
+               "raffle_rules", "raffle_prizes", "raffle_eligible_products",
+               "raffle_eligible_categories", "raffle_eligible_branches")
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert not (set(text_pk) & tables), f"tablas de rifas legacy vivas: {set(text_pk) & tables}"
 
-    # Migration 113 is registered in the engine chain.
     versions = {m.version for m in migrator.MIGRATIONS}
-    assert "113" in versions
+    assert {"113", "291"} <= versions
 
     # Los escritores legacy que esta prueba leía para comprobar que acuñaban
     # el id se borraron; leerlos daba FileNotFoundError, que no dice nada de
@@ -914,8 +900,8 @@ def test_clientes_table_is_born_clean_uuid_identity():
     Antes esto se comprobaba leyendo el codigo de los escritores que habia
     —`repositories/cliente_repository.py`, `integrations/pos_adapter.py`,
     `api/routers/clientes.py`—, los tres borrados. La propiedad se comprueba
-    ahora sobre los escritores que HAY, sean cuales sean: hoy
-    `create_customer_use_case.py` y el puente de identidad legacy, y manana
+    ahora sobre los escritores que HAY, sean cuales sean: hoy el puente de
+    identidad legacy (`create_customer_use_case.py` se retiro en LOY-29), y manana
     los que se escriban.
     """
     conn = _fresh_base_schema()

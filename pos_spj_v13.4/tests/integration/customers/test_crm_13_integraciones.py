@@ -272,26 +272,40 @@ class TestCustomerWhatsAppSummaryQuery:
 
 
 class TestLoyaltyCustomerSummaryQuery:
-    def test_not_enrolled_when_no_snapshot(self, full_crm_conn_with_ops):
+    def test_not_enrolled_without_loyalty_account(self, full_crm_conn_with_ops):
         customer_id = _customer(full_crm_conn_with_ops)
         summary = LoyaltyCustomerSummaryQuery(full_crm_conn_with_ops, _allow_cust()).get_summary(
             customer_id, actor_user_id="u1")
         assert summary.enrolled is False
         assert summary.current_points == 0
 
-    def test_reads_snapshot_when_present(self, full_crm_conn_with_ops):
+    def test_reads_canonical_ledger_balance(self, full_crm_conn_with_ops):
+        """LOY-29: antes leía `loyalty_snapshots`, que nadie escribe; el saldo
+        real vive en el libro canónico y se deriva de él."""
+        from decimal import Decimal
+
+        from backend.application.loyalty.authorization import LoyaltyAuthorizationPolicy
+        from backend.application.loyalty.use_cases.ledger_use_cases import (
+            AccrueLoyaltyPointsUseCase,
+        )
+        from backend.domain.loyalty.entities.loyalty_account import LoyaltyAccount
+        from backend.infrastructure.db.repositories.loyalty.unit_of_work import LoyaltyUnitOfWork
+
         conn = full_crm_conn_with_ops
         customer_id = _customer(conn)
-        conn.execute(
-            "INSERT INTO loyalty_snapshots (id, cliente_id, puntos_actuales, nivel, visitas,"
-            " importe_total) VALUES (?,?,?,?,?,?)",
-            (new_uuid(), customer_id, 150, "Plata", 4, 2500.0))
-        conn.commit()
+        with LoyaltyUnitOfWork(conn) as uow:
+            account = LoyaltyAccount.create(customer_id)
+            uow.accounts.save(account)
+        result = AccrueLoyaltyPointsUseCase(LoyaltyAuthorizationPolicy.permissive_for_tests()).execute(
+            conn, loyalty_account_id=account.id, points_amount=Decimal("150"),
+            operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
+            source_module="sales", reason_code="SALE", source_document_id=new_uuid())
+        assert result.success, result.message
         summary = LoyaltyCustomerSummaryQuery(conn, _allow_cust()).get_summary(
             customer_id, actor_user_id="u1")
         assert summary.enrolled is True
         assert summary.current_points == 150
-        assert summary.tier == "Plata"
+        assert summary.tier is None  # sin membresía no se fabrica un nivel
 
 
 class TestCRMBIExportQueryService:

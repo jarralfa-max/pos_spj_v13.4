@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from backend.application.loyalty.permissions import LoyaltyPermissions
+from backend.application.loyalty_cards.permissions import LoyaltyCardsPermissions
 from frontend.desktop.modules.fidelidad.view_models import FidelidadCapabilities
 
 
@@ -33,4 +34,10 @@ def resolve_fidelidad_capabilities(can: Callable[[str], bool]) -> FidelidadCapab
         sweepstakes=can(LoyaltyPermissions.SWEEPSTAKES_VIEW),
         fraud=can(LoyaltyPermissions.FRAUD_VIEW),
         settings=can(LoyaltyPermissions.CONFIG_VIEW),
+        alerts=can(LoyaltyPermissions.DASHBOARD_VIEW),
+        retention=can(LoyaltyPermissions.RETENTION_VIEW),
+        audit=can(LoyaltyPermissions.AUDIT_VIEW),
+        cards=can(LoyaltyCardsPermissions.VIEW),
+        card_templates=can(LoyaltyCardsPermissions.TEMPLATE_VIEW),
+        card_designer=can(LoyaltyCardsPermissions.DESIGNER_ACCESS),
     )
