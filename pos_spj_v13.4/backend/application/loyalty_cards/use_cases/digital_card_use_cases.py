@@ -56,7 +56,7 @@ class CreateLoyaltyDigitalCardProjectionUseCase(_LoyaltyCardsBaseUseCase):
                             "La tarjeta no tiene un token QR activo"),
                         operation_id=operation_id)
                 projection = LoyaltyDigitalCardProjection.create(
-                    card_id, card.customer_id, card.card_number, token.token,
+                    card_id, card.customer_id, card.card_number, token.id,
                     display_fields=display_fields)
                 uow.digital_projections.save(projection)
             return LoyaltyCardResult.ok(
@@ -82,7 +82,7 @@ class RefreshLoyaltyDigitalCardProjectionUseCase(_LoyaltyCardsBaseUseCase):
                         operation_id=operation_id)
                 active_token = uow.tokens.get_active_for_card(card_id)
                 projection.refresh(
-                    display_fields, qr_token=active_token.token if active_token else None)
+                    display_fields, token_id=active_token.id if active_token else None)
                 uow.digital_projections.save(projection)
             return LoyaltyCardResult.ok(
                 "Proyección de tarjeta digital actualizada", entity_id=projection.id,
@@ -103,10 +103,15 @@ class GetLoyaltyDigitalCardProjectionUseCase(_LoyaltyCardsBaseUseCase):
                         DigitalCardProjectionNotFoundError(
                             f"La tarjeta {card_id} no tiene proyección digital"),
                         operation_id=operation_id)
+                token = uow.tokens.get_active_for_card(card_id)
+                # §48: el QR de la tarjeta digital es el de la tarjeta, derivado al
+                # leer; nunca se guarda en la proyección (LOY-29).
+                qr = (f"SPJ-CARD:{token.raw_token(self._codec(connection))}"
+                      if token is not None else None)
             return LoyaltyCardResult.ok(
                 "Proyección de tarjeta digital", entity_id=projection.id,
                 operation_id=operation_id, card_number=projection.card_number,
-                qr_token=projection.qr_token, display_fields=projection.display_fields,
+                qr=qr, display_fields=projection.display_fields,
                 last_refreshed_at=projection.last_refreshed_at)
         except LoyaltyCardDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)

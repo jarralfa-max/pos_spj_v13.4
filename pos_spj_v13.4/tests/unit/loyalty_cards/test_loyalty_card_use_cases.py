@@ -52,7 +52,7 @@ class TestIssueAndActivate:
         result = _issue(conn, auth)
         assert result.success
         assert result.data["card_number"] == "LC-00000001"
-        assert result.data["token"]
+        assert result.data["token_id"]
 
     def test_second_card_gets_sequential_number(self, conn, auth):
         _issue(conn, auth)
@@ -100,7 +100,7 @@ class TestBlockUnblock:
             conn, card_id=issued.entity_id, actor_user_id=new_uuid(),
             actor_branch_id=new_uuid(), operation_id=new_uuid())
         assert result.success
-        assert result.data["token"] != issued.data["token"]
+        assert result.data["token_id"] != issued.data["token_id"]
 
 
 class TestReplace:
@@ -142,10 +142,10 @@ class TestRotateToken:
             conn, card_id=issued.entity_id, actor_user_id=new_uuid(),
             actor_branch_id=new_uuid(), operation_id=new_uuid())
         assert result.success
-        assert result.data["token"] != issued.data["token"]
+        assert result.data["token_id"] != issued.data["token_id"]
         with LoyaltyCardsUnitOfWork(conn) as uow:
             active = uow.tokens.get_active_for_card(issued.entity_id)
-            assert active.token == result.data["token"]
+            assert active.id == result.data["token_id"]
 
     def test_rotate_requires_existing_active_token(self, conn, auth):
         issued = _issue(conn, auth)

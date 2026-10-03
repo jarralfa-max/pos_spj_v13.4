@@ -267,9 +267,15 @@ class TestAudit:
         acciones = {f["accion"] for f in filas}
         assert "ApproveLoyaltyProgram" in acciones  # transición sin evento canónico
         assert any(f["modulo"] == "TARJETAS_FIDELIDAD" for f in filas)
-        token = conn.execute("SELECT token FROM loyalty_card_tokens WHERE card_id=?",
-                             (tarjeta["id"],)).fetchone()[0]
-        assert not any(token in (f["valor_despues"] or "") for f in filas)
+        from backend.application.loyalty_cards.queries.card_render_data_query import (
+            LoyaltyCardRenderDataQuery,
+        )
+        qr = LoyaltyCardRenderDataQuery(conn).placeholders_for_card(tarjeta["id"])["card_token"]
+        token = qr.removeprefix("SPJ-CARD:")
+        assert token and not any(token in (f["valor_despues"] or "") for f in filas)
+        # §32: el token tampoco vive en la tabla de tokens.
+        assert not any(token in str(tuple(f)) for f in conn.execute(
+            "SELECT * FROM loyalty_card_tokens").fetchall())
 
     def _setup(self, conn, a, b):
         return TestLoyaltyCards()._card_setup(conn, a, b)
@@ -298,3 +304,62 @@ class TestRecordsPermissions:
         with pytest.raises(ValueError):
             servicio.page(R.MEMBERSHIPS, actor_user_id=new_uuid(),
                           filters={"1=1; DROP TABLE x --": "y"})
+
+
+class TestCardPrivacy:
+    def test_privacy_settings_change_what_is_printed(self, conn, two_users):
+        from backend.application.loyalty_cards.queries.card_render_data_query import (
+            LoyaltyCardRenderDataQuery,
+        )
+        from backend.domain.loyalty_cards.policies.privacy_policy import CardNameMode
+
+        a, b = two_users
+        _programa, _plantilla, tarjeta = TestLoyaltyCards()._card_setup(conn, a, b)
+        datos = LoyaltyCardRenderDataQuery(conn)
+        assert datos.placeholders_for_card(tarjeta["id"])["customer_name"] == "Ana Torres"
+        assert datos.placeholders_for_card(tarjeta["id"])["points_balance"] == ""
+        _ok(a.run_command("update_card_privacy", name_mode=CardNameMode.FIRST_NAME,
+                          print_points_balance=True))
+        impreso = datos.placeholders_for_card(tarjeta["id"])
+        assert impreso["customer_name"] == "Ana"
+        assert impreso["points_balance"] == "0"
+        assert "card_token" not in datos.display_fields_for_card(tarjeta["id"])
+
+
+class TestAuthorizedAdjustment:
+    """§60: quien ajusta puntos no aprueba su propio ajuste; el autorizador es
+    OTRA persona con `puntos.ajustar` según `rol_permisos`."""
+
+    def _usuarios(self, conn):
+        ids = {}
+        for rol in ("cajero", "admin"):
+            uid = new_uuid()
+            conn.execute("INSERT INTO usuarios (id, nombre, usuario, password_hash, rol, activo)"
+                         " VALUES (?,?,?,?,?,1)", (uid, rol, f"u_{rol}", "x", rol))
+            ids[rol] = uid
+        conn.commit()
+        return ids
+
+    def test_second_person_authorizes_and_balance_never_goes_negative(self, conn):
+        from frontend.desktop.modules.fidelidad.composition import build_fidelidad_presenter
+
+        ids = self._usuarios(conn)
+        a = build_fidelidad_presenter(conn, _Session(ids["cajero"]))
+        b = build_fidelidad_presenter(conn, _Session(new_uuid()))
+        programa = _active_program(a, b)
+        _ok(a.run_command("enroll_membership", customer_id=_customer(conn), program_id=programa))
+        cuenta = _first(a, R.ACCOUNTS)["id"]
+        propio = a.run_command("adjust_points", loyalty_account_id=cuenta,
+                               points_amount=Decimal("10"), reason_code="CORTESIA",
+                               authorizer_user_id=ids["cajero"])
+        assert not propio.success
+        sin_permiso = a.run_command("adjust_points", loyalty_account_id=cuenta,
+                                    points_amount=Decimal("10"), reason_code="CORTESIA",
+                                    authorizer_user_id=new_uuid())
+        assert not sin_permiso.success
+        _ok(a.run_command("adjust_points", loyalty_account_id=cuenta, points_amount=Decimal("10"),
+                          reason_code="CORTESIA", authorizer_user_id=ids["admin"]))
+        assert _first(a, R.ACCOUNTS)["points"] == Decimal("10")
+        assert not a.run_command("adjust_points", loyalty_account_id=cuenta,
+                                 points_amount=Decimal("-11"), reason_code="ERROR",
+                                 authorizer_user_id=ids["admin"]).success

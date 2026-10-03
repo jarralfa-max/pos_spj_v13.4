@@ -10,13 +10,23 @@ from __future__ import annotations
 import json
 
 from backend.application.loyalty_cards.authorization import LoyaltyCardsAuthorizationPolicy
-from backend.domain.loyalty_cards.events import loyalty_card_event_payload
 from backend.application.shared.event_audit import record_event_audit
+from backend.domain.loyalty_cards.events import loyalty_card_event_payload
 
 
 class _LoyaltyCardsBaseUseCase:
-    def __init__(self, authorization: LoyaltyCardsAuthorizationPolicy | None = None) -> None:
+    def __init__(self, authorization: LoyaltyCardsAuthorizationPolicy | None = None, *,
+                 token_codec=None) -> None:
         self._auth = authorization or LoyaltyCardsAuthorizationPolicy()
+        self._token_codec = token_codec
+
+    def _codec(self, connection):
+        """Codec del token público del QR (§32). Por omisión, HMAC con el secreto
+        de la instalación guardado en la base (se crea en la primera emisión)."""
+        if self._token_codec is not None:
+            return self._token_codec
+        from backend.infrastructure.loyalty_cards.token_codec import card_token_codec_for
+        return card_token_codec_for(connection)
 
     @staticmethod
     def _emit(uow, event_name: str, *, entity_id: str, operation_id: str,

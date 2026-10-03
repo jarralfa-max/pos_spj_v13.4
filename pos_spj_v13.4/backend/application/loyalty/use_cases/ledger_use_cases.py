@@ -297,6 +297,11 @@ class AdjustLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
                     membership_id=membership_id, branch_id=actor_branch_id,
                     created_by_user_id=authorizer_user_id,
                 )
+                saldo = LoyaltyBalancePolicy.balance(
+                    uow.transactions.list_for_account(loyalty_account_id))
+                if saldo + adjustment.points_amount < 0:
+                    raise InsufficientLoyaltyPointsError(
+                        f"El ajuste dejaría el saldo negativo (saldo actual: {saldo}).")
             except LoyaltyDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.transactions.save(adjustment)

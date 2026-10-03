@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from backend.domain.loyalty_cards.enums import LoyaltyCardStatus
+from backend.domain.loyalty_cards.value_objects.card_token_codec import hash_public_token
 from backend.infrastructure.db.repositories.loyalty_cards.unit_of_work import LoyaltyCardsUnitOfWork
 
 QR_PREFIX = "SPJ-CARD:"
@@ -62,7 +63,7 @@ class ResolveLoyaltyCardQuery:
         with LoyaltyCardsUnitOfWork(self._conn, owns_transaction=False) as uow:
             card, aviso_qr = None, None
             if public_token:
-                token = uow.tokens.get_by_token(strip_qr_prefix(public_token))
+                token = uow.tokens.get_by_hash(hash_public_token(strip_qr_prefix(public_token)))
                 if token is not None:
                     card = uow.cards.get(token.card_id)
                     if not token.is_usable():

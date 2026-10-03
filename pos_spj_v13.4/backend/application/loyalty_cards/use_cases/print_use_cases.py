@@ -13,6 +13,9 @@ docstring for the full story — this module now uses that in-context
 `LoyaltyCardPrintJob` instead, mirroring `PrintJob`'s lifecycle SHAPE for
 conceptual consistency without the cross-schema FK risk.
 
+LOY-29: the rendered PDF is RETURNED (`pdf_bytes`) so the screen can hand it to
+the operator; before, it was generated and thrown away.
+
 Scope boundary: `LoyaltyCardPrintJob` tracks the RENDER step only (did a
 valid PDF get produced) — whether a specific physical card was actually
 handed to a printer is `LoyaltyCardBatchItem.status` (LOY-21)'s own
@@ -133,7 +136,7 @@ class RenderLoyaltyCardBatchUseCase(_LoyaltyCardsBaseUseCase):
                 uow.print_jobs.save(job)
             return LoyaltyCardResult.ok(
                 "PDF de lote renderizado", entity_id=job.id, operation_id=operation_id,
-                pdf_size_bytes=len(pdf_bytes),
+                pdf_size_bytes=len(pdf_bytes), pdf_bytes=pdf_bytes,
                 sheets_rendered=len({u.sheet_number for u in print_units}))
         except LoyaltyCardDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
@@ -182,6 +185,7 @@ class ReprintLoyaltyCardBatchUseCase(_LoyaltyCardsBaseUseCase):
                 uow.print_jobs.save(reprint_job)
             return LoyaltyCardResult.ok(
                 "Reimpresión renderizada", entity_id=reprint_job.id, operation_id=operation_id,
-                pdf_size_bytes=len(pdf_bytes), reprint_of_job_id=original_job_id)
+                pdf_size_bytes=len(pdf_bytes), pdf_bytes=pdf_bytes,
+                reprint_of_job_id=original_job_id)
         except LoyaltyCardDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)

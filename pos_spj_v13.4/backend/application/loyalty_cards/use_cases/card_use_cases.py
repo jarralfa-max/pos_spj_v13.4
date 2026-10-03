@@ -38,14 +38,14 @@ class IssueLoyaltyCardUseCase(_LoyaltyCardsBaseUseCase):
                 card = LoyaltyCard.issue(
                     _next_card_number(uow), card_type, customer_id, membership_id)
                 uow.cards.save(card)
-                token = LoyaltyCardPublicToken.issue(card.id)
+                token = LoyaltyCardPublicToken.issue(card.id, self._codec(connection))
                 uow.tokens.save(token)
                 self._emit(uow, LoyaltyCardEvents.CARD_ISSUED, entity_id=card.id,
                            operation_id=operation_id, branch_id=actor_branch_id,
                            actor_user_id=actor_user_id, card_number=card.card_number)
             return LoyaltyCardResult.ok(
                 "Tarjeta emitida", entity_id=card.id, operation_id=operation_id,
-                card_number=card.card_number, token=token.token)
+                card_number=card.card_number, token_id=token.id)
         except LoyaltyCardDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
 
@@ -114,13 +114,13 @@ class UnblockLoyaltyCardUseCase(_LoyaltyCardsBaseUseCase):
                         operation_id=operation_id)
                 card.unblock()
                 uow.cards.save(card)
-                new_token = LoyaltyCardPublicToken.issue(card.id)
+                new_token = LoyaltyCardPublicToken.issue(card.id, self._codec(connection))
                 uow.tokens.save(new_token)
                 self._emit(uow, LoyaltyCardEvents.CARD_UNBLOCKED, entity_id=card.id,
                            operation_id=operation_id, branch_id=actor_branch_id,
                            actor_user_id=actor_user_id)
             return LoyaltyCardResult.ok("Tarjeta desbloqueada", entity_id=card.id,
-                                        operation_id=operation_id, token=new_token.token)
+                                        operation_id=operation_id, token_id=new_token.id)
         except LoyaltyCardDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
 
@@ -143,7 +143,7 @@ class ReplaceLoyaltyCardUseCase(_LoyaltyCardsBaseUseCase):
 
                 new_card = LoyaltyCard.issue_replacement(old_card, _next_card_number(uow))
                 uow.cards.save(new_card)
-                new_token = LoyaltyCardPublicToken.issue(new_card.id)
+                new_token = LoyaltyCardPublicToken.issue(new_card.id, self._codec(connection))
                 uow.tokens.save(new_token)
 
                 old_card.mark_replaced(new_card.id)
@@ -154,7 +154,7 @@ class ReplaceLoyaltyCardUseCase(_LoyaltyCardsBaseUseCase):
                            actor_user_id=actor_user_id, replaces_card_id=old_card.id)
             return LoyaltyCardResult.ok(
                 "Tarjeta repuesta", entity_id=new_card.id, operation_id=operation_id,
-                card_number=new_card.card_number, token=new_token.token)
+                card_number=new_card.card_number, token_id=new_token.id)
         except LoyaltyCardDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
 

@@ -33,17 +33,17 @@ class TestLoyaltyDigitalCardProjection:
     def test_refresh_can_rotate_token(self):
         projection = LoyaltyDigitalCardProjection.create(
             new_uuid(), new_uuid(), "LC-001", "tok-old")
-        projection.refresh({}, qr_token="tok-new")
-        assert projection.qr_token == "tok-new"
+        projection.refresh({}, token_id="tok-new")
+        assert projection.token_id == "tok-new"
 
     def test_refresh_rejects_empty_token(self):
         projection = LoyaltyDigitalCardProjection.create(
             new_uuid(), new_uuid(), "LC-001", "tok-old")
         with pytest.raises(InvalidDigitalCardProjectionError):
-            projection.refresh({}, qr_token="")
+            projection.refresh({}, token_id="")
 
     def test_refresh_keeps_token_when_not_provided(self):
         projection = LoyaltyDigitalCardProjection.create(
             new_uuid(), new_uuid(), "LC-001", "tok-old")
         projection.refresh({"a": "b"})
-        assert projection.qr_token == "tok-old"
+        assert projection.token_id == "tok-old"

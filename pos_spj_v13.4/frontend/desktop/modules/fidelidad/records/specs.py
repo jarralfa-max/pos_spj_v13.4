@@ -28,6 +28,7 @@ class FieldKind(str, Enum):
     BOOL = "bool"
     CUSTOMER = "customer"        # buscador estándar de Clientes
     RECORD = "record"            # elegir una fila de otro registro (programa, plantilla…)
+    AUTHORIZER = "authorizer"    # usuario y clave de OTRA persona; entrega su id verificado
 
 
 @dataclass(frozen=True)
@@ -64,6 +65,8 @@ class ActionSpec:
     confirm: str = ""
     fixed: Mapping[str, Any] = field(default_factory=dict)
     success: str = "Listo."
+    #: La acción devuelve un PDF (`pdf_bytes`) que se ofrece guardar.
+    output_pdf: bool = False
 
 
 @dataclass(frozen=True)

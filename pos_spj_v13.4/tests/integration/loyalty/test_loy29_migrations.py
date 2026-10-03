@@ -104,3 +104,60 @@ class TestDropLegacy291:
         canonicas = (set(LOYALTY_TABLES) | set(COMMERCIAL_INSTRUMENTS_TABLES)
                      | set(SWEEPSTAKES_TABLES) | set(LOYALTY_CARDS_TABLES))
         assert not canonicas & set(_291.LEGACY_LOYALTY_TABLES)
+
+
+class TestTokenHash292:
+    """§32: el token del QR deja de guardarse en claro."""
+
+    _292 = importlib.import_module("migrations.standalone.292_loyalty_card_token_hash")
+
+    def _old_shape(self):
+        from backend.infrastructure.db.schema.loyalty_cards_schema import (
+            create_loyalty_cards_schema,
+        )
+
+        c = sqlite3.connect(":memory:")
+        create_loyalty_cards_schema(c)
+        c.executescript(
+            "DROP TABLE loyalty_card_tokens; DROP TABLE loyalty_digital_card_projections;"
+            "DROP TABLE loyalty_card_secrets;"
+            "INSERT INTO loyalty_cards (id, card_number, card_type, customer_id, membership_id,"
+            " status, issued_at, created_at, updated_at)"
+            " VALUES ('c1','LC-1','PHYSICAL','cu','m1','ACTIVE','x','x','x');"
+            "CREATE TABLE loyalty_card_tokens (id TEXT PRIMARY KEY, card_id TEXT, token TEXT UNIQUE,"
+            " status TEXT, created_at TEXT, rotated_at TEXT, revoked_at TEXT);"
+            "INSERT INTO loyalty_card_tokens VALUES ('t1','c1','secreto-en-claro','ACTIVE','x',NULL,NULL);"
+            "CREATE TABLE loyalty_digital_card_projections (id TEXT PRIMARY KEY, card_id TEXT UNIQUE,"
+            " customer_id TEXT, card_number TEXT, qr_token TEXT, display_fields_json TEXT,"
+            " last_refreshed_at TEXT, created_at TEXT);"
+            "INSERT INTO loyalty_digital_card_projections VALUES"
+            " ('p1','c1','cu','LC-1','secreto-en-claro','{}','x','x');")
+        return c
+
+    def test_old_tokens_become_hashes_that_still_resolve(self):
+        import hashlib
+
+        c = self._old_shape()
+        self._292.run(c)
+        columnas = {f[1] for f in c.execute("PRAGMA table_info(loyalty_card_tokens)")}
+        assert "token" not in columnas and {"token_hash", "token_prefix", "token_version"} <= columnas
+        fila = c.execute("SELECT token_hash, token_version FROM loyalty_card_tokens").fetchone()
+        assert fila == (hashlib.sha256(b"secreto-en-claro").hexdigest(), 0)
+        volcado = " ".join(str(f) for t in ("loyalty_card_tokens", "loyalty_digital_card_projections")
+                           for f in c.execute(f"SELECT * FROM {t}"))
+        assert "secreto-en-claro" not in volcado
+        assert c.execute("SELECT token_id FROM loyalty_digital_card_projections").fetchone()[0] == "t1"
+        assert c.execute("SELECT 1 FROM sqlite_master WHERE name='loyalty_card_secrets'").fetchone()
+        self._292.run(c)  # idempotente
+
+    def test_an_unrelated_broken_view_does_not_block_the_rebuild(self):
+        """La base real trae una vista legacy rota; renombrar en modo moderno la
+        revalidaba y tumbaba el arranque completo."""
+        c = self._old_shape()
+        c.execute("PRAGMA legacy_alter_table=ON")
+        c.execute("CREATE TABLE tabla_que_se_va (x)")
+        c.execute("CREATE VIEW v_rota AS SELECT x FROM tabla_que_se_va")
+        c.execute("DROP TABLE tabla_que_se_va")
+        c.execute("PRAGMA legacy_alter_table=OFF")
+        self._292.run(c)
+        assert "token_hash" in {f[1] for f in c.execute("PRAGMA table_info(loyalty_card_tokens)")}

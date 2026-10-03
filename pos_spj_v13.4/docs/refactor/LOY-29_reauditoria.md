@@ -85,13 +85,32 @@ cada acción recorrida con los dos usuarios reales (JoseR y Juanis, ambos
 | permiso `GROWTH_ENGINE.ver` como único útil | 58 + 27 acciones granulares sembradas | SEED (290) | — |
 | diseño de una sola cara | `elements` + `back_elements` validados | EXTEND | — |
 
+## 3b. Segunda tanda (misma sesión, migración 292)
+
+* **QR sin token en claro (§32).** `loyalty_card_tokens` guarda `token_hash`
+  (SHA-256), `token_prefix` y `token_version`; el token se deriva con HMAC del
+  secreto de la instalación (`loyalty_card_secrets`, en la base para que una
+  tarjeta pueda reimprimirse en cualquier sucursal con el MISMO QR) y del id del
+  registro. Resolver un escaneo sólo necesita la huella. La proyección digital
+  guarda `token_id` y deriva el QR al leer. La 292 reconstruye ambas tablas; las
+  filas previas quedan como huella con versión 0 (resuelven, pero hay que rotar
+  para reimprimir). Ojo: la base real trae una vista legacy rota
+  (`v_negative_inventory` → `branch_inventory_old`); renombrar en modo moderno la
+  revalidaba y tumbaba el arranque, por eso la 292 renombra con
+  `legacy_alter_table=ON`.
+* **PDF entregado.** Generar impresión / Reimprimir devuelven el PDF y la
+  pantalla ofrece guardarlo (antes se generaba y se descartaba).
+* **Privacidad de tarjetas** con pantalla propia (Configuración de tarjetas).
+* **Ajuste de puntos con autorización de otra persona** (usuario y clave
+  verificados como en el login; el autorizador necesita `puntos.ajustar`); ni el
+  ajuste ni el reverso pueden dejar saldo negativo.
+
 ## 4. Pendientes honestos (no hechos en esta ronda)
 
-* El token del QR se guarda en claro (`loyalty_card_tokens.token`); §32 pide
-  hash y prefijo. Diseño propuesto: token derivado por HMAC de un secreto de la
-  instalación fuera de la base (reimprimible) y sólo hash+prefijo en la tabla.
-* El PDF de un lote se genera y se descarta: falta entregarlo (guardar o enviar
-  a Document Output / impresora).
+* **Decisión contable pendiente:** Finanzas ya tiene manejadores para
+  `LOYALTY_POINTS_ISSUED/REDEEMED/EXPIRED`, cupones y vales, pero nadie los
+  suscribe ni drena los outbox. Conectarlos genera asientos por cada punto
+  acumulado (pasivo por puntos a valor razonable) y requiere elegir cuentas.
 * Tarjetas preimpresas sin asignar y la entidad `LoyaltyCardAssignment`
   (§44-45) no existen en el dominio; tampoco los tipos/estados ampliados de §31.
 * Importar plantillas (`ImportLoyaltyCardDesignUseCase` existe) no tiene pantalla.

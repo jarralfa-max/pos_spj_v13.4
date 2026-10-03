@@ -81,23 +81,26 @@ class LoyaltyCardTokenRepository(LoyaltyCardsRepositoryBase):
         self._execute(
             """
             INSERT INTO loyalty_card_tokens (
-                id, card_id, token, status, created_at, rotated_at, revoked_at
-            ) VALUES (?,?,?,?,?,?,?)
+                id, card_id, token_hash, token_prefix, token_version, status, created_at,
+                rotated_at, revoked_at
+            ) VALUES (?,?,?,?,?,?,?,?,?)
             ON CONFLICT(id) DO UPDATE SET
                 status=excluded.status,
                 rotated_at=excluded.rotated_at,
                 revoked_at=excluded.revoked_at
             """,
-            (token.id, token.card_id, token.token, token.status.value, token.created_at,
-             token.rotated_at, token.revoked_at),
+            (token.id, token.card_id, token.token_hash, token.token_prefix, token.token_version,
+             token.status.value, token.created_at, token.rotated_at, token.revoked_at),
         )
 
     def get(self, token_id: str) -> LoyaltyCardPublicToken | None:
         row = self._query_one("SELECT * FROM loyalty_card_tokens WHERE id=?", (token_id,))
         return self._hydrate(row) if row else None
 
-    def get_by_token(self, token: str) -> LoyaltyCardPublicToken | None:
-        row = self._query_one("SELECT * FROM loyalty_card_tokens WHERE token=?", (token,))
+    def get_by_hash(self, token_hash: str) -> LoyaltyCardPublicToken | None:
+        """Resuelve un QR escaneado por su huella; el token nunca se guarda (§32)."""
+        row = self._query_one("SELECT * FROM loyalty_card_tokens WHERE token_hash=?",
+                              (token_hash,))
         return self._hydrate(row) if row else None
 
     def get_active_for_card(self, card_id: str) -> LoyaltyCardPublicToken | None:
@@ -109,7 +112,8 @@ class LoyaltyCardTokenRepository(LoyaltyCardsRepositoryBase):
     @staticmethod
     def _hydrate(row: dict) -> LoyaltyCardPublicToken:
         return LoyaltyCardPublicToken(
-            id=row["id"], card_id=row["card_id"], token=row["token"],
+            id=row["id"], card_id=row["card_id"], token_hash=row["token_hash"],
+            token_prefix=row["token_prefix"], token_version=int(row["token_version"]),
             status=LoyaltyCardTokenStatus(row["status"]), created_at=row["created_at"],
             rotated_at=row["rotated_at"], revoked_at=row["revoked_at"],
         )

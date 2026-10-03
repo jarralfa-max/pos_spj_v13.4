@@ -122,6 +122,8 @@ FIDELIDAD_ROUTES: tuple[FidelidadRoute, ...] = (
     _r("cards.audit", "Auditoría de tarjetas", "Tarjetas de fidelidad",
        "Emisión, bloqueo, reposición, impresión y rotación de QR.", CP.AUDIT_VIEW, "cards",
        Icons.AUDIT),
+    _r("cards.settings", "Configuración de tarjetas", "Tarjetas de fidelidad",
+       "Privacidad de lo impreso: nombre y puntos.", CP.CONFIG_VIEW, "cards", Icons.SETTINGS),
 
     _r("fidelidad.fraud", "Antifraude", "Control", "Casos de fraude y revisión.",
        LP.FRAUD_VIEW, "fraud", Icons.INVESTIGATION),

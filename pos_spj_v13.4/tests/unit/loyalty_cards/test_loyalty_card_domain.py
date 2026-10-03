@@ -93,36 +93,55 @@ class TestLoyaltyCard:
             card.expire()
 
 
+from backend.infrastructure.loyalty_cards.token_codec import HmacCardTokenCodec  # noqa: E402
+
+_CODEC = HmacCardTokenCodec(b"k" * 32)
+
+
 class TestLoyaltyCardPublicToken:
+    def test_legacy_random_token_cannot_be_reprinted(self):
+        legado = LoyaltyCardPublicToken(id=new_uuid(), card_id=new_uuid(), token_hash="a" * 64,
+                                        token_prefix="aaaaaa", token_version=0)
+        with pytest.raises(InvalidLoyaltyCardTokenStateError):
+            legado.raw_token(_CODEC)
+
+    def test_wrong_secret_is_detected_not_silently_reprinted(self):
+        token = LoyaltyCardPublicToken.issue(new_uuid(), _CODEC)
+        with pytest.raises(InvalidLoyaltyCardTokenStateError):
+            token.raw_token(HmacCardTokenCodec(b"z" * 32))
+
     def test_issue_creates_active_token(self):
-        token = LoyaltyCardPublicToken.issue(new_uuid())
+        token = LoyaltyCardPublicToken.issue(new_uuid(), _CODEC)
         assert token.status.value == "ACTIVE"
         assert token.is_usable()
-        assert len(token.token) > 10
+        assert len(token.token_hash) == 64 and len(token.token_prefix) == 6
+        raw = token.raw_token(_CODEC)
+        assert token.matches(raw) and raw.startswith(token.token_prefix)
+        assert token.id not in raw and token.card_id not in raw
 
     def test_rotate_deactivates_old_and_creates_new(self):
-        old_token = LoyaltyCardPublicToken.issue(new_uuid())
-        new_token = old_token.rotate()
+        old_token = LoyaltyCardPublicToken.issue(new_uuid(), _CODEC)
+        new_token = old_token.rotate(_CODEC)
         assert old_token.status.value == "ROTATED"
         assert not old_token.is_usable()
         assert new_token.status.value == "ACTIVE"
         assert new_token.card_id == old_token.card_id
-        assert new_token.token != old_token.token
+        assert new_token.token_hash != old_token.token_hash
 
     def test_cannot_rotate_twice(self):
-        token = LoyaltyCardPublicToken.issue(new_uuid())
-        token.rotate()
+        token = LoyaltyCardPublicToken.issue(new_uuid(), _CODEC)
+        token.rotate(_CODEC)
         with pytest.raises(InvalidLoyaltyCardTokenStateError):
-            token.rotate()
+            token.rotate(_CODEC)
 
     def test_revoke(self):
-        token = LoyaltyCardPublicToken.issue(new_uuid())
+        token = LoyaltyCardPublicToken.issue(new_uuid(), _CODEC)
         token.revoke()
         assert token.status.value == "REVOKED"
         assert not token.is_usable()
 
     def test_cannot_revoke_twice(self):
-        token = LoyaltyCardPublicToken.issue(new_uuid())
+        token = LoyaltyCardPublicToken.issue(new_uuid(), _CODEC)
         token.revoke()
         with pytest.raises(InvalidLoyaltyCardTokenStateError):
             token.revoke()

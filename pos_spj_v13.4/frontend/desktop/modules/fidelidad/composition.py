@@ -112,6 +112,38 @@ def _card_resolver(connection):
     return ResolveLoyaltyCardQuery(connection)
 
 
+def _authorizer_credentials(connection):
+    from backend.security.authentication.verify_authorizer_credentials_use_case import (
+        build_authorizer_credentials_verifier,
+    )
+    return build_authorizer_credentials_verifier(connection)
+
+
+def _adjust_points_handler(connection, session_context):
+    """Ajuste de puntos (§60): quien pide es la sesión; quien autoriza es OTRA
+    persona con `puntos.ajustar`, validada contra `rol_permisos` (estándar único
+    `AuthorizerPermissionChecker`, el mismo del POS)."""
+    from backend.application.security.authorizer_permission_checker import (
+        AuthorizerPermissionChecker,
+    )
+    from backend.application.security.session_or_authorizer_checker import (
+        SessionOrAuthorizerPermissionChecker,
+    )
+
+    branch_id = getattr(session_context, "active_branch_id", None) or None
+    policy = LoyaltyAuthorizationPolicy(SessionOrAuthorizerPermissionChecker(
+        session=session_context,
+        session_checker=LoyaltySessionPermissionChecker(session_context),
+        authorizer_checker=AuthorizerPermissionChecker(connection, branch_id=branch_id)))
+
+    def handler(*, actor_user_id, authorizer_user_id, **kw):
+        return ledger.AdjustLoyaltyPointsUseCase(policy).execute(
+            connection, requested_by=actor_user_id, authorizer_user_id=authorizer_user_id,
+            **kw)
+
+    return handler
+
+
 def _card_render(connection):
     from backend.application.loyalty_cards.queries.card_render_data_query import (
         LoyaltyCardRenderDataQuery,
@@ -205,6 +237,7 @@ def _card_command_table(connection, cards_auth) -> dict:
         card_use_cases as cc,
         digital_card_use_cases as cd,
         print_use_cases as cpr,
+        privacy_settings_use_cases as cps,
         sheet_use_cases as cs,
         template_use_cases as ct,
         token_use_cases as ctk,
@@ -277,6 +310,7 @@ def _card_command_table(connection, cards_auth) -> dict:
         "render_card_batch": render_card_batch,
         "reprint_card_batch": reprint_card_batch,
         "publish_digital_card": publish_digital_card,
+        "update_card_privacy": b(cps.UpdateLoyaltyCardPrivacySettingsUseCase),
     }
 
 
@@ -297,6 +331,7 @@ def build_fidelidad_presenter(connection, session_context=None) -> FidelidadPres
         "customer_search": CustomerLookupQueryService(connection, customer_auth),
         "card_resolver": _card_resolver(connection),
         "card_render": _card_render(connection),
+        "authorizer_credentials": _authorizer_credentials(connection),
     }
 
     def _legacy_shape(use_case_cls):
@@ -306,6 +341,7 @@ def build_fidelidad_presenter(connection, session_context=None) -> FidelidadPres
 
     command_handlers = _command_table(connection, loyalty_auth)
     command_handlers.update(_card_command_table(connection, cards_auth))
+    command_handlers["adjust_points"] = _adjust_points_handler(connection, session_context)
     command_handlers.update({
         "update_program_settings": _legacy_shape(_settings_use_case()),
     })

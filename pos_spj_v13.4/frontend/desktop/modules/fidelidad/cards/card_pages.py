@@ -13,8 +13,9 @@ from __future__ import annotations
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from backend.domain.loyalty_cards.enums import LoyaltyCardStatus
-from frontend.desktop.components import KPIBar, KPIDTO
+from frontend.desktop.components import FormField, KPIBar, KPIDTO, SearchableComboBox
 from frontend.desktop.components.buttons import create_primary_button
+from frontend.desktop.components.selection_controls import StandardCheckBox
 from frontend.desktop.components.text_inputs import StandardLineEdit
 from frontend.desktop.components.pages import StandardPage
 from frontend.desktop.modules.fidelidad.cards.cards_catalog import CARD_RECORD_ROUTES
@@ -123,11 +124,75 @@ class CardQrValidationPage(StandardPage):
         self.result.setText("\n".join(lineas))
 
 
+_NAME_MODES = (("FULL_NAME", "Nombre completo"), ("FIRST_NAME", "Sólo el nombre"),
+               ("INITIALS", "Iniciales"), ("NOT_PRINTED", "No imprimir el nombre"))
+
+
+class CardSettingsPage(StandardPage):
+    """§37: qué se imprime de una persona en su tarjeta. Por omisión NO se
+    imprimen teléfono, correo, domicilio, saldo, puntos ni identificadores."""
+
+    def __init__(self, presenter, parent=None) -> None:
+        super().__init__(parent, title="Configuración de tarjetas",
+                         subtitle="Privacidad de lo impreso: nombre y puntos.")
+        self.setObjectName("fidelidadCardSettingsPage")
+        self._presenter = presenter
+        self._loaded = False
+        layout = self.content_layout
+        self.notice = QLabel("", self)
+        self.notice.setWordWrap(True)
+        self.notice.hide()
+        layout.addWidget(self.notice)
+        self.name_mode = SearchableComboBox(self, placeholder="Cómo se imprime el nombre")
+        self.name_mode.set_options(list(_NAME_MODES))
+        layout.addWidget(FormField("Nombre en la tarjeta", self.name_mode, self))
+        self.print_points = StandardCheckBox("Imprimir el saldo de puntos", self)
+        layout.addWidget(self.print_points)
+        aviso = QLabel("Nunca se imprimen teléfono, correo, domicilio ni identificadores "
+                       "internos; el QR sólo lleva un token público.", self)
+        aviso.setWordWrap(True)
+        aviso.setProperty("role", "muted")
+        layout.addWidget(aviso)
+        self.save_button = create_primary_button(self, "Guardar")
+        self.save_button.clicked.connect(self.save)
+        self.save_button.setEnabled(presenter.can_edit_card_settings())
+        layout.addWidget(self.save_button)
+        layout.addStretch(1)
+
+    def ensure_loaded(self) -> None:
+        if self._loaded:
+            return
+        ajustes = self._presenter.card_privacy_settings()
+        if ajustes is not None:
+            self.name_mode.set_current_id(ajustes.name_mode.value)
+            self.print_points.setChecked(ajustes.print_points_balance)
+        self._loaded = True
+
+    def save(self) -> None:
+        from backend.domain.loyalty_cards.policies.privacy_policy import CardNameMode
+
+        modo = self.name_mode.current_id()
+        if not modo:
+            self._notify(False, "Elige cómo se imprime el nombre.")
+            return
+        resultado = self._presenter.run_command(
+            "update_card_privacy", name_mode=CardNameMode(modo),
+            print_points_balance=self.print_points.isChecked())
+        self._notify(bool(resultado.success), resultado.message or "Guardado.")
+
+    def _notify(self, ok: bool, mensaje: str) -> None:
+        self.notice.setProperty("state", "SUCCESS" if ok else "WARNING")
+        self.notice.setText(mensaje)
+        self.notice.show()
+
+
 def create_card_page(route_id: str, presenter, parent=None) -> QWidget:
     if route_id == "cards.overview":
         return CardsOverviewPage(presenter, parent)
     if route_id == "cards.qr":
         return CardQrValidationPage(presenter, parent)
+    if route_id == "cards.settings":
+        return CardSettingsPage(presenter, parent)
     if route_id == "cards.designer":
         from frontend.desktop.modules.fidelidad.cards.designer_page import CardDesignerPage
         return CardDesignerPage(presenter, parent)
@@ -137,4 +202,4 @@ def create_card_page(route_id: str, presenter, parent=None) -> QWidget:
     return LoyaltyTabbedRecordPage(presenter, spec, parent)
 
 
-__all__ = ["CardQrValidationPage", "CardsOverviewPage", "create_card_page"]
+__all__ = ["CardQrValidationPage", "CardSettingsPage", "CardsOverviewPage", "create_card_page"]

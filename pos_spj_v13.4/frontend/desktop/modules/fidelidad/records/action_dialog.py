@@ -25,7 +25,11 @@ from frontend.desktop.components.decimal_input import DecimalInput
 from frontend.desktop.components.dialogs import StandardDialog
 from frontend.desktop.components.search_selector import SearchOption
 from frontend.desktop.components.selection_controls import StandardCheckBox
-from frontend.desktop.components.text_inputs import StandardLineEdit, StandardTextArea
+from frontend.desktop.components.text_inputs import (
+    PasswordInput,
+    StandardLineEdit,
+    StandardTextArea,
+)
 from frontend.desktop.modules.fidelidad.records.labels import options_for
 from frontend.desktop.modules.fidelidad.records.specs import ActionSpec, FieldKind, FieldSpec
 from frontend.desktop.themes.tokens import DialogMetrics, Spacing
@@ -69,6 +73,21 @@ class _CustomerField(QWidget):
         self.customer_id = option.id
         self.box.set_selected_label(option.label)
         self.chosen.setText(f"Cliente: {option.label}")
+
+
+class _AuthorizerField(QWidget):
+    """Usuario y clave de quien autoriza (§60). La clave se verifica con las
+    mismas reglas que el login; el permiso lo revalida el caso de uso."""
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(Spacing.SM)
+        self.user = StandardLineEdit(self, placeholder="Usuario de quien autoriza")
+        self.password = PasswordInput(self, placeholder="Clave")
+        layout.addWidget(self.user, stretch=1)
+        layout.addWidget(self.password, stretch=1)
 
 
 class ActionDialog(StandardDialog):
@@ -125,6 +144,8 @@ class ActionDialog(StandardDialog):
             return widget
         if kind is FieldKind.CUSTOMER:
             return _CustomerField(self._presenter.customer_options, self)
+        if kind is FieldKind.AUTHORIZER:
+            return _AuthorizerField(self)
         if kind is FieldKind.RECORD:
             widget = SearchableComboBox(self)
             widget.set_options(self._presenter.record_options(
@@ -143,8 +164,9 @@ class ActionDialog(StandardDialog):
         for spec in self._action.fields:
             try:
                 valor = self._read(spec)
-            except (InvalidOperation, ValueError):
-                errores[spec.key] = "Valor no válido."
+            except (InvalidOperation, ValueError) as exc:
+                errores[spec.key] = (str(exc) if spec.kind is FieldKind.AUTHORIZER
+                                     else "Valor no válido.")
                 continue
             if spec.required and valor in (None, ""):
                 errores[spec.key] = "Este dato es obligatorio."
@@ -179,6 +201,14 @@ class ActionDialog(StandardDialog):
             return spec.enum(valor) if (valor and spec.enum is not None) else None
         if kind is FieldKind.CUSTOMER:
             return widget.customer_id
+        if kind is FieldKind.AUTHORIZER:
+            usuario = widget.user.text().strip()
+            if not usuario:
+                return None
+            user_id, problema = self._presenter.verify_authorizer(usuario, widget.password.value())
+            if user_id is None:
+                raise ValueError(problema)
+            return user_id
         if kind is FieldKind.RECORD:
             return widget.current_id() or None
         return None

@@ -24,6 +24,7 @@ LOYALTY_CARDS_TABLES: tuple[str, ...] = (
     "loyalty_card_print_jobs",
     "loyalty_digital_card_projections",
     "loyalty_cards_outbox",
+    "loyalty_card_secrets",
 )
 
 _DDL = (
@@ -54,7 +55,11 @@ _DDL = (
     CREATE TABLE IF NOT EXISTS loyalty_card_tokens (
         id TEXT NOT NULL PRIMARY KEY,
         card_id TEXT NOT NULL REFERENCES loyalty_cards(id),
-        token TEXT NOT NULL UNIQUE,
+        -- LOY-29 (§32): nunca el token en claro; su huella SHA-256, un prefijo
+        -- para soporte y la versión con que se derivó (0 = token aleatorio previo).
+        token_hash TEXT NOT NULL UNIQUE,
+        token_prefix TEXT NOT NULL,
+        token_version INTEGER NOT NULL DEFAULT 1,
         status TEXT NOT NULL DEFAULT 'ACTIVE',
         created_at TEXT NOT NULL,
         rotated_at TEXT,
@@ -180,9 +185,18 @@ _DDL = (
         card_id TEXT NOT NULL UNIQUE REFERENCES loyalty_cards(id),
         customer_id TEXT NOT NULL,
         card_number TEXT NOT NULL,
-        qr_token TEXT NOT NULL,
+        -- LOY-29: referencia al registro de token; el QR se deriva al leer.
+        token_id TEXT NOT NULL,
         display_fields_json TEXT NOT NULL DEFAULT '{}',
         last_refreshed_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
+    # ── secreto de derivación de los QR (LOY-29, §32) ─────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS loyalty_card_secrets (
+        id TEXT NOT NULL PRIMARY KEY,
+        value TEXT NOT NULL,
         created_at TEXT NOT NULL
     )
     """,

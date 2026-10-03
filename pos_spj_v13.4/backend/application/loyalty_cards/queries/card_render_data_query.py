@@ -23,6 +23,7 @@ from backend.infrastructure.db.repositories.loyalty.transaction_repository impor
     LoyaltyTransactionRepository,
 )
 from backend.infrastructure.db.repositories.loyalty_cards.unit_of_work import LoyaltyCardsUnitOfWork
+from backend.infrastructure.loyalty_cards.token_codec import card_token_codec_for
 
 NAME_MODE_KEY = "loyalty_tarjeta_nombre_impreso"
 PRINT_POINTS_KEY = "loyalty_tarjeta_imprime_puntos"
@@ -78,7 +79,8 @@ class LoyaltyCardRenderDataQuery:
         datos = self._membership_data(card.membership_id)
         return {
             "card_number": card.card_number,
-            "card_token": self.qr_payload(token.token) if token is not None else "",
+            "card_token": (self.qr_payload(token.raw_token(card_token_codec_for(self._conn)))
+                           if token is not None else ""),
             "customer_name": LoyaltyCardPrivacyPolicy.printed_name(datos["display_name"], settings),
             "program_name": datos["program_name"] or "",
             "membership_tier": datos["tier_name"] or "",

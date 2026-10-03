@@ -202,9 +202,10 @@ PRINT_JOBS = P(
             F("batch_id", "Lote", K.RECORD, record=R.CARD_BATCHES,
               record_label=("template_name", "item_count", "created_at"),
               record_filters={"status": "PRINTING"}),),
-          success="Impresión generada."),
+          success="Impresión generada.", output_pdf=True),
         A("reprint_card_batch", "Reimprimir", CP.REPRINT, selection_param="original_job_id",
-          fields=(_MOTIVO,), success="Reimpresión generada: mismas tarjetas, mismos QR."),
+          fields=(_MOTIVO,), success="Reimpresión generada: mismas tarjetas, mismos QR.",
+          output_pdf=True),
     ),
     empty_message="Sin trabajos de impresión.")
 

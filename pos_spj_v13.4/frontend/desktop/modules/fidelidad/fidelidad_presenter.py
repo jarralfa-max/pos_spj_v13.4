@@ -118,6 +118,26 @@ class FidelidadPresenter:
                        actor_branch_id=self.current_branch_id(),
                        operation_id=new_uuid(), **kwargs)
 
+    def verify_authorizer(self, username: str, password: str) -> tuple[str | None, str]:
+        """(user_id, "") si usuario y clave son de un usuario activo; si no,
+        (None, motivo). El permiso para autorizar lo revalida el caso de uso."""
+        verifier = self.query_service("authorizer_credentials")
+        if verifier is None:
+            return None, "La verificación del autorizador no está disponible."
+        from backend.security.authentication.errors import AuthenticationFailedError
+        from backend.security.sessions.errors import AccountLockedError
+        try:
+            return verifier.execute(username=username, password=password), ""
+        except (AuthenticationFailedError, AccountLockedError) as exc:
+            return None, str(exc)
+
+    @staticmethod
+    def save_document(path: str, content: bytes) -> None:
+        """Guarda un documento generado (p. ej. el PDF de un lote de tarjetas)."""
+        from pathlib import Path
+
+        Path(path).write_bytes(content)
+
     def overview(self):
         service = self.query_service("records")
         return None if service is None else service.overview(actor_user_id=self.current_user_id())
@@ -133,6 +153,14 @@ class FidelidadPresenter:
         if service is None or not self.can(LoyaltyCardsPermissions.CARD_VIEW):
             return None
         return service.resolve(public_token=scanned, card_number=scanned)
+
+    def card_privacy_settings(self):
+        service = self.query_service("card_render")
+        return None if service is None else service.privacy_settings()
+
+    def can_edit_card_settings(self) -> bool:
+        from backend.application.loyalty_cards.permissions import LoyaltyCardsPermissions
+        return self.can(LoyaltyCardsPermissions.CONFIG_EDIT)
 
     def card_design(self, template_id: str) -> tuple[int, str] | None:
         service = self.query_service("card_render")

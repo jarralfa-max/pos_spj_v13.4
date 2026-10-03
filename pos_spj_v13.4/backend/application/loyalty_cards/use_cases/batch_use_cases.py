@@ -66,12 +66,13 @@ class CreateLoyaltyCardBatchUseCase(_LoyaltyCardsBaseUseCase):
                 uow.batches.save(batch)
 
                 sequence = uow.cards.count_all()
+                codec = self._codec(connection)
                 for index, (customer_id, membership_id) in enumerate(recipients):
                     sequence += 1
                     card = LoyaltyCard.issue(
                         f"LC-{sequence:08d}", card_type, customer_id, membership_id)
                     uow.cards.save(card)
-                    token = LoyaltyCardPublicToken.issue(card.id)
+                    token = LoyaltyCardPublicToken.issue(card.id, codec)
                     uow.tokens.save(token)
                     item = LoyaltyCardBatchItem.create_for_index(
                         batch.id, card.id, index=index, cards_per_sheet=imposition.cards_per_sheet)

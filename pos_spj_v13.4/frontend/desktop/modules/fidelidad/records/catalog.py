@@ -116,6 +116,13 @@ POINT_ACCOUNTS = P(
         A("redeem_points", "Canjear", LP.POINTS_REDEEM, selection_param="loyalty_account_id",
           fields=(F("points_amount", "Puntos", K.DECIMAL), F("reason_code", "Motivo")),
           success="Puntos canjeados."),
+        A("adjust_points", "Ajustar", LP.POINTS_VIEW, selection_param="loyalty_account_id",
+          fields=(F("points_amount", "Puntos (positivo suma, negativo resta)", K.DECIMAL),
+                  F("reason_code", "Motivo"),
+                  F("authorizer_user_id", "Autoriza", K.AUTHORIZER,
+                    helper="Otra persona con permiso de ajustar puntos; quien pide no se "
+                           "autoriza a sí mismo.")),
+          success="Ajuste registrado con autorización."),
     ),
     empty_message="Ningún cliente tiene cuenta de puntos todavía; se abre con su primera compra.")
 

@@ -142,3 +142,43 @@ def test_designer_validates_and_saves_a_new_version(app, conn):
     guardado = presenter.card_design(template_id)
     esquema = json.loads(guardado[1])
     assert len(esquema["elements"]) == 2 and len(esquema["back_elements"]) == 1
+
+
+def test_generated_pdf_is_offered_and_saved(app, conn, tmp_path):
+    """El PDF de un lote se generaba y se descartaba; ahora se entrega."""
+    from types import SimpleNamespace
+
+    from frontend.desktop.modules.fidelidad.cards.cards_catalog import PRINT_JOBS
+    from frontend.desktop.modules.fidelidad.composition import build_fidelidad_presenter
+    from frontend.desktop.modules.fidelidad.records.record_page import LoyaltyRecordPage
+
+    presenter = build_fidelidad_presenter(conn, _Session())
+    page = LoyaltyRecordPage(presenter, PRINT_JOBS)
+    destino = tmp_path / "lote.pdf"
+    page.dialogs.save_pdf = lambda _parent, _sugerido: str(destino)
+    resultado = SimpleNamespace(success=True, message="PDF de lote renderizado",
+                                data={"pdf_bytes": b"%PDF-1.4 prueba"})
+    mensaje = page._deliver_pdf(resultado, "Impresión generada.")
+    assert destino.read_bytes() == b"%PDF-1.4 prueba"
+    assert str(destino) in mensaje
+    page.dialogs.save_pdf = lambda _parent, _sugerido: None
+    assert "no se guardó" in page._deliver_pdf(resultado, "Impresión generada.")
+
+
+def test_authorizer_field_verifies_credentials_through_the_presenter(app):
+    from frontend.desktop.modules.fidelidad.records.action_dialog import ActionDialog
+    from frontend.desktop.modules.fidelidad.records.specs import ActionSpec, FieldKind, FieldSpec
+
+    class _Presenter:
+        def verify_authorizer(self, usuario, clave):
+            return ("id-gerente", "") if clave == "buena" else (None, "Clave incorrecta.")
+
+    accion = ActionSpec("adjust_points", "Ajustar", "x", fields=(
+        FieldSpec("authorizer_user_id", "Autoriza", FieldKind.AUTHORIZER),))
+    dialogo = ActionDialog(accion, _Presenter())
+    campo = dialogo._widgets["authorizer_user_id"]
+    campo.user.setText("gerente")
+    campo.password.setText("mala")
+    assert dialogo.values() is None
+    campo.password.setText("buena")
+    assert dialogo.values() == {"authorizer_user_id": "id-gerente"}

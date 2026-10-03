@@ -4442,3 +4442,12 @@ COPIA de la base real con los dos usuarios reales. Detalle completo:
   resolución de tarjeta del POS, la auditoría de eventos y las correcciones de
   dominio (segregación de programas, reverso sin saldo negativo, motivo de
   reimpresión, reverso de tarjeta) son código.
+
+### 292 — el QR de las tarjetas deja de guardarse en claro (2026-10-03)
+
+`loyalty_card_tokens.token` → `token_hash` + `token_prefix` + `token_version`;
+`loyalty_digital_card_projections.qr_token` → `token_id`; nueva
+`loyalty_card_secrets` (secreto HMAC de la instalación). Reconstrucción de tablas
+con `legacy_alter_table=ON` porque la base real trae una vista legacy rota que
+hacía fallar el RENAME y, con él, el arranque. Filas previas: huella con versión
+0 (resuelven; para reimprimir hay que rotar el QR). Real: 0 filas.

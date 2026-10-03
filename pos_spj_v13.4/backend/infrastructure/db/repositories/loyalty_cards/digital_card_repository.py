@@ -16,17 +16,17 @@ class LoyaltyDigitalCardProjectionRepository(LoyaltyCardsRepositoryBase):
         self._execute(
             """
             INSERT INTO loyalty_digital_card_projections (
-                id, card_id, customer_id, card_number, qr_token, display_fields_json,
+                id, card_id, customer_id, card_number, token_id, display_fields_json,
                 last_refreshed_at, created_at
             ) VALUES (?,?,?,?,?,?,?,?)
             ON CONFLICT(id) DO UPDATE SET
-                qr_token=excluded.qr_token,
+                token_id=excluded.token_id,
                 display_fields_json=excluded.display_fields_json,
                 last_refreshed_at=excluded.last_refreshed_at
             """,
             (
                 projection.id, projection.card_id, projection.customer_id,
-                projection.card_number, projection.qr_token,
+                projection.card_number, projection.token_id,
                 json.dumps(projection.display_fields, ensure_ascii=False),
                 projection.last_refreshed_at, projection.created_at,
             ),
@@ -52,7 +52,7 @@ class LoyaltyDigitalCardProjectionRepository(LoyaltyCardsRepositoryBase):
     def _hydrate(row: dict) -> LoyaltyDigitalCardProjection:
         return LoyaltyDigitalCardProjection(
             id=row["id"], card_id=row["card_id"], customer_id=row["customer_id"],
-            card_number=row["card_number"], qr_token=row["qr_token"],
+            card_number=row["card_number"], token_id=row["token_id"],
             display_fields=json.loads(row["display_fields_json"]),
             last_refreshed_at=row["last_refreshed_at"], created_at=row["created_at"],
         )

@@ -295,6 +295,7 @@ MIGRATIONS = [
     _Migration("289",  "migrations.standalone.289_sales_returns_loyalty_seed"),
     _Migration("290",  "migrations.standalone.290_seed_loyalty_role_permissions"),
     _Migration("291",  "migrations.standalone.291_drop_legacy_loyalty_tables"),
+    _Migration("292",  "migrations.standalone.292_loyalty_card_token_hash"),
 ]
 
 def _ensure_tracking_table(conn):

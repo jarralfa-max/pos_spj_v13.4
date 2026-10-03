@@ -34,7 +34,7 @@ class RotateLoyaltyCardTokenUseCase(_LoyaltyCardsBaseUseCase):
                         LoyaltyCardTokenNotFoundError(
                             f"La tarjeta {card_id} no tiene un token activo"),
                         operation_id=operation_id)
-                new_token = old_token.rotate()
+                new_token = old_token.rotate(self._codec(connection))
                 uow.tokens.save(old_token)
                 uow.tokens.save(new_token)
                 self._emit(uow, LoyaltyCardEvents.TOKEN_ROTATED, entity_id=new_token.id,
@@ -43,6 +43,6 @@ class RotateLoyaltyCardTokenUseCase(_LoyaltyCardsBaseUseCase):
                            previous_token_id=old_token.id)
             return LoyaltyCardResult.ok(
                 "Token QR rotado", entity_id=new_token.id, operation_id=operation_id,
-                token=new_token.token)
+                token_id=new_token.id, token_prefix=new_token.token_prefix)
         except LoyaltyCardDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)

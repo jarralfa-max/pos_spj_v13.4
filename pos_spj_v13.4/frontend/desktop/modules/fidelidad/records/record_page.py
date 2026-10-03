@@ -55,12 +55,20 @@ def format_value(value, kind: str, enum_cls=None) -> str:
     return str(value)
 
 
+def _ask_pdf_path(parent, suggested: str) -> str | None:
+    from PyQt5.QtWidgets import QFileDialog
+
+    ruta, _ = QFileDialog.getSaveFileName(parent, "Guardar PDF", suggested, "PDF (*.pdf)")
+    return ruta or None
+
+
 @dataclass
 class _Dialogs:
     """Fábricas de diálogos modales. Las pruebas las sustituyen para no bloquear."""
 
     action = ActionDialog
     confirm = ConfirmationDialog
+    save_pdf = staticmethod(_ask_pdf_path)
 
 
 class LoyaltyRecordPage(WorklistPage):
@@ -134,7 +142,23 @@ class LoyaltyRecordPage(WorklistPage):
         ok = bool(getattr(result, "success", False))
         mensaje = (getattr(result, "message", "") or "") if not ok else (
             getattr(result, "message", "") or action.success)
+        if ok and action.output_pdf:
+            mensaje = self._deliver_pdf(result, mensaje)
         self._notify(ok, mensaje or ("Listo." if ok else "No se pudo completar la acción."))
+
+    def _deliver_pdf(self, result, mensaje: str) -> str:
+        contenido = (getattr(result, "data", None) or {}).get("pdf_bytes")
+        if not contenido:
+            return mensaje
+        sugerido = f"tarjetas-{datetime.now():%Y%m%d-%H%M}.pdf"
+        ruta = self.dialogs.save_pdf(self, sugerido)
+        if not ruta:
+            return f"{mensaje} El PDF no se guardó; puedes volver a generarlo (mismas tarjetas)."
+        try:
+            self._presenter.save_document(ruta, contenido)
+        except OSError as exc:
+            return f"{mensaje} No se pudo guardar el PDF: {exc}"
+        return f"{mensaje} PDF guardado en {ruta}."
 
     # ── datos ──────────────────────────────────────────────────────────────
     def _load(self) -> None:

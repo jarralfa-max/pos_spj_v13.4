@@ -182,9 +182,12 @@ def _canonical_card(conn, customer_id: str, *, block: bool = False) -> str:
         if block:
             card.block("extraviada")
         uow.cards.save(card)
-        token = LoyaltyCardPublicToken.issue(card.id)
+        from backend.infrastructure.loyalty_cards.token_codec import card_token_codec_for
+
+        codec = card_token_codec_for(conn)
+        token = LoyaltyCardPublicToken.issue(card.id, codec)
         uow.tokens.save(token)
-    return f"SPJ-CARD:{token.token}"
+    return f"SPJ-CARD:{token.raw_token(codec)}"
 
 
 class TestScanCanonicalLoyaltyCard:
