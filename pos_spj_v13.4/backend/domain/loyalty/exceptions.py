@@ -237,3 +237,13 @@ class FraudCaseNotFoundError(LoyaltyDomainError):
 class InvalidFraudCaseStateError(LoyaltyDomainError):
     """The requested transition is not valid for the fraud case's current
     status."""
+
+
+class InvalidLoyaltyRuleError(LoyaltyDomainError):
+    """Una regla de acumulación mal definida (§13): tipo no evaluable en una
+    compra, condición o beneficio fuera del esquema declarativo, vigencia o
+    límites incoherentes."""
+
+
+class InvalidLoyaltyRuleStateError(LoyaltyDomainError):
+    """Transición de estado no permitida para una regla."""

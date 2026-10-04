@@ -363,6 +363,38 @@ def _card_command_table(connection, cards_auth) -> dict:
     }
 
 
+def _rule_command_table(connection, auth) -> dict:
+    """Reglas de acumulación (§13) y combinación de beneficios (§24). El
+    formulario viaja tal cual; el caso de uso lo traduce a la definición
+    declarativa (códigos → identificadores, beneficio, condición)."""
+    from backend.application.loyalty.use_cases import rule_use_cases as ru
+
+    _CONTEXTO = ("actor_user_id", "actor_branch_id", "operation_id")
+
+    def crear(**kw):
+        contexto = {k: kw.pop(k, None) for k in _CONTEXTO}
+        return ru.CreateLoyaltyRuleUseCase(auth).execute(
+            connection, code=kw.pop("code", ""), name=kw.pop("name", ""),
+            rule_type=kw.pop("rule_type", None), form=kw, **contexto)
+
+    def editar(**kw):
+        contexto = {k: kw.pop(k, None) for k in _CONTEXTO}
+        return ru.UpdateLoyaltyRuleUseCase(auth).execute(
+            connection, rule_id=kw.pop("rule_id"), name=kw.pop("name", None), form=kw,
+            **contexto)
+
+    def transicion(cls):
+        return lambda **kw: cls(auth).execute(connection, **kw)
+
+    return {
+        "create_loyalty_rule": crear,
+        "update_loyalty_rule": editar,
+        "activate_loyalty_rule": transicion(ru.ActivateLoyaltyRuleUseCase),
+        "deactivate_loyalty_rule": transicion(ru.DeactivateLoyaltyRuleUseCase),
+        "configure_stacking": transicion(ru.ConfigureStackingUseCase),
+    }
+
+
 def _with_finance(handler, connection):
     """Tras un comando exitoso, la pasada Fidelidad → Finanzas asienta lo que
     ese comando movió. Nunca deshace ni hace fallar el comando: lo que no se
@@ -431,6 +463,7 @@ def build_fidelidad_presenter(connection, session_context=None) -> FidelidadPres
         return lambda **kw: use_case_cls(loyalty_auth).execute(connection, **kw)
 
     command_handlers = _command_table(connection, loyalty_auth)
+    command_handlers.update(_rule_command_table(connection, loyalty_auth))
     command_handlers["adjust_points"] = _adjust_points_handler(connection, session_context)
     # Todo lo que mueve puntos, vales, cupones o premios llega a contabilidad
     # al confirmarse (2026-10-03); las tarjetas no tienen efecto contable.

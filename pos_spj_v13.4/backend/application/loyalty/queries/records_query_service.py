@@ -61,6 +61,9 @@ class LoyaltyRecord(str, Enum):
     FRAUD_CASES = "fraud_cases"
     LOYALTY_AUDIT = "loyalty_audit"
     FINANCE_POSTINGS = "finance_postings"
+    RULES = "rules"
+    STACKING = "stacking"
+    SALE_EVALUATIONS = "sale_evaluations"
     COUPON_DEFINITIONS = "coupon_definitions"
     COUPONS = "coupons"
     VOUCHER_DEFINITIONS = "voucher_definitions"
@@ -104,6 +107,9 @@ _REGISTROS: dict[LoyaltyRecord, tuple[RecordSpec, str]] = {
     R.FRAUD_CASES: (specs.FRAUD_CASES, LP.FRAUD_VIEW),
     R.LOYALTY_AUDIT: (specs.LOYALTY_AUDIT, LP.AUDIT_VIEW),
     R.FINANCE_POSTINGS: (specs.FINANCE_POSTINGS, LP.AUDIT_VIEW),
+    R.RULES: (specs.RULES, LP.PROGRAM_VIEW),
+    R.STACKING: (specs.STACKING, LP.CONFIG_VIEW),
+    R.SALE_EVALUATIONS: (specs.SALE_EVALUATIONS, LP.POINTS_VIEW),
     R.COUPON_DEFINITIONS: (specs.COUPON_DEFINITIONS, LP.COUPON_VIEW),
     R.COUPONS: (specs.COUPONS, LP.COUPON_VIEW),
     R.VOUCHER_DEFINITIONS: (specs.VOUCHER_DEFINITIONS, LP.VOUCHER_VIEW),
@@ -129,6 +135,36 @@ _REGISTROS: dict[LoyaltyRecord, tuple[RecordSpec, str]] = {
 }
 
 PAGE_SIZE = 50
+
+def _readable_json(row: dict) -> dict:
+    """El desglose de reglas y el orden de prioridad se guardan como JSON; la
+    pantalla los muestra legibles («Base 20 · CAT_X2 20», «COUPON → POINTS»)."""
+    import json
+
+    fila = dict(row)
+    if "breakdown" in fila:
+        try:
+            partes = json.loads(fila["breakdown"] or "[]")
+            fila["breakdown"] = " · ".join(
+                f"{'Base' if p.get('code') == 'BASE' else p.get('code')} {p.get('points')}"
+                for p in partes) or "—"
+        except (ValueError, TypeError, AttributeError):
+            pass
+    if "priority_order" in fila:
+        try:
+            fila["priority_order"] = " → ".join(json.loads(fila["priority_order"] or "[]")) or "—"
+        except (ValueError, TypeError):
+            pass
+    return fila
+
+
+#: Registros cuya tabla llegó con una migración reciente.
+_TABLAS_TARDIAS = {
+    R.FINANCE_POSTINGS: "loyalty_finance_links",
+    R.RULES: "loyalty_rules",
+    R.STACKING: "loyalty_stacking_rules",
+    R.SALE_EVALUATIONS: "loyalty_sale_evaluations",
+}
 
 
 @dataclass(frozen=True)
@@ -170,10 +206,10 @@ class LoyaltyRecordsQueryService:
         record = LoyaltyRecord(record)
         spec, permission = _REGISTROS[record]
         self._require(actor_user_id, permission)
-        if record is R.FINANCE_POSTINGS and not self._reader.scalar(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'"
-                " AND name = 'loyalty_finance_links'"):
-            # Base sin la migración 294: nada contabilizado todavía.
+        tabla = _TABLAS_TARDIAS.get(record)
+        if tabla and not self._reader.scalar(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", (tabla,)):
+            # Base sin la migración que crea ese registro (294/295): vacío.
             return RecordPage(rows=[], total=0)
         result = self._reader.page(spec, query=query, status=status, filters=filters,
                                    limit=page_size, offset=max(page, 0) * page_size)
@@ -182,6 +218,8 @@ class LoyaltyRecordsQueryService:
         if record is R.VOUCHERS:
             return RecordPage(rows=[self._with_voucher_balance(r) for r in result.rows],
                               total=result.total)
+        if record in (R.SALE_EVALUATIONS, R.STACKING):
+            return RecordPage(rows=[_readable_json(r) for r in result.rows], total=result.total)
         return result
 
     def overview(self, *, actor_user_id: str, now: datetime | None = None,

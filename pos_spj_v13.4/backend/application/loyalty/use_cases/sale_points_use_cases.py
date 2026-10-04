@@ -65,9 +65,17 @@ def delegated_policy(actor_user_id: str) -> LoyaltyAuthorizationPolicy:
 
 
 class AccrueSalePointsUseCase(_LoyaltyBaseUseCase):
+    """Acredita los puntos de una compra con las REGLAS de Fidelidad (§13,
+    2026-10-03): base de la Configuración o reglas base, multiplicadores y
+    bonos (`LoyaltyAccrualEvaluator`, el mismo cálculo que el POS muestra como
+    "puntos a ganar"). La evaluación se guarda ANTES de acreditar
+    (`loyalty_sale_evaluations` + aplicaciones por regla): un reintento acredita
+    exactamente lo evaluado, aunque entre tanto cambien reglas o usos."""
+
     def execute(self, connection, *, sale_id: str, customer_id: str | None, total,
                 credit_amount, branch_id: str, actor_user_id: str, operation_id: str,
-                occurred_at: str | None = None) -> LoyaltyResult:
+                occurred_at: str | None = None, lines=None, payments=None,
+                channel: str = "POS") -> LoyaltyResult:
         if not customer_id:
             return LoyaltyResult.ok("Venta de mostrador: no acumula", operation_id=operation_id,
                                     points=0)
@@ -81,13 +89,13 @@ class AccrueSalePointsUseCase(_LoyaltyBaseUseCase):
             operation_id_prefix=new_uuid())
 
         settings = LoyaltyProgramSettingsQuery(connection).accrual()
-        puntos = LoyaltyAccrualPolicy.points_for(
-            LoyaltyAccrualPolicy.eligible_amount(
-                total=Decimal(str(total)), credit_amount=Decimal(str(credit_amount or 0)),
-                settings=settings), settings)
+        puntos, desglose = _evaluate_once(
+            connection, sale_id=sale_id, customer_id=customer_id, branch_id=branch_id,
+            total=total, credit_amount=credit_amount, lines=lines, payments=payments,
+            channel=channel, momento=momento)
         if puntos <= 0:
             return LoyaltyResult.ok("La compra no alcanza un punto", operation_id=operation_id,
-                                    points=0)
+                                    points=0, breakdown=desglose)
 
         with LoyaltyUnitOfWork(connection) as uow:
             account = uow.accounts.get_by_customer_id(customer_id)
@@ -108,7 +116,46 @@ class AccrueSalePointsUseCase(_LoyaltyBaseUseCase):
                                     already_processed=True)
         if result.success:
             result.data["points"] = puntos
+            result.data["breakdown"] = desglose
         return result
+
+
+def _evaluate_once(connection, *, sale_id, customer_id, branch_id, total, credit_amount,
+                   lines, payments, channel, momento) -> tuple[int, list[dict]]:
+    """Evalúa la compra UNA vez y la guarda con sus reglas aplicadas; si ya se
+    evaluó (reintento del despacho), devuelve lo guardado."""
+    import json
+
+    from backend.application.loyalty.queries.customer_benefits_query import (
+        LoyaltyAccrualEvaluator,
+    )
+    from backend.infrastructure.db.repositories.loyalty.rule_repository import (
+        LoyaltyRuleRepository,
+    )
+
+    reglas = LoyaltyRuleRepository(connection)
+    previa = reglas.evaluation_for(sale_id)
+    if previa is not None:
+        return int(Decimal(str(previa["points"]))), json.loads(previa["breakdown_json"] or "[]")
+    evaluacion = LoyaltyAccrualEvaluator(connection).evaluate(
+        customer_id=customer_id, branch_id=branch_id, total=total,
+        credit_amount=credit_amount or 0, lines=lines or (), payments=payments or (),
+        channel=channel, occurred_at=momento, sale_id=sale_id)
+    desglose = [{"rule_id": a.rule_id, "code": a.code, "name": a.name, "points": a.points}
+                for a in evaluacion.applied]
+    with LoyaltyUnitOfWork(connection) as uow:
+        cuenta = uow.accounts.get_by_customer_id(customer_id)
+        repo = LoyaltyRuleRepository(uow.connection)
+        cuando = momento.isoformat(timespec="seconds")
+        repo.record_evaluation(sale_id=sale_id, customer_id=customer_id,
+                               loyalty_account_id=cuenta.id if cuenta else None,
+                               points=evaluacion.points, breakdown=desglose, evaluated_at=cuando)
+        for aplicada in evaluacion.applied:
+            if aplicada.rule_id:
+                repo.record_application(rule_id=aplicada.rule_id, sale_id=sale_id,
+                                        customer_id=customer_id, points=aplicada.points,
+                                        applied_at=cuando)
+    return evaluacion.points, desglose
 
 
 class RemoveSalePointsUseCase(_LoyaltyBaseUseCase):

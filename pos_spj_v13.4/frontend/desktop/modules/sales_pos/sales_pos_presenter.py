@@ -252,7 +252,7 @@ class SalesPosPresenter:
         if not sale.customer_id:
             return "Asigna un cliente"
         try:
-            puntos = int(estimate(total=sale.total))
+            puntos = int(estimate(sale=sale))
         except Exception:
             logger.exception("Estimación de puntos no disponible")
             return None

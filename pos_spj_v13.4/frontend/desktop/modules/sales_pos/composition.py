@@ -174,17 +174,23 @@ def _loyalty_summary(connection):
 
 
 def _points_to_earn(connection):
-    """Puntos que daría la venta con las reglas de Fidelidad (Ajustes): se
-    leen al calcular, así un cambio aplica sin reabrir el POS. El crédito se
-    desconoce hasta cobrar; la estimación es sobre el total."""
-    def estimate(*, total) -> int:
-        from backend.application.loyalty.queries.program_settings_query import (
-            LoyaltyProgramSettingsQuery,
+    """Puntos que daría la venta con las REGLAS de Fidelidad (§13, 2026-10-03):
+    el mismo evaluador que acredita al cobrar, con los productos, la sucursal,
+    el canal y el cliente de la venta. Se leen al calcular: una regla activada
+    aplica sin reabrir el POS. El crédito se desconoce hasta cobrar."""
+    def estimate(*, sale=None, total=None) -> int:
+        from backend.application.loyalty.queries.customer_benefits_query import (
+            LoyaltyAccrualEvaluator,
         )
-        from backend.domain.loyalty.policies.accrual_policy import LoyaltyAccrualPolicy
 
-        return LoyaltyAccrualPolicy.points_for(
-            total, LoyaltyProgramSettingsQuery(connection).accrual())
+        if sale is None:
+            return LoyaltyAccrualEvaluator(connection).evaluate(
+                customer_id=None, branch_id=None, total=total).points
+        return LoyaltyAccrualEvaluator(connection).evaluate(
+            customer_id=sale.customer_id, branch_id=sale.branch_id, total=sale.total,
+            channel=str(getattr(sale, "channel", "") or "POS"),
+            lines=[{"product_id": ln.product_id, "quantity": str(ln.quantity),
+                    "amount": str(ln.line_total)} for ln in sale.lines]).points
 
     return estimate
 

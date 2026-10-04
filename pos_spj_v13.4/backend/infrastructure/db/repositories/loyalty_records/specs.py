@@ -167,6 +167,32 @@ def _audit(module: str) -> RecordSpec:
 
 LOYALTY_AUDIT = _audit("GROWTH_ENGINE")
 
+#: Reglas de acumulación (§13) y combinación de beneficios (§24), 2026-10-03.
+RULES = RecordSpec(
+    columns=(("id", "r.id"), ("code", "r.code"), ("name", "r.name"),
+             ("rule_type", "r.rule_type"), ("priority", "r.priority"), ("status", "r.status"),
+             ("benefit", "r.benefit_definition"), ("effective_from", "r.effective_from"),
+             ("effective_to", "r.effective_to"), ("stackable", "r.stackable"),
+             ("applications", "(SELECT COUNT(*) FROM loyalty_rule_applications x"
+                              " WHERE x.rule_id = r.id)"),
+             ("created_by", "COALESCE(u.nombre, r.created_by_user_id)")),
+    source="loyalty_rules r LEFT JOIN usuarios u ON u.id = r.created_by_user_id",
+    order="r.status = 'ACTIVE' DESC, r.priority DESC, r.code", status="r.status",
+    search_in=("r.code", "r.name"), filters={"rule_type": "r.rule_type"})
+
+STACKING = RecordSpec(
+    columns=(("id", "s.combination"), ("combination", "s.combination"), ("option", "s.option"),
+             ("limit_value", "s.limit_value"), ("priority_order", "s.priority_order"),
+             ("updated_at", "s.updated_at")),
+    source="loyalty_stacking_rules s", order="s.combination", search_in=("s.combination",))
+
+SALE_EVALUATIONS = RecordSpec(
+    columns=(("id", "e.sale_id"), ("evaluated_at", "e.evaluated_at"),
+             ("customer_name", "cu.display_name"), ("points", "e.points"),
+             ("breakdown", "e.breakdown_json")),
+    source="loyalty_sale_evaluations e " + _cliente("cu", "e.customer_id"),
+    order="e.evaluated_at DESC, e.sale_id DESC", search_in=("cu.display_name", "e.sale_id"))
+
 #: Contabilidad de Fidelidad (2026-10-03): qué movimiento se asentó, cuál espera
 #: y cuál falló y por qué.
 FINANCE_POSTINGS = RecordSpec(

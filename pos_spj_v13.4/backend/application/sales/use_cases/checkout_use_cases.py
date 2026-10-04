@@ -343,6 +343,12 @@ def _completed_payload(sale, costos: dict, sin_costo: list[str], inventario: str
         "total": str(t.total),
         "payments": [{"method": m, "amount": str(a)} for m, a in sorted(pagos.items())],
         "change": str(cambio),
+        # Para las reglas de Fidelidad (§13, 2026-10-03): por producto (multiplicadores
+        # por categoría/producto, puntos por unidad) y canal.
+        "channel": str(getattr(getattr(sale, "channel", None), "value",
+                               getattr(sale, "channel", None)) or "POS"),
+        "lines": [{"product_id": line.product_id, "quantity": str(line.quantity.value),
+                   "amount": str(line.line_total)} for line in sale.lines],
         "cogs_total": str(cogs.quantize(Decimal("0.01"))),
         "cogs_missing_products": sin_costo,
         "inventory_settlement": inventario,

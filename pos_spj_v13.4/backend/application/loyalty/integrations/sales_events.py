@@ -45,7 +45,9 @@ class SaleLoyaltyEventHandlers:
             customer_id=datos.get("customer_id"), total=_dec(datos.get("total")),
             credit_amount=credito, branch_id=str(envelope.get("branch_id")),
             actor_user_id=actor, operation_id=str(envelope.get("event_id")),
-            occurred_at=envelope.get("timestamp")), "SALE_COMPLETED")
+            occurred_at=envelope.get("timestamp"), lines=datos.get("lines") or (),
+            payments=datos.get("payments") or (),
+            channel=str(datos.get("channel") or "POS")), "SALE_COMPLETED")
 
     def on_sale_returned(self, envelope: dict) -> None:
         datos = dict(envelope.get("payload") or {})

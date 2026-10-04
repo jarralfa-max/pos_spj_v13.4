@@ -37,6 +37,8 @@ SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     'pos_spj_v13.4/backend/infrastructure/db/schema/finance_schema.py': 24,
     # Estado del puente Fidelidad → Finanzas (ejecutado solo por la migración 294):
     'pos_spj_v13.4/backend/infrastructure/db/schema/loyalty_finance_schema.py': 3,
+    # Reglas de acumulación y combinación de beneficios (ejecutado solo por la 295):
+    'pos_spj_v13.4/backend/infrastructure/db/schema/loyalty_rules_schema.py': 4,
     # Bounded context de Inventario (INV-3+): DDL canónico ejecutado sólo por las
     # migraciones 121 (núcleo), 122 (lotes), 123 (cadena de frío), 124 (reservas),
     # 125 (transferencias), 126 (conteos), 127 (ajustes), 128 (cuarentena),

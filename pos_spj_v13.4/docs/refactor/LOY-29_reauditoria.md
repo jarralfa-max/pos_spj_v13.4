@@ -155,6 +155,40 @@ Se dispara tras cada comando de Fidelidad, tras cada venta/cancelación/
 devolución y al abrir Fidelidad. Verificado sobre copia de la base real:
 4 pólizas, todas cuadradas.
 
+## 3f. Las reglas salen de Fidelidad y el POS las ejecuta (2026-10-03, migración 295)
+
+Decisión del usuario. Antes: `LoyaltyRule` (§13), la política de combinación
+(§24) y `EvaluateCustomerBenefitsQuery` (§25) no existían; el POS acumulaba 1
+punto por cada $N fijo de `configuraciones`.
+
+* **`LoyaltyRule`** (dominio): 14 tipos; los 11 que se evalúan con una compra
+  se crean en **Programas → Reglas de acumulación** (cumpleaños, referidos y
+  retos se otorgan desde Beneficios — el maestro de clientes ni siquiera guarda
+  fecha de nacimiento). Prioridad, vigencia, acumulable, límites (totales, por
+  cliente, por día, por mes) y alcances por sucursal, canal, forma de pago,
+  producto, categoría (con subcategorías), segmento de cliente y programa.
+  Condición en un lenguaje declarativo CERRADO (campos y operadores conocidos,
+  sin `eval`/`exec`). La activa otra persona (§60); activa no se edita.
+* **Motor** (`LoyaltyRuleEngine`, puro): base de Configuración (o reglas base
+  que la sustituyen para su alcance) + multiplicadores + bonos; puntos enteros
+  hacia abajo; cada regla descartada dice por qué. **Sin reglas activas el POS
+  acumula exactamente como antes.**
+* **El POS las ejecuta**: el cobro manda líneas, canal y pagos en
+  `SALE_COMPLETED`; `AccrueSalePointsUseCase` evalúa UNA vez, guarda el
+  desglose (`loyalty_sale_evaluations`, pestaña «Puntos por compra») y los usos
+  por regla, y acredita; un reintento acredita lo guardado. «Puntos a ganar» en
+  el POS es el mismo cálculo.
+* **Combinación de beneficios** (§24): 8 combinaciones × 6 opciones,
+  configurables en Control → Combinación de beneficios; arranque: todo se
+  combina salvo varios cupones.
+* **`EvaluateCustomerBenefitsQuery`** (§25): carrito, sucursal, canal, pago,
+  cupones, vales y puntos pedidos → elegibles, descartados con motivo, desglose
+  de descuentos, puntos a ganar/canjear, cupones y vales a reservar, efecto
+  financiero previsto.
+* Verificado en copia real: regla «categoría doble» creada por un usuario y
+  activada por otro; venta de $200 → 20 base + 20 de la regla, desglose
+  guardado y asentado en contabilidad.
+
 ## 4. Pendientes honestos (no hechos en esta ronda)
 
 * **Contabilidad — límites declarados:** el costo de una recompensa de PRODUCTO
@@ -168,9 +202,9 @@ devolución y al abrir Fidelidad. Verificado sobre copia de la base real:
   existen; la reposición no registra el motivo.
 * Ajuste de puntos con autorización de otra persona no tiene pantalla.
 * BI no reacciona a Fidelidad (Finanzas ya sí, por el puente de libros).
-* La acumulación viva usa los ajustes de `configuraciones` que el usuario
-  decidió en SALES-23; el motor declarativo `LoyaltyRule` (§13), stacking (§24)
-  y `EvaluateCustomerBenefitsQuery` completo (§25) no están conectados al POS.
+* El POS no tiene captura de cupones ni vales: `EvaluateCustomerBenefitsQuery`
+  ya los resuelve (con la combinación configurada), pero hoy la caja sólo pide
+  puntos. Una devolución retira en proporción también los bonos fijos.
 * La pantalla de ajustes de privacidad de tarjetas (las claves ya existen).
 
 ## 5. Verificación

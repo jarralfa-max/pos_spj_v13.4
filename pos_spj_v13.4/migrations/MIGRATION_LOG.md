@@ -4471,3 +4471,14 @@ agregan la cuenta 2136 "Provisión de premios de sorteos" y el perfil
 `SWEEPSTAKES_PRIZE` (la siembra se salta si el catálogo existe; ahora completa
 lo que falte). Real: 0 obligaciones previas; la copia real asentó 4 pólizas
 cuadradas. Detalle en `docs/refactor/LOY-29_reauditoria.md` §3e.
+
+### 295 — reglas de acumulación y combinación de beneficios (2026-10-03)
+
+Decisión del usuario: las reglas salen de Fidelidad y el POS las ejecuta.
+`loyalty_rules` (definición declarativa validada por el dominio),
+`loyalty_sale_evaluations` (desglose por compra, también historial de visitas),
+`loyalty_rule_applications` (usos por regla, UNIQUE regla+venta) y
+`loyalty_stacking_rules` sembrada con todo permitido salvo varios cupones por
+venta. Sin reglas activas, la acumulación es idéntica a la de la 289. Detalle en
+`docs/refactor/LOY-29_reauditoria.md` §3f.
+

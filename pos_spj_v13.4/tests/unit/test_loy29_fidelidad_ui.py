@@ -85,7 +85,9 @@ def test_route_needs_its_own_read_permission(app, conn):
     from backend.application.loyalty.permissions import LoyaltyPermissions as LP
 
     w = _workspace(conn, _Session({LP.VIEW, LP.PROGRAM_VIEW}))
-    assert set(w._route_index_by_id) == {"fidelidad.overview", "loyalty.programs"}
+    # Las reglas de acumulación son parte de la definición del programa (2026-10-03).
+    assert set(w._route_index_by_id) == {"fidelidad.overview", "loyalty.programs",
+                                         "loyalty.rules"}
 
 
 def test_record_action_runs_the_use_case_with_dialog_values(app, conn):

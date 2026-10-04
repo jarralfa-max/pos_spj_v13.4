@@ -13,6 +13,13 @@ from backend.application.loyalty.integrations.finance_posting import (
     LoyaltyFinanceSourceType,
 )
 from backend.application.loyalty.permissions import LoyaltyPermissions as LP
+from backend.domain.loyalty.enums import (
+    SALE_EVALUATED_RULE_TYPES,
+    LoyaltyRuleStatus,
+    LoyaltyRuleType,
+    StackingCombination,
+    StackingOption,
+)
 from backend.application.loyalty.queries.records_query_service import LoyaltyRecord as R
 from backend.domain.commercial_instruments.enums import (
     CommercialBenefitType,
@@ -587,6 +594,104 @@ AUDIT = P(
              C("Entidad", "entidad"), C("Referencia", "entidad_id")),
     empty_message="Sin registros de auditoría.")
 
+# ── Reglas de acumulación (§13) ─────────────────────────────────────────────
+_REGLA_CAMPOS = (
+    F("priority", "Prioridad", K.INTEGER, required=False,
+      helper="Mayor primero. Vacío = 100."),
+    F("points", "Puntos", K.DECIMAL, required=False,
+      helper="Puntos por monto/unidad, o el bono fijo."),
+    F("amount", "Por cada (pesos)", K.MONEY, required=False,
+      helper="Sólo «Puntos por monto»: N puntos por cada este monto."),
+    F("multiplier", "Multiplicador", K.DECIMAL, required=False,
+      helper="Multiplicadores y campaña: p. ej. 2 = puntos dobles (máx. 10)."),
+    F("visits", "Visitas", K.INTEGER, required=False, helper="Frecuencia: compras requeridas."),
+    F("days", "En días", K.INTEGER, required=False, helper="Frecuencia: ventana de días."),
+    F("min_subtotal", "Compra mínima", K.MONEY, required=False),
+    F("weekdays", "Días", required=False, helper="Ej. «sáb, dom». Vacío = todos."),
+    F("effective_from", "Vigente desde", K.DATE, required=False),
+    F("effective_to", "Vigente hasta", K.DATE, required=False),
+    F("stackable", "Se acumula con otras reglas", K.BOOL, required=False, default=True),
+    F("product_codes", "Productos (códigos)", required=False),
+    F("category_codes", "Categorías (códigos)", required=False,
+      helper="Alcanza también a sus subcategorías."),
+    F("branch_names", "Sucursales (nombres)", required=False),
+    F("channels", "Canales", required=False, helper="POS, WHATSAPP, DELIVERY, ECOMMERCE"),
+    F("payment_methods", "Formas de pago", required=False,
+      helper="CASH, CARD, TRANSFER, MERCADO_PAGO, CREDIT"),
+    F("segment_codes", "Segmentos de cliente (códigos)", required=False),
+    F("program_id", "Sólo miembros del programa", K.RECORD, record=R.PROGRAMS,
+      record_label=("name", "code"), record_filters={"status": "ACTIVE"}, required=False),
+    F("customer_limit", "Usos por cliente", K.INTEGER, required=False),
+    F("daily_limit", "Usos por cliente al día", K.INTEGER, required=False),
+    F("monthly_limit", "Usos por cliente al mes", K.INTEGER, required=False),
+    F("maximum_uses", "Usos totales", K.INTEGER, required=False),
+)
+
+RULES = P(
+    key="rules", title="Reglas de acumulación", record=R.RULES, status_enum=LoyaltyRuleStatus,
+    subtitle=("Cuántos puntos da cada compra. El POS las aplica al cobrar y las muestra como "
+              "«puntos a ganar». Sin reglas activas, rige la base de Configuración."),
+    columns=(C("Código", "code"), C("Nombre", "name"),
+             C("Tipo", "rule_type", "enum", LoyaltyRuleType),
+             C("Prioridad", "priority", "numeric"), C("Estado", "status", "status"),
+             C("Desde", "effective_from", "date"), C("Hasta", "effective_to", "date"),
+             C("Acumulable", "stackable", "bool"), C("Usos", "applications", "numeric"),
+             C("Creó", "created_by")),
+    actions=(
+        A("create_loyalty_rule", "Nueva regla", LP.PROGRAM_EDIT, variant="primary", fields=(
+            F("code", "Código"), F("name", "Nombre"),
+            F("rule_type", "Tipo", K.CHOICE, enum=LoyaltyRuleType,
+              only=tuple(t.value for t in LoyaltyRuleType if t in SALE_EVALUATED_RULE_TYPES),
+              helper="Cumpleaños, referidos y retos se otorgan desde Beneficios."),
+            *_REGLA_CAMPOS),
+          success="Regla creada en borrador; la activa otra persona."),
+        A("update_loyalty_rule", "Editar", LP.PROGRAM_EDIT, selection_param="rule_id",
+          # Lo que se deja vacío se conserva; «acumulable» no se ofrece aquí
+          # porque una casilla siempre manda un valor y lo cambiaría sin querer.
+          fields=(F("name", "Nombre", required=False),
+                  *(f for f in _REGLA_CAMPOS if f.key != "stackable")),
+          success="Regla actualizada."),
+        A("activate_loyalty_rule", "Activar", LP.PROGRAM_APPROVE, selection_param="rule_id",
+          confirm="Quien creó la regla no puede activarla. El POS la aplicará desde la "
+                  "siguiente venta.", success="Regla activa."),
+        A("deactivate_loyalty_rule", "Desactivar", LP.PROGRAM_SUSPEND, selection_param="rule_id",
+          variant="danger", success="Regla desactivada."),
+    ),
+    empty_message="Sin reglas: el POS acumula con la base de Configuración.")
+
+SALE_EVALUATIONS = P(
+    key="sale_evaluations", title="Puntos por compra", record=R.SALE_EVALUATIONS,
+    subtitle="Qué reglas aplicó cada compra y cuántos puntos dio.",
+    columns=(C("Fecha", "evaluated_at", "date"), C("Cliente", "customer_name"),
+             C("Puntos", "points", "numeric"), C("Desglose", "breakdown")),
+    empty_message="Aún no hay compras evaluadas.")
+
+RULES_TABS = TabbedSpec(
+    key="rules_tabs", title="Reglas de acumulación",
+    subtitle="Las reglas salen de Fidelidad y el POS las ejecuta.",
+    tabs=(("Reglas", RULES), ("Puntos por compra", SALE_EVALUATIONS)))
+
+STACKING = P(
+    key="stacking", title="Combinación de beneficios", record=R.STACKING,
+    subtitle=("Qué pasa cuando una venta junta puntos, cupones, vales, promociones o saldo a "
+              "favor. Una combinación sin configurar se permite."),
+    columns=(C("Combinación", "combination", "enum", StackingCombination),
+             C("Qué pasa", "option", "enum", StackingOption),
+             C("Tope", "limit_value", "money"), C("Prioridad", "priority_order"),
+             C("Actualizado", "updated_at", "date")),
+    actions=(
+        A("configure_stacking", "Configurar", LP.CONFIG_EDIT, selection_param="combination",
+          selection_column="combination", fields=(
+              F("option", "Qué pasa", K.CHOICE, enum=StackingOption),
+              F("limit_value", "Tope (pesos)", K.MONEY, required=False,
+                helper="Sólo «Se combinan con tope»: los dos juntos no pasan de este monto."),
+              F("priority_order", "Orden de prioridad", required=False,
+                helper="Sólo «Por orden de prioridad»: p. ej. COUPON, POINTS")),
+          success="Combinación configurada."),
+    ),
+    searchable=False,
+    empty_message="Sin combinaciones configuradas: todas se permiten.")
+
 ACCOUNTING = P(
     key="accounting", title="Contabilidad", record=R.FINANCE_POSTINGS,
     status_enum=LoyaltyFinancePostingStatus,
@@ -621,6 +726,8 @@ FIDELIDAD_RECORD_ROUTES: dict[str, P | TabbedSpec] = {
     "fidelidad.fraud": FRAUD,
     "fidelidad.audit": AUDIT,
     "fidelidad.accounting": ACCOUNTING,
+    "loyalty.rules": RULES_TABS,
+    "fidelidad.stacking": STACKING,
 }
 
 __all__ = ["FIDELIDAD_RECORD_ROUTES", "REWARD_CATALOG", "REWARD_REDEMPTIONS"]

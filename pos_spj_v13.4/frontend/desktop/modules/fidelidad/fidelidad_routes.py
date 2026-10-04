@@ -60,6 +60,9 @@ FIDELIDAD_ROUTES: tuple[FidelidadRoute, ...] = (
        LP.PROGRAM_VIEW, "programs", Icons.LOYALTY),
     _r("loyalty.tiers", "Niveles", "Programas", "Niveles y umbrales de cada programa.",
        LP.TIER_VIEW, "members", Icons.GRADE),
+    _r("loyalty.rules", "Reglas de acumulación", "Programas",
+       "Cuántos puntos da cada compra; el POS las aplica al cobrar.", LP.PROGRAM_VIEW,
+       "programs", Icons.CHECKLIST),
 
     _r("loyalty.memberships", "Membresías", "Miembros", "Clientes inscritos en cada programa.",
        LP.MEMBERSHIP_VIEW, "members", Icons.CHECKLIST),
@@ -134,6 +137,9 @@ FIDELIDAD_ROUTES: tuple[FidelidadRoute, ...] = (
     _r("fidelidad.accounting", "Contabilidad", "Control",
        "Asientos de puntos, vales, cupones y premios; lo que falló y por qué.",
        LP.AUDIT_VIEW, "audit", Icons.FINANCE),
+    _r("fidelidad.stacking", "Combinación de beneficios", "Control",
+       "Puntos, cupones, vales y promociones en la misma venta.", LP.CONFIG_VIEW, "settings",
+       Icons.LIST),
     _r("fidelidad.settings", "Configuración", "Control",
        "Reglas de acumulación, canje y caducidad.", LP.CONFIG_VIEW, "settings", Icons.SETTINGS),
 )
