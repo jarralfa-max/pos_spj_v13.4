@@ -3,8 +3,13 @@ desactivar.
 
 Las transiciones las decide la ENTIDAD (`PriceList._transition`), no estos casos
 de uso: aquí sólo se valida permiso, segregación de funciones y se persiste. Una
-lista APROBADA o ACTIVA es inmutable por regla de dominio; para cambiarla se crea
-otra.
+lista APROBADA o ACTIVA es inmutable por regla de dominio; para cambiarla se
+duplica.
+
+Aprobar y activar exigen además que la lista tenga al menos un precio vigente
+(o programado). Antes una lista podía activarse vacía: quedaba inmutable, sin
+forma de capturarle precios, y si era base retiraba a la anterior y dejaba al
+POS sin precio. Se valida aquí, en el backend, no sólo en un botón.
 
 Transaccionalidad: este contexto no tiene UnitOfWork —el repositorio declara que
 nunca hace commit y el proyector de costos gestiona la suya— así que cada caso de
@@ -19,6 +24,10 @@ import logging
 from backend.application.pricing.authorization.policy import PricingAuthorizationPolicy
 from backend.application.pricing.permissions import PricingPermissions
 from backend.application.pricing.result import PricingResult
+from backend.application.pricing.use_cases.list_guards import (
+    load_list,
+    missing_prices_failure,
+)
 from backend.domain.pricing.entities.price_list import PriceList
 from backend.domain.pricing.entities.product_price import ProductPrice
 from backend.domain.pricing.enums import PriceListKind
@@ -129,10 +138,12 @@ class DuplicatePriceListUseCase(_BasePriceListUseCase):
                                       operation_id=operation_id)
 
         repo = PricingRepository(connection)
-        origen = repo.get_list(source_list_id)
-        if origen is None:
-            return PricingResult.fail("La lista de origen no existe", "NOT_FOUND",
-                                      operation_id=operation_id)
+        origen, fallo = load_list(repo, source_list_id, operation_id=operation_id)
+        if fallo is not None:
+            if fallo.error_code == "NOT_FOUND":
+                return PricingResult.fail("La lista de origen no existe", "NOT_FOUND",
+                                          operation_id=operation_id)
+            return fallo
         try:
             copia = PriceList(
                 code=code, name=name, kind=origen.kind, channel=origen.channel,
@@ -170,9 +181,14 @@ class DuplicatePriceListUseCase(_BasePriceListUseCase):
             self._rollback(connection)
             logger.exception("No se pudo duplicar la lista %s", source_list_id)
             raise
+        siguiente = ("edita sus precios en «Precios por producto» y envíala a revisión"
+                     if copiados else
+                     "captura sus precios en «Precios por producto» y envíala a revisión")
         return PricingResult.ok(
-            f"Lista duplicada con {copiados} precio(s)", entity_id=copia.id,
-            operation_id=operation_id, copied_prices=copiados)
+            f"Lista «{copia.code}» creada en Borrador con {copiados} precio(s): "
+            f"{siguiente}.", entity_id=copia.id,
+            operation_id=operation_id, copied_prices=copiados, code=copia.code,
+            source_status=origen.status.value)
 
 
 class _TransitionUseCase(_BasePriceListUseCase):
@@ -187,6 +203,14 @@ class _TransitionUseCase(_BasePriceListUseCase):
     def _apply(self, price_list: PriceList, *, actor_user_id: str) -> None:
         raise NotImplementedError
 
+    def _precondition(self, repo, price_list: PriceList, *, stored_status,
+                      operation_id: str) -> PricingResult | None:
+        """Regla de contenido que la transición exige (por omisión, ninguna).
+
+        Corre DESPUÉS de validar la transición en la entidad: activar un
+        borrador sigue siendo un error de estado, no de contenido."""
+        return None
+
     def _side_effects(self, repo, price_list: PriceList, *, actor_user_id: str,
                       operation_id: str) -> None:
         """Cambios a OTRAS listas en la misma transacción (por omisión, ninguno)."""
@@ -200,10 +224,9 @@ class _TransitionUseCase(_BasePriceListUseCase):
                                       operation_id=operation_id)
 
         repo = PricingRepository(connection)
-        price_list = repo.get_list(price_list_id)
-        if price_list is None:
-            return PricingResult.fail("La lista de precios no existe", "NOT_FOUND",
-                                      operation_id=operation_id)
+        price_list, fallo = load_list(repo, price_list_id, operation_id=operation_id)
+        if fallo is not None:
+            return fallo
         if self.segregated:
             try:
                 self._auth.ensure_segregation(
@@ -213,11 +236,18 @@ class _TransitionUseCase(_BasePriceListUseCase):
             except SegregationOfDutiesError as exc:
                 return PricingResult.fail(str(exc), "SEGREGATION_OF_DUTIES",
                                           operation_id=operation_id)
+        estado_guardado = price_list.status
         try:
             self._apply(price_list, actor_user_id=actor_user_id)
         except PricingDomainError as exc:
             return PricingResult.fail(str(exc), "INVALID_STATE",
                                       operation_id=operation_id)
+        # La entidad ya cambió EN MEMORIA; si falta contenido no se persiste
+        # nada y la lista guardada conserva su estado.
+        fallo = self._precondition(repo, price_list, stored_status=estado_guardado,
+                                   operation_id=operation_id)
+        if fallo is not None:
+            return fallo
 
         try:
             self._side_effects(repo, price_list, actor_user_id=actor_user_id,
@@ -254,6 +284,12 @@ class ApprovePriceListUseCase(_TransitionUseCase):
     def _apply(self, price_list, *, actor_user_id):
         price_list.approve(approved_by_user_id=actor_user_id)
 
+    def _precondition(self, repo, price_list, *, stored_status, operation_id):
+        """Aprobar una lista vacía la dejaría en un callejón sin salida: ya no
+        acepta precios y tampoco podría activarse."""
+        return missing_prices_failure(repo, price_list, stored_status=stored_status,
+                                      operation_id=operation_id, action="aprobar")
+
 
 class ActivatePriceListUseCase(_TransitionUseCase):
     permission = PricingPermissions.LIST_ACTIVATE
@@ -263,6 +299,14 @@ class ActivatePriceListUseCase(_TransitionUseCase):
 
     def _apply(self, price_list, *, actor_user_id):
         price_list.activate()
+
+    def _precondition(self, repo, price_list, *, stored_status, operation_id):
+        """Una lista activa sin precios no le da precio al POS, y si es base
+        además retiraría a la que sí los tiene. Las listas APROBADAS vacías que
+        ya existen (aprobadas antes de esta regla) caen aquí y el mensaje
+        indica duplicarlas."""
+        return missing_prices_failure(repo, price_list, stored_status=stored_status,
+                                      operation_id=operation_id, action="activar")
 
     def _side_effects(self, repo, price_list, *, actor_user_id, operation_id):
         """Siempre hay EXACTAMENTE una lista base (decisión del usuario,

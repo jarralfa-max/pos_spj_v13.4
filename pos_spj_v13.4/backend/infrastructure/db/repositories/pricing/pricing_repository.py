@@ -13,6 +13,7 @@ from backend.domain.pricing.entities.price_list import PriceList
 from backend.domain.pricing.entities.product_cost import ProductCost
 from backend.domain.pricing.entities.product_price import ProductPrice, VolumePrice
 from backend.domain.pricing.enums import CostMethod, PriceListKind, PriceListStatus
+from backend.domain.pricing.exceptions import UnknownPriceListStatusError
 from backend.domain.pricing.value_objects.money import Money
 from backend.shared.ids import new_uuid
 
@@ -62,11 +63,33 @@ class PricingRepository:
             "ORDER BY updated_at DESC LIMIT 1", (kind.value,)).fetchone()
         return self._row_to_list(row) if row else None
 
+    def price_counts(self, price_list_id: str, *, on_date: str) -> tuple[int, int]:
+        """(precios guardados, precios que rigen hoy o rigen después).
+
+        La segunda cifra excluye los VENCIDOS (`effective_to` anterior a
+        `on_date`): una lista cuyos precios ya vencieron deja al POS sin precio
+        exactamente igual que una vacía.
+        """
+        row = self._conn.execute(
+            "SELECT COUNT(*) AS total, "
+            "SUM(CASE WHEN effective_to IS NULL OR effective_to='' "
+            "    OR substr(effective_to,1,10) >= ? THEN 1 ELSE 0 END) AS usable "
+            "FROM product_price WHERE price_list_id=?",
+            (on_date, price_list_id)).fetchone()
+        return int(row["total"] or 0), int(row["usable"] or 0)
+
     @staticmethod
     def _row_to_list(row) -> PriceList:
+        # Estado EXACTO o error concreto con el valor real guardado: ni se
+        # adivina ni se convierte en silencio a otro estado.
+        try:
+            status = PriceListStatus(row["status"])
+        except ValueError as exc:
+            raise UnknownPriceListStatusError(
+                row["status"], list_id=row["id"], code=row["code"]) from exc
         return PriceList(id=row["id"], code=row["code"], name=row["name"],
                          kind=PriceListKind(row["kind"]),
-                         status=PriceListStatus(row["status"]), channel=row["channel"],
+                         status=status, channel=row["channel"],
                          discount_pct=Decimal(row["discount_pct"]),
                          inherits_from_id=row["inherits_from_id"],
                          created_by_user_id=row["created_by_user_id"],
@@ -82,7 +105,13 @@ class PricingRepository:
                ON CONFLICT(price_list_id, product_id, branch_id) DO UPDATE SET
                  sale_price=excluded.sale_price,
                  sale_price_currency=excluded.sale_price_currency,
-                 min_price=excluded.min_price, min_price_currency=excluded.min_price_currency""",
+                 min_price=excluded.min_price, min_price_currency=excluded.min_price_currency,
+                 effective_from=excluded.effective_from,
+                 effective_to=excluded.effective_to""",
+            # La vigencia SÍ se actualiza: antes el upsert la omitía, así que
+            # editar un precio existente para programarlo (o quitarle la fecha)
+            # respondía "Precio actualizado" y la fila seguía con la vigencia
+            # anterior. La fila guarda exactamente el precio que se capturó.
             (pp.id, pp.price_list_id, pp.product_id, pp.branch_id or "",
              str(pp.sale_price.amount), pp.sale_price.currency,
              None if pp.min_price is None else str(pp.min_price.amount),
@@ -101,6 +130,26 @@ class PricingRepository:
             row = self._conn.execute(
                 "SELECT * FROM product_price WHERE price_list_id=? AND product_id=? "
                 "AND branch_id=''", (price_list_id, product_id)).fetchone()
+        return self._row_to_price(row) if row else None
+
+    def get_price_row(self, *, price_list_id: str, product_id: str,
+                      branch_id: str | None) -> ProductPrice | None:
+        """La fila EXACTA de (lista, producto, sucursal), sin respaldo.
+
+        Es la que necesita quien ESCRIBE. `get_price` cae al precio de todas las
+        sucursales cuando la sucursal no tiene el suyo, y los casos de uso
+        reutilizaban ese `id` para la fila nueva de la sucursal: el INSERT
+        chocaba con la llave primaria de la fila general y fijar un precio por
+        sucursal reventaba con `IntegrityError` cuando ya existía el general.
+        """
+        row = self._conn.execute(
+            "SELECT * FROM product_price WHERE price_list_id=? AND product_id=? "
+            "AND branch_id=?", (price_list_id, product_id, branch_id or "")).fetchone()
+        return self._row_to_price(row) if row else None
+
+    def get_price_by_id(self, product_price_id: str) -> ProductPrice | None:
+        row = self._conn.execute(
+            "SELECT * FROM product_price WHERE id=?", (product_price_id,)).fetchone()
         return self._row_to_price(row) if row else None
 
     def effective_price(self, *, price_list_id: str, product_id: str,

@@ -11,7 +11,13 @@ present (never from the legacy ``productos`` — see the pricing boundary guardr
 
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal, InvalidOperation
+
+from backend.domain.pricing.enums import EDITABLE_LIST_STATES, PriceListStatus
+
+_CANONICAL_STATUSES = frozenset(s.value for s in PriceListStatus)
+_EDITABLE_STATUSES = frozenset(s.value for s in EDITABLE_LIST_STATES)
 
 
 def _dec(v):
@@ -35,6 +41,15 @@ class PricingReadService:
         lists_pending = c.execute(
             "SELECT COUNT(*) FROM price_list WHERE status IN ('DRAFT','UNDER_REVIEW')"
         ).fetchone()[0]
+        # Listas que RIGEN sin un solo precio: el POS no obtiene nada de ellas
+        # y, si es la base, ningún producto tiene precio de referencia.
+        lists_active_empty = c.execute(
+            "SELECT COUNT(*) FROM price_list pl WHERE pl.status='ACTIVE' AND NOT EXISTS "
+            "(SELECT 1 FROM product_price pp WHERE pp.price_list_id = pl.id)"
+        ).fetchone()[0]
+        statuses_unknown = sum(
+            1 for r in c.execute("SELECT status FROM price_list").fetchall()
+            if r[0] not in _CANONICAL_STATUSES)
         priced = c.execute(
             "SELECT COUNT(DISTINCT product_id) FROM product_price").fetchone()[0]
         costed = c.execute(
@@ -48,14 +63,25 @@ class PricingReadService:
             if sale is not None and mn is not None and sale < mn:
                 below_min += 1
         return {"lists_active": lists_active, "lists_pending": lists_pending,
+                "lists_active_empty": lists_active_empty,
+                "statuses_unknown": statuses_unknown,
                 "priced": priced, "costed": costed, "volume_tiers": volume_tiers,
                 "below_min": below_min}
 
     # ── price lists ─────────────────────────────────────────────────────────
     def list_price_lists(self, *, kind: str | None = None, limit: int = 200) -> list[dict]:
-        sql = ("SELECT id, code, name, kind, status, discount_pct FROM price_list "
-               "WHERE 1=1")
-        params: list = []
+        # `price_count` y `usable_price_count` (no vencidos) van en la fila para
+        # que la pantalla distinga una lista vacía de una con precios sin otra
+        # consulta por renglón; `status_recognized` para no presentar un estado
+        # guardado no canónico como si fuera otro.
+        sql = ("SELECT id, code, name, kind, status, discount_pct, "
+               "(SELECT COUNT(*) FROM product_price pp WHERE pp.price_list_id = "
+               " price_list.id) AS price_count, "
+               "(SELECT COUNT(*) FROM product_price pp WHERE pp.price_list_id = "
+               " price_list.id AND (pp.effective_to IS NULL OR pp.effective_to = '' "
+               " OR substr(pp.effective_to, 1, 10) >= ?)) AS usable_price_count "
+               "FROM price_list WHERE 1=1")
+        params: list = [date.today().isoformat()]
         if kind:
             sql += " AND kind=?"
             params.append(kind)
@@ -63,7 +89,11 @@ class PricingReadService:
         params.append(int(limit))
         rows = self._conn.execute(sql, params).fetchall()
         return [{"id": r["id"], "code": r["code"], "name": r["name"], "kind": r["kind"],
-                 "status": r["status"], "discount_pct": r["discount_pct"]} for r in rows]
+                 "status": r["status"], "discount_pct": r["discount_pct"],
+                 "price_count": int(r["price_count"] or 0),
+                 "usable_price_count": int(r["usable_price_count"] or 0),
+                 "status_recognized": r["status"] in _CANONICAL_STATUSES,
+                 "accepts_prices": r["status"] in _EDITABLE_STATUSES} for r in rows]
 
     # ── product prices ──────────────────────────────────────────────────────
     def get_product_price(self, price_id: str) -> dict | None:
@@ -176,10 +206,12 @@ class PricingReadService:
         """
         c = self._conn
         base_lists = [
-            {"id": r["id"], "code": r["code"], "name": r["name"]}
+            {"id": r["id"], "code": r["code"], "name": r["name"],
+             "price_count": int(r["price_count"] or 0)}
             for r in c.execute(
-                "SELECT id, code, name FROM price_list "
-                "WHERE kind='BASE' AND status='ACTIVE' ORDER BY code").fetchall()]
+                "SELECT pl.id, pl.code, pl.name, (SELECT COUNT(*) FROM product_price pp "
+                " WHERE pp.price_list_id = pl.id) AS price_count FROM price_list pl "
+                "WHERE pl.kind='BASE' AND pl.status='ACTIVE' ORDER BY pl.code").fetchall()]
         lists_by_kind = {
             r["kind"]: r["total"] for r in c.execute(
                 "SELECT kind, COUNT(*) AS total FROM price_list GROUP BY kind").fetchall()}

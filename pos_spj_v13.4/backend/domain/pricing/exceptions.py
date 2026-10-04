@@ -53,6 +53,25 @@ class InvalidPriceListError(PricingDomainError):
     """A price list / product price / volume tier is malformed."""
 
 
+class UnknownPriceListStatusError(InvalidPriceListError):
+    """The stored status of a price list is not one of the canonical values.
+
+    Carries the RAW stored value so the screen can say exactly what is wrong
+    instead of silently treating the list as some other state.
+    """
+
+    def __init__(self, raw_status, *, list_id: str | None = None,
+                 code: str | None = None) -> None:
+        self.raw_status = raw_status
+        self.list_id = list_id
+        self.code = code
+        quien = f"La lista «{code}»" if code else "La lista de precios"
+        super().__init__(
+            f"{quien} tiene un estado guardado no reconocido: {raw_status!r}. "
+            "Los estados válidos son DRAFT, UNDER_REVIEW, APPROVED, ACTIVE e "
+            "INACTIVE; no se opera sobre ella hasta corregir el dato.")
+
+
 class InvalidCostError(PricingDomainError):
     """A product cost is malformed (float, negative)."""
 

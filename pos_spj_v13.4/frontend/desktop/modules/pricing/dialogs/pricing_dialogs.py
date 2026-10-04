@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from PyQt5.QtWidgets import QCheckBox, QMessageBox
+from PyQt5.QtWidgets import QCheckBox, QLabel, QMessageBox
 
 from backend.domain.pricing.enums import SALE_CHANNELS
 
@@ -53,6 +53,14 @@ def _combo(options) -> SearchableComboBox:
     combo = SearchableComboBox()
     combo.set_options(options)
     return combo
+
+
+def _hint(text: str) -> QLabel:
+    """Texto de ayuda bajo el formulario: qué se puede elegir y por qué."""
+    etiqueta = QLabel(text)
+    etiqueta.setObjectName("formHint")
+    etiqueta.setWordWrap(True)
+    return etiqueta
 
 
 class _PricingDialog(FormDialog):
@@ -143,6 +151,13 @@ class ProductPriceFormDialog(_PricingDialog):
         self.form.addRow("", self._scheduled)
         self.form.addRow("Vigente desde", self._from)
         self.form.addRow("Vigente hasta", self._to)
+        # Tres criterios distintos que antes no se decían: qué listas aceptan
+        # precios, qué productos se pueden elegir y qué es la vigencia.
+        self.form.addRow("", _hint(
+            "Sólo aparecen listas en Borrador o En revisión (una aprobada o activa "
+            "es de solo lectura: se duplica) y productos activos del catálogo. La "
+            "vigencia es del precio, no de la lista: sin programarla, rige siempre "
+            "que la lista esté activa."))
         self._finish("Guardar")
         if initial:
             self._prefill(dict(initial))
@@ -155,9 +170,12 @@ class ProductPriceFormDialog(_PricingDialog):
         tres crea otro precio en vez de mover éste. Es el comportamiento real
         del dominio y la pantalla no lo disimula bloqueando los campos.
         """
-        self.setWindowTitle("Editar precio de producto")
-        self._list.set_current_id(datos.get("price_list_id"))
         product_id = datos.get("product_id")
+        if product_id:
+            # Sin producto es una captura NUEVA sobre una lista elegida (p. ej.
+            # la copia en borrador recién duplicada), no una edición.
+            self.setWindowTitle("Editar precio de producto")
+        self._list.set_current_id(datos.get("price_list_id"))
         if product_id:
             etiqueta = " · ".join(str(v) for v in (datos.get("product_code"),
                                                    datos.get("product_name")) if v)
@@ -221,16 +239,25 @@ class DuplicatePriceListDialog(_PricingDialog):
     haría que «duplicar» no duplicara. Para eso ya está «Nueva lista».
     """
 
-    def __init__(self, parent=None, *, source_label: str = "") -> None:
+    def __init__(self, parent=None, *, source_label: str = "",
+                 initial_code: str = "", initial_name: str = "") -> None:
         titulo = f"Duplicar {source_label}".strip() if source_label else "Duplicar lista"
         super().__init__(parent, title=titulo)
         self._code = StandardLineEdit(placeholder="Código de la copia (p. ej. BASE-2026)")
         self._name = StandardLineEdit(placeholder="Nombre de la copia")
+        if initial_code:
+            self._code.setText(initial_code)
+        if initial_name:
+            self._name.setText(initial_name)
         self._copy_prices = QCheckBox("Copiar también los precios de la lista")
         self._copy_prices.setChecked(True)
         self.form.addRow("Código *", self._code)
         self.form.addRow("Nombre *", self._name)
         self.form.addRow("", self._copy_prices)
+        self.form.addRow("", _hint(
+            "La copia nace en Borrador: ahí se editan los precios y luego se envía "
+            "a revisión, aprobación y activación. Si es base, al activarse "
+            "reemplaza a la lista base vigente."))
         self._finish("Duplicar")
 
     def _error(self) -> str | None:
@@ -266,10 +293,21 @@ class BulkPriceDialog(_PricingDialog):
         # era exactamente eso.
         self._branch = _combo(list(branch_options or [("", "Todas las sucursales")]))
         self._price = MoneyInput()
+        # Misma vigencia que la captura individual: el lote ya no es una vía
+        # que la ignore.
+        self._scheduled = QCheckBox("Programar vigencia")
+        self._from = DateInput()
+        self._to = DateInput()
         self.form.addRow("Lista *", self._list)
         self.form.addRow("Categoría *", self._category)
         self.form.addRow("Sucursal", self._branch)
         self.form.addRow("Precio de venta *", self._price)
+        self.form.addRow("", self._scheduled)
+        self.form.addRow("Vigente desde", self._from)
+        self.form.addRow("Vigente hasta", self._to)
+        self.form.addRow("", _hint(
+            "Se aplica a los productos ACTIVOS de la categoría, sólo en listas en "
+            "Borrador o En revisión."))
         self._finish("Aplicar")
 
     def _error(self) -> str | None:
@@ -279,13 +317,19 @@ class BulkPriceDialog(_PricingDialog):
             return "Elige la categoría a la que se aplica el precio."
         if self._price.decimal_value() <= 0:
             return "El precio de venta debe ser mayor a cero."
+        if self._scheduled.isChecked() and self._to.date_value() < self._from.date_value():
+            return "La vigencia no puede terminar antes de empezar."
         return None
 
     def values(self) -> dict:
-        return {"price_list_id": self._list.current_id(),
-                "category_id": self._category.current_id(),
-                "branch_id": str(self._branch.current_id() or "") or None,
-                "sale_price": str(self._price.decimal_value())}
+        datos = {"price_list_id": self._list.current_id(),
+                 "category_id": self._category.current_id(),
+                 "branch_id": str(self._branch.current_id() or "") or None,
+                 "sale_price": str(self._price.decimal_value())}
+        if self._scheduled.isChecked():
+            datos["effective_from"] = self._from.date_value().isoformat()
+            datos["effective_to"] = self._to.date_value().isoformat()
+        return datos
 
 
 class VolumeTierDialog(_PricingDialog):

@@ -54,3 +54,34 @@ class PriceSource(str, Enum):
 IMMUTABLE_LIST_STATES = frozenset({
     PriceListStatus.APPROVED, PriceListStatus.ACTIVE,
 })
+
+#: Los ÚNICOS estados en los que una lista recibe precios. Se declara en
+#: positivo a propósito: definirlo como "no inmutable" dejaba editable a una
+#: lista INACTIVA —estado terminal, sus precios son historia— y la pantalla y
+#: el caso de uso aplicaban criterios distintos (la pantalla sólo ofrecía
+#: borrador y revisión; el caso de uso aceptaba también la inactiva).
+EDITABLE_LIST_STATES = frozenset({
+    PriceListStatus.DRAFT, PriceListStatus.UNDER_REVIEW,
+})
+
+#: Nombre es-MX de cada estado, para mensajes del backend y para la pantalla.
+PRICE_LIST_STATUS_LABELS = {
+    PriceListStatus.DRAFT: "Borrador",
+    PriceListStatus.UNDER_REVIEW: "En revisión",
+    PriceListStatus.APPROVED: "Aprobada",
+    PriceListStatus.ACTIVE: "Activa",
+    PriceListStatus.INACTIVE: "Inactiva",
+}
+
+
+def parse_price_list_status(value) -> PriceListStatus:
+    """Estado canónico EXACTO o `ValueError`.
+
+    Sin mayúsculas forzadas, recortes ni coincidencias parciales: un valor
+    guardado que no es exactamente uno de los canónicos es un dato que hay que
+    reparar (la migración 299 normaliza las variantes inequívocas), no algo
+    que se adivine en cada lectura.
+    """
+    if isinstance(value, PriceListStatus):
+        return value
+    return PriceListStatus(str(value))

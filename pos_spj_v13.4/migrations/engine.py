@@ -302,6 +302,7 @@ MIGRATIONS = [
     _Migration("296",  "migrations.standalone.296_pos_coupons_vouchers"),
     _Migration("297",  "migrations.standalone.297_loyalty_rewards_birthdays"),
     _Migration("298",  "migrations.standalone.298_birthday_grants_text_year"),
+    _Migration("299",  "migrations.standalone.299_price_list_status_integrity"),
 ]
 
 def _ensure_tracking_table(conn):

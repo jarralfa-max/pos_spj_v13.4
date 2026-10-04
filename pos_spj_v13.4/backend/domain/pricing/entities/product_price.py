@@ -8,11 +8,36 @@ within a price list, with an optional minimum price and validity window.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from backend.domain.pricing.exceptions import InvalidPriceListError
 from backend.domain.pricing.value_objects.money import Money
 from backend.shared.ids import new_uuid
+
+
+def _validity_day(value, campo: str) -> date | None:
+    if value in (None, ""):
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10])
+    except ValueError as exc:
+        raise InvalidPriceListError(
+            f"Fecha de vigencia inválida en «{campo}»: {value!r} (use AAAA-MM-DD)") from exc
+
+
+def validate_validity(effective_from, effective_to) -> None:
+    """La vigencia de un precio: fechas AAAA-MM-DD y un fin que no preceda al
+    inicio.
+
+    Vivía sólo en el diálogo. El motor compara `substr(fecha, 1, 10)` como
+    texto, así que una fecha mal escrita o invertida guardada por cualquier
+    otra vía dejaba un precio que no rige NUNCA sin que nadie lo notara.
+    """
+    desde = _validity_day(effective_from, "vigente desde")
+    hasta = _validity_day(effective_to, "vigente hasta")
+    if desde is not None and hasta is not None and hasta < desde:
+        raise InvalidPriceListError("La vigencia no puede terminar antes de empezar")
 
 
 def _qty(value) -> Decimal:
@@ -46,6 +71,7 @@ class ProductPrice:
             if self.sale_price < self.min_price:
                 raise InvalidPriceListError(
                     "El precio de venta no puede ser menor al mínimo del propio precio")
+        validate_validity(self.effective_from, self.effective_to)
 
 
 @dataclass

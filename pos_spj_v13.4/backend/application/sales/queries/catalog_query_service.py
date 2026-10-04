@@ -40,16 +40,21 @@ _BASE_QUERY = """
         COALESCE(pb.barcode_value, '') AS barcode,
         COALESCE(u.code, p.base_unit_id, '') AS unit,
         COALESCE(u.dimension, '') AS unit_dimension,
-        COALESCE(pp.sale_price, '0') AS effective_price,
+        COALESCE(ppb.sale_price, pp.sale_price, '0') AS effective_price,
         COALESCE(pi.uri, '') AS image_reference,
         CASE WHEN COALESCE(p.bundle_allowed,0)=1 OR COALESCE(p.recipe_allowed,0)=1
              THEN 1 ELSE 0 END AS is_composite,
         COALESCE(rr.min_quantity, '0') AS minimum_quantity,
         COALESCE(icanon.qty, '0') AS available_quantity
     FROM products p
+    LEFT JOIN product_price ppb
+        ON ppb.product_id = p.id AND ppb.branch_id = :branch AND ppb.branch_id <> ''
+       AND ppb.price_list_id = (__ACTIVE_BASE__)
+       AND __VIGENTE_PPB__
     LEFT JOIN product_price pp
         ON pp.product_id = p.id AND pp.branch_id = ''
-       AND pp.price_list_id = (SELECT id FROM price_list WHERE code = 'BASE')
+       AND pp.price_list_id = (__ACTIVE_BASE__)
+       AND __VIGENTE_PP__
     LEFT JOIN product_categories pc ON pc.id = p.category_id
     LEFT JOIN units_of_measure u ON u.id = p.base_unit_id
     LEFT JOIN inventory_replenishment_rule rr
@@ -63,33 +68,60 @@ _BASE_QUERY = """
         FROM inventory_balances
         WHERE inventory_status = 'AVAILABLE'
         GROUP BY product_id, branch_id
-    ) icanon ON icanon.product_id = p.id AND icanon.branch_id = ?
+    ) icanon ON icanon.product_id = p.id AND icanon.branch_id = :branch
     WHERE p.lifecycle_status = 'ACTIVE' AND COALESCE(p.internal_only, 0) = 0
 """
+
+# El precio de la tarjeta se resuelve con el MISMO criterio que el cobro
+# (`PricingRepository.active_list_of_kind` + `effective_price`): la lista BASE
+# ACTIVA —no la que se llama 'BASE'—, el precio de la sucursal si rige y si no
+# el de todas, y sólo precios vigentes hoy. Antes el catálogo leía la lista con
+# código 'BASE' sin mirar su estado: al activar otra lista base (que la
+# reemplaza), las tarjetas seguían mostrando los precios de la retirada, o
+# "Sin precio" si ésa estaba vacía, aunque el cobro sí encontraba precio.
+_ACTIVE_BASE_LIST = ("SELECT id FROM price_list WHERE kind = 'BASE' AND status = 'ACTIVE' "
+                     "ORDER BY updated_at DESC LIMIT 1")
+
+
+def _vigente(alias: str) -> str:
+    return (f"({alias}.effective_from IS NULL OR {alias}.effective_from = '' "
+            f"OR substr({alias}.effective_from, 1, 10) <= :today) "
+            f"AND ({alias}.effective_to IS NULL OR {alias}.effective_to = '' "
+            f"OR substr({alias}.effective_to, 1, 10) >= :today)")
+
+
+_BASE_QUERY = (_BASE_QUERY.replace("__ACTIVE_BASE__", _ACTIVE_BASE_LIST)
+               .replace("__VIGENTE_PPB__", _vigente("ppb"))
+               .replace("__VIGENTE_PP__", _vigente("pp")))
 
 
 class SalesCatalogQueryService:
     def __init__(self, connection) -> None:
         self._conn = connection
 
+    @staticmethod
+    def _base_params(branch_id: str) -> dict:
+        from datetime import date
+        return {"branch": branch_id or "", "today": date.today().isoformat()}
+
     def search(
         self, *, branch_id: str, search: str = "", category_id: str | None = None,
         limit: int = 200,
     ) -> tuple[ProductCatalogEntryDTO, ...]:
         query = _BASE_QUERY
-        params: list = [branch_id]
+        params = self._base_params(branch_id)
         if search:
             query += (
-                " AND (p.name LIKE ? OR p.code = ?"
+                " AND (p.name LIKE :like OR p.code = :code"
                 " OR EXISTS (SELECT 1 FROM product_barcodes b"
-                "            WHERE b.product_id = p.id AND b.barcode_value = ?))"
+                "            WHERE b.product_id = p.id AND b.barcode_value = :code))"
             )
-            params += [f"%{search}%", search, search]
+            params.update(like=f"%{search}%", code=search)
         if category_id:
-            query += " AND p.category_id = ?"
-            params.append(category_id)
-        query += " ORDER BY p.name LIMIT ?"
-        params.append(limit)
+            query += " AND p.category_id = :category"
+            params["category"] = category_id
+        query += " ORDER BY p.name LIMIT :limit"
+        params["limit"] = limit
 
         cursor = self._conn.execute(query, params)
         columns = [col[0] for col in cursor.description]
@@ -131,9 +163,10 @@ class SalesCatalogQueryService:
         distinct from `search()`, which does a fuzzy `LIKE` match against
         name too and is meant for the catalog grid, not for a scanner that
         must resolve to exactly one product or none at all."""
-        query = _BASE_QUERY + " AND (p.code = ? OR EXISTS (" \
-            "SELECT 1 FROM product_barcodes b WHERE b.product_id = p.id AND b.barcode_value = ?))"
-        cursor = self._conn.execute(query, [branch_id, code, code])
+        query = _BASE_QUERY + " AND (p.code = :code OR EXISTS (" \
+            "SELECT 1 FROM product_barcodes b WHERE b.product_id = p.id " \
+            "AND b.barcode_value = :code))"
+        cursor = self._conn.execute(query, {**self._base_params(branch_id), "code": code})
         columns = [col[0] for col in cursor.description]
         row = cursor.fetchone()
         if row is None:

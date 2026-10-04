@@ -15,6 +15,17 @@ Alcance por sucursal: `allowed_branches` se INYECTA (None = alcance global, que
 es el contrato que la propia política documenta). No se resuelve aquí porque el
 ERP todavía no tiene un resolutor de sucursales permitidas por usuario — cuando
 lo tenga, se conecta sin tocar este caso de uso.
+
+Reglas COMUNES a la captura individual, al lote y a las escalas por volumen
+(antes cada una aplicaba las suyas):
+
+* sólo una lista en Borrador o En revisión recibe precios
+  (`list_guards.read_only_failure`, con la salida "duplícala");
+* un precio de UNA sucursal exige `BRANCH_PRICE_MANAGE` y que la sucursal esté
+  al alcance del usuario;
+* la fila que se reescribe es la EXACTA de (lista, producto, sucursal), nunca
+  el precio general que `get_price` usa de respaldo;
+* la vigencia se valida en el dominio y se guarda tal como se capturó.
 """
 
 from __future__ import annotations
@@ -26,10 +37,18 @@ from decimal import Decimal
 from backend.application.pricing.authorization.policy import PricingAuthorizationPolicy
 from backend.application.pricing.permissions import PricingPermissions
 from backend.application.pricing.result import PricingResult
+from backend.application.pricing.use_cases.list_guards import (
+    load_list,
+    read_only_failure,
+)
 from backend.application.products.queries.product_selection_query_service import (
     ProductSearchQuery,
 )
-from backend.domain.pricing.entities.product_price import ProductPrice, VolumePrice
+from backend.domain.pricing.entities.product_price import (
+    ProductPrice,
+    VolumePrice,
+    validate_validity,
+)
 from backend.domain.pricing.events import PricingEvents, build_pricing_event_payload
 from backend.domain.pricing.exceptions import (
     BranchScopeError,
@@ -75,6 +94,39 @@ class _BasePriceUseCase:
         if rollback is not None:
             rollback()
 
+    def _authorize_price_write(self, actor_user_id: str, branch_id: str | None, *,
+                               allowed_branches, operation_id: str
+                               ) -> PricingResult | None:
+        """Permiso para escribir un precio: idéntico en individual y en lote.
+
+        Fijar el precio de UNA sucursal es una facultad distinta de fijar el
+        general (`BRANCH_PRICE_MANAGE`), y la sucursal debe estar al alcance.
+        Antes el lote exigía el permiso pero no el alcance, y el individual el
+        alcance pero no el permiso.
+        """
+        try:
+            self._auth.require(actor_user_id, PricingPermissions.PRICE_EDIT)
+            if branch_id:
+                self._auth.require(actor_user_id,
+                                   PricingPermissions.BRANCH_PRICE_MANAGE)
+            self._auth.require_branch(actor_user_id, branch_id,
+                                      allowed_branches=allowed_branches)
+        except PricingPermissionDeniedError as exc:
+            return PricingResult.fail(str(exc), "PERMISSION_DENIED",
+                                      operation_id=operation_id)
+        except BranchScopeError as exc:
+            return PricingResult.fail(str(exc), "BRANCH_SCOPE",
+                                      operation_id=operation_id)
+        return None
+
+    @staticmethod
+    def _editable_list(repo: PricingRepository, price_list_id: str, *,
+                       operation_id: str):
+        price_list, fallo = load_list(repo, price_list_id, operation_id=operation_id)
+        if fallo is None:
+            fallo = read_only_failure(price_list, operation_id=operation_id)
+        return price_list, fallo
+
 
 class SetProductPriceUseCase(_BasePriceUseCase):
     """Alta o cambio del precio de venta de un producto en una lista.
@@ -106,30 +158,21 @@ class SetProductPriceUseCase(_BasePriceUseCase):
                 effective_to: str | None = None,
                 allowed_branches=None, authorized_by: str | None = None,
                 authorization_reason: str = "") -> PricingResult:
-        try:
-            self._auth.require(actor_user_id, PricingPermissions.PRICE_EDIT)
-            self._auth.require_branch(actor_user_id, branch_id,
-                                      allowed_branches=allowed_branches)
-        except PricingPermissionDeniedError as exc:
-            return PricingResult.fail(str(exc), "PERMISSION_DENIED",
-                                      operation_id=operation_id)
-        except BranchScopeError as exc:
-            return PricingResult.fail(str(exc), "BRANCH_SCOPE",
-                                      operation_id=operation_id)
+        branch_id = branch_id or None
+        fallo = self._authorize_price_write(actor_user_id, branch_id,
+                                            allowed_branches=allowed_branches,
+                                            operation_id=operation_id)
+        if fallo is not None:
+            return fallo
 
         repo = PricingRepository(connection)
-        price_list = repo.get_list(price_list_id)
-        if price_list is None:
-            return PricingResult.fail("La lista de precios no existe", "NOT_FOUND",
-                                      operation_id=operation_id)
-        if not price_list.is_editable:
-            return PricingResult.fail(
-                f"La lista está {price_list.status.value} y es inmutable: "
-                "crea una nueva para cambiar precios",
-                "IMMUTABLE_LIST", operation_id=operation_id)
+        _lista, fallo = self._editable_list(repo, price_list_id,
+                                            operation_id=operation_id)
+        if fallo is not None:
+            return fallo
 
-        anterior = repo.get_price(price_list_id=price_list_id, product_id=product_id,
-                                  branch_id=branch_id)
+        anterior = repo.get_price_row(price_list_id=price_list_id,
+                                      product_id=product_id, branch_id=branch_id)
         grant = None
         try:
             nuevo = _money(sale_price, currency)
@@ -180,7 +223,10 @@ class SetProductPriceUseCase(_BasePriceUseCase):
             raise
         return PricingResult.ok("Precio actualizado", entity_id=precio.id,
                                 operation_id=operation_id,
-                                sale_price=str(nuevo.amount))
+                                sale_price=str(nuevo.amount),
+                                price_list_id=price_list_id, product_id=product_id,
+                                branch_id=branch_id, effective_from=effective_from,
+                                effective_to=effective_to)
 
 
 class ApplyPriceToSelectionUseCase(_BasePriceUseCase):
@@ -228,15 +274,31 @@ class ApplyPriceToSelectionUseCase(_BasePriceUseCase):
                 sale_price, operation_id: str, category_id: str | None = None,
                 product_ids=None, branch_id: str | None = None,
                 currency: str = "MXN", min_price=None,
-                max_products: int = 500) -> PricingResult:
+                effective_from: str | None = None, effective_to: str | None = None,
+                allowed_branches=None, max_products: int = 500) -> PricingResult:
+        branch_id = branch_id or None
+        fallo = self._authorize_price_write(actor_user_id, branch_id,
+                                            allowed_branches=allowed_branches,
+                                            operation_id=operation_id)
+        if fallo is not None:
+            return fallo
+
+        # La lista va ANTES que la selección: si es de solo lectura, eso es lo
+        # que el usuario necesita saber, no que la categoría está vacía.
+        repo = PricingRepository(connection)
+        _lista, fallo = self._editable_list(repo, price_list_id,
+                                            operation_id=operation_id)
+        if fallo is not None:
+            return fallo
+
         try:
-            self._auth.require(actor_user_id, PricingPermissions.PRICE_EDIT)
-            if branch_id:
-                self._auth.require(actor_user_id,
-                                   PricingPermissions.BRANCH_PRICE_MANAGE)
-        except PricingPermissionDeniedError as exc:
-            return PricingResult.fail(str(exc), "PERMISSION_DENIED",
-                                      operation_id=operation_id)
+            nuevo = _money(sale_price, currency)
+            minimo = _money(min_price, currency) if min_price is not None else None
+            # Una vigencia inválida rechazaría CADA producto: se valida una vez
+            # y se informa, en vez de responder "0 aplicados, N rechazados".
+            validate_validity(effective_from, effective_to)
+        except PricingDomainError as exc:
+            return PricingResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
 
         objetivo = [str(p) for p in (product_ids or []) if str(p).strip()]
         if not objetivo and category_id:
@@ -245,23 +307,6 @@ class ApplyPriceToSelectionUseCase(_BasePriceUseCase):
             return PricingResult.fail(
                 "La selección no tiene productos: elige una categoría con "
                 "productos activos.", "EMPTY_SELECTION", operation_id=operation_id)
-
-        repo = PricingRepository(connection)
-        price_list = repo.get_list(price_list_id)
-        if price_list is None:
-            return PricingResult.fail("La lista de precios no existe", "NOT_FOUND",
-                                      operation_id=operation_id)
-        if not price_list.is_editable:
-            return PricingResult.fail(
-                f"La lista está {price_list.status.value} y es inmutable: "
-                "duplícala para cambiar precios",
-                "IMMUTABLE_LIST", operation_id=operation_id)
-
-        try:
-            nuevo = _money(sale_price, currency)
-            minimo = _money(min_price, currency) if min_price is not None else None
-        except PricingDomainError as exc:
-            return PricingResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
         if minimo is not None and nuevo < minimo:
             return PricingResult.fail(
                 "El precio es menor al mínimo: en lote no se autoriza, "
@@ -271,12 +316,13 @@ class ApplyPriceToSelectionUseCase(_BasePriceUseCase):
         aplicados, rechazados = 0, 0
         try:
             for product_id in objetivo:
-                anterior = repo.get_price(price_list_id=price_list_id,
-                                          product_id=product_id, branch_id=branch_id)
+                anterior = repo.get_price_row(price_list_id=price_list_id,
+                                              product_id=product_id, branch_id=branch_id)
                 try:
                     precio = ProductPrice(
                         price_list_id=price_list_id, product_id=product_id,
-                        sale_price=nuevo, branch_id=branch_id, min_price=minimo)
+                        sale_price=nuevo, branch_id=branch_id, min_price=minimo,
+                        effective_from=effective_from, effective_to=effective_to)
                 except PricingDomainError:
                     # Un producto que el dominio rechaza no aborta el lote, pero
                     # tampoco se cuenta: el resultado dice cuántos se aplicaron y
@@ -322,6 +368,19 @@ class SetVolumePriceUseCase(_BasePriceUseCase):
         except PricingPermissionDeniedError as exc:
             return PricingResult.fail(str(exc), "PERMISSION_DENIED",
                                       operation_id=operation_id)
+
+        # Una escala es parte de los precios de la lista: no se le agrega a una
+        # lista aprobada, activa o inactiva. Antes no se miraba el estado y una
+        # lista ACTIVA —inmutable por regla de dominio— cambiaba en caliente.
+        repo = PricingRepository(connection)
+        base = repo.get_price_by_id(product_price_id)
+        if base is None:
+            return PricingResult.fail("El precio elegido no existe", "NOT_FOUND",
+                                      operation_id=operation_id)
+        _lista, fallo = self._editable_list(repo, base.price_list_id,
+                                            operation_id=operation_id)
+        if fallo is not None:
+            return fallo
         try:
             escala = VolumePrice(product_price_id=product_price_id,
                                  min_quantity=Decimal(str(min_quantity)),
@@ -329,7 +388,6 @@ class SetVolumePriceUseCase(_BasePriceUseCase):
         except PricingDomainError as exc:
             return PricingResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
 
-        repo = PricingRepository(connection)
         try:
             repo.save_volume(escala)
             self._emit(repo, PricingEvents.VOLUME_PRICE_CHANGED, entity_id=escala.id,

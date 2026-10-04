@@ -2,7 +2,8 @@
 
 A list (BASE, CHANNEL, CUSTOMER, PROMOTIONAL) with an optional global discount and
 inheritance from a parent list. Lifecycle DRAFT→UNDER_REVIEW→APPROVED→ACTIVE→
-INACTIVE; an APPROVED/ACTIVE list is immutable (create a new one to change it).
+INACTIVE; only DRAFT/UNDER_REVIEW lists receive prices. An APPROVED/ACTIVE list is
+immutable and an INACTIVE one is history: duplicate it to change its prices.
 """
 
 from __future__ import annotations
@@ -11,13 +12,17 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 
 from backend.domain.pricing.enums import (
-    IMMUTABLE_LIST_STATES,
+    EDITABLE_LIST_STATES,
     SALE_CHANNELS,
     PriceListKind,
     PriceListStatus,
     normalize_channel,
+    parse_price_list_status,
 )
-from backend.domain.pricing.exceptions import InvalidPriceListError
+from backend.domain.pricing.exceptions import (
+    InvalidPriceListError,
+    UnknownPriceListStatusError,
+)
 from backend.shared.ids import new_uuid
 
 _TRANSITIONS = {
@@ -66,7 +71,11 @@ class PriceList:
         if not isinstance(self.kind, PriceListKind):
             self.kind = PriceListKind(str(self.kind))
         if not isinstance(self.status, PriceListStatus):
-            self.status = PriceListStatus(str(self.status))
+            try:
+                self.status = parse_price_list_status(self.status)
+            except ValueError as exc:
+                raise UnknownPriceListStatusError(
+                    self.status, list_id=self.id, code=code) from exc
         if self.inherits_from_id == self.id:
             raise InvalidPriceListError("Una lista no puede heredar de sí misma")
         self.discount_pct = _pct(self.discount_pct)
@@ -91,7 +100,8 @@ class PriceList:
 
     @property
     def is_editable(self) -> bool:
-        return self.status not in IMMUTABLE_LIST_STATES
+        """Sólo borrador y revisión reciben precios (ver `EDITABLE_LIST_STATES`)."""
+        return self.status in EDITABLE_LIST_STATES
 
     @property
     def is_active(self) -> bool:

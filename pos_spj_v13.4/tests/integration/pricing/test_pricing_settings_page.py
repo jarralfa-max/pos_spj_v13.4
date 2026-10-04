@@ -67,7 +67,9 @@ class TestSettingsSummary:
         assert "Sin lista base activa" in nota
 
     def test_the_active_base_list_is_the_one_that_governs(self, conn):
-        _active_base(conn)
+        base = _active_base(conn)
+        PricingRepository(conn).save_price(ProductPrice(
+            price_list_id=base.id, product_id="p1", sale_price=_m(100)))
         # Una lista promocional en borrador NO debe confundirse con la base.
         PricingRepository(conn).save_list(
             PriceList(code="PROMO", name="Promo", kind=PriceListKind.PROMOTIONAL))
@@ -77,7 +79,20 @@ class TestSettingsSummary:
         assert valor == "BASE · Base"
         assert "no aplica lista de canal ni de cliente" in nota
 
+    def test_an_active_base_list_without_prices_is_flagged_with_the_way_out(self, conn):
+        """El caso medido en la base real (2026-10-03): `BASE01` activa con cero
+        precios. Antes la nota decía "Rige cuando no aplica lista de canal ni de
+        cliente", como si todo estuviera bien."""
+        _active_base(conn, code="BASE01", name="Base")
+        s = PricingReadService(conn).settings_summary()
+        assert s["base_lists"][0]["price_count"] == 0
+        _, nota = _rows(s)["Lista de precio base activa"]
+        assert "SIN precios" in nota and "Duplícala" in nota
+
     def test_two_active_base_lists_are_reported_as_a_problem(self, conn):
+        # Sólo puede pasar en una base anterior al índice único (migración
+        # 299): se simula soltándolo.
+        conn.execute("DROP INDEX IF EXISTS ux_price_list_single_active_base")
         _active_base(conn, code="BASE", name="Base")
         _active_base(conn, code="BASE2", name="Otra base")
         s = PricingReadService(conn).settings_summary()

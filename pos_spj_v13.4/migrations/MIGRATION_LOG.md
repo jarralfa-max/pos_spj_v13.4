@@ -4506,3 +4506,42 @@ aplicación no abría ("La DB no nació UUIDv7 limpia"). Se reconstruye con
 validación, así que el siguiente arranque pasa. Prueba de regresión: ninguna
 tabla nueva de Fidelidad/Clientes tiene llave primaria entera.
 
+
+### 299 — estados de listas de precio y una sola lista base activa (2026-10-04)
+
+Contexto: en la base real `BASE01` estaba ACTIVA con cero precios (y no había un
+solo precio en el módulo). Una lista activa es inmutable, así que quedaba vacía
+para siempre; además el catálogo del POS leía la lista llamada `BASE` (ya
+INACTIVA) y nunca la activa.
+
+La migración (idempotente, sin borrar filas):
+
+1. Normaliza `price_list.status`/`kind` SÓLO cuando la variante es inequívoca
+   (mayúsculas/espacios de un valor canónico: `'active'` → `ACTIVE`). Cualquier
+   otro valor se deja intacto y se registra en el log; el repositorio lo informa
+   con `UnknownPriceListStatusError` (valor real) y la pantalla lo muestra como
+   "No reconocido («valor»)".
+2. Reaplica la regla de la 284 (queda la lista que se llama `BASE`, si no la más
+   reciente) por si la normalización destapó una segunda base activa; las demás
+   pasan a INACTIVE.
+3. Crea el índice único parcial `ux_price_list_single_active_base`
+   (`kind='BASE' AND status='ACTIVE'`). El DDL vive en `pricing_schema.py`
+   (`ensure_single_active_base_index`), que no lo crea si hoy hubiera dos.
+
+Cambios de código que acompañan (no son DDL): activar y aprobar exigen al menos
+un precio no vencido (`EMPTY_LIST`); sólo DRAFT/UNDER_REVIEW reciben precios
+(INACTIVE dejó de ser editable); individual, lote y escala por volumen comparten
+guardas de estado, permiso (`BRANCH_PRICE_MANAGE` para precio de sucursal) y
+alcance; el upsert de `product_price` ahora guarda la vigencia; la escritura usa
+la fila EXACTA (lista, producto, sucursal) — antes fijar un precio de sucursal
+con el general existente reventaba con `IntegrityError`; el catálogo del POS lee
+la lista base ACTIVA con vigencia y precio por sucursal, igual que el cobro.
+
+**Recuperar una lista activa vacía ya existente** (no se toca en la migración:
+desactivarla en silencio dejaría a la instalación sin lista base):
+Listas de precio → seleccionar la lista → Duplicar (la copia nace en Borrador)
+→ Precios por producto → capturar precios en la copia → Enviar a revisión →
+Aprobar y Activar con OTRO usuario (segregación de funciones). Al activarse, la
+copia reemplaza a la lista vacía, que queda INACTIVE como historial. Verificado
+sobre copia de la base real (2026-10-04): `BASE01` → `BASE01-2` con 3 precios;
+cobro y tarjeta del POS coinciden.

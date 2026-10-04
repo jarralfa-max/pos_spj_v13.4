@@ -133,6 +133,7 @@ def test_quien_crea_no_aprueba(conn):
 
 def test_otro_usuario_si_aprueba_y_activa(conn):
     creada = _lista(conn, "capturista")
+    _precio(conn, creada.entity_id, "p1", actor="capturista")
     SubmitPriceListUseCase(_auth(_Session(user_id="capturista"))).execute(
         conn, actor_user_id="capturista", price_list_id=creada.entity_id,
         operation_id=new_uuid())
@@ -185,6 +186,7 @@ def test_fijar_precio_con_vigencia_y_auditoria(conn):
 
 def test_una_lista_activa_es_inmutable(conn):
     creada = _lista(conn, "capturista")
+    _precio(conn, creada.entity_id, "p0", actor="capturista")
     SubmitPriceListUseCase(_auth(_Session(user_id="capturista"))).execute(
         conn, actor_user_id="capturista", price_list_id=creada.entity_id,
         operation_id=new_uuid())
@@ -397,6 +399,7 @@ def test_el_lote_no_autoriza_precios_bajo_el_minimo(conn):
 
 def test_el_lote_respeta_la_inmutabilidad_de_la_lista(conn):
     creada = _lista(conn)
+    _precio(conn, creada.entity_id, "p0")
     SubmitPriceListUseCase(_auth(_Session())).execute(
         conn, actor_user_id="u1", price_list_id=creada.entity_id,
         operation_id=new_uuid())

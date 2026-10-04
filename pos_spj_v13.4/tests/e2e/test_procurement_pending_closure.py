@@ -103,13 +103,18 @@ def _base_lists(conn):
 def test_activating_another_base_list_replaces_the_previous_one(env):
     from backend.application.pricing.use_cases import (
         ActivatePriceListUseCase, ApprovePriceListUseCase, CreatePriceListUseCase,
-        SubmitPriceListUseCase,
+        SetProductPriceUseCase, SubmitPriceListUseCase,
     )
     before = _base_lists(env.conn)
     created = CreatePriceListUseCase().execute(
         env.conn, actor_user_id="u1", code="NUEVA", name="Lista nueva", kind="BASE",
         operation_id=new_uuid())
     assert created.success, created.message
+    # Una lista vacía ya no se aprueba ni se activa: se captura un precio antes.
+    priced = SetProductPriceUseCase().execute(
+        env.conn, actor_user_id="u1", price_list_id=created.entity_id,
+        product_id="p-alas", sale_price="44", operation_id=new_uuid())
+    assert priced.success, priced.message
     for use_case, actor in ((SubmitPriceListUseCase, "u1"), (ApprovePriceListUseCase, "u2"),
                             (ActivatePriceListUseCase, "u2")):
         result = use_case().execute(env.conn, actor_user_id=actor,
@@ -120,6 +125,9 @@ def test_activating_another_base_list_replaces_the_previous_one(env):
 
 
 def test_migration_284_keeps_the_list_called_base(env):
+    # La 284 opera sobre bases ANTERIORES al índice único de la 299, que hoy
+    # impide fabricar dos listas base activas: se simula esa base soltándolo.
+    env.conn.execute("DROP INDEX IF EXISTS ux_price_list_single_active_base")
     now = "2026-09-25T04:20:52"
     env.conn.execute("INSERT INTO price_list (id, code, name, kind, status, discount_pct,"
                      " created_at, updated_at) VALUES (?, 'ORIGIN-00001', 'Lista Origina{',"

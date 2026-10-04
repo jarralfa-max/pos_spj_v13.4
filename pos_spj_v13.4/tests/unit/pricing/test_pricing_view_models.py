@@ -25,7 +25,9 @@ def test_price_lists_table():
     t = price_lists_table([{"id": "l1", "code": "BASE", "name": "Base", "kind": "BASE",
                             "status": "ACTIVE", "discount_pct": "10"}])
     assert t.total == 1 and t.row_ids == ["l1"]
-    assert t.rows[0] == ["BASE", "Base", "Base", "Activa", "10.0%"]
+    # Sin conteo de precios en la fila no se inventa uno.
+    assert t.rows[0] == ["BASE", "Base", "Base", "Activa", "10.0%", "—",
+                         "Publicada · rige como lista base"]
 
 
 def test_product_prices_table_money_and_branch():

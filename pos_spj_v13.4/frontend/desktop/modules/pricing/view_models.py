@@ -8,14 +8,15 @@ formatting live here so the pages stay presentation-only. Decimal/str only.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 
+from backend.domain.pricing.enums import PRICE_LIST_STATUS_LABELS
 from frontend.desktop.formatters.money_formatter import format_money
 from frontend.desktop.formatters.percentage_formatter import format_percentage
 
-LIST_STATUS_ES = {
-    "DRAFT": "Borrador", "UNDER_REVIEW": "En revisión", "APPROVED": "Aprobada",
-    "ACTIVE": "Activa", "INACTIVE": "Inactiva",
-}
+#: Las etiquetas viven en el dominio (las usan también los mensajes del
+#: backend); aquí sólo se indexan por código.
+LIST_STATUS_ES = {s.value: label for s, label in PRICE_LIST_STATUS_LABELS.items()}
 LIST_STATUS_VARIANT = {
     "DRAFT": "neutral", "UNDER_REVIEW": "warning", "APPROVED": "info",
     "ACTIVE": "success", "INACTIVE": "neutral",
@@ -34,7 +35,54 @@ CHANGE_FIELD_ES = {"sale_price": "Precio de venta", "min_price": "Precio mínimo
 
 
 def list_status_es(code) -> str:
-    return LIST_STATUS_ES.get(str(code or ""), str(code or "—"))
+    """Etiqueta del estado, o "No reconocido («valor»)" con el valor REAL.
+
+    Antes un estado no canónico se mostraba crudo, indistinguible de uno
+    válido: "active" en la tabla parecía una lista activa que luego no
+    aparecía como tal en ningún lado."""
+    texto = "" if code is None else str(code)
+    if texto in LIST_STATUS_ES:
+        return LIST_STATUS_ES[texto]
+    return f"No reconocido («{texto}»)" if texto else "Sin estado"
+
+
+def list_publication_es(status, kind=None, price_count=None) -> str:
+    """Qué significa el estado para el POS: si la lista RIGE o no, y por qué.
+
+    Es una lectura distinta del estado de captura: "Activa" dice dónde va en
+    el ciclo; esto dice si ya se cobra con ella y si eso tiene sentido.
+    """
+    codigo = "" if status is None else str(status)
+    vacia = price_count is not None and int(price_count) == 0
+    if codigo == "ACTIVE":
+        if vacia:
+            return "Publicada SIN precios · duplícala"
+        return "Publicada · rige como lista base" if kind == "BASE" else "Publicada"
+    if codigo == "APPROVED":
+        return ("Sin precios: no puede activarse (duplícala)" if vacia
+                else "Aprobada · falta activar")
+    if codigo in ("DRAFT", "UNDER_REVIEW"):
+        return "En captura · sin precios" if vacia else "En captura"
+    if codigo == "INACTIVE":
+        return "Retirada (historial)"
+    return "Estado no reconocido: no se opera"
+
+
+def validity_es(effective_from, effective_to, *, today: date | None = None) -> str:
+    """Vigencia de UN precio, relativa a hoy: siempre, programado, vigente,
+    vencido. Distinta del estado de la lista a la que pertenece."""
+    hoy = (today or date.today()).isoformat()
+    desde = str(effective_from or "")[:10]
+    hasta = str(effective_to or "")[:10]
+    if not desde and not hasta:
+        return "Siempre"
+    if hasta and hasta < hoy:
+        return f"Vencido ({hasta})"
+    if desde and desde > hoy:
+        return f"Programado desde {desde}" + (f" hasta {hasta}" if hasta else "")
+    if desde and hasta:
+        return f"Vigente {desde} → {hasta}"
+    return f"Vigente hasta {hasta}" if hasta else f"Vigente desde {desde}"
 
 
 def list_status_variant(code) -> str:
@@ -77,6 +125,15 @@ class TableViewModel:
 
 
 @dataclass(frozen=True)
+class ListCaptureState:
+    """Listas de precio según lo que admiten al capturar precios."""
+
+    editable: tuple[tuple[str, str], ...] = ()
+    read_only: tuple[dict, ...] = ()
+    unrecognized: tuple[dict, ...] = ()
+
+
+@dataclass(frozen=True)
 class KpiViewModel:
     key: str
     title: str
@@ -95,11 +152,13 @@ def price_lists_table(rows: list[dict]) -> TableViewModel:
             list_kind_es(r.get("kind")),
             list_status_es(r.get("status")),
             format_percentage(r.get("discount_pct"), decimals=1),
+            str(int(r.get("price_count") or 0)) if "price_count" in r else "—",
+            list_publication_es(r.get("status"), r.get("kind"), r.get("price_count")),
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
 
-def product_prices_table(rows: list[dict]) -> TableViewModel:
+def product_prices_table(rows: list[dict], *, today: date | None = None) -> TableViewModel:
     out, ids = [], []
     for r in rows:
         ids.append(str(r.get("id") or ""))
@@ -110,6 +169,10 @@ def product_prices_table(rows: list[dict]) -> TableViewModel:
             _branch_es(r.get("branch_id")),
             format_money(r.get("sale_price"), cur),
             format_money(r.get("min_price"), cur),
+            # Estado de la LISTA (si se puede editar) y vigencia del PRECIO
+            # (si rige hoy): dos cosas distintas que antes no se veían.
+            list_status_es(r.get("list_status")) if "list_status" in r else "—",
+            validity_es(r.get("effective_from"), r.get("effective_to"), today=today),
         ])
     return TableViewModel(rows=out, row_ids=ids, total=len(out))
 
@@ -163,7 +226,12 @@ def settings_table(summary: dict) -> TableViewModel:
             "Listas de precio")
     elif len(base) == 1:
         base_valor = f'{base[0]["code"]} · {base[0]["name"]}'
-        base_nota = "Rige cuando no aplica lista de canal ni de cliente"
+        if "price_count" in base[0] and not int(base[0]["price_count"] or 0):
+            base_nota = ("Está activa SIN precios: el POS no tiene precio de "
+                         "referencia. Duplícala, captura precios en la copia y "
+                         "actívala para reemplazarla")
+        else:
+            base_nota = "Rige cuando no aplica lista de canal ni de cliente"
     else:
         base_valor = ", ".join(b["code"] for b in base)
         base_nota = "Hay más de una lista base activa: sólo debería haber una"

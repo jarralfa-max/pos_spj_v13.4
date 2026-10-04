@@ -52,6 +52,10 @@ class PriceListsPage(QWidget):
             ColumnSpec("Tipo", "kind"),
             ColumnSpec("Estado", "status"),
             ColumnSpec("Descuento", "discount"),
+            # Cuántos precios tiene y si ya rige: una lista activa vacía se ve
+            # aquí en vez de descubrirse en el POS.
+            ColumnSpec("Precios", "prices"),
+            ColumnSpec("Publicación", "publication"),
         ])
         layout.addWidget(self.table, 1)
 
@@ -112,7 +116,17 @@ class PriceListsPage(QWidget):
         if not price_list_id:
             self._notify(False, "Elige una lista de precios.")
             return
-        dialog = DuplicatePriceListDialog(self)
+        origen = self._presenter.price_list_summary(price_list_id) or {}
+        if origen and not origen.get("status_recognized", True):
+            self._notify(False, f"La lista «{origen.get('code')}» tiene un estado guardado "
+                                f"no reconocido («{origen.get('status')}»): corrige ese "
+                                "dato antes de duplicarla.")
+            return
+        codigo = str(origen.get("code") or "")
+        dialog = DuplicatePriceListDialog(
+            self, source_label=f"{codigo} · {origen.get('name') or ''}" if origen else "",
+            initial_code=self._presenter.suggest_copy_code(codigo) if codigo else "",
+            initial_name=f"{origen.get('name') or codigo} (copia)" if origen else "")
         if not dialog.exec_():
             return
         ok, msg, _ = self._presenter.duplicate_price_list(

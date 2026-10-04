@@ -13,11 +13,14 @@ import logging
 from backend.application.products.queries.product_selection_query_service import (
     ProductSearchQuery,
 )
+from backend.domain.pricing.enums import EDITABLE_LIST_STATES, PriceListStatus
 from backend.shared.ids import new_uuid
 from frontend.desktop.modules.pricing.view_models import (
     KpiViewModel,
+    ListCaptureState,
     TableViewModel,
     costs_table,
+    list_status_es,
     history_table,
     price_lists_table,
     product_prices_table,
@@ -25,6 +28,11 @@ from frontend.desktop.modules.pricing.view_models import (
 )
 
 logger = logging.getLogger("spj.pricing.presenter")
+
+#: Mismo criterio que `PriceList.is_editable` en el dominio: la pantalla no
+#: ofrece una lista que el caso de uso va a rechazar, ni al revés.
+_EDITABLE = frozenset(s.value for s in EDITABLE_LIST_STATES)
+_CANONICAL = frozenset(s.value for s in PriceListStatus)
 
 
 class PricingPresenter:
@@ -68,7 +76,14 @@ class PricingPresenter:
         try:
             result = use_case.execute(self._conn(), actor_user_id=self._actor(),
                                       operation_id=new_uuid(), **kwargs)
-            return bool(result.success), result.message, dict(result.data)
+            datos = dict(result.data)
+            # El id creado (p. ej. la copia de una lista) para poder continuar
+            # el flujo sobre ella; y el código de error para elegir el mensaje.
+            if result.entity_id:
+                datos.setdefault("entity_id", result.entity_id)
+            if result.error_code:
+                datos.setdefault("error_code", result.error_code)
+            return bool(result.success), result.message, datos
         except PermissionError as exc:
             return False, str(exc), {}
         except Exception:
@@ -152,13 +167,102 @@ class PricingPresenter:
     def price_list_options(self) -> list[tuple[str, str]]:
         """Listas EDITABLES para el diálogo de precios: una lista aprobada o
         activa es inmutable, así que ofrecerla sería ofrecer un error."""
+        return list(self.price_list_capture_state().editable)
+
+    def price_list_capture_state(self) -> ListCaptureState:
+        """Las listas separadas por lo que se puede hacer con ellas al CAPTURAR.
+
+        `editable` va al diálogo. Las otras dos existen para explicar por qué
+        una lista NO aparece: una activa se excluye a propósito (es de solo
+        lectura, se duplica), y una con estado guardado no canónico se excluye
+        porque no se sabe qué es — y son mensajes distintos.
+        """
         try:
             filas = self._read_factory().list_price_lists()
         except Exception:  # pragma: no cover - defensivo
             logger.exception("No se pudieron listar las listas de precio")
-            return []
-        return [(f["id"], f'{f["code"]} · {f["name"]}') for f in filas
-                if str(f.get("status") or "") in ("DRAFT", "UNDER_REVIEW")]
+            return ListCaptureState()
+        editable, solo_lectura, no_reconocidas = [], [], []
+        for f in filas:
+            estado = "" if f.get("status") is None else str(f.get("status"))
+            etiqueta = f'{f["code"]} · {f["name"]}'
+            if estado in _EDITABLE:
+                editable.append((f["id"], etiqueta))
+            elif estado in _CANONICAL:
+                solo_lectura.append({"id": f["id"], "label": etiqueta, "status": estado,
+                                     "price_count": f.get("price_count")})
+            else:
+                no_reconocidas.append({"id": f["id"], "label": etiqueta,
+                                       "raw_status": f.get("status")})
+        return ListCaptureState(editable=tuple(editable),
+                                read_only=tuple(solo_lectura),
+                                unrecognized=tuple(no_reconocidas))
+
+    def no_editable_lists_message(self, state: ListCaptureState | None = None) -> str:
+        """Por qué no se puede capturar y qué hacer, con las listas reales."""
+        state = state or self.price_list_capture_state()
+        partes = ["No hay listas que acepten precios: sólo una lista en Borrador "
+                  "o En revisión los recibe."]
+        vigentes = [l for l in state.read_only if l["status"] in ("ACTIVE", "APPROVED")]
+        if vigentes:
+            nombres = ", ".join(f'{l["label"]} ({list_status_es(l["status"])})'
+                                for l in vigentes)
+            sujeto = (f"La lista {nombres} es" if len(vigentes) == 1
+                      else f"Las listas {nombres} son")
+            partes.append(f"{sujeto} de solo lectura: duplícala en «Listas de precio» "
+                          "para obtener un borrador editable con sus mismos precios.")
+        partes.append("También puedes crear una lista nueva con «Nueva lista».")
+        if state.unrecognized:
+            raras = ", ".join(f'{l["label"]} (estado guardado «{l["raw_status"]}»)'
+                              for l in state.unrecognized)
+            partes.append(f"Además, {raras} tiene(n) un estado no reconocido y no se "
+                          "ofrece(n) hasta corregir ese dato.")
+        return " ".join(partes)
+
+    @staticmethod
+    def read_only_list_message(datos: dict) -> str | None:
+        """`None` si la lista del precio acepta cambios; si no, el motivo.
+
+        Distingue el estado ACTIVO (excluido a propósito) del no reconocido:
+        decir "lista activa no reconocida" de una lista que sí está activa
+        confundía el problema con un error de datos.
+        """
+        estado = "" if datos.get("list_status") is None else str(datos.get("list_status"))
+        if estado in _EDITABLE:
+            return None
+        nombre = datos.get("list_name") or datos.get("list_code") or ""
+        if estado not in _CANONICAL:
+            return (f"La lista «{nombre}» tiene un estado guardado no reconocido "
+                    f"(«{estado}»). No se modifica hasta corregir ese dato.")
+        if estado == "INACTIVE":
+            return (f"La lista «{nombre}» está Inactiva: sus precios son historia y no "
+                    "se modifican. Duplícala para partir de ellos.")
+        return (f"La lista «{nombre}» está {list_status_es(estado)} y es de solo "
+                "lectura. Para cambiar este precio, duplícala: la copia nace en "
+                "Borrador con los mismos precios y ahí lo editas.")
+
+    def suggest_copy_code(self, code: str) -> str:
+        """Un código libre para la copia (`BASE01` → `BASE01-2`, `-3`…)."""
+        base = (code or "LISTA").strip().upper()
+        try:
+            usados = {str(f["code"]).upper()
+                      for f in self._read_factory().list_price_lists(limit=1000)}
+        except Exception:  # pragma: no cover - defensivo
+            usados = set()
+        n = 2
+        while f"{base}-{n}" in usados:
+            n += 1
+        return f"{base}-{n}"
+
+    def price_list_summary(self, price_list_id: str) -> dict | None:
+        """Una fila de `list_price_lists` (con conteo de precios) por id."""
+        try:
+            for fila in self._read_factory().list_price_lists(limit=1000):
+                if fila["id"] == price_list_id:
+                    return dict(fila)
+        except Exception:  # pragma: no cover - defensivo
+            logger.exception("No se pudo leer la lista %s", price_list_id)
+        return None
 
     def overview_kpis(self) -> list[KpiViewModel]:
         try:
@@ -170,6 +274,11 @@ class PricingPresenter:
             KpiViewModel("lists_active", "Listas activas", str(c["lists_active"]), "success"),
             KpiViewModel("lists_pending", "Listas por aprobar", str(c["lists_pending"]),
                          "warning" if c["lists_pending"] else "neutral"),
+            KpiViewModel("lists_active_empty", "Listas activas sin precios",
+                         str(c.get("lists_active_empty", 0)),
+                         "danger" if c.get("lists_active_empty") else "success",
+                         subtitle=("Duplícalas y captura precios"
+                                   if c.get("lists_active_empty") else None)),
             KpiViewModel("priced", "Productos con precio", str(c["priced"]), "info"),
             KpiViewModel("costed", "Productos con costo", str(c["costed"]), "info"),
             KpiViewModel("volume_tiers", "Escalas por volumen", str(c["volume_tiers"]),

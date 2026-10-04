@@ -173,6 +173,35 @@ def create_pricing_schema(conn) -> None:
         conn.execute("ALTER TABLE price_list ADD COLUMN created_by_user_id TEXT")
     for index in _INDEXES:
         conn.execute(index)
+    ensure_single_active_base_index(conn)
+
+
+#: A lo sumo UNA lista base activa, garantizado por la base y no sólo por
+#: `ActivatePriceListUseCase` (que desactiva la anterior en la misma operación).
+#: Índice PARCIAL: las listas base inactivas —el historial— no cuentan.
+SINGLE_ACTIVE_BASE_INDEX = "ux_price_list_single_active_base"
+
+
+def active_base_list_count(conn) -> int:
+    return int(conn.execute(
+        "SELECT COUNT(*) FROM price_list WHERE kind='BASE' AND status='ACTIVE'"
+    ).fetchone()[0])
+
+
+def ensure_single_active_base_index(conn) -> bool:
+    """Crea el índice único parcial si los datos lo permiten.
+
+    Devuelve False —sin crear nada— si HOY hay más de una lista base activa:
+    elegir cuál queda es una decisión de negocio (la toma la migración 284/299
+    con la regla que el usuario fijó), no algo que el DDL pueda resolver
+    borrando o desactivando en silencio.
+    """
+    if active_base_list_count(conn) > 1:
+        return False
+    conn.execute(
+        f"CREATE UNIQUE INDEX IF NOT EXISTS {SINGLE_ACTIVE_BASE_INDEX} "
+        "ON price_list(kind) WHERE kind='BASE' AND status='ACTIVE'")
+    return True
 
 
 def drop_pricing_schema(conn) -> list[str]:
