@@ -67,6 +67,11 @@ def rule_definition_from_form(connection, rule_type, form: dict) -> dict:
     elif tipo.value.endswith("_MULTIPLIER") or (
             tipo is LoyaltyRuleType.CAMPAIGN_BONUS and _set(form.get("multiplier"))):
         beneficio = {"multiplier": str(form.get("multiplier") or "")}
+    elif tipo is LoyaltyRuleType.BIRTHDAY_BONUS:
+        beneficio = ({"multiplier": str(form.get("multiplier"))} if _set(form.get("multiplier"))
+                     else {"points": str(form.get("points") or "")})
+        if _set(form.get("window_days")):
+            beneficio["window_days"] = str(form["window_days"])
     elif tipo is LoyaltyRuleType.VISIT_FREQUENCY_BONUS:
         beneficio = {"points": str(form.get("points") or ""), "visits": str(form.get("visits") or ""),
                      "days": str(form.get("days") or "")}
@@ -93,7 +98,8 @@ def rule_definition_from_form(connection, rule_type, form: dict) -> dict:
     resolver = LoyaltyRuleScopeResolver(connection)
     definicion: dict = {}
     # Editar sin tocar el beneficio o la condición los conserva.
-    if any(k in form for k in ("points", "amount", "multiplier", "visits", "days")):
+    if any(k in form for k in ("points", "amount", "multiplier", "visits", "days",
+                                "window_days")):
         definicion["benefit_definition"] = beneficio
     if any(k in form for k in ("min_subtotal", "weekdays", "condition_definition")):
         definicion["condition_definition"] = condicion

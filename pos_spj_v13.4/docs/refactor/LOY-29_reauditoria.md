@@ -189,22 +189,36 @@ punto por cada $N fijo de `configuraciones`.
   activada por otro; venta de $200 → 20 base + 20 de la regla, desglose
   guardado y asentado en contabilidad.
 
+## 3g. Pendientes cerrados (2026-10-03, migraciones 296 y 297)
+
+Decisiones del usuario, una por pendiente:
+
+| Pendiente | Decisión | Cómo quedó |
+|---|---|---|
+| Cupones en caja | Descuento del ticket | Botón «Cupón» en el POS; Fidelidad valida vigencia, dueño y combinación (§24, un cupón por venta de arranque) y lo aparta; el % sigue al carrito; cobrar lo canjea con el importe aplicado y el puente lo reclasifica a 4203; cancelar lo libera. Tabla `sale_coupons`. |
+| Vales en caja | Forma de pago | Método «Vale / saldo a favor» (`POS.pago.vale`, sembrado a cajero/gerente/admin/dueño): aparta hasta su saldo, la venta liquida el pasivo del vale (no entra al cajón; Caja lo ve como instrumento), cobrar confirma el canje; devolución/reverso regresan el dinero al vale. |
+| Vale prepagado | Venderlo en el POS | Botón «Vender vale»: línea del ticket sin inventario, sin costo y sin puntos; se cobra como cualquier venta (Dr caja / Cr 2132 con el perfil nuevo `PREPAID_VOUCHER`) y se activa al cobrar; emitirlo desde Fidelidad ya no se permite; un vale ya usado impide reversar su venta; uno sin cobrar se anula con la venta. |
+| Recompensa de producto | Descontar inventario | La recompensa declara el producto (código) y cantidad; confirmar la entrega da salida del almacén de venta de la sucursal (sin existencia no se entrega) y el puente asienta Dr 5101 / Cr 1150 al costo. |
+| Cumpleaños | Opcional con consentimiento | Día/mes (año opcional) en Clientes → Editar, sólo con la casilla de consentimiento (sin ella no se guarda; quitarla lo borra). Habilita la regla «Bono de cumpleaños» (puntos o multiplicador, ventana de días) y el beneficio de cumpleaños de cada programa, que se otorga solo, una vez al año, dentro de su ventana. |
+| Devoluciones con bono fijo | Bono sólo si deja de cumplir | Base y multiplicadores en proporción; cada bono fijo se retira completo sólo si lo que queda ya no cumple su condición de importe o la devolución es total. |
+
+Además: las reglas evalúan en hora LOCAL (sábados, horarios, vigencia y
+cumpleaños) y guardan en UTC. Hallazgo fuera de alcance, corregido porque
+bloqueaba la pantalla del cumpleaños: el Expediente y la edición de cliente
+reventaban para CUALQUIER cliente en la base real (el resumen de reparto
+ordenaba por una columna `fecha` que la tabla real no tiene).
+
 ## 4. Pendientes honestos (no hechos en esta ronda)
 
-* **Contabilidad — límites declarados:** el costo de una recompensa de PRODUCTO
-  no se asienta porque la recompensa no descuenta inventario; el vale
-  PREPAGADO queda FAILED a la vista (exigiría un cobro que el sistema no
-  registra); un canje de cupón sin venta no se asienta (el descuento lo asienta
-  quien lo aplicó); los vales no tienen canje en el POS (ningún llamador de
-  `ReserveVoucherAmountUseCase`). Los boletos no se venden: no tienen asiento
-  propio.
+* Un canje de cupón sin venta no se asienta (el descuento lo asienta quien lo
+  aplicó). Los boletos no se venden: no tienen asiento propio. Un vale
+  prepagado no se devuelve como mercancía (se anula en Fidelidad o se reversa
+  la venta). La regla de bono por devolución sólo reevalúa condiciones de
+  importe (unidades o renglones devueltos no viajan a Fidelidad).
 * Tipos y estados ampliados de §31 (PHYSICAL_AND_DIGITAL, LOST/STOLEN…) no
   existen; la reposición no registra el motivo.
 * Ajuste de puntos con autorización de otra persona no tiene pantalla.
 * BI no reacciona a Fidelidad (Finanzas ya sí, por el puente de libros).
-* El POS no tiene captura de cupones ni vales: `EvaluateCustomerBenefitsQuery`
-  ya los resuelve (con la combinación configurada), pero hoy la caja sólo pide
-  puntos. Una devolución retira en proporción también los bonos fijos.
 * La pantalla de ajustes de privacidad de tarjetas (las claves ya existen).
 
 ## 5. Verificación

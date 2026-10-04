@@ -22,6 +22,7 @@ class SalesPosCapabilities:
     payment_transfer: bool = False
     payment_credit: bool = False
     payment_mercado_pago: bool = False
+    payment_voucher: bool = False
     sale_complete: bool = False
     sale_suspend: bool = False
     sale_resume: bool = False

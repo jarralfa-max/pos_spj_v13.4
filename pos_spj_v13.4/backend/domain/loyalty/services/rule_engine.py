@@ -65,6 +65,9 @@ class AccrualContext:
     program_ids: frozenset[str] = frozenset()
     #: Compras previas del cliente (fechas), para primera compra y frecuencia.
     previous_purchases: tuple[datetime, ...] = ()
+    #: Días entre la compra y el cumpleaños del cliente (con signo, el más
+    #: cercano), o None si no hay cumpleaños registrado con consentimiento.
+    days_to_birthday: int | None = None
 
     @property
     def lines_total(self) -> Decimal:
@@ -200,6 +203,11 @@ class LoyaltyRuleEngine:
             return "No es la primera compra del cliente"
         if regla.rule_type is T.VISIT_FREQUENCY_BONUS and not self._frequent(regla, ctx):
             return "Aún no alcanza las visitas requeridas"
+        if regla.rule_type is T.BIRTHDAY_BONUS:
+            if ctx.days_to_birthday is None:
+                return "El cliente no tiene cumpleaños registrado (con consentimiento)"
+            if abs(ctx.days_to_birthday) > int(regla.benefit_definition.get("window_days") or 0):
+                return "No es la fecha de cumpleaños del cliente"
         if regla.maximum_uses is not None and uso.total >= regla.maximum_uses:
             return "Agotó sus usos totales"
         if regla.customer_limit is not None and ctx.customer_id and uso.customer >= regla.customer_limit:
@@ -276,6 +284,36 @@ class LoyaltyRuleEngine:
         desde = ctx.occurred_at - timedelta(days=int(Decimal(b["days"])))
         visitas = 1 + sum(1 for f in ctx.previous_purchases if f >= desde)
         return visitas >= int(Decimal(b["visits"]))
+
+
+#: Tipos cuyo resultado es un bono FIJO (no proporcional a lo comprado).
+FIXED_BONUS_TYPES = frozenset({T.FIXED_BONUS, T.FIRST_PURCHASE_BONUS, T.VISIT_FREQUENCY_BONUS,
+                               T.CAMPAIGN_BONUS, T.BIRTHDAY_BONUS})
+
+
+def is_fixed_bonus(rule: LoyaltyRule) -> bool:
+    return rule.rule_type in FIXED_BONUS_TYPES and "points" in rule.benefit_definition
+
+
+def condition_holds_for_subtotal(condition: dict, subtotal: Decimal) -> bool:
+    """¿La condición se sigue cumpliendo con otro importe (lo que queda tras una
+    devolución)? Sólo cambia el importe: día, hora y compras previas son los de
+    la compra original, que ya la cumplía; las comparaciones que no son de
+    importe se toman por cumplidas."""
+    def evaluar(c: dict) -> bool:
+        if not c:
+            return True
+        if "all" in c:
+            return all(evaluar(x) for x in c["all"])
+        if "any" in c:
+            return any(evaluar(x) for x in c["any"])
+        if "not" in c:
+            interno = c["not"]
+            return True if "field" in interno and interno["field"] != "subtotal"                 else not evaluar(interno)
+        if c.get("field") != "subtotal":
+            return True
+        return _matches(c, {"subtotal": Decimal(subtotal)})
+    return evaluar(condition)
 
 
 # ── condiciones declarativas ──────────────────────────────────────────────

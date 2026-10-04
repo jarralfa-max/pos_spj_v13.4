@@ -34,6 +34,8 @@ class CustomerPanel(QFrame):
     customer_selected = pyqtSignal(str)  # customer_id
     clear_requested = pyqtSignal()
     redeem_requested = pyqtSignal()
+    coupon_requested = pyqtSignal()
+    prepaid_requested = pyqtSignal()
 
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
@@ -60,23 +62,39 @@ class CustomerPanel(QFrame):
         self._btn_clear.setVisible(False)
         self._btn_clear.clicked.connect(self.clear_requested)
         info_row.addWidget(self._btn_clear)
-        self._btn_redeem = create_secondary_button(
-            self, "Canjear", tooltip="Pagar parte del ticket con puntos del cliente")
-        self._btn_redeem.setObjectName("posRedeemPointsButton")
-        self._btn_redeem.setVisible(False)
-        self._btn_redeem.clicked.connect(self.redeem_requested)
-        info_row.addWidget(self._btn_redeem)
         self._btn_quick_create = create_secondary_button(
             self, "Nuevo", tooltip="Registrar un cliente con nombre y teléfono")
         IconProvider.bind(self._btn_quick_create, Icons.ADD)
         info_row.addWidget(self._btn_quick_create)
         root.addLayout(info_row)
 
+        # Beneficios del ticket en su propia fila (2026-10-03): canje de puntos,
+        # cupones (también en mostrador) y venta de vale prepagado. En la fila
+        # del cliente no cabían junto al nombre.
+        benefits_row = QHBoxLayout()
         self._details = QLabel("", self)
         self._details.setObjectName("posClientDetails")
         self._details.setProperty("role", "muted")
         self._details.setVisible(False)
-        root.addWidget(self._details)
+        benefits_row.addWidget(self._details, stretch=1)
+        self._btn_redeem = create_secondary_button(
+            self, "Canjear puntos", tooltip="Pagar parte del ticket con puntos del cliente")
+        self._btn_redeem.setObjectName("posRedeemPointsButton")
+        self._btn_redeem.setVisible(False)
+        self._btn_redeem.clicked.connect(self.redeem_requested)
+        benefits_row.addWidget(self._btn_redeem)
+        self._btn_coupon = create_secondary_button(
+            self, "Cupón", tooltip="Aplicar o retirar un cupón del ticket")
+        self._btn_coupon.setObjectName("posCouponButton")
+        self._btn_coupon.clicked.connect(self.coupon_requested)
+        benefits_row.addWidget(self._btn_coupon)
+        self._btn_prepaid = create_secondary_button(
+            self, "Vender vale", tooltip="Agregar un vale prepagado al ticket")
+        self._btn_prepaid.setObjectName("posPrepaidButton")
+        self._btn_prepaid.clicked.connect(self.prepaid_requested)
+        benefits_row.addWidget(self._btn_prepaid)
+        root.addLayout(benefits_row)
+
 
         self._search = CustomerSearchBox(self, provider=self._search_provider,
                                          collapse_when_empty=True)
@@ -106,6 +124,9 @@ class CustomerPanel(QFrame):
         self._tier.setVisible(bool(summary.tier))
         self._btn_clear.setVisible(True)
         self._search.clear()
+
+    def coupon_button(self):
+        return self._btn_coupon
 
     def redeem_button(self):
         return self._btn_redeem

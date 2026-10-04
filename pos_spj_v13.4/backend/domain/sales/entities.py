@@ -43,8 +43,13 @@ from backend.domain.sales.services.sale_totals_service import SaleTotalsService
 from backend.domain.sales.value_objects.money import money
 from backend.domain.sales.value_objects.quantity import Quantity
 from backend.domain.sales.value_objects.sale_payment import SalePayment
+from backend.domain.sales.value_objects.sale_coupon import SaleCoupon
 from backend.domain.sales.value_objects.sale_return import SaleReturn
 from backend.domain.sales.value_objects.sale_totals import SaleTotals
+
+
+#: `product_snapshot["kind"]` de una línea que vende un vale prepagado.
+INSTRUMENT_LINE_KIND = "PREPAID_VOUCHER"
 
 
 def _now() -> str:
@@ -89,6 +94,13 @@ class SaleLine:
             pricing_snapshot_id=pricing_snapshot_id,
             weight_source=weight_source, lot_reference=lot_reference,
         )
+
+    @property
+    def is_instrument(self) -> bool:
+        """Línea de un instrumento vendido (vale prepagado, 2026-10-03): no es
+        mercancía — no sale de inventario, no tiene costo, no acumula puntos y
+        es pasivo, no ingreso."""
+        return str((self.product_snapshot or {}).get("kind") or "") == INSTRUMENT_LINE_KIND
 
     @property
     def line_total(self) -> Decimal:
@@ -183,6 +195,8 @@ class Sale:
     # `SaleTotals.loyalty_total` via `_recalculate_totals` — distinct from
     # `sale_level_discount` (a commercial discount), never conflated.
     loyalty_redeemed_amount: Decimal = Decimal("0")
+    #: Cupones que Fidelidad aprobó y apartó para esta venta (2026-10-03).
+    coupons: list[SaleCoupon] = field(default_factory=list)
     suspended_by_user_id: str | None = None
     suspended_workstation_id: str | None = None
     # Cross-context reference only (§6: Ventas no es dueño de inventario) —
@@ -221,9 +235,23 @@ class Sale:
     # ── internals ────────────────────────────────────────────────────────
 
     def _recalculate_totals(self) -> None:
+        cupones = Decimal("0")
+        if self.coupons:
+            previo = SaleTotalsService.calculate(
+                self.lines, sale_level_discount=self.sale_level_discount,
+                loyalty_total=self.loyalty_redeemed_amount)
+            base = previo.gross_subtotal - previo.discount_total
+            disponible = max(previo.total, Decimal("0"))
+            valorados = []
+            for cupon in self.coupons:
+                cupon = cupon.priced(base=base, available=disponible)
+                disponible -= cupon.amount
+                cupones += cupon.amount
+                valorados.append(cupon)
+            self.coupons = valorados
         self.totals = SaleTotalsService.calculate(
             self.lines, sale_level_discount=self.sale_level_discount,
-            loyalty_total=self.loyalty_redeemed_amount)
+            coupon_total=cupones, loyalty_total=self.loyalty_redeemed_amount)
 
     def _bump_version(self) -> None:
         self.version += 1
@@ -301,6 +329,28 @@ class Sale:
         self._recalculate_totals()
         self._bump_version()
 
+    def apply_coupon(self, coupon: SaleCoupon) -> SaleCoupon:
+        """Registra un cupón YA aprobado y apartado por Fidelidad (§25: Ventas no
+        replica reglas). Sólo valida lo propio de la venta: que se pueda
+        modificar y que no esté dos veces."""
+        SaleLinePolicy.ensure_can_modify_line(self.status)
+        if any(c.coupon_instance_id == coupon.coupon_instance_id for c in self.coupons):
+            raise SaleInvalidStateError("Ese cupón ya está aplicado a la venta")
+        self.coupons.append(coupon)
+        self._recalculate_totals()
+        self._bump_version()
+        return next(c for c in self.coupons if c.coupon_instance_id == coupon.coupon_instance_id)
+
+    def remove_coupon(self, coupon_instance_id: str) -> SaleCoupon:
+        SaleLinePolicy.ensure_can_modify_line(self.status)
+        cupon = next((c for c in self.coupons if c.coupon_instance_id == coupon_instance_id), None)
+        if cupon is None:
+            raise SaleInvalidStateError("Ese cupón no está aplicado a la venta")
+        self.coupons.remove(cupon)
+        self._recalculate_totals()
+        self._bump_version()
+        return cupon
+
     def assign_customer(self, customer_id: str | None) -> None:
         CustomerAssignmentPolicy.ensure_can_assign(self.status)
         if customer_id is not None:
@@ -327,6 +377,18 @@ class Sale:
         for payment in self.payments:
             total += payment.amount
         return total
+
+    @property
+    def goods_lines(self) -> list[SaleLine]:
+        """Las líneas de MERCANCÍA (sin vales prepagados vendidos)."""
+        return [line for line in self.lines if not line.is_instrument]
+
+    def prepaid_vouchers(self) -> list[dict]:
+        """Vales prepagados vendidos en esta venta: instancia y monto."""
+        return [{"voucher_instance_id": str(line.product_snapshot.get("voucher_instance_id")),
+                 "code": str(line.product_snapshot.get("code") or ""),
+                 "amount": line.line_total}
+                for line in self.lines if line.is_instrument]
 
     @property
     def is_mixed_payment(self) -> bool:
@@ -469,6 +531,38 @@ class Sale:
         return refund_service.allocate_refund(
             refund_service.net_payments(self.payments, change=self.change_given),
             already_refunded=max(previo, Decimal("0")), amount=amount)
+
+    def voucher_payments(self) -> list[dict]:
+        """Pagos con vale (2026-10-03): `reference` = "TIPO:instancia" que puso
+        el registro del pago con la respuesta de Fidelidad."""
+        pagos = []
+        for payment in self.payments:
+            if payment.method is not PaymentMethod.VOUCHER:
+                continue
+            tipo, _, instancia = (payment.reference or "").partition(":")
+            pagos.append({"voucher_instance_id": instancia or tipo,
+                          "instrument_type": tipo if instancia else "REFUND_VOUCHER",
+                          "amount": payment.amount})
+        return pagos
+
+    def voucher_refund_plan(self, voucher_amount: Decimal) -> list[dict]:
+        """Reparte lo que una devolución regresa por VALE entre los vales con que
+        se pagó, en orden, sin regresar dos veces lo ya regresado."""
+        from backend.domain.sales.services import refund_service
+
+        if voucher_amount <= 0:
+            return []
+        pagos = self.voucher_payments()
+        previo_total = sum((r.amount for r in self.returns), Decimal("0")) - Decimal(str(voucher_amount))
+        reparto_previo = refund_service.allocate_refund(
+            refund_service.net_payments(self.payments, change=self.change_given),
+            already_refunded=Decimal("0"), amount=max(previo_total, Decimal("0")))
+        ya = sum((a for m, a in reparto_previo if m == PaymentMethod.VOUCHER.value), Decimal("0"))
+        lineas = [(i, p["amount"]) for i, p in enumerate(pagos)]
+        reparto = refund_service.allocate_refund(
+            [(str(i), a) for i, a in lineas], already_refunded=ya, amount=voucher_amount)
+        return [{**{k: v for k, v in pagos[int(i)].items() if k != "amount"}, "amount": a}
+                for i, a in reparto]
 
     def reverse(self, reason: str) -> None:
         """POS-16/§42-44: voids a COMPLETED sale outright — a distinct

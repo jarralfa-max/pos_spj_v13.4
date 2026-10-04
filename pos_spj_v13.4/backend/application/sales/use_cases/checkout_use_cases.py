@@ -219,7 +219,7 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
 
         costos: dict[str, Decimal] = {}
         sin_costo: set[str] = set()
-        for product_id in {line.product_id for line in sale.lines}:
+        for product_id in {line.product_id for line in sale.goods_lines}:
             try:
                 partes = composicion.explode(product_id, Decimal("1"))
             except CompositeDefinitionError:
@@ -258,6 +258,9 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
         El costo se lee DESPUÉS de reservar (Fase 7): reservar es lo que arma
         un producto reconstruible desde sus partes, y ese armado es lo que le
         da costo. Leído antes, un pollo que sólo se arma se vendía sin costo."""
+        if not sale.goods_lines:
+            # Sólo vales prepagados: nada sale del inventario (2026-10-03).
+            return "NO_GOODS", {}, []
         inv_client = self._inventory_client(
             connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
         creada = False
@@ -348,7 +351,15 @@ def _completed_payload(sale, costos: dict, sin_costo: list[str], inventario: str
         "channel": str(getattr(getattr(sale, "channel", None), "value",
                                getattr(sale, "channel", None)) or "POS"),
         "lines": [{"product_id": line.product_id, "quantity": str(line.quantity.value),
-                   "amount": str(line.line_total)} for line in sale.lines],
+                   "amount": str(line.line_total)} for line in sale.goods_lines],
+        # Vales prepagados vendidos: Finanzas los asienta como pasivo (no ingreso),
+        # Fidelidad los activa y no acumulan puntos.
+        "prepaid_vouchers": [{**v, "amount": str(v["amount"])} for v in sale.prepaid_vouchers()],
+        # Cupones y vales (2026-10-03): Fidelidad confirma su canje al completar;
+        # Finanzas liquida el vale contra su pasivo.
+        "coupons": [{"coupon_instance_id": c.coupon_instance_id, "code": c.code,
+                     "amount": str(c.amount)} for c in sale.coupons],
+        "voucher_payments": [{**p, "amount": str(p["amount"])} for p in sale.voucher_payments()],
         "cogs_total": str(cogs.quantize(Decimal("0.01"))),
         "cogs_missing_products": sin_costo,
         "inventory_settlement": inventario,

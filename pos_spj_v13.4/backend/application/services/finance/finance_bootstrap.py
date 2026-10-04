@@ -165,7 +165,7 @@ def _ensure_late_additions(uow: FinanceUnitOfWork, today: date) -> None:
     chart = {code: (name, acc_type, cash_flow, posting)
              for code, name, acc_type, cash_flow, posting in _CHART}
     ids: dict[str, str] = {}
-    for code in ("2136", "6110", "4120", "1120"):
+    for code in ("2136", "6110", "4120", "1120", "1102", "2132", "4101"):
         account = uow.accounts.get_by_code(code)
         if account is None:
             name, acc_type, cash_flow, posting = chart[code]
@@ -179,6 +179,11 @@ def _ensure_late_additions(uow: FinanceUnitOfWork, today: date) -> None:
             instrument_type=CommercialInstrumentType.SWEEPSTAKES_PRIZE) is None:
         uow.posting_profiles.save(_sweepstakes_profile(ids, date(today.year, 1, 1)))
         logger.info("Finance: perfil SWEEPSTAKES_PRIZE agregado")
+    if uow.posting_profiles.find_effective(
+            "PREPAID_VOUCHER", today,
+            instrument_type=CommercialInstrumentType.PREPAID_VOUCHER) is None:
+        uow.posting_profiles.save(_prepaid_profile(ids, date(today.year, 1, 1)))
+        logger.info("Finance: perfil PREPAID_VOUCHER agregado")
 
 
 def _sweepstakes_profile(ids: dict[str, str], effective: date) -> PostingProfile:
@@ -193,6 +198,20 @@ def _sweepstakes_profile(ids: dict[str, str], effective: date) -> PostingProfile
         "breakage_income_account_id": ids["4120"],
         "clearing_account_id": ids["1120"],
     }, effective, CommercialInstrumentType.SWEEPSTAKES_PRIZE)
+
+
+def _prepaid_profile(ids: dict[str, str], effective: date) -> PostingProfile:
+    """Vale prepagado vendido en caja (2026-10-03): el cobro de la venta entra a
+    caja y el importe es pasivo (2132), no ingreso; el ingreso se reconoce al
+    canjearlo y lo que caduque va a breakage."""
+    return _profile("PREPAID_VOUCHER", "Vales prepagados vendidos", {
+        "cash_account_id": ids["1102"],
+        "liability_account_id": ids["2132"],
+        "revenue_account_id": ids["4101"],
+        "breakage_income_account_id": ids["4120"],
+        "clearing_account_id": ids["1120"],
+        "expense_account_id": ids["6110"],
+    }, effective, CommercialInstrumentType.PREPAID_VOUCHER)
 
 
 def _profile(key: str, description: str, accounts: dict[str, str], effective: date,
@@ -335,6 +354,7 @@ def _seed_posting_profiles(uow: FinanceUnitOfWork, ids: dict[str, str], today: d
             "expense_account_id": ids["6110"],
         }, effective, CommercialInstrumentType.CUSTOMER_WALLET),
         _sweepstakes_profile(ids, effective),
+        _prepaid_profile(ids, effective),
     ]
     for profile in profiles:
         uow.posting_profiles.save(profile)

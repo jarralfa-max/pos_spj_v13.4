@@ -271,6 +271,42 @@ class SalesPosPresenter:
             logger.exception("Vista previa de canje no disponible")
             return None
 
+    def apply_coupon(self, *, sale_id: str, code: str) -> SaleResult:
+        """Cupón al ticket (2026-10-03): Fidelidad decide si aplica y por cuánto."""
+        return self._run("apply_coupon", sale_id=sale_id, code=code,
+                         actor_user_id=self.current_user_id(), operation_id=_new_op())
+
+    def remove_coupon(self, *, sale_id: str, coupon_instance_id: str) -> SaleResult:
+        return self._run("remove_coupon", sale_id=sale_id,
+                         coupon_instance_id=coupon_instance_id,
+                         actor_user_id=self.current_user_id(), operation_id=_new_op())
+
+    def prepaid_voucher_definitions(self) -> list[dict]:
+        consulta = self.query_service("prepaid_voucher_definitions")
+        try:
+            return list(consulta()) if consulta is not None else []
+        except Exception:
+            logger.exception("Vales prepagados no disponibles")
+            return []
+
+    def sell_prepaid_voucher(self, *, sale_id: str, definition_id: str,
+                             amount: Decimal) -> SaleResult:
+        """Vale prepagado como línea del ticket (2026-10-03)."""
+        return self._run("sell_prepaid_voucher", sale_id=sale_id, definition_id=definition_id,
+                         amount=amount, actor_user_id=self.current_user_id(),
+                         operation_id=_new_op())
+
+    def voucher_balance(self, code: str) -> dict | None:
+        """Saldo de un vale para mostrarlo antes de cobrar con él."""
+        consulta = self.query_service("voucher_balance")
+        if consulta is None or not str(code or "").strip():
+            return None
+        try:
+            return consulta(code=code)
+        except Exception:
+            logger.exception("Saldo de vale no disponible")
+            return None
+
     def redeem_loyalty_points(self, *, sale_id: str, points: int) -> SaleResult:
         return self._run(
             "redeem_loyalty_points", sale_id=sale_id, points=points,
@@ -361,7 +397,8 @@ class SalesPosPresenter:
         for code, allowed in (("CASH", caps.payment_cash), ("CARD", caps.payment_card),
                               ("TRANSFER", caps.payment_transfer),
                               ("CREDIT", caps.payment_credit and has_customer),
-                              ("MERCADO_PAGO", caps.payment_mercado_pago)):
+                              ("MERCADO_PAGO", caps.payment_mercado_pago),
+                              ("VOUCHER", caps.payment_voucher)):
             if allowed:
                 methods.append(code)
         return tuple(methods)

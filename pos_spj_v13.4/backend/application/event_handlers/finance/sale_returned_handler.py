@@ -95,6 +95,11 @@ class SaleReturnedHandler(FinanceEventHandler):
             importe = Money.from_string(str(refund["amount"]), currency)
             if importe.is_zero():
                 continue
+            if refund.get("instrument_type"):
+                # Reembolso a un vale (2026-10-03): vuelve a ser pasivo del vale.
+                lines.append(self._instrument_refund_line(uow, refund, importe, entry_date,
+                                                          folio))
+                continue
             if tipo not in _ACCOUNT_BY_SETTLEMENT:
                 raise FinanceDomainError(f"Reembolso por {tipo.value} no soportado")
             role, texto = _ACCOUNT_BY_SETTLEMENT[tipo]
@@ -125,6 +130,19 @@ class SaleReturnedHandler(FinanceEventHandler):
                           description=f"Reversa de costo de venta {folio}")],
                 currency_code=currency, branch_id=branch_id)
         return entry
+
+    def _instrument_refund_line(self, uow, refund: dict, importe, entry_date, folio):
+        from backend.domain.finance.enums import CommercialInstrumentType, RecognitionBasis
+
+        tipo = CommercialInstrumentType(str(refund["instrument_type"]))
+        perfil = self.resolve_profile(uow, tipo.value, entry_date, instrument_type=tipo)
+        obligacion = uow.commercial_obligations.find_by_instrument(
+            tipo, str(refund.get("instrument_id") or ""))
+        rol = "liability_account_id"
+        if obligacion is not None and obligacion.recognition_basis is RecognitionBasis.PROMOTIONAL_EXPENSE:
+            rol = "promotional_balance_account_id"
+        return LineSpec(perfil.account_for(rol), credit=importe,
+                        description=f"Reembolso a vale {folio}")
 
     def _credit_note(self, uow, payload, sale_id, return_id, folio, amount, entry_date,
                      branch_id) -> None:

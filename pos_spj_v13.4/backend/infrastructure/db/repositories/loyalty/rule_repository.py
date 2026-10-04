@@ -219,6 +219,15 @@ class LoyaltyAccrualContextReader:
             self._conn, "SELECT segment_id FROM customer_segment_memberships"
             " WHERE customer_id=? AND removed_at IS NULL", (customer_id,)))
 
+    def days_to_birthday(self, customer_id: str | None, on) -> int | None:
+        if not customer_id:
+            return None
+        from backend.infrastructure.db.repositories.customers.birthday_repository import (
+            CustomerBirthdayRepository,
+        )
+        cumple = CustomerBirthdayRepository(self._conn).get(customer_id)
+        return None if cumple is None else cumple.days_from(on)
+
     def program_ids(self, customer_id: str | None) -> frozenset[str]:
         if not customer_id:
             return frozenset()
@@ -226,6 +235,46 @@ class LoyaltyAccrualContextReader:
             self._conn, "SELECT m.program_id FROM loyalty_memberships m"
             " JOIN loyalty_accounts a ON a.id = m.loyalty_account_id"
             " WHERE a.customer_id=? AND m.status='ACTIVE'", (customer_id,)))
+
+
+class LoyaltyRewardProductRepository:
+    """Producto que entrega cada recompensa de tipo PRODUCTO y sus entregas."""
+
+    def __init__(self, connection) -> None:
+        self._conn = connection
+
+    def link(self, reward_id: str, product_id: str, quantity: Decimal) -> None:
+        self._conn.execute(
+            "INSERT INTO loyalty_reward_products (reward_id, product_id, quantity) VALUES (?,?,?)"
+            " ON CONFLICT(reward_id) DO UPDATE SET product_id=excluded.product_id,"
+            " quantity=excluded.quantity", (reward_id, product_id, str(quantity)))
+
+    def product_for(self, reward_id: str) -> dict | None:
+        filas = _rows(self._conn, "SELECT product_id, quantity FROM loyalty_reward_products"
+                      " WHERE reward_id=?", (reward_id,))
+        return filas[0] if filas else None
+
+    def delivery_for(self, redemption_id: str) -> dict | None:
+        filas = _rows(self._conn, "SELECT * FROM loyalty_reward_deliveries WHERE redemption_id=?",
+                      (redemption_id,))
+        return filas[0] if filas else None
+
+    def record_delivery(self, *, redemption_id: str, reward_id: str, branch_id: str,
+                        product_id: str, quantity: Decimal, unit_cost: Decimal | None,
+                        cost_amount: Decimal, inventory_operation_id: str) -> None:
+        self._conn.execute(
+            "INSERT OR IGNORE INTO loyalty_reward_deliveries (redemption_id, reward_id, branch_id,"
+            " product_id, quantity, unit_cost, cost_amount, inventory_operation_id, delivered_at)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
+            (redemption_id, reward_id, branch_id, product_id, str(quantity),
+             str(unit_cost) if unit_cost is not None else None, str(cost_amount),
+             inventory_operation_id, now_iso()))
+
+    def pending_cost_postings(self) -> list[dict]:
+        return _rows(self._conn,
+                     "SELECT d.* FROM loyalty_reward_deliveries d"
+                     " LEFT JOIN loyalty_finance_links l ON l.source_key = 'reward:' || d.redemption_id"
+                     " WHERE l.source_key IS NULL OR l.status = 'FAILED'")
 
 
 class LoyaltyRuleScopeResolver:
@@ -257,4 +306,5 @@ class LoyaltyRuleScopeResolver:
         return ids, faltan
 
 
-__all__ = ["LoyaltyAccrualContextReader", "LoyaltyRuleRepository", "LoyaltyRuleScopeResolver"]
+__all__ = ["LoyaltyAccrualContextReader", "LoyaltyRewardProductRepository",
+           "LoyaltyRuleRepository", "LoyaltyRuleScopeResolver"]

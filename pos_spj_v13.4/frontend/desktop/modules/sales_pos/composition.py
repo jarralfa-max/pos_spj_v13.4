@@ -64,6 +64,11 @@ from backend.application.sales.use_cases.lifecycle_use_cases import (
     ResumeSaleUseCase,
     SuspendSaleUseCase,
 )
+from backend.application.sales.use_cases.coupon_use_cases import (
+    ApplyCouponToSaleUseCase,
+    RemoveCouponFromSaleUseCase,
+    SellPrepaidVoucherUseCase,
+)
 from backend.application.sales.use_cases.loyalty_use_cases import RedeemLoyaltyPointsUseCase
 from backend.application.sales.use_cases.payment_use_cases import RecordSalePaymentUseCase
 from backend.application.sales.use_cases.receipt_use_cases import (
@@ -89,6 +94,12 @@ def _after_commit(handler, connection):
     def run(**kwargs):
         result = handler(**kwargs)
         if getattr(result, "success", False):
+            # Antes del despacho: un vale recién emitido debe tener su obligación
+            # para que la venta pagada con él se pueda asentar (2026-10-03).
+            from backend.application.loyalty.integrations.finance_posting import (
+                post_loyalty_finance as _antes,
+            )
+            _antes(connection)
             try:
                 from backend.application.sales.integrations.wiring import dispatch_sales_outbox
                 from backend.shared.events.application_bus import get_bus
@@ -171,6 +182,28 @@ def _loyalty_summary(connection):
     from backend.infrastructure.integrations.sales_loyalty_client import SalesLoyaltyClient
 
     return SalesLoyaltyClient(connection)
+
+
+def _prepaid_definitions(connection):
+    def consulta() -> list[dict]:
+        from backend.infrastructure.integrations.sales_instruments_client import (
+            SalesInstrumentsClient,
+        )
+
+        return SalesInstrumentsClient(connection).prepaid_definitions()
+
+    return consulta
+
+
+def _voucher_balance(connection):
+    def consulta(*, code: str) -> dict:
+        from backend.infrastructure.integrations.sales_instruments_client import (
+            SalesInstrumentsClient,
+        )
+
+        return SalesInstrumentsClient(connection).voucher_balance(code=code)
+
+    return consulta
 
 
 def _points_to_earn(connection):
@@ -272,6 +305,8 @@ def build_sales_pos_presenter(
         # Saldo y nivel del cliente (lectura sin efectos de Fidelidad, §23).
         "loyalty_summary": _loyalty_summary(connection),
         "points_to_earn": _points_to_earn(connection),
+        "voucher_balance": _voucher_balance(connection),
+        "prepaid_voucher_definitions": _prepaid_definitions(connection),
         "pricing": pricing_client,
         # Prueba quién autoriza con su usuario y clave (mismas reglas y
         # bloqueo que el login); el permiso lo decide el caso de uso.
@@ -300,6 +335,9 @@ def build_sales_pos_presenter(
         "scan_loyalty_card": _h(ScanLoyaltyCardForSaleUseCase(auth).execute),
         "redeem_loyalty_points": _h(RedeemLoyaltyPointsUseCase(
             auth, loyalty_authorization=loyalty_auth).execute),
+        "apply_coupon": _h(ApplyCouponToSaleUseCase(auth).execute),
+        "remove_coupon": _h(RemoveCouponFromSaleUseCase(auth).execute),
+        "sell_prepaid_voucher": _h(SellPrepaidVoucherUseCase(auth).execute),
         "scan_code": _scan_code_handler(connection, auth),
         "apply_sale_discount": _h(ApplySaleDiscountUseCase(
             auth, authorizer_authorization=authorizer_auth,

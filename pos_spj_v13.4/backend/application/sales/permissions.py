@@ -59,6 +59,7 @@ class SalesPermissions:
     PAYMENT_MIXED = "POS.pago.mixto"
     PAYMENT_CREDIT = "POS.pago.credito"
     PAYMENT_MERCADO_PAGO = "POS.pago.mercado_pago"
+    PAYMENT_VOUCHER = "POS.pago.vale"
 
     # ── postventa (§61/§42-48) ───────────────────────────────────────────
     RETURN = "POS.devolucion"

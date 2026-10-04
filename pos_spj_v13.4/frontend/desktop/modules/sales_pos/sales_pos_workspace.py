@@ -48,6 +48,8 @@ from frontend.desktop.modules.sales_pos.dialogs.receipt_options_dialog import (
     PostedSalePickerDialog,
     folio_of,
 )
+from frontend.desktop.modules.sales_pos.dialogs.coupon_dialog import CouponDialog
+from frontend.desktop.modules.sales_pos.dialogs.prepaid_voucher_dialog import PrepaidVoucherDialog
 from frontend.desktop.modules.sales_pos.dialogs.redeem_points_dialog import RedeemPointsDialog
 from frontend.desktop.modules.sales_pos.dialogs.resume_sale_dialog import ResumeSaleDialog
 from frontend.desktop.modules.sales_pos.dialogs.return_sale_dialog import ReturnSaleDialog
@@ -76,6 +78,8 @@ _DIALOG_NAMES = {
     "discount": "DiscountDialog",
     "quick_customer": "QuickCustomerDialog",
     "redeem": "RedeemPointsDialog",
+    "coupon": "CouponDialog",
+    "prepaid": "PrepaidVoucherDialog",
 }
 
 
@@ -134,6 +138,8 @@ class SalesPosWorkspace(QWidget):
         self.checkout.customer.quick_create_button().clicked.connect(
             self._on_quick_create_customer)
         self.checkout.customer.redeem_requested.connect(self._on_redeem_requested)
+        self.checkout.customer.coupon_requested.connect(self._on_coupon_requested)
+        self.checkout.customer.prepaid_requested.connect(self._on_prepaid_requested)
 
         # El catálogo absorbe el ancho extra; el panel de venta conserva su ancho
         # acotado (380-600 px, en `CheckoutPanel`).
@@ -316,6 +322,25 @@ class SalesPosWorkspace(QWidget):
         dialog = self.dialogs["redeem"](self._presenter, sale=self._sale, preview=preview,
                                         parent=self)
         if dialog.exec_():
+            self._refresh()
+
+    def _on_coupon_requested(self) -> None:
+        """Cupones del ticket (2026-10-03): Fidelidad decide si aplican."""
+        if self._sale is None or not self._has_lines():
+            self._info("Cupón", "Agrega productos antes de aplicar un cupón.")
+            return
+        dialog = self.dialogs["coupon"](self._presenter, sale=self._sale, parent=self)
+        dialog.exec_()
+        if dialog.changed:
+            self._refresh()
+
+    def _on_prepaid_requested(self) -> None:
+        """Vale prepagado como línea del ticket (2026-10-03)."""
+        if self._sale is None:
+            return
+        dialog = self.dialogs["prepaid"](self._presenter, sale=self._sale, parent=self)
+        dialog.exec_()
+        if dialog.changed:
             self._refresh()
 
     def aplicar_contexto(self, context: dict) -> None:

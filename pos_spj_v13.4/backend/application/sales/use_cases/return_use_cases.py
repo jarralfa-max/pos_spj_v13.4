@@ -90,6 +90,12 @@ class ReturnSaleLineUseCase(_ReturnBaseUseCase):
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
+            vendida = next((l for l in sale.lines if l.id == line_id), None)
+            if vendida is not None and vendida.is_instrument:
+                return SaleResult.fail(
+                    "Un vale prepagado no se devuelve como mercancía: cancélalo en Fidelidad "
+                    "(si no se ha usado) o reversa la venta.", "VALIDATION",
+                    operation_id=operation_id)
             try:
                 sale_return = sale.return_line(
                     line_id=line_id, quantity=quantity, reason=reason,
@@ -134,6 +140,11 @@ class ReturnSaleLineUseCase(_ReturnBaseUseCase):
                        gross_amount=str(gross_amount), tax_amount=str(tax_amount),
                        cogs_amount=str(cogs or Decimal("0")),
                        refunds=[{"method": m, "amount": str(a)} for m, a in refunds],
+                       # Lo que vuelve a cada vale (2026-10-03).
+                       voucher_refunds=[{**v, "amount": str(v["amount"])}
+                                        for v in sale.voucher_refund_plan(sum(
+                                            (a for m, a in refunds if m == "VOUCHER"),
+                                            Decimal("0")))],
                        return_id=sale_return.id, folio=sale.sale_number or sale.id[-8:],
                        sale_total=str(sale.totals.total),
                        refunded_total=str(sum((r.amount for r in sale.returns), Decimal("0"))),
@@ -195,6 +206,13 @@ class ReverseSaleUseCase(_ReturnBaseUseCase):
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
+            if sale.prepaid_vouchers():
+                from backend.infrastructure.integrations.sales_instruments_client import (
+                    SalesInstrumentsClient,
+                )
+                problema = SalesInstrumentsClient(connection).prepaid_unused(sale=sale)
+                if problema:
+                    return SaleResult.fail(problema, "VALIDATION", operation_id=operation_id)
             try:
                 sale.reverse(reason)
             except SalesDomainError as exc:
@@ -202,7 +220,7 @@ class ReverseSaleUseCase(_ReturnBaseUseCase):
 
             inv_client = self._inventory_client(
                 connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
-            for line in sale.lines:
+            for line in sale.goods_lines:
                 already_returned = sum(
                     (r.quantity for r in sale.returns if r.line_id == line.id), Decimal("0"))
                 remaining = line.quantity.value - already_returned
@@ -226,7 +244,11 @@ class ReverseSaleUseCase(_ReturnBaseUseCase):
                        branch_id=sale.branch_id, actor_user_id=actor_user_id, reason=reason,
                        authorized_by=authorizer_user_id, customer_id=sale.customer_id,
                        sale_total=str(sale.totals.total),
-                       folio=sale.sale_number or sale.id[-8:])
+                       folio=sale.sale_number or sale.id[-8:],
+                       voucher_payments=[{**p, "amount": str(p["amount"])}
+                                         for p in sale.voucher_payments()],
+                       prepaid_vouchers=[{**v, "amount": str(v["amount"])}
+                                         for v in sale.prepaid_vouchers()])
 
         cash_effects_error: str | None = None
         if sale.payments:

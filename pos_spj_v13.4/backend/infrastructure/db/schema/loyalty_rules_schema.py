@@ -8,6 +8,9 @@
 * ``loyalty_rule_applications`` — cada regla aplicada a cada compra: cuenta
   los límites (usos totales, por cliente, por día, por mes).
 * ``loyalty_stacking_rules`` — qué hacer con cada combinación de beneficios.
+* ``loyalty_reward_products`` — qué producto (y cuánto) entrega una recompensa
+  de tipo PRODUCTO; ``loyalty_reward_deliveries`` — la salida de inventario de
+  cada entrega, con su costo (2026-10-03, migración 297).
 """
 
 from __future__ import annotations
@@ -71,6 +74,35 @@ _DDL = (
     """,
     "CREATE INDEX IF NOT EXISTS idx_loyalty_rule_applications_customer"
     " ON loyalty_rule_applications (rule_id, customer_id, applied_at)",
+    """
+    CREATE TABLE IF NOT EXISTS loyalty_reward_products (
+        reward_id TEXT NOT NULL PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        quantity TEXT NOT NULL DEFAULT '1'
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS loyalty_reward_deliveries (
+        redemption_id TEXT NOT NULL PRIMARY KEY,
+        reward_id TEXT NOT NULL,
+        branch_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        quantity TEXT NOT NULL,
+        unit_cost TEXT,
+        cost_amount TEXT NOT NULL DEFAULT '0',
+        inventory_operation_id TEXT NOT NULL,
+        delivered_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS loyalty_birthday_grants (
+        program_id TEXT NOT NULL,
+        customer_id TEXT NOT NULL,
+        year INTEGER NOT NULL,
+        granted_at TEXT NOT NULL,
+        PRIMARY KEY (program_id, customer_id, year)
+    )
+    """,
     """
     CREATE TABLE IF NOT EXISTS loyalty_stacking_rules (
         combination TEXT NOT NULL PRIMARY KEY,

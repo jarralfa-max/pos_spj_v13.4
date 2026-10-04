@@ -69,21 +69,27 @@ class CustomerDeliverySummaryQuery:
                 customer_id=customer_id, total_deliveries=0, open_deliveries=0,
                 last_delivery_status=None, recent_incidents=())
 
+        # La tabla de reparto real ordena por `fecha_solicitud`; la de algunas
+        # instalaciones antiguas, por `fecha` (2026-10-03: el expediente
+        # reventaba con "no such column: fecha" en la base real).
+        orden = self._first_column("delivery_orders", ("fecha_solicitud", "fecha", "created_at"))
         orders = self._conn.execute(
             "SELECT id, estado FROM delivery_orders WHERE cliente_id=?"
-            " ORDER BY fecha DESC", (customer_id,)).fetchall()
+            + (f" ORDER BY {orden} DESC" if orden else ""), (customer_id,)).fetchall()
         total = len(orders)
         open_count = sum(1 for _id, estado in orders if estado in _OPEN_STATES)
         last_status = orders[0][1] if orders else None
 
         incidents: tuple[DeliveryIncident, ...] = ()
-        if orders:
+        fecha_historial = self._first_column("delivery_order_history",
+                                             ("fecha", "created_at", "changed_at"))
+        if orders and fecha_historial:
             order_ids = tuple(order_id for order_id, _estado in orders)
             placeholders = ",".join("?" for _ in order_ids)
             rows = self._conn.execute(
-                f"SELECT order_id, reason, fecha FROM delivery_order_history"
+                f"SELECT order_id, reason, {fecha_historial} FROM delivery_order_history"
                 f" WHERE order_id IN ({placeholders}) AND reason IS NOT NULL AND reason != ''"
-                " ORDER BY fecha DESC LIMIT 10", order_ids).fetchall()
+                f" ORDER BY {fecha_historial} DESC LIMIT 10", order_ids).fetchall()
             incidents = tuple(
                 DeliveryIncident(order_id=str(order_id), reason=reason, occurred_at=occurred_at)
                 for order_id, reason, occurred_at in rows)
@@ -91,6 +97,13 @@ class CustomerDeliverySummaryQuery:
         return CustomerDeliverySummary(
             customer_id=customer_id, total_deliveries=total, open_deliveries=open_count,
             last_delivery_status=last_status, recent_incidents=incidents)
+
+    def _first_column(self, table: str, candidates: tuple[str, ...]) -> str | None:
+        try:
+            columnas = {r[1] for r in self._conn.execute(f"PRAGMA table_info({table})")}
+        except Exception:  # noqa: BLE001
+            return None
+        return next((c for c in candidates if c in columnas), None)
 
     def _table_exists(self, name: str) -> bool:
         """Delivery is a sibling module, not this bounded context's own

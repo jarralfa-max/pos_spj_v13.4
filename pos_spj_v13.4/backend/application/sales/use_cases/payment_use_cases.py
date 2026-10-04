@@ -45,10 +45,16 @@ _PERMISSION_BY_METHOD = {
     PaymentMethod.TRANSFER: SalesPermissions.PAYMENT_TRANSFER,
     PaymentMethod.CREDIT: SalesPermissions.PAYMENT_CREDIT,
     PaymentMethod.MERCADO_PAGO: SalesPermissions.PAYMENT_MERCADO_PAGO,
+    PaymentMethod.VOUCHER: SalesPermissions.PAYMENT_VOUCHER,
 }
 
 
 class RecordSalePaymentUseCase(_SalesBaseUseCase):
+    """Con método VOUCHER (2026-10-03) `reference` es el CÓDIGO del vale:
+    Fidelidad valida vigencia, saldo y combinación (§24) y aparta el importe
+    para esta venta; el pago guarda "TIPO:instancia" para que Finanzas lo
+    liquide contra el pasivo del vale."""
+
     def execute(
         self, connection, *, sale_id: str, method: str, amount: Decimal,
         actor_user_id: str, operation_id: str, reference: str | None = None,
@@ -89,11 +95,27 @@ class RecordSalePaymentUseCase(_SalesBaseUseCase):
                     return fail_from_domain_error(
                         CreditNotAuthorizedError(reason), operation_id=operation_id)
 
+            if payment_method is PaymentMethod.VOUCHER:
+                from backend.infrastructure.integrations.sales_instruments_client import (
+                    SalesInstrumentsClient,
+                )
+                vale = SalesInstrumentsClient(connection, actor_branch_id=sale.branch_id)                     .reserve_voucher(sale=sale, code=reference or "", amount=amount,
+                                     actor_user_id=actor_user_id)
+                if not vale["approved"]:
+                    return SaleResult.fail(vale["reason"], "VOUCHER_REJECTED",
+                                           operation_id=operation_id)
+                amount = vale["amount"]
+                reference = f"{vale['instrument_type']}:{vale['voucher_instance_id']}"
+
             try:
                 payment = sale.record_payment(
                     method=payment_method, amount=amount, captured_by_user_id=actor_user_id,
                     reference=reference)
             except SalesDomainError as exc:
+                if payment_method is PaymentMethod.VOUCHER:
+                    # El pago no entró: el vale no queda apartado.
+                    SalesInstrumentsClient(connection, actor_branch_id=sale.branch_id)                         .release_voucher(reservation_id=vale["reservation_id"],
+                                         actor_user_id=actor_user_id)
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
             if payment_method is PaymentMethod.CREDIT:

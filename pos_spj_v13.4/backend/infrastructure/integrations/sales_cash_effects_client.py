@@ -39,6 +39,8 @@ _SETTLEMENT_TYPE_BY_METHOD = {
     PaymentMethod.TRANSFER: "TRANSFER",
     PaymentMethod.CREDIT: "CUSTOMER_CREDIT",
     PaymentMethod.MERCADO_PAGO: "MERCADO_PAGO",
+    # Vale o saldo a favor: instrumento comercial, no entra al cajón.
+    PaymentMethod.VOUCHER: "REFUND_VOUCHER",
 }
 
 

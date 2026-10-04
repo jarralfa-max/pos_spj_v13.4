@@ -194,6 +194,20 @@ class CustomerCrmPresenter:
             tax_identifier=tax_identifier or None, phone_e164=phone_e164 or None,
             email=email or None)
 
+    def customer_birthday(self, customer_id: str):
+        """Cumpleaños registrado (con consentimiento) o None (2026-10-03)."""
+        consulta = self.query_service("customer_birthday")
+        return consulta(customer_id) if consulta is not None else None
+
+    def set_customer_birthday(self, customer_id: str, *, month: int | None, day: int | None,
+                              year: int | None, consent: bool) -> CustomerResult:
+        handler = self.command_handler("set_customer_birthday")
+        if handler is None:
+            return CustomerResult.fail("El cumpleaños no está disponible.", "NOT_WIRED")
+        return handler(actor_user_id=self.current_user_id(), customer_id=customer_id,
+                       operation_id=new_uuid(), month=month, day=day, year=year,
+                       consent=consent)
+
     def update_customer(
         self, customer_id: str, *, display_name: str | None = None,
         legal_name: str | None = None, commercial_name: str | None = None,

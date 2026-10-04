@@ -62,7 +62,6 @@ _REQUIRED_SCOPE = {
 }
 #: Dónde vive cada tipo que NO se evalúa al cobrar.
 _OWN_FLOW = {
-    LoyaltyRuleType.BIRTHDAY_BONUS: "Beneficios → Cumpleaños",
     LoyaltyRuleType.REFERRAL_BONUS: "Beneficios → Referidos",
     LoyaltyRuleType.CHALLENGE_REWARD: "Beneficios → Retos y misiones",
 }
@@ -145,6 +144,11 @@ def validate_benefit(rule_type: LoyaltyRuleType, benefit: Any) -> dict:
         esperado = {"points", "visits", "days"}
     elif t is LoyaltyRuleType.CAMPAIGN_BONUS:
         esperado = {"points"} if "points" in benefit else {"multiplier"}
+    elif t is LoyaltyRuleType.BIRTHDAY_BONUS:
+        # Puntos fijos o multiplicador; `window_days`: días alrededor del
+        # cumpleaños (0 = sólo ese día).
+        esperado = ({"points"} if "points" in benefit else {"multiplier"}) | (
+            {"window_days"} if "window_days" in benefit else set())
     else:
         esperado = {"points"}
     if set(benefit) != esperado:
@@ -152,6 +156,12 @@ def validate_benefit(rule_type: LoyaltyRuleType, benefit: Any) -> dict:
             f"El beneficio de {t.value} lleva exactamente: {', '.join(sorted(esperado))}")
     limpio: dict[str, str] = {}
     for llave in esperado:
+        if llave == "window_days":
+            dias = int(Decimal(str(benefit[llave])))
+            if not 0 <= dias <= 31:
+                raise InvalidLoyaltyRuleError("La ventana de cumpleaños va de 0 a 31 días")
+            limpio[llave] = str(dias)
+            continue
         entero = llave in ("visits", "days")
         numero = _positive(benefit[llave], llave, integer=entero)
         limpio[llave] = str(numero)

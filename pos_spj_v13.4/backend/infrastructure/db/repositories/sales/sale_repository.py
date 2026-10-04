@@ -27,6 +27,7 @@ from backend.domain.sales.entities import Sale, SaleInvoiceRequest, SaleLine
 from backend.domain.sales.enums import InvoiceStatus, PaymentMethod, SaleStatus
 from backend.domain.sales.value_objects.quantity import Quantity
 from backend.domain.sales.value_objects.sale_payment import SalePayment
+from backend.domain.sales.value_objects.sale_coupon import SaleCoupon
 from backend.domain.sales.value_objects.sale_return import SaleReturn
 from backend.domain.sales.value_objects.sale_totals import SaleTotals
 from backend.infrastructure.db.repositories.sales.base import (
@@ -138,6 +139,13 @@ class SaleRepository(SalesRepositoryBase):
                     payment.captured_by_user_id, payment.captured_at,
                 ),
             )
+        self._execute("DELETE FROM sale_coupons WHERE sale_id=?", (sale.id,))
+        for cupon in sale.coupons:
+            self._execute(
+                "INSERT INTO sale_coupons (id, sale_id, coupon_instance_id, code, benefit_type,"
+                " benefit_value, amount, applied_at) VALUES (?,?,?,?,?,?,?,?)",
+                (cupon.id, sale.id, cupon.coupon_instance_id, cupon.code, cupon.benefit_type,
+                 dec_str(cupon.benefit_value), dec_str(cupon.amount), cupon.applied_at))
         self._execute("DELETE FROM sale_returns WHERE sale_id=?", (sale.id,))
         for sale_return in sale.returns:
             self._execute(
@@ -262,6 +270,12 @@ class SaleRepository(SalesRepositoryBase):
             "SELECT * FROM sale_invoice_requests WHERE sale_id=? ORDER BY requested_at",
             (row["id"],))
         invoice_requests = [self._hydrate_invoice_request(r) for r in invoice_rows]
+        coupons = [SaleCoupon(
+            id=c["id"], sale_id=c["sale_id"], coupon_instance_id=c["coupon_instance_id"],
+            code=c["code"], benefit_type=c["benefit_type"],
+            benefit_value=to_decimal(c["benefit_value"]), amount=to_decimal(c["amount"]),
+            applied_at=c["applied_at"]) for c in self._query(
+                "SELECT * FROM sale_coupons WHERE sale_id=? ORDER BY applied_at, id", (row["id"],))]
         totals = SaleTotals(
             gross_subtotal=to_decimal(row["gross_subtotal"]),
             discount_total=to_decimal(row["discount_total"]),
@@ -286,6 +300,7 @@ class SaleRepository(SalesRepositoryBase):
             version=row["version"],
             sale_level_discount=to_decimal(row["sale_level_discount"]),
             loyalty_redeemed_amount=to_decimal(row["loyalty_redeemed_amount"]),
+            coupons=coupons,
             suspended_by_user_id=row["suspended_by_user_id"],
             suspended_workstation_id=row["suspended_workstation_id"],
             inventory_reservation_id=row["inventory_reservation_id"],

@@ -138,6 +138,17 @@ class VoucherTransaction:
                         reason_code=reason_code, created_by_user_id=created_by_user_id)
 
     @classmethod
+    def refund_for_sale(cls, amount: Decimal, *, voucher_instance_id: str, sale_id: str,
+                        document_id: str, operation_id: str,
+                        created_by_user_id: str | None = None) -> "VoucherTransaction":
+        """Lo que una devolución o un reverso de venta regresa al vale con que se
+        pagó (2026-10-03). `document_id` (devolución o venta) lo hace único."""
+        return cls._new(VoucherTransactionType.REFUND, voucher_instance_id=voucher_instance_id,
+                        amount=amount, operation_id=operation_id, sale_id=sale_id,
+                        reason_code=f"SALE_REFUND:{document_id}",
+                        created_by_user_id=created_by_user_id)
+
+    @classmethod
     def expire_of(cls, original: "VoucherTransaction", *, amount: Decimal,
                   operation_id: str, created_by_user_id: str | None = None) -> "VoucherTransaction":
         return cls._new(VoucherTransactionType.EXPIRE,

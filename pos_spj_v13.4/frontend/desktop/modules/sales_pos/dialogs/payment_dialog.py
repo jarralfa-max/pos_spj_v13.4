@@ -44,6 +44,7 @@ METHOD_LABELS = {
     "TRANSFER": "Transferencia",
     "CREDIT": "Crédito",
     "MERCADO_PAGO": "Mercado Pago",
+    "VOUCHER": "Vale / saldo a favor",
 }
 
 
@@ -152,6 +153,9 @@ class PaymentDialog(QDialog):
                             "referencia). La liga de cobro no se genera aquí.")
         elif method == "CREDIT":
             self._show_hint("Crédito: se valida la línea del cliente al confirmar.")
+        elif method == "VOUCHER":
+            self._show_hint("Vale: escribe o escanea el código en «Referencia»; se cobra hasta "
+                            "su saldo y no entra efectivo al cajón.")
         else:
             self._hint.setVisible(False)
 
@@ -185,6 +189,22 @@ class PaymentDialog(QDialog):
             self._show_hint(problema)
             return
         reference = self._reference.value() or None
+        if method == "VOUCHER":
+            if not reference:
+                self._show_hint("Captura el código del vale en «Referencia».")
+                return
+            if any(m == "VOUCHER" and r == reference for m, _, r in self._lines):
+                self._show_hint("Ese vale ya está en los pagos.")
+                return
+            saldo = self._presenter.voucher_balance(reference)
+            if saldo is not None:
+                if not saldo.get("found"):
+                    self._show_hint(f"No existe un vale con el código {reference}.")
+                    return
+                if Decimal(str(saldo.get("balance") or 0)) <= 0:
+                    self._show_hint("El vale no tiene saldo.")
+                    return
+                amount = min(amount, Decimal(str(saldo["balance"])))
         self._lines.append((method, amount, reference))
         label = f"{METHOD_LABELS.get(method, method)}: ${amount:,.2f}"
         if reference:

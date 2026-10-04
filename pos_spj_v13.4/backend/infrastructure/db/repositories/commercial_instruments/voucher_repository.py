@@ -78,6 +78,25 @@ class VoucherInstanceRepository(CommercialInstrumentsRepositoryBase):
         row = self._query_one("SELECT * FROM voucher_instances WHERE id=?", (instance_id,))
         return self._hydrate(row) if row else None
 
+    def list_for_sale(self, sale_id: str) -> list[VoucherInstance]:
+        """Vales prepagados vendidos en una venta (2026-10-03)."""
+        rows = self._query(
+            "SELECT i.* FROM voucher_instances i JOIN voucher_definitions d"
+            " ON d.id = i.definition_id WHERE i.sale_id=? AND d.voucher_type='PREPAID_VOUCHER'",
+            (sale_id,))
+        return [self._hydrate(row) for row in rows]
+
+    def list_pending_for_sale(self, sale_id: str) -> list[VoucherInstance]:
+        rows = self._query(
+            "SELECT i.* FROM voucher_instances i JOIN voucher_definitions d"
+            " ON d.id = i.definition_id WHERE i.sale_id=? AND i.status='ISSUED'"
+            " AND d.voucher_type='PREPAID_VOUCHER'", (sale_id,))
+        return [self._hydrate(row) for row in rows]
+
+    def list_prepaid_definitions(self) -> list[dict]:
+        return self._query("SELECT id, code, name FROM voucher_definitions"
+                           " WHERE voucher_type='PREPAID_VOUCHER' AND active=1 ORDER BY code")
+
     def get_by_code(self, code: str) -> VoucherInstance | None:
         row = self._query_one("SELECT * FROM voucher_instances WHERE code=?", (code,))
         return self._hydrate(row) if row else None
@@ -118,6 +137,12 @@ class VoucherTransactionRepository(CommercialInstrumentsRepositoryBase):
         row = self._query_one(
             "SELECT * FROM voucher_transactions WHERE id=?", (transaction_id,))
         return self._hydrate(row) if row else None
+
+    def list_reserved_for_sale(self, sale_id: str) -> list[VoucherTransaction]:
+        rows = self._query(
+            "SELECT * FROM voucher_transactions WHERE sale_id=? AND transaction_type='RESERVE'"
+            " AND status='RESERVED' ORDER BY created_at", (sale_id,))
+        return [self._hydrate(row) for row in rows]
 
     def list_for_instance(self, voucher_instance_id: str) -> list[VoucherTransaction]:
         rows = self._query(

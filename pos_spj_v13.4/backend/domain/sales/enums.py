@@ -40,6 +40,9 @@ class PaymentMethod(str, Enum):
     TRANSFER = "TRANSFER"
     CREDIT = "CREDIT"
     MERCADO_PAGO = "MERCADO_PAGO"
+    #: Vale o saldo a favor de Fidelidad (2026-10-03): paga contra el pasivo
+    #: del vale, no entra efectivo al cajón. `reference` = tipo:instancia.
+    VOUCHER = "VOUCHER"
 
 
 class InvoiceStatus(str, Enum):

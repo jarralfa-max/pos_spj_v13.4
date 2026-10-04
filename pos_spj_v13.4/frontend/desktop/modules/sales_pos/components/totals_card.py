@@ -13,7 +13,7 @@ Si Fidelidad no responde, vuelve a decirlo.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
+from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from frontend.desktop.components import apply_tooltip
 from frontend.desktop.themes.tokens import Spacing
@@ -51,6 +51,15 @@ class TotalsCard(QFrame):
         row_disc, self._discount_value = _row(self, "Descuento")
         root.addLayout(row_disc)
 
+        # Sólo aparece si la venta trae cupón: no le quita altura al cobro.
+        self._coupon_row = QWidget(self)
+        row_coupon, self._coupon_value = _row(self._coupon_row, "Cupones")
+        row_coupon.setContentsMargins(0, 0, 0, 0)
+        self._coupon_row.setLayout(row_coupon)
+        self._coupon_value.setObjectName("posCouponTotal")
+        self._coupon_row.setVisible(False)
+        root.addWidget(self._coupon_row)
+
         row_loyalty, self._loyalty_value = _row(self, "Fidelidad")
         root.addLayout(row_loyalty)
 
@@ -69,8 +78,8 @@ class TotalsCard(QFrame):
         self._points_value = QLabel(NO_ACCRUAL_RULE, self)
         self._points_value.setObjectName("posPointsToEarn")
         apply_tooltip(self._points_value,
-                      "Estimación de Fidelidad sobre el total (reglas en Fidelidad → "
-                      "Ajustes). Se acreditan al cobrar.")
+                      "Lo que darán las reglas de Fidelidad (Programas → Reglas de "
+                      "acumulación). Se acreditan al cobrar.")
         points_box.addWidget(self._points_value)
         row_total.addLayout(points_box)
         row_total.addStretch(1)
@@ -88,6 +97,10 @@ class TotalsCard(QFrame):
         self._subtotal_value.setText(f"${sale.gross_subtotal:,.2f}")
         self._discount_value.setText(_minus(sale.discount_total))
         self._loyalty_value.setText(_minus(sale.loyalty_total))
+        self._coupon_value.setText(_minus(getattr(sale, "coupon_total", 0)))
+        self._coupon_row.setVisible(bool(getattr(sale, "coupon_total", 0)))
+        codigos = ", ".join(c["code"] for c in getattr(sale, "coupons", ()) or ())
+        self._coupon_value.setToolTip(codigos)
         self._tax_value.setText(f"${sale.tax_total:,.2f}")
         self._total_value.setText(f"${sale.total:,.2f}")
 

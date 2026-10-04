@@ -17,10 +17,11 @@ selected yet".
 from __future__ import annotations
 
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QLabel, QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QStackedWidget, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     FormField,
+    IntegerInput,
     PageHeader,
     StandardForm,
     StandardLineEdit,
@@ -86,6 +87,31 @@ class EditCustomerPage(QWidget):
         self._form.add_field("source", FormField(
             "Origen", self._source, helper="Opcional"))
 
+        # Cumpleaños (2026-10-03): opcional y SÓLO con consentimiento del
+        # cliente; lo usa Fidelidad para su bono de cumpleaños.
+        cumple = QWidget(self)
+        fila = QHBoxLayout(cumple)
+        fila.setContentsMargins(0, 0, 0, 0)
+        self._birth_day = IntegerInput(self, minimum=0, maximum=31)
+        self._birth_day.setObjectName("editCustomerBirthDay")
+        self._birth_month = IntegerInput(self, minimum=0, maximum=12)
+        self._birth_month.setObjectName("editCustomerBirthMonth")
+        self._birth_year = IntegerInput(self, minimum=0, maximum=2100)
+        self._birth_year.setObjectName("editCustomerBirthYear")
+        for etiqueta, campo in (("Día", self._birth_day), ("Mes", self._birth_month),
+                                ("Año (opcional)", self._birth_year)):
+            fila.addWidget(QLabel(etiqueta, cumple))
+            fila.addWidget(campo)
+        fila.addStretch(1)
+        self._form.add_field("birthday", FormField(
+            "Cumpleaños", cumple, helper="Opcional; 0 = sin capturar."))
+        self._birthday_consent = QCheckBox(
+            "El cliente autoriza usar su cumpleaños para beneficios de fidelidad", self)
+        self._birthday_consent.setObjectName("editCustomerBirthdayConsent")
+        self._form.add_field("birthday_consent", FormField(
+            "Consentimiento", self._birthday_consent,
+            helper="Sin consentimiento no se guarda; quitarlo borra el dato."))
+
         form_layout.addWidget(self._form)
 
         self._submit_button = create_primary_button(self, "Guardar cambios")
@@ -119,6 +145,15 @@ class EditCustomerPage(QWidget):
         self._legal_name.setText(customer.legal_name or "")
         self._commercial_name.setText(customer.commercial_name or "")
         self._source.setText(customer.source or "")
+        cumple = None
+        try:
+            cumple = self._presenter.customer_birthday(customer_id)
+        except Exception:  # noqa: BLE001 - el cumpleaños es opcional
+            cumple = None
+        self._birth_day.setValue(cumple.day if cumple else 0)
+        self._birth_month.setValue(cumple.month if cumple else 0)
+        self._birth_year.setValue((cumple.year or 0) if cumple else 0)
+        self._birthday_consent.setChecked(cumple is not None)
         self._form.clear_errors()
         self._stack.setCurrentWidget(self._form_page)
 
@@ -143,6 +178,16 @@ class EditCustomerPage(QWidget):
         if not result.success:
             self._status.setProperty("state", "ERROR")
             self._status.setText(result.message)
+            self._status.show()
+            return
+
+        cumple = self._presenter.set_customer_birthday(
+            self._customer_id, month=self._birth_month.value() or None,
+            day=self._birth_day.value() or None, year=self._birth_year.value() or None,
+            consent=self._birthday_consent.isChecked())
+        if not cumple.success:
+            self._status.setProperty("state", "ERROR")
+            self._status.setText(f"Datos guardados, pero el cumpleaños no: {cumple.message}")
             self._status.show()
             return
 

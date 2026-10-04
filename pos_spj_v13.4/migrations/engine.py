@@ -299,6 +299,8 @@ MIGRATIONS = [
     _Migration("293",  "migrations.standalone.293_loyalty_card_preprinted_assignment"),
     _Migration("294",  "migrations.standalone.294_loyalty_finance_bridge"),
     _Migration("295",  "migrations.standalone.295_loyalty_rules_engine"),
+    _Migration("296",  "migrations.standalone.296_pos_coupons_vouchers"),
+    _Migration("297",  "migrations.standalone.297_loyalty_rewards_birthdays"),
 ]
 
 def _ensure_tracking_table(conn):

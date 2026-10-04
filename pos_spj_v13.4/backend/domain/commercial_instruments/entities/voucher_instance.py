@@ -75,6 +75,36 @@ class VoucherInstance:
                        else VoucherInstanceStatus.PARTIALLY_REDEEMED)
         self.sale_id = None
 
+    @classmethod
+    def prepare_for_sale(cls, definition_id: str, code: str, *, sale_id: str,
+                         customer_id: str | None = None) -> "VoucherInstance":
+        """Vale prepagado en una venta aún sin cobrar (2026-10-03): existe para
+        que el ticket lo identifique, pero NO se puede usar (ISSUED) hasta que la
+        venta se cobre."""
+        if not sale_id:
+            raise InvalidVoucherInstanceStateError("El vale prepagado requiere la venta")
+        return cls(id=new_uuid(), definition_id=definition_id, code=code.strip(),
+                   status=VoucherInstanceStatus.ISSUED, customer_id=customer_id,
+                   sale_id=sale_id)
+
+    def activate_after_payment(self, *, customer_id: str | None = None) -> None:
+        if self.status is not VoucherInstanceStatus.ISSUED:
+            raise InvalidVoucherInstanceStateError(
+                f"Sólo un vale emitido sin cobrar se activa (actual: {self.status.value})")
+        self.status = VoucherInstanceStatus.ACTIVE
+        if customer_id and not self.customer_id:
+            self.customer_id = customer_id
+
+    def restore_after_refund(self) -> None:
+        """Una devolución regresó dinero al vale (2026-10-03): un vale agotado
+        vuelve a tener saldo. Uno vigente no cambia de estado."""
+        if self.status in (VoucherInstanceStatus.CANCELLED, VoucherInstanceStatus.EXPIRED,
+                           VoucherInstanceStatus.REVERSED):
+            raise InvalidVoucherInstanceStateError(
+                f"No se puede abonar a un vale {self.status.value}")
+        if self.status is VoucherInstanceStatus.REDEEMED:
+            self.status = VoucherInstanceStatus.PARTIALLY_REDEEMED
+
     def cancel(self, reason: str) -> None:
         if self.status in (VoucherInstanceStatus.REDEEMED, VoucherInstanceStatus.CANCELLED,
                           VoucherInstanceStatus.REVERSED):

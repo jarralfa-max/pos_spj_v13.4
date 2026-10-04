@@ -106,8 +106,28 @@ class SaleCompletedHandler(FinanceEventHandler):
             lines.append(LineSpec(profile.account_for("discount_account_id"),
                                   debit=discount, description=f"Descuento venta {folio}"))
         revenue = gross.subtract(tax)
-        lines.append(LineSpec(profile.account_for("revenue_account_id"),
-                              credit=revenue, description=f"Ingreso venta {folio}"))
+        # Vales prepagados vendidos (2026-10-03): su importe es pasivo del vale,
+        # no ingreso; la obligación queda registrada para su canje.
+        for pasivo in payload.get("liability_lines") or []:
+            importe = Money.from_string(str(pasivo["amount"]), currency)
+            if not importe.is_positive():
+                continue
+            tipo = CommercialInstrumentType(str(pasivo["instrument_type"]))
+            perfil = self.resolve_profile(uow, tipo.value, entry_date, instrument_type=tipo)
+            from backend.application.services.finance.commercial_instrument_processor import (
+                CommercialInstrumentProcessor,
+            )
+            CommercialInstrumentProcessor().register_obligation(
+                uow, instrument_type=tipo, source_module="commercial_instruments",
+                source_instrument_id=str(pasivo["instrument_id"]), amount=importe,
+                on_date=entry_date, operation_id=new_uuid(),
+                customer_id=payload.get("customer_id"), branch_id=branch_id)
+            lines.append(LineSpec(perfil.account_for("liability_account_id"), credit=importe,
+                                  description=f"Vale prepagado vendido {folio}"))
+            revenue = revenue.subtract(importe)
+        if revenue.is_positive():
+            lines.append(LineSpec(profile.account_for("revenue_account_id"),
+                                  credit=revenue, description=f"Ingreso venta {folio}"))
         if tax.is_positive():
             lines.append(LineSpec(profile.account_for("tax_account_id"),
                                   credit=tax, description=f"IVA trasladado venta {folio}"))
@@ -146,7 +166,11 @@ class SaleCompletedHandler(FinanceEventHandler):
             raise FinanceDomainError(
                 f"Liquidación {settlement_type.value} sin instrument_id en venta {folio}"
             )
-        instrument_type = _INSTRUMENT_SETTLEMENTS[settlement_type]
+        # El vale trae su naturaleza (vale por devolución, saldo a favor,
+        # promocional…): cada una tiene su perfil y su pasivo (2026-10-03).
+        instrument_type = (CommercialInstrumentType(str(settlement["instrument_type"]))
+                           if settlement.get("instrument_type")
+                           else _INSTRUMENT_SETTLEMENTS[settlement_type])
         obligation = uow.commercial_obligations.find_by_instrument(instrument_type, instrument_id)
         if obligation is None:
             raise FinanceDomainError(

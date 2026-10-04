@@ -257,3 +257,59 @@ def _grant_birthday_voucher(connection, config: BirthdayBenefitConfig, customer_
 
 def _json_dumps(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False, default=str)
+
+
+class GrantDueBirthdayBenefitsUseCase:
+    """Barrido (2026-10-03): ahora que Clientes guarda el cumpleaños con
+    consentimiento, el beneficio de cumpleaños de cada programa se otorga solo
+    — el día del cumpleaños, a cada miembro activo, UNA vez por año (registro en
+    `loyalty_birthday_grants`). Sin planificador en el shell, lo disparan el
+    cobro y la apertura de Fidelidad, como la caducidad."""
+
+    def execute(self, connection, *, today=None) -> LoyaltyResult:
+        from datetime import date as _date
+
+        from backend.infrastructure.db.repositories.customers.birthday_repository import (
+            CustomerBirthdayRepository,
+        )
+
+        hoy = today or _date.today()
+        if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table'"
+                              " AND name='loyalty_birthday_grants'").fetchone() is None:
+            return LoyaltyResult.ok("Sin tabla de cumpleaños (migración 297)", granted=0)
+        cumples = CustomerBirthdayRepository(connection)
+        otorgados = 0
+        for customer_id in cumples.all_customer_ids():
+            cumple = cumples.get(customer_id)
+            if cumple is None:
+                continue
+            distancia = cumple.days_from(hoy)   # > 0: el cumpleaños aún no llega
+            filas = connection.execute(
+                "SELECT m.program_id, a.id, c.days_before, c.days_after FROM loyalty_memberships m"
+                " JOIN loyalty_accounts a ON a.id = m.loyalty_account_id"
+                " JOIN loyalty_birthday_configs c ON c.program_id = m.program_id"
+                " WHERE a.customer_id=? AND m.status='ACTIVE' AND c.enabled=1",
+                (customer_id,)).fetchall()
+            for program_id, account_id, antes, despues in filas:
+                # Ventana del programa: `days_before` antes y `days_after` después.
+                if not -int(despues or 0) <= distancia <= int(antes or 0):
+                    continue
+                ya = connection.execute(
+                    "SELECT 1 FROM loyalty_birthday_grants WHERE program_id=? AND customer_id=?"
+                    " AND year=?", (program_id, customer_id, hoy.year)).fetchone()
+                if ya:
+                    continue
+                resultado = GrantBirthdayBenefitUseCase().execute(
+                    connection, program_id=program_id, loyalty_account_id=account_id,
+                    has_marketing_consent=True, actor_branch_id=SYSTEM_ACTOR_ID,
+                    operation_id=new_uuid())
+                if resultado.success and resultado.data.get("granted", True):
+                    connection.execute(
+                        "INSERT OR IGNORE INTO loyalty_birthday_grants (program_id, customer_id,"
+                        " year, granted_at) VALUES (?,?,?,?)",
+                        (program_id, customer_id, hoy.year, hoy.isoformat()))
+                    connection.commit()
+                    otorgados += 1
+        return LoyaltyResult.ok(f"{otorgados} beneficios de cumpleaños otorgados",
+                                granted=otorgados)
+

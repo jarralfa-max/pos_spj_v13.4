@@ -84,8 +84,23 @@ def build_customers_crm_presenter(connection, session_context=None) -> CustomerC
         run = AddCustomerAddressUseCase(customer_auth).execute
         return run(connection, **kwargs)
 
+    def _set_birthday_handler(**kwargs):
+        from backend.application.customers.use_cases.birthday_use_cases import (
+            SetCustomerBirthdayUseCase,
+        )
+        return SetCustomerBirthdayUseCase(customer_auth).execute(connection, **kwargs)
+
+    def _birthday_query(customer_id: str):
+        from backend.application.customers.use_cases.birthday_use_cases import (
+            customer_birthday,
+        )
+        return customer_birthday(connection, customer_id)
+
+    query_services["customer_birthday"] = _birthday_query
+
     command_handlers = {
         "create_customer": _create_customer_handler,
+        "set_customer_birthday": _set_birthday_handler,
         "update_customer": _update_customer_handler,
         "add_address": _add_address_handler,
     }

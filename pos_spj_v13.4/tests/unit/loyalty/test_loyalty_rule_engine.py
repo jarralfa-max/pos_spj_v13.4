@@ -149,8 +149,8 @@ class TestSelectionAndLimits:
 
 class TestRuleDefinition:
     def test_types_granted_elsewhere_are_rejected(self):
-        with pytest.raises(InvalidLoyaltyRuleError, match="Cumpleaños"):
-            LoyaltyRule.create(code="X", name="X", rule_type=T.BIRTHDAY_BONUS,
+        with pytest.raises(InvalidLoyaltyRuleError, match="Referidos"):
+            LoyaltyRule.create(code="X", name="X", rule_type=T.REFERRAL_BONUS,
                                created_by_user_id=CREATOR, benefit_definition={"points": "5"})
 
     def test_multiplier_needs_its_scope_and_sane_values(self):
@@ -203,3 +203,22 @@ class TestStacking:
         r = politica.resolve([self._b("COUPON", "10", "c1"), self._b("COUPON", "15", "c2")])
         assert [b.reference for b in r.accepted] == ["c1"]
         assert r.rejected[0][0].reference == "c2"
+
+
+class TestBirthdayAndReturns:
+    def test_birthday_bonus_in_its_window(self):
+        bono = _rule("CUMPLE", T.BIRTHDAY_BONUS, {"points": "100", "window_days": "3"})
+        assert ENGINE.evaluate([bono], _ctx("100", days_to_birthday=2)).points == 110
+        assert ENGINE.evaluate([bono], _ctx("100", days_to_birthday=5)).points == 10
+        assert ENGINE.evaluate([bono], _ctx("100")).points == 10   # sin cumpleaños registrado
+        doble = _rule("CUMPLEX2", T.BIRTHDAY_BONUS, {"multiplier": "2"})
+        assert ENGINE.evaluate([doble], _ctx("100", days_to_birthday=0)).points == 20
+
+    def test_fixed_bonus_condition_after_a_return(self):
+        from backend.domain.loyalty.services.rule_engine import condition_holds_for_subtotal
+
+        condicion = {"all": [{"field": "subtotal", "op": "gte", "value": "200"},
+                             {"field": "weekday", "op": "in", "value": [5, 6]}]}
+        assert condition_holds_for_subtotal(condicion, Decimal("250"))
+        assert not condition_holds_for_subtotal(condicion, Decimal("150"))
+        assert condition_holds_for_subtotal({}, Decimal("0"))

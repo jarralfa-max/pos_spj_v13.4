@@ -290,7 +290,7 @@ class SalesInventoryClient:
         reserva canónica es por producto.
         """
         totales: dict[str, Decimal] = {}
-        for line in sale.lines:
+        for line in sale.goods_lines:   # un vale prepagado no es mercancía
             for product_id, cantidad in self._explode(
                     line.product_id, line.quantity.value).items():
                 totales[product_id] = totales.get(product_id, Decimal("0")) + cantidad

@@ -46,6 +46,7 @@ SALES_TABLES: tuple[str, ...] = (
     "sales",
     "sale_lines",
     "sale_payments",
+    "sale_coupons",
     "sale_returns",
     "sale_invoice_requests",
     "sales_outbox",
@@ -119,6 +120,20 @@ _DDL = (
         reference TEXT,
         captured_by_user_id TEXT NOT NULL,
         captured_at TEXT NOT NULL
+    )
+    """,
+    # ── SaleCoupon (2026-10-03): cupones que Fidelidad aprobó para la venta ──
+    """
+    CREATE TABLE IF NOT EXISTS sale_coupons (
+        id TEXT NOT NULL PRIMARY KEY,
+        sale_id TEXT NOT NULL REFERENCES sales(id),
+        coupon_instance_id TEXT NOT NULL,
+        code TEXT NOT NULL,
+        benefit_type TEXT NOT NULL,
+        benefit_value TEXT NOT NULL,
+        amount TEXT NOT NULL DEFAULT '0',
+        applied_at TEXT NOT NULL,
+        UNIQUE (sale_id, coupon_instance_id)
     )
     """,
     # ── SaleReturn (backend/domain/sales/value_objects/sale_return.py,

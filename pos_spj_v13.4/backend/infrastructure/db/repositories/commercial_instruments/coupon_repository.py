@@ -101,6 +101,11 @@ class CouponInstanceRepository(CommercialInstrumentsRepositoryBase):
         row = self._query_one("SELECT * FROM coupon_instances WHERE code=?", (code,))
         return self._hydrate(row) if row else None
 
+    def list_reserved_for_sale(self, sale_id: str) -> list[CouponInstance]:
+        rows = self._query("SELECT * FROM coupon_instances WHERE sale_id=? AND status='RESERVED'",
+                           (sale_id,))
+        return [self._hydrate(row) for row in rows]
+
     def list_expirable(self, *, definition_ids: list[str], limit: int = 500) -> list[CouponInstance]:
         if not definition_ids:
             return []

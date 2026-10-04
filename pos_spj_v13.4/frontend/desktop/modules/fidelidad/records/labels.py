@@ -146,7 +146,8 @@ _POR_ENUM: dict[str, dict[str, str]] = {
     "LoyaltyFinanceSourceType": {
         "LOYALTY_TRANSACTION": "Movimiento de puntos", "VOUCHER_TRANSACTION": "Movimiento de vale",
         "VOUCHER_INSTANCE": "Cierre de vale", "COUPON_REDEMPTION": "Canje de cupón",
-        "SWEEPSTAKES_PRIZE": "Premio de sorteo", "SWEEPSTAKES_WINNER": "Entrega de premio"},
+        "SWEEPSTAKES_PRIZE": "Premio de sorteo", "SWEEPSTAKES_WINNER": "Entrega de premio",
+        "REWARD_DELIVERY": "Recompensa entregada"},
 }
 
 

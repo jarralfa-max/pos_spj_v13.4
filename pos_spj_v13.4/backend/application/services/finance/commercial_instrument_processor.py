@@ -102,6 +102,27 @@ class CommercialInstrumentProcessor:
         self._emit(uow, EventName.COMMERCIAL_OBLIGATION_RECOGNIZED, obligation, operation_id)
         return obligation
 
+    def register_obligation(self, uow: FinanceUnitOfWork, *,
+                            instrument_type: CommercialInstrumentType, source_module: str,
+                            source_instrument_id: str, amount: Money, on_date: date,
+                            operation_id: str, customer_id: str | None = None,
+                            branch_id: str | None = None) -> CommercialObligation:
+        """Registra la obligación SIN asiento propio: su contrapartida va en el
+        asiento de otro documento (la venta que cobró un vale prepagado,
+        2026-10-03). Idempotente por instrumento."""
+        existente = uow.commercial_obligations.find_by_instrument(
+            instrument_type, source_instrument_id)
+        if existente is not None:
+            return existente
+        basis = self._policy.recognition_basis_for(instrument_type)
+        obligation = CommercialObligation.recognize(
+            instrument_type, source_module, source_instrument_id, basis, amount,
+            operation_id, customer_id=customer_id, branch_id=branch_id,
+            issued_at=on_date.isoformat())
+        uow.commercial_obligations.save(obligation)
+        self._emit(uow, EventName.COMMERCIAL_OBLIGATION_RECOGNIZED, obligation, operation_id)
+        return obligation
+
     # ── reload (gift card top-up) ─────────────────────────────────────────
     def reload(self, uow: FinanceUnitOfWork, *, instrument_type: CommercialInstrumentType,
                source_instrument_id: str, amount: Money, on_date: date,

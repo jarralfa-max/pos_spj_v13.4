@@ -109,6 +109,7 @@ class LoyaltyFinanceSourceType(str, Enum):
     COUPON_REDEMPTION = "COUPON_REDEMPTION"
     SWEEPSTAKES_PRIZE = "SWEEPSTAKES_PRIZE"
     SWEEPSTAKES_WINNER = "SWEEPSTAKES_WINNER"
+    REWARD_DELIVERY = "REWARD_DELIVERY"
 
 
 def _dec(value) -> Decimal:
@@ -178,6 +179,7 @@ class LoyaltyFinancePostingService:
         self._closed_vouchers(summary)
         self._coupons(summary, limit)
         self._sweepstakes(summary)
+        self._rewards(summary)
         return summary
 
     # ── unidad de trabajo por movimiento ──────────────────────────────────
@@ -426,12 +428,26 @@ class LoyaltyFinancePostingService:
         instrumento = self._voucher_type(txn)
         fecha = _day(txn["created_at"])
         vale = txn["voucher_instance_id"]
+        if tipo == "ISSUE" and txn.get("sale_id"):
+            # Vale prepagado vendido en caja: lo reconoció el asiento de la venta.
+            raise _Skip("Reconocido en el asiento de la venta que lo cobró")
         if tipo == "ISSUE":
             self._processor.recognize(
                 uow, instrument_type=instrumento, source_module="commercial_instruments",
                 source_instrument_id=vale, amount=_money(importe), on_date=fecha,
                 operation_id=new_uuid(), customer_id=txn.get("customer_id"),
                 expires_at=txn.get("expires_at"))
+            return importe
+        if tipo == "REFUND" and str(txn.get("reason_code") or "").startswith("SALE_REFUND:"):
+            # Lo regresó una devolución o un reverso de venta del POS: el asiento
+            # lo hizo la venta (reembolso a vale / espejo); aquí sólo vuelve el
+            # saldo a la obligación.
+            self._processor.restore(
+                uow, instrument_type=instrumento, source_instrument_id=vale,
+                amount=_money(importe), on_date=fecha, operation_id=new_uuid(),
+                effect_key=f"sale-refund:{txn['id']}",
+                effect_purpose=PostingPurpose.INSTRUMENT_REDEMPTION, from_redeemed=True,
+                reason="Abono a vale por devolución de venta")
             return importe
         if tipo in ("RELOAD", "REFUND") or (tipo == "ADJUSTMENT" and importe > 0):
             self._processor.reload(uow, instrument_type=instrumento, source_instrument_id=vale,
@@ -445,6 +461,10 @@ class LoyaltyFinancePostingService:
                 raise _Hold("Apartado de vale sin confirmar")
             if txn["status"] != "CONSUMED":
                 raise _Skip("Apartado de vale liberado")
+            if txn.get("sale_id"):
+                # El POS lo cobró como forma de pago: la venta ya canceló el
+                # pasivo del vale en su asiento (liquidación VOUCHER).
+                raise _Skip("Liquidado en el asiento de la venta")
             tipo = "REDEEM"
         if tipo == "REDEEM":
             self._processor.redeem(uow, instrument_type=instrumento, source_instrument_id=vale,
@@ -498,6 +518,12 @@ class LoyaltyFinancePostingService:
         obligacion = uow.commercial_obligations.find_by_instrument(instrumento, row["id"])
         if obligacion is None or not obligacion.outstanding_amount.is_positive():
             raise _Skip("Sin saldo reconocido pendiente")
+        if row.get("sale_id") and instrumento is CommercialInstrumentType.PREPAID_VOUCHER:
+            # Anulado por el reverso de la venta que lo vendió: el espejo del
+            # asiento de la venta ya quitó el pasivo; sólo se cierra la obligación.
+            obligacion.cancel()
+            uow.commercial_obligations.update(obligacion)
+            raise _Skip("Pasivo retirado por el reverso de la venta")
         pendiente = obligacion.outstanding_amount
         self._processor.release(
             uow, instrument_type=instrumento, source_instrument_id=row["id"], amount=pendiente,
@@ -539,6 +565,39 @@ class LoyaltyFinancePostingService:
                       description="Descuento de la venta aplicado por cupón")],
             currency_code=monto.currency_code)
         return importe
+
+    # ══ RECOMPENSAS DE PRODUCTO ════════════════════════════════════════════
+    def _rewards(self, summary: LoyaltyFinanceSummary) -> None:
+        """El producto entregado como recompensa salió del inventario: su costo
+        es costo de venta (los puntos canjeados ya reconocieron el ingreso)."""
+        from backend.infrastructure.db.repositories.loyalty.rule_repository import (
+            LoyaltyRewardProductRepository,
+        )
+
+        for entrega in LoyaltyRewardProductRepository(self._conn).pending_cost_postings():
+            self._apply(summary, f"reward:{entrega['redemption_id']}", "REWARD_DELIVERY",
+                        entrega["redemption_id"],
+                        lambda uow, e=entrega: self._reward_cost(uow, e))
+
+    def _reward_cost(self, uow, entrega: dict):
+        costo = _dec(entrega["cost_amount"])
+        if costo <= 0:
+            raise _Skip("Producto sin costo registrado: la salida de inventario no tiene valor")
+        fecha = _day(entrega["delivered_at"])
+        perfil = uow.posting_profiles.find_effective(_POINTS.value, fecha, instrument_type=_POINTS)
+        if perfil is None:
+            raise PostingProfileNotFoundError("No hay perfil contable LOYALTY_POINTS vigente")
+        monto = _money(costo)
+        self._engine.post(
+            uow, JournalType.LOYALTY, fecha, f"Recompensa entregada {entrega['redemption_id'][:8]}",
+            PostingReference("loyalty", f"REWARD:{entrega['redemption_id']}",
+                             PostingPurpose.INSTRUMENT_REDEMPTION, new_uuid()),
+            [LineSpec(perfil.account_for("cost_of_sales_account_id"), debit=monto,
+                      description="Costo de la recompensa entregada"),
+             LineSpec(perfil.account_for("inventory_account_id"), credit=monto,
+                      description="Salida de inventario por recompensa")],
+            currency_code=monto.currency_code, branch_id=entrega.get("branch_id"))
+        return costo
 
     # ══ SORTEOS ════════════════════════════════════════════════════════════
     def _sweepstakes(self, summary: LoyaltyFinanceSummary) -> None:

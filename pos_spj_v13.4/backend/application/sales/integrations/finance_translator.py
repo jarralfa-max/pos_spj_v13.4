@@ -28,7 +28,18 @@ SETTLEMENT_BY_METHOD = {
     "TRANSFER": "BANK_TRANSFER",
     "MERCADO_PAGO": "PAYMENT_PROCESSOR",
     "CREDIT": "ON_CREDIT",
+    # Vale o saldo a favor (2026-10-03): se liquida contra el pasivo del vale.
+    "VOUCHER": "VOUCHER",
 }
+
+
+def _instrument_settlements(entries) -> list[dict]:
+    """Cada vale con su instancia y su naturaleza contable (no se suman: cada
+    uno cancela SU obligación)."""
+    return [{"type": "VOUCHER", "amount": str(_dec(v.get("amount"))),
+             "instrument_id": v.get("voucher_instance_id"),
+             "instrument_type": v.get("instrument_type") or "REFUND_VOUCHER"}
+            for v in entries or () if _dec(v.get("amount"))]
 
 
 def _dec(value) -> Decimal:
@@ -43,9 +54,11 @@ def sale_completed_to_finance(envelope: dict) -> dict:
         "discount_total", "promotion_total", "coupon_total", "loyalty_total")), Decimal("0"))
     cambio = _dec(datos.get("change"))
 
-    liquidaciones: list[dict] = []
+    liquidaciones: list[dict] = _instrument_settlements(datos.get("voucher_payments"))
     for pago in datos.get("payments") or []:
         metodo = str(pago.get("method") or "")
+        if metodo == "VOUCHER":
+            continue
         tipo = SETTLEMENT_BY_METHOD.get(metodo)
         if tipo is None:
             raise ValueError(f"Método de pago sin traducción a Finanzas: {metodo!r}")
@@ -70,6 +83,11 @@ def sale_completed_to_finance(envelope: dict) -> dict:
         "tax_total": str(_dec(datos.get("tax_total"))),
         "settlements": liquidaciones,
         "cogs_total": str(_dec(datos.get("cogs_total"))),
+        # Vales prepagados vendidos: pasivo, no ingreso (2026-10-03).
+        "liability_lines": [{"instrument_type": "PREPAID_VOUCHER",
+                             "instrument_id": v.get("voucher_instance_id"),
+                             "amount": str(_dec(v.get("amount")))}
+                            for v in datos.get("prepaid_vouchers") or () if _dec(v.get("amount"))],
     }
 
 
@@ -82,10 +100,13 @@ def sale_returned_to_finance(envelope: dict) -> dict:
     reembolsos = []
     for refund in datos.get("refunds") or []:
         metodo = str(refund.get("method") or "")
+        if metodo == "VOUCHER":
+            continue
         tipo = SETTLEMENT_BY_METHOD.get(metodo)
         if tipo is None:
             raise ValueError(f"Método de reembolso sin traducción a Finanzas: {metodo!r}")
         reembolsos.append({"type": tipo, "amount": str(_dec(refund.get("amount")))})
+    reembolsos.extend(_instrument_settlements(datos.get("voucher_refunds")))
     return {
         "event_id": envelope.get("event_id"),
         "operation_id": envelope.get("operation_id"),

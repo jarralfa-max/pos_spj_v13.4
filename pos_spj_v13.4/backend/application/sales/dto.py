@@ -116,6 +116,8 @@ class SaleDTO:
     completed_at: str | None = None
     cancelled_at: str | None = None
     version: int = 1
+    #: Cupones aplicados: ({"coupon_instance_id", "code", "amount"}, ...).
+    coupons: tuple[dict, ...] = field(default_factory=tuple)
 
     def returnable_quantity(self, line_id: str) -> Decimal:
         """Lo que aún se puede devolver de una línea: lo vendido menos lo ya
@@ -152,6 +154,7 @@ class SaleDTO:
             total=sale.totals.total,
             created_at=sale.created_at, suspended_at=sale.suspended_at,
             completed_at=sale.completed_at, cancelled_at=sale.cancelled_at,
+            coupons=tuple({"coupon_instance_id": c.coupon_instance_id, "code": c.code, "amount": c.amount} for c in sale.coupons),
             version=sale.version,
         )
 

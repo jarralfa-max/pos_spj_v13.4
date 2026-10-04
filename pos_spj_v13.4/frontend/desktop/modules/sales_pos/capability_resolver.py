@@ -24,6 +24,7 @@ def resolve_sales_pos_capabilities(can: Callable[[str], bool]) -> SalesPosCapabi
         payment_transfer=can(SalesPermissions.PAYMENT_TRANSFER),
         payment_credit=can(SalesPermissions.PAYMENT_CREDIT),
         payment_mercado_pago=can(SalesPermissions.PAYMENT_MERCADO_PAGO),
+        payment_voucher=can(SalesPermissions.PAYMENT_VOUCHER),
         sale_complete=can(SalesPermissions.SALE_COMPLETE),
         sale_suspend=can(SalesPermissions.SALE_SUSPEND),
         sale_resume=can(SalesPermissions.SALE_RESUME),

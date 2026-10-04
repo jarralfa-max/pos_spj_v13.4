@@ -433,7 +433,9 @@ m268 = importlib.import_module("migrations.standalone.268_seed_pos_role_permissi
 
 def test_268_cubre_todo_el_vocabulario_del_pos():
     from backend.application.sales.permissions import ALL_SALES_PERMISSIONS
-    assert {f"POS.{a}" for a in m268._POS_TODAS} == set(ALL_SALES_PERMISSIONS)
+    # La 296 agregó cobrar con vale (2026-10-03).
+    m296 = importlib.import_module("migrations.standalone.296_pos_coupons_vouchers")
+    assert {f"POS.{a}" for a in (*m268._POS_TODAS, *m296.POS_ACTIONS)} == set(ALL_SALES_PERMISSIONS)
 
 
 def test_268_cajero_vende_y_gerente_autoriza():

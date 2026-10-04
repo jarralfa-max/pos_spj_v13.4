@@ -87,6 +87,10 @@ class AccrueSalePointsUseCase(_LoyaltyBaseUseCase):
         ExpireLoyaltyPointsUseCase(self._auth).execute(
             connection, before_iso=momento.isoformat(timespec="seconds"),
             operation_id_prefix=new_uuid())
+        from backend.application.loyalty.use_cases.birthday_use_cases import (
+            GrantDueBirthdayBenefitsUseCase,
+        )
+        GrantDueBirthdayBenefitsUseCase().execute(connection, today=momento.date())
 
         settings = LoyaltyProgramSettingsQuery(connection).accrual()
         puntos, desglose = _evaluate_once(
@@ -146,7 +150,7 @@ def _evaluate_once(connection, *, sale_id, customer_id, branch_id, total, credit
     with LoyaltyUnitOfWork(connection) as uow:
         cuenta = uow.accounts.get_by_customer_id(customer_id)
         repo = LoyaltyRuleRepository(uow.connection)
-        cuando = momento.isoformat(timespec="seconds")
+        cuando = momento.astimezone(timezone.utc).isoformat(timespec="seconds")
         repo.record_evaluation(sale_id=sale_id, customer_id=customer_id,
                                loyalty_account_id=cuenta.id if cuenta else None,
                                points=evaluacion.points, breakdown=desglose, evaluated_at=cuando)
@@ -189,8 +193,8 @@ class RemoveSalePointsUseCase(_LoyaltyBaseUseCase):
             quitados = int(-sum((t.points_amount for t in movimientos
                                  if t.sale_id == sale_id and t.reason_code == RETURN_REASON),
                                 Decimal("0")))
-            quitar = LoyaltyAccrualPolicy.points_to_remove(
-                earned=ganados, sale_total=Decimal(str(sale_total)),
+            quitar = _points_to_remove_with_bonuses(
+                connection, sale_id=sale_id, earned=ganados, sale_total=Decimal(str(sale_total)),
                 refunded_total=Decimal(str(refunded_total)), already_removed=quitados)
             saldo = int(LoyaltyBalancePolicy.balance(movimientos))
             quitar = min(quitar, max(saldo, 0))
@@ -209,6 +213,48 @@ class RemoveSalePointsUseCase(_LoyaltyBaseUseCase):
                        points_amount=str(-quitar), reason_code=RETURN_REASON, sale_id=sale_id)
         return LoyaltyResult.ok("Puntos retirados por devolución", operation_id=operation_id,
                                 points=quitar)
+
+
+def _points_to_remove_with_bonuses(connection, *, sale_id: str, earned: int, sale_total: Decimal,
+                                   refunded_total: Decimal, already_removed: int) -> int:
+    """Devolución con reglas (decisión del usuario, 2026-10-03): la base y los
+    multiplicadores se retiran EN PROPORCIÓN a lo devuelto; cada bono FIJO se
+    retira completo sólo si la compra se devuelve toda o si lo que queda ya no
+    cumple su condición (p. ej. queda bajo la compra mínima). Sin desglose
+    guardado (ventas anteriores a las reglas) todo es proporcional, como antes."""
+    import json
+    from decimal import ROUND_DOWN
+
+    from backend.domain.loyalty.services.rule_engine import (
+        condition_holds_for_subtotal,
+        is_fixed_bonus,
+    )
+    from backend.infrastructure.db.repositories.loyalty.rule_repository import (
+        LoyaltyRuleRepository,
+    )
+
+    reglas = LoyaltyRuleRepository(connection)
+    evaluacion = reglas.evaluation_for(sale_id)
+    if evaluacion is None or earned <= 0 or sale_total <= 0:
+        return LoyaltyAccrualPolicy.points_to_remove(
+            earned=earned, sale_total=sale_total, refunded_total=refunded_total,
+            already_removed=already_removed)
+    total = refunded_total >= sale_total
+    queda = max(sale_total - refunded_total, Decimal("0"))
+    bonos_retirados = bonos = 0
+    for aplicada in json.loads(evaluacion["breakdown_json"] or "[]"):
+        regla = reglas.get(aplicada.get("rule_id")) if aplicada.get("rule_id") else None
+        if regla is None or not is_fixed_bonus(regla):
+            continue
+        puntos = int(aplicada.get("points") or 0)
+        bonos += puntos
+        if total or not condition_holds_for_subtotal(regla.condition_definition, queda):
+            bonos_retirados += puntos
+    proporcional = max(earned - bonos, 0)
+    proporcion = min(refunded_total / sale_total, Decimal("1"))
+    objetivo = proporcional if total else int(
+        (Decimal(proporcional) * proporcion).to_integral_value(rounding=ROUND_DOWN))
+    return max(min(objetivo + bonos_retirados, earned) - already_removed, 0)
 
 
 class RestoreSaleRedemptionUseCase(_LoyaltyBaseUseCase):

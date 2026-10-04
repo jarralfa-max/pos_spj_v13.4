@@ -139,7 +139,7 @@ class LoyaltyFinanceLinkRepository:
 
     # ── vales ─────────────────────────────────────────────────────────────
     _VOUCHER = ("SELECT t.id, t.voucher_instance_id, t.transaction_type, t.amount, t.status,"
-                " t.sale_id, t.created_at, i.customer_id, i.expires_at, i.status AS instance_status,"
+                " t.sale_id, t.reason_code, t.created_at, i.customer_id, i.expires_at, i.status AS instance_status,"
                 " d.voucher_type FROM voucher_transactions t"
                 " JOIN voucher_instances i ON i.id = t.voucher_instance_id"
                 " JOIN voucher_definitions d ON d.id = i.definition_id")
@@ -158,7 +158,7 @@ class LoyaltyFinanceLinkRepository:
 
     def closed_voucher_instances(self) -> list[dict]:
         return self._rows(
-            "SELECT i.id, i.status, d.voucher_type FROM voucher_instances i"
+            "SELECT i.id, i.status, i.sale_id, d.voucher_type FROM voucher_instances i"
             " JOIN voucher_definitions d ON d.id = i.definition_id"
             " LEFT JOIN loyalty_finance_links l ON l.source_key = 'voucher-close:' || i.id"
             " WHERE i.status IN ('CANCELLED','EXPIRED')"

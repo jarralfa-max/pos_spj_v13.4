@@ -4482,3 +4482,18 @@ Decisión del usuario: las reglas salen de Fidelidad y el POS las ejecuta.
 venta. Sin reglas activas, la acumulación es idéntica a la de la 289. Detalle en
 `docs/refactor/LOY-29_reauditoria.md` §3f.
 
+### 296 — cupones y vales en la caja (2026-10-03)
+
+`sale_coupons` (cupones que Fidelidad aprobó y apartó para la venta) y el permiso
+`POS.pago.vale` para cajero, gerente, admin y dueño (mismo reparto que los pagos
+de contado de la 268; `INSERT OR IGNORE`). El perfil contable `PREPAID_VOUCHER`
+(vale prepagado vendido en caja: Dr caja / Cr 2132) se agrega a un catálogo ya
+sembrado por la misma vía que la 294.
+
+### 297 — recompensas de producto con inventario y cumpleaños (2026-10-03)
+
+`loyalty_reward_products`, `loyalty_reward_deliveries` (salida y costo de cada
+entrega), `loyalty_birthday_grants` (beneficio de cumpleaños una vez al año) y
+`customer_birthdays` (Clientes; sólo con consentimiento). Detalle en
+`docs/refactor/LOY-29_reauditoria.md` §3g.
+

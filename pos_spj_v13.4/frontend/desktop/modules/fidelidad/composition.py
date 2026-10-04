@@ -488,6 +488,14 @@ def create_fidelidad_view(connection, session_context=None, parent=None):
 
     # Al abrir: asienta lo que llegó por otra vía (WhatsApp, sorteos resueltos,
     # catálogo de Finanzas sembrado después) o falló antes.
+    try:
+        from backend.application.loyalty.use_cases.birthday_use_cases import (
+            GrantDueBirthdayBenefitsUseCase,
+        )
+        GrantDueBirthdayBenefitsUseCase().execute(connection)
+    except Exception:  # noqa: BLE001 - el barrido no impide abrir Fidelidad
+        import logging
+        logging.getLogger("spj.fidelidad").exception("barrido de cumpleaños fallido")
     post_loyalty_finance(connection)
     presenter = build_fidelidad_presenter(connection, session_context)
     return FidelidadWorkspace(presenter, parent)

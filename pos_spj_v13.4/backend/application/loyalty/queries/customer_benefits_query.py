@@ -73,7 +73,13 @@ class LoyaltyAccrualEvaluator:
                  credit_amount: Any = 0, lines: Iterable[dict] = (), payments: Iterable = (),
                  channel: str = "POS", occurred_at: datetime | str | None = None,
                  sale_id: str | None = None) -> RuleEvaluation:
-        momento = _moment(occurred_at)
+        # Hora LOCAL de la sucursal: "sábados", "de 18 a 20 h", la vigencia y el
+        # cumpleaños son fechas del cliente, no de UTC (una venta a las 21 h no
+        # cuenta como del día siguiente).
+        instante = _moment(occurred_at)
+        if instante.tzinfo is None:
+            instante = instante.replace(tzinfo=timezone.utc)
+        momento = instante.astimezone()
         ajustes = LoyaltyProgramSettingsQuery(self._conn).accrual()
         elegible = LoyaltyAccrualPolicy.eligible_amount(
             total=_dec(total), credit_amount=_dec(credit_amount), settings=ajustes)
@@ -84,8 +90,10 @@ class LoyaltyAccrualEvaluator:
                        _dec(p.get("amount") if isinstance(p, dict) else p[1]))
                       for p in payments or ())
         previas = tuple(_moment(f) for f in (
-            self._rules.previous_purchases(customer_id, momento.isoformat(timespec="seconds"),
-                                           exclude_sale_id=sale_id)
+            # Las evaluaciones se guardan en UTC: se compara en UTC.
+            self._rules.previous_purchases(
+                customer_id, instante.astimezone(timezone.utc).isoformat(timespec="seconds"),
+                exclude_sale_id=sale_id)
             if customer_id else ()))
         contexto = AccrualContext(
             occurred_at=momento, eligible_amount=elegible,
@@ -96,9 +104,11 @@ class LoyaltyAccrualEvaluator:
                 for ln in lineas),
             customer_id=customer_id, branch_id=branch_id, channel=str(channel or "POS").upper(),
             payments=pagos, segment_ids=self._reader.segment_ids(customer_id),
-            program_ids=self._reader.program_ids(customer_id), previous_purchases=previas)
+            program_ids=self._reader.program_ids(customer_id), previous_purchases=previas,
+            days_to_birthday=self._reader.days_to_birthday(customer_id, momento.date()))
         reglas = self._rules.list_active()
-        uso = self._rules.usage([r.id for r in reglas], customer_id, momento)
+        uso = self._rules.usage([r.id for r in reglas], customer_id,
+                                instante.astimezone(timezone.utc))
         return LoyaltyRuleEngine(pesos_per_point=ajustes.pesos_per_point).evaluate(
             reglas, contexto, uso)
 
@@ -119,6 +129,10 @@ class CustomerBenefitsRequest:
     requested_points: int = 0
     promotion_total: Decimal = _ZERO
     employee_discount: Decimal = _ZERO
+    #: Beneficios YA aplicados a la venta, en el orden en que se aplicaron:
+    #: ({"kind", "reference", "value", "label"}, ...). Van primero en la
+    #: política de combinación: lo nuevo se evalúa contra ellos.
+    prior_benefits: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -143,7 +157,10 @@ class EvaluateCustomerBenefitsQuery:
         avisos: list[str] = []
         no_elegibles: list[dict] = []
         subtotal = _dec(request.subtotal)
-        candidatos: list[Benefit] = []
+        candidatos: list[Benefit] = [
+            Benefit(str(b["kind"]), str(b.get("reference") or b["kind"]), _dec(b.get("value")),
+                    str(b.get("label") or b["kind"]))
+            for b in request.prior_benefits if _dec(b.get("value")) > 0]
         if _dec(request.promotion_total) > 0:
             candidatos.append(Benefit("PROMOTION", "promotion", _dec(request.promotion_total),
                                       "Promoción"))

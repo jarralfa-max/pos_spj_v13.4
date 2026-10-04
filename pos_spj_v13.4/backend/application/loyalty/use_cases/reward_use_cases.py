@@ -35,7 +35,44 @@ from backend.domain.loyalty.exceptions import (
     RewardRedemptionNotFoundError,
 )
 from backend.domain.loyalty.policies.balance_policy import LoyaltyBalancePolicy
+from backend.infrastructure.db.repositories.loyalty.rule_repository import (
+    LoyaltyRewardProductRepository,
+    LoyaltyRuleScopeResolver,
+)
 from backend.infrastructure.db.repositories.loyalty.unit_of_work import LoyaltyUnitOfWork
+
+
+def _resolve_product(connection, reward: Reward, product_code: str | None) -> str | None:
+    if not (product_code or "").strip():
+        return None
+    if reward.reward_type is not RewardType.PRODUCT:
+        raise LoyaltyDomainError("Sólo una recompensa de tipo PRODUCTO entrega un producto")
+    ids, faltan = LoyaltyRuleScopeResolver(connection).resolve("product", [product_code.strip()])
+    if faltan:
+        raise LoyaltyDomainError(f"No existe el producto {product_code}")
+    return ids[0]
+
+
+def _deliver_product(connection, redemption, branch_id: str, actor_user_id: str):
+    """Recompensa de PRODUCTO (decisión del usuario, 2026-10-03): sale del
+    inventario de la sucursal que entrega, a su costo. Idempotente."""
+    productos = LoyaltyRewardProductRepository(connection)
+    vinculo = productos.product_for(redemption.reward_id)
+    if vinculo is None or productos.delivery_for(redemption.id) is not None:
+        return None
+    from backend.infrastructure.integrations.loyalty_reward_inventory_client import (
+        LoyaltyRewardInventoryClient,
+    )
+
+    cantidad = Decimal(str(vinculo["quantity"]))
+    costo, total, operacion = LoyaltyRewardInventoryClient(
+        connection, branch_id=branch_id, actor_user_id=actor_user_id).issue(
+        redemption_id=redemption.id, product_id=vinculo["product_id"], quantity=cantidad)
+    productos.record_delivery(
+        redemption_id=redemption.id, reward_id=redemption.reward_id, branch_id=branch_id,
+        product_id=vinculo["product_id"], quantity=cantidad, unit_cost=costo, cost_amount=total,
+        inventory_operation_id=operacion)
+    return total
 
 
 class CreateRewardUseCase(_LoyaltyBaseUseCase):
@@ -43,7 +80,10 @@ class CreateRewardUseCase(_LoyaltyBaseUseCase):
         self, connection, *, program_id: str, code: str, name: str,
         reward_type: RewardType, points_cost: Decimal, actor_user_id: str,
         operation_id: str, description: str = "", value: Decimal = Decimal("0"),
+        product_code: str | None = None, product_quantity: Decimal | None = None,
     ) -> LoyaltyResult:
+        """`product_code` (2026-10-03): el producto que entrega una recompensa
+        de tipo PRODUCTO; al confirmar el canje sale del inventario."""
         try:
             self._auth.require(actor_user_id, LoyaltyPermissions.REWARD_MANAGE)
         except LoyaltyDomainError as exc:
@@ -56,9 +96,17 @@ class CreateRewardUseCase(_LoyaltyBaseUseCase):
             try:
                 reward = Reward.create(program_id, code, name, reward_type, points_cost,
                                         description=description, value=value)
+                producto = _resolve_product(uow.connection, reward, product_code)
             except LoyaltyDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.rewards.save(reward)
+            if producto:
+                cantidad = Decimal(str(product_quantity or 1))
+                if cantidad <= 0:
+                    return fail_from_domain_error(
+                        LoyaltyDomainError("La cantidad del producto debe ser mayor a cero"),
+                        operation_id=operation_id)
+                LoyaltyRewardProductRepository(uow.connection).link(reward.id, producto, cantidad)
         return LoyaltyResult.ok("Recompensa creada", entity_id=reward.id,
                                 operation_id=operation_id, reward=RewardDTO.from_entity(reward))
 
@@ -146,6 +194,8 @@ class ConfirmRewardRedemptionUseCase(_LoyaltyBaseUseCase):
                 # implementation detail the caller doesn't know about.
                 redemption.confirm()
                 reservation.mark_consumed()
+                entrega = _deliver_product(uow.connection, redemption, actor_branch_id,
+                                           actor_user_id)
             except LoyaltyDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.transactions.save(reservation)

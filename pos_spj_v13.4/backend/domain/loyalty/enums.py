@@ -188,7 +188,7 @@ class FraudCaseStatus(str, Enum):
 class LoyaltyRuleType(str, Enum):
     """§13 — tipos de regla de acumulación. Los marcados en
     `SALE_EVALUATED_RULE_TYPES` los ejecuta el POS al cobrar; los demás los
-    otorga su propio flujo (Referidos, Retos, Cumpleaños)."""
+    otorga su propio flujo (Referidos, Retos)."""
     POINTS_PER_AMOUNT = "POINTS_PER_AMOUNT"
     POINTS_PER_UNIT = "POINTS_PER_UNIT"
     FIXED_BONUS = "FIXED_BONUS"
@@ -213,6 +213,9 @@ SALE_EVALUATED_RULE_TYPES = frozenset({
     LoyaltyRuleType.CHANNEL_MULTIPLIER, LoyaltyRuleType.PAYMENT_METHOD_MULTIPLIER,
     LoyaltyRuleType.FIRST_PURCHASE_BONUS, LoyaltyRuleType.VISIT_FREQUENCY_BONUS,
     LoyaltyRuleType.CAMPAIGN_BONUS,
+    # Desde 2026-10-03 el maestro de clientes guarda el cumpleaños (con
+    # consentimiento): el bono de cumpleaños se evalúa al cobrar.
+    LoyaltyRuleType.BIRTHDAY_BONUS,
 })
 
 

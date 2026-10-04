@@ -314,7 +314,10 @@ class TestVouchersAndCoupons:
             amount=Decimal(amount), actor_user_id=USER, actor_branch_id=BRANCH,
             operation_id=new_uuid())).entity_id
 
-    def test_voucher_issue_and_partial_redemption(self, conn):
+    def test_voucher_paid_in_a_sale_is_settled_by_the_sale_not_twice(self, conn):
+        """El vale se cobra en el POS como forma de pago: el asiento de la VENTA
+        cancela su pasivo (liquidación VOUCHER). El puente sólo reconoce la
+        emisión y no vuelve a asentar el canje."""
         from backend.application.commercial_instruments.use_cases import voucher_use_cases as v
 
         vale = self._voucher(conn, "200")
@@ -328,16 +331,26 @@ class TestVouchersAndCoupons:
             conn, reservation_transaction_id=reserva.entity_id, redeemed_by_user_id=USER,
             actor_branch_id=BRANCH, operation_id=new_uuid()))
         _run(conn)
-        assert _balance(conn, "2132") == Decimal("-120.00")
-        assert _balance(conn, "4101") == Decimal("-80.00")
+        assert _balance(conn, "2132") == Decimal("-200.00")
+        assert _balance(conn, "4101") == Decimal("0")
+        detalle = conn.execute("SELECT detail FROM loyalty_finance_links WHERE source_type="
+                               "'VOUCHER_TRANSACTION' AND status='SKIPPED'").fetchone()[0]
+        assert "venta" in detalle
         _entries_balance(conn)
 
-    def test_prepaid_voucher_is_not_recognized_without_a_collection(self, conn):
-        """Un vale prepagado exigiría un cobro que el sistema no registra: sin
-        perfil queda FAILED a la vista, nunca un cargo a caja inventado."""
-        self._voucher(conn, "100", "PREPAID_VOUCHER")
-        resumen = _run(conn)
-        assert resumen.failed == 1
+    def test_prepaid_voucher_cannot_be_issued_outside_the_pos(self, conn):
+        """Decisión del usuario: el prepagado se vende en caja (donde se cobra);
+        emitirlo desde Fidelidad lo regalaría."""
+        from backend.application.commercial_instruments.use_cases import voucher_use_cases as v
+        from backend.domain.commercial_instruments.enums import VoucherType
+
+        d = _ok(v.CreateVoucherDefinitionUseCase(AUTH).execute(
+            conn, code="PRE", name="Prepagado", voucher_type=VoucherType.PREPAID_VOUCHER,
+            actor_user_id=USER, operation_id=new_uuid())).entity_id
+        r = v.IssueVoucherInstanceUseCase(AUTH).execute(
+            conn, definition_id=d, code="VAL-X", amount=Decimal("100"), actor_user_id=USER,
+            actor_branch_id=BRANCH, operation_id=new_uuid())
+        assert not r.success and "punto de venta" in r.message
         assert _balance(conn, "1102") == Decimal("0")
 
     def test_coupon_in_a_sale_is_reclassified(self, conn):
