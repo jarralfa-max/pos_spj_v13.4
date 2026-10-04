@@ -273,3 +273,38 @@ class TestProductReward:
         LoyaltyRewardProductRepository(conn).link(_Canje.reward_id, new_uuid(), Decimal("1"))
         with pytest.raises(LoyaltyDomainError, match="existencia"):
             _deliver_product(conn, _Canje, new_uuid(), ANA)
+
+
+class TestCleanBirth:
+    """REGLA CERO: la validación de arranque rechaza cualquier columna de llave
+    primaria entera. La 297 creó `loyalty_birthday_grants.year INTEGER` y la
+    aplicación dejó de abrir (2026-10-03); la 298 la reconstruye."""
+
+    def test_new_tables_have_no_integer_primary_key(self, conn):
+        from backend.infrastructure.db.uuid_cutover import find_integer_pks
+
+        nuevas = {"loyalty_birthday_grants", "loyalty_reward_products",
+                  "loyalty_reward_deliveries", "customer_birthdays", "loyalty_rules",
+                  "loyalty_sale_evaluations", "loyalty_rule_applications",
+                  "loyalty_stacking_rules", "loyalty_finance_links",
+                  "loyalty_finance_point_credits", "loyalty_finance_point_allocations"}
+        assert not (set(find_integer_pks(conn)) & nuevas)
+
+    def test_298_rebuilds_the_integer_year_keeping_rows(self):
+        from backend.infrastructure.db.uuid_cutover import find_integer_pks
+
+        c = sqlite3.connect(":memory:")
+        c.executescript("""
+            CREATE TABLE loyalty_birthday_grants (program_id TEXT NOT NULL,
+                customer_id TEXT NOT NULL, year INTEGER NOT NULL, granted_at TEXT NOT NULL,
+                PRIMARY KEY (program_id, customer_id, year));
+            INSERT INTO loyalty_birthday_grants VALUES ('p', 'c', 2026, '2026-06-09');
+            CREATE TABLE gone (id TEXT);
+            CREATE VIEW v_broken AS SELECT * FROM gone;
+            DROP TABLE gone;
+        """)
+        m = importlib.import_module("migrations.standalone.298_birthday_grants_text_year")
+        m.run(c)
+        m.run(c)
+        assert find_integer_pks(c) == {}
+        assert c.execute("SELECT year FROM loyalty_birthday_grants").fetchall() == [("2026",)]

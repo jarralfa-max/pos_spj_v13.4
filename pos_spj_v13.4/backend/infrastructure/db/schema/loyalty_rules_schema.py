@@ -98,7 +98,7 @@ _DDL = (
     CREATE TABLE IF NOT EXISTS loyalty_birthday_grants (
         program_id TEXT NOT NULL,
         customer_id TEXT NOT NULL,
-        year INTEGER NOT NULL,
+        year TEXT NOT NULL,   -- TEXT: ninguna columna de llave primaria es entera (REGLA CERO)
         granted_at TEXT NOT NULL,
         PRIMARY KEY (program_id, customer_id, year)
     )

@@ -4497,3 +4497,12 @@ entrega), `loyalty_birthday_grants` (beneficio de cumpleaños una vez al año) y
 `customer_birthdays` (Clientes; sólo con consentimiento). Detalle en
 `docs/refactor/LOY-29_reauditoria.md` §3g.
 
+### 298 — `loyalty_birthday_grants.year` a TEXT (2026-10-03)
+
+La 297 dejó `year INTEGER` dentro de la llave primaria compuesta; la validación
+de arranque (ninguna columna de llave primaria entera) la rechazó y la
+aplicación no abría ("La DB no nació UUIDv7 limpia"). Se reconstruye con
+`year TEXT` conservando las filas; las migraciones corren antes de la
+validación, así que el siguiente arranque pasa. Prueba de regresión: ninguna
+tabla nueva de Fidelidad/Clientes tiene llave primaria entera.
+

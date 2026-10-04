@@ -296,7 +296,7 @@ class GrantDueBirthdayBenefitsUseCase:
                     continue
                 ya = connection.execute(
                     "SELECT 1 FROM loyalty_birthday_grants WHERE program_id=? AND customer_id=?"
-                    " AND year=?", (program_id, customer_id, hoy.year)).fetchone()
+                    " AND year=?", (program_id, customer_id, str(hoy.year))).fetchone()
                 if ya:
                     continue
                 resultado = GrantBirthdayBenefitUseCase().execute(
@@ -307,7 +307,7 @@ class GrantDueBirthdayBenefitsUseCase:
                     connection.execute(
                         "INSERT OR IGNORE INTO loyalty_birthday_grants (program_id, customer_id,"
                         " year, granted_at) VALUES (?,?,?,?)",
-                        (program_id, customer_id, hoy.year, hoy.isoformat()))
+                        (program_id, customer_id, str(hoy.year), hoy.isoformat()))
                     connection.commit()
                     otorgados += 1
         return LoyaltyResult.ok(f"{otorgados} beneficios de cumpleaños otorgados",
