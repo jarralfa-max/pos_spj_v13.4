@@ -83,6 +83,7 @@ class DeviceHealthQueryService:
             from backend.infrastructure.db.repositories.device_management.print_route_repository import (  # noqa: E501
                 SqlitePrintRouteRepository,
             )
+            from backend.domain.device_management.enums import PrintRouteModule
             from backend.infrastructure.integrations.document_output_print_routing_client import (
                 DocumentOutputPrintRoutingClient,
             )
@@ -90,7 +91,7 @@ class DeviceHealthQueryService:
             DocumentOutputPrintRoutingClient(
                 SqlitePrintRouteRepository(self._connection),
                 SqliteDeviceRepository(self._connection)).resolve(
-                "SALE_TICKET", branch_id=branch_id, module="sales")
+                "SALE_TICKET", branch_id=branch_id, module=PrintRouteModule.SALES.value)
             return True
         except Exception:  # noqa: BLE001 - sin ruta resoluble = el ticket no saldría
             return False

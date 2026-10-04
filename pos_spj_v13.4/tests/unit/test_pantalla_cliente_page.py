@@ -1,5 +1,5 @@
 """SET-18 cutover — `PantallaClientePage` widget smoke tests, against
-the REAL `create_configuracion_view()` factory and real (in-memory)
+the REAL `build_configuracion_view()` factory and real (in-memory)
 SQLite — mirrors the "verified end-to-end through the real factory"
 discipline every prior Configuración CRUD round in this track used.
 """
@@ -26,7 +26,7 @@ from backend.application.use_cases.configuracion.customer_display_advertising_us
 from backend.domain.customer_display.enums import ContentType, CustomerDisplayMode  # noqa: E402
 from backend.shared.ids import new_uuid  # noqa: E402
 from frontend.desktop.modules.configuracion.configuracion_routes import (  # noqa: E402
-    create_configuracion_view,
+    build_configuracion_view,
 )
 from tests.integration._born_clean_db import make_db  # noqa: E402
 
@@ -59,7 +59,7 @@ def _view(app, conn):
         db = conn
         session = _FakeSession(_all_permissions())
 
-    return create_configuracion_view(_FakeContainer())
+    return build_configuracion_view(connection=_FakeContainer.db, session_context=_FakeContainer.session)
 
 
 @pytest.fixture

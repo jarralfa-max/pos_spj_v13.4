@@ -95,6 +95,18 @@ ROLE_COMPATIBLE_DEVICE_TYPES: dict[AssignmentRole, frozenset[DeviceType]] = {
 }
 
 
+class PrintRouteModule(str, Enum):
+    """Módulos que PIDEN una ruta de impresión acotada por módulo.
+
+    `PrintRoute.matches` compara el módulo exacto: una ruta guardada con un
+    módulo que ningún consumidor pide no empareja nunca. Por eso la ruta sólo
+    puede acotarse a un valor de esta lista, que es el mismo que envía quien
+    resuelve (hoy, sólo Ventas).
+    """
+
+    SALES = "sales"
+
+
 class DeviceCapabilityCode(str, Enum):
     """What a device profile can do. The first eight are §23's printer
     capabilities (cut/drawer_pulse/qr/barcode/image/unicode/color/duplex);

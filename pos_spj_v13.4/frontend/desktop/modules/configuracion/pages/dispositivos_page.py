@@ -26,7 +26,20 @@ from frontend.desktop.modules.configuracion.dialogs import (
 )
 from frontend.desktop.themes.tokens import Spacing
 
+from frontend.desktop.modules.configuracion.dialogs.document_type_labels import label_for
+
 from .base_page import ConfiguracionWorkspacePage
+
+
+def _scope_text(route, branch_names) -> str:
+    partes = []
+    if route.branch_id:
+        partes.append(branch_names.get(route.branch_id, "Sucursal inactiva"))
+    if route.module:
+        partes.append(label_for(route.module))
+    if route.channel:
+        partes.append(route.channel)
+    return " · ".join(partes) or "Global"
 
 _ROUTE_COLUMNS = [
     ColumnSpec("Tipo de documento"), ColumnSpec("Principal"), ColumnSpec("Respaldo"),
@@ -116,11 +129,14 @@ class DispositivosPage(ConfiguracionWorkspacePage):
     def _reload_routes(self) -> None:
         routes = self._presenter.list_print_routes()
         self._routes_by_id = {r.entity_id: r for r in routes}
+        # Nombres, no UUIDs: el respaldo y el ámbito se guardan como ids.
+        device_codes = {d.entity_id: d.code for d in self._presenter.list_devices()}
+        branch_names = {b.entity_id: b.name for b in self._presenter.list_branches()}
         rows = [
             [
-                r.document_type, r.primary_device_code,
-                ", ".join(r.fallback_device_ids) if r.fallback_device_ids else "—",
-                r.branch_id or (r.module or (r.channel or "Global")),
+                label_for(r.document_type), r.primary_device_code,
+                ", ".join(device_codes.get(f, "(inactivo)") for f in r.fallback_device_ids) or "—",
+                _scope_text(r, branch_names),
                 "Sí" if r.active else "No",
             ]
             for r in routes

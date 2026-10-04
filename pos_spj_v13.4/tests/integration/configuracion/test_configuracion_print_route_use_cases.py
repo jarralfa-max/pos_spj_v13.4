@@ -15,8 +15,12 @@ from backend.application.use_cases.configuracion.print_route_use_cases import (
 )
 from backend.domain.device_management.entities.device import Device
 from backend.domain.device_management.entities.device_profile import DeviceProfile
-from backend.domain.device_management.enums import ConnectionType, DeviceType
-from backend.domain.device_management.exceptions import PrintRouteConflictError, PrintRouteNotFoundError
+from backend.domain.device_management.enums import ConnectionType, DeviceType, PrintRouteModule
+from backend.domain.device_management.exceptions import (
+    DeviceInvalidValueError,
+    PrintRouteConflictError,
+    PrintRouteNotFoundError,
+)
 from backend.domain.device_management.value_objects.connection_profile import ConnectionProfile
 from backend.infrastructure.db.repositories.device_management.device_profile_repository import (
     SqliteDeviceProfileRepository,
@@ -155,3 +159,40 @@ class TestChangePrintRouteStatusUseCase:
         use_case = ChangePrintRouteStatusUseCase(conn)
         with pytest.raises(PrintRouteNotFoundError):
             use_case.execute(route_id=new_uuid(), action=PrintRouteStatusAction.ACTIVATE)
+
+
+class TestRouteMustBeResolvable:
+    """Re-auditoría 2026-10-04: el diálogo aceptaba texto libre y su tooltip
+    sugería el módulo «ventas»; Ventas pide la ruta con «sales». Una ruta así
+    se guardaba y no emparejaba nunca."""
+
+    @pytest.mark.parametrize("document_type", ["Ticket de venta", "TICKET"])
+    def test_rejects_unknown_document_type(self, conn, branch_id, document_type):
+        primary = _saved_printer(conn, branch_id)
+        with pytest.raises(DeviceInvalidValueError):
+            CreatePrintRouteUseCase(conn).execute(
+                document_type=document_type, primary_device_id=primary.id)
+
+    def test_rejects_a_module_no_consumer_asks_for(self, conn, branch_id):
+        primary = _saved_printer(conn, branch_id)
+        with pytest.raises(DeviceInvalidValueError):
+            CreatePrintRouteUseCase(conn).execute(
+                document_type="SALE_TICKET", primary_device_id=primary.id, module="ventas")
+
+    def test_rejects_a_channel(self, conn, branch_id):
+        primary = _saved_printer(conn, branch_id)
+        with pytest.raises(DeviceInvalidValueError):
+            CreatePrintRouteUseCase(conn).execute(
+                document_type="SALE_TICKET", primary_device_id=primary.id, channel="mostrador")
+
+    def test_a_sales_scoped_route_is_the_one_the_pos_resolves(self, conn, branch_id):
+        from backend.infrastructure.hardware.sales_ticket_printer import SalesTicketPrinter
+
+        primary = _saved_printer(conn, branch_id)
+        CreatePrintRouteUseCase(conn).execute(
+            document_type="SALE_TICKET", primary_device_id=primary.id,
+            branch_id=branch_id, module=PrintRouteModule.SALES.value)
+
+        device, _profile = SalesTicketPrinter(conn, branch_id=branch_id)._resolve_device()
+
+        assert device.id == primary.id

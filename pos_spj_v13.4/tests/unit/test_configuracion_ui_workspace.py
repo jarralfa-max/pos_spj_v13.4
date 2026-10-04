@@ -641,15 +641,26 @@ class TestPrintRouteDialogs:
         branches = (BranchOptionViewModel("b1", "Principal"),)
         dlg = PrintRouteCreateDialog(device_options=devices, branch_options=branches)
         assert dlg.objectName() == "standardDialog"
-        dlg.document_type.setText("sale_ticket")
+        assert dlg.document_type.set_current_id("SALE_TICKET")
         dlg.primary_device.set_current_id("d1")
         dlg.fallback_codes.setText("PRN-02")
         dlg.branch.set_current_id("b1")
+        assert dlg.module.set_current_id("sales")
         values = dlg.values()
-        assert values["document_type"] == "sale_ticket"
+        assert values["document_type"] == "SALE_TICKET"
         assert values["primary_device_id"] == "d1"
         assert values["fallback_device_ids"] == ("d2",)
         assert values["branch_id"] == "b1"
+        assert values["module"] == "sales"
+        assert values["channel"] is None
+
+    def test_create_dialog_offers_only_codes_a_consumer_resolves(self, app):
+        """Texto libre dejaba guardar «ventas» o «Ticket de venta», que nunca
+        emparejan; ahora sólo se eligen códigos canónicos."""
+        dlg = PrintRouteCreateDialog(device_options=())
+        assert dlg.module.set_current_id("ventas") is False
+        assert dlg.document_type.set_current_id("Ticket de venta") is False
+        assert not hasattr(dlg, "channel")
 
     def test_create_dialog_ignores_unknown_fallback_codes(self, app):
         devices = (DeviceOptionViewModel("d1", "PRN-01", "Impresora 1", "THERMAL_PRINTER"),)

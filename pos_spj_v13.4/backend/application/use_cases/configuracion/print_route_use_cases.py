@@ -16,7 +16,13 @@ from __future__ import annotations
 from enum import Enum
 
 from backend.domain.device_management.entities.print_route import PrintRoute
-from backend.domain.device_management.exceptions import PrintRouteConflictError, PrintRouteNotFoundError
+from backend.domain.device_management.enums import PrintRouteModule
+from backend.domain.device_management.exceptions import (
+    DeviceInvalidValueError,
+    PrintRouteConflictError,
+    PrintRouteNotFoundError,
+)
+from backend.domain.document_output.enums import DocumentType
 from backend.infrastructure.db.repositories.device_management.print_route_repository import (
     SqlitePrintRouteRepository,
 )
@@ -34,6 +40,27 @@ def _same_scope(route: PrintRoute, *, branch_id, workstation_id, module, channel
     )
 
 
+_DOCUMENT_TYPES = frozenset(t.value for t in DocumentType)
+_ROUTE_MODULES = frozenset(m.value for m in PrintRouteModule)
+
+
+def _ensure_resolvable(document_type: str, module: str | None, channel: str | None) -> None:
+    """Rechaza una ruta que ningún consumidor podría emparejar nunca.
+
+    `PrintRoute.matches` compara códigos exactos; un tipo de documento, módulo
+    o canal que nadie pide deja la ruta guardada y muerta, y el POS sigue
+    diciendo "no hay impresora configurada" sin que nada explique por qué.
+    """
+    if document_type not in _DOCUMENT_TYPES:
+        raise DeviceInvalidValueError(f"Tipo de documento desconocido: {document_type!r}")
+    if module is not None and module not in _ROUTE_MODULES:
+        raise DeviceInvalidValueError(
+            f"Ningún módulo pide rutas de impresión como {module!r}; deja el módulo vacío.")
+    if channel is not None:
+        raise DeviceInvalidValueError(
+            "Ningún consumidor resuelve rutas por canal; una ruta con canal no se usaría nunca.")
+
+
 class CreatePrintRouteUseCase:
     def __init__(self, connection) -> None:
         self._conn = connection
@@ -49,6 +76,7 @@ class CreatePrintRouteUseCase:
         workstation_id = workstation_id or None
         module = module or None
         channel = channel or None
+        _ensure_resolvable(normalized_type, module, channel)
         # The schema's unique index covers every row regardless of `active`
         # (§62) — an inactive route still occupies its exact scope, so the
         # conflict check must too, not just list_candidates()' active-only view.

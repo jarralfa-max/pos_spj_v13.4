@@ -16,6 +16,7 @@ separate, bigger, deferred project) and "Auditoría" (read-only, últimas
 """
 from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QWidget
 
+from backend.application.configuracion.permissions import ConfiguracionPermissions
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
     create_secondary_button, create_state_widget, create_warning_button,
@@ -172,6 +173,7 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
 
     def _build_roles_card(self) -> None:
         self.roles_card = SectionCard(self, title="Roles")
+        self._can_view_roles = self._presenter.can(ConfiguracionPermissions.ROLES_VIEW)
         self.roles_table = StandardTable(_ROLE_COLUMNS, self.roles_card)
         self.roles_table.setAccessibleName("Roles del sistema")
         self.roles_card.add(self.roles_table)
@@ -187,6 +189,9 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
         self._reload_roles()
 
     def _reload_roles(self) -> None:
+        if not self._can_view_roles:
+            self._show_card_denied(self.roles_card, self.roles_table, "roles_empty")
+            return
         roles = self._presenter.list_roles()
         self._roles_by_id = {r.id: r for r in roles}
         rows = [[r.name, r.description, str(r.user_count)] for r in roles]
@@ -239,6 +244,7 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
 
     def _build_audit_card(self) -> None:
         self.audit_card = SectionCard(self, title="Auditoría")
+        self._can_view_audit = self._presenter.can(ConfiguracionPermissions.AUDITORIA_VIEW)
         self.audit_table = StandardTable(_AUDIT_COLUMNS, self.audit_card)
         self.audit_table.setAccessibleName("Últimas acciones registradas en el sistema")
         self.audit_card.add(self.audit_table)
@@ -247,6 +253,9 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
         self._reload_audit()
 
     def _reload_audit(self) -> None:
+        if not self._can_view_audit:
+            self._show_card_denied(self.audit_card, self.audit_table, "audit_empty")
+            return
         rows_data = self._presenter.audit_log_rows()
         rows = [[r.fecha, r.usuario, r.modulo, r.accion, r.detalle] for r in rows_data]
         self.audit_table.load_rows(rows, row_ids=[str(i) for i in range(len(rows))])
@@ -258,6 +267,14 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
                 ViewState.EMPTY, self.audit_card, message="No hay acciones registradas todavía.")
             self.audit_card.add(self.audit_empty)
         self.audit_table.setVisible(bool(rows))
+
+    def _show_card_denied(self, card, table, slot: str) -> None:
+        """Sin el permiso de la tarjeta se dice así, no "no hay registros"."""
+        if getattr(self, slot) is None:
+            widget = create_state_widget(ViewState.NO_PERMISSION, card)
+            card.add(widget)
+            setattr(self, slot, widget)
+        table.setVisible(False)
 
 
 __all__ = ["UsuariosRolesPage"]

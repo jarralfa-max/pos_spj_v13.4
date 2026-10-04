@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from frontend.desktop.components import FormDialog, SearchableComboBox, StandardLineEdit, apply_tooltip
 
+from .document_type_labels import DOCUMENT_TYPE_LABELS, PRINT_ROUTE_MODULE_LABELS
+
 
 class _FallbackCodesField:
     """Shared by create/edit dialogs: turns a comma-separated device-code
@@ -38,12 +40,22 @@ class _FallbackCodesField:
 
 
 class PrintRouteCreateDialog(FormDialog, _FallbackCodesField):
+    """Tipo de documento y módulo se ELIGEN, no se escriben.
+
+    `PrintRoute.matches` compara códigos exactos. Con texto libre, una ruta
+    guardada como «Ticket de venta» o con módulo «ventas» (lo que sugería el
+    tooltip anterior) nunca empareja: el POS sigue diciendo «no hay impresora
+    configurada» aunque el administrador la haya configurado. No hay campo de
+    canal porque ningún consumidor resuelve rutas por canal; una ruta acotada
+    a un canal tampoco emparejaría nunca.
+    """
+
     def __init__(self, parent=None, *, device_options=(), branch_options=()) -> None:
         super().__init__(parent, title="Nueva ruta de impresión")
-        self.document_type = StandardLineEdit(self)
+        self.document_type = SearchableComboBox(self, placeholder="Selecciona el documento…")
+        self.document_type.set_options(list(DOCUMENT_TYPE_LABELS))
         self.document_type.setAccessibleName("Tipo de documento")
-        apply_tooltip(self.document_type, "Ej. «SALE_TICKET», «PURCHASE_ORDER».")
-        self.form.addRow("Tipo de documento:", self.document_type)
+        self.form.addRow("Documento:", self.document_type)
 
         self.primary_device = SearchableComboBox(self, placeholder="Selecciona un dispositivo…")
         self.primary_device.set_options([(o.entity_id, f"{o.name} ({o.code})") for o in device_options])
@@ -57,26 +69,22 @@ class PrintRouteCreateDialog(FormDialog, _FallbackCodesField):
         self.branch.setAccessibleName("Sucursal (ámbito)")
         self.form.addRow("Sucursal (opcional):", self.branch)
 
-        self.module = StandardLineEdit(self)
+        self.module = SearchableComboBox(self, placeholder="Todos los módulos…")
+        self.module.set_options(list(PRINT_ROUTE_MODULE_LABELS))
         self.module.setAccessibleName("Módulo")
-        apply_tooltip(self.module, "Opcional. Ej. «ventas», «compras».")
+        apply_tooltip(self.module, "Opcional. Déjalo vacío para que la ruta sirva a cualquier módulo.")
         self.form.addRow("Módulo (opcional):", self.module)
-
-        self.channel = StandardLineEdit(self)
-        self.channel.setAccessibleName("Canal")
-        apply_tooltip(self.channel, "Opcional. Ej. «mostrador», «whatsapp».")
-        self.form.addRow("Canal (opcional):", self.channel)
 
         self.add_button_box(ok_text="Crear ruta")
 
     def values(self) -> dict:
         return {
-            "document_type": self.document_type.text().strip(),
+            "document_type": self.document_type.current_id() or "",
             "primary_device_id": self.primary_device.current_id(),
             "fallback_device_ids": self._fallback_device_ids(),
             "branch_id": self.branch.current_id(),
-            "module": self.module.text().strip() or None,
-            "channel": self.channel.text().strip() or None,
+            "module": self.module.current_id() or None,
+            "channel": None,
         }
 
 

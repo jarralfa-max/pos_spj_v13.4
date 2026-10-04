@@ -98,6 +98,7 @@ class SalesTicketPrinter:
             NoAvailablePrinterError,
             PrintRouteNotFoundError,
         )
+        from backend.domain.device_management.enums import PrintRouteModule
         from backend.domain.document_output.enums import DocumentType
         from backend.infrastructure.db.repositories.device_management.device_profile_repository import (  # noqa: E501
             SqliteDeviceProfileRepository,
@@ -117,7 +118,7 @@ class SalesTicketPrinter:
             resolution = DocumentOutputPrintRoutingClient(
                 SqlitePrintRouteRepository(self._conn), devices).resolve(
                 DocumentType.SALE_TICKET.value, branch_id=self._branch_id,
-                workstation_id=self._workstation_id, module="sales")
+                workstation_id=self._workstation_id, module=PrintRouteModule.SALES.value)
         except (PrintRouteNotFoundError, NoAvailablePrinterError, sqlite3.OperationalError) as exc:
             raise TicketPrintError(NO_PRINTER_MESSAGE) from exc
         device = devices.get(resolution.printer_device_id)

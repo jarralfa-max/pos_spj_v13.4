@@ -5,6 +5,30 @@ documentarse aquí antes del commit.
 
 ---
 
+## 300/301/302 — Re-auditoría de Configuración (SET-26) — 2026-10-04
+
+Hallazgos medidos sobre una copia de la base real; detalle en
+`docs/refactor/SET-26_reauditoria.md`.
+
+**300_logistics_qr_secret_to_secret_store.** `logistics.qr_signing_secret`
+vivía en texto plano en `configuraciones` (§46). Ahora lo crea y lee el almacén
+de secretos (`qr_signing_secret(secret_store)`). Sin etiquetas impresas la fila
+se borra (el secreto se regenera en el almacén); con etiquetas, el valor se
+copia al almacén antes de borrar y, si el almacén falla, la migración falla en
+vez de invalidar etiquetas en silencio. Base real: 0 etiquetas.
+
+**301_drop_dead_configuration_keys.** Retira 12 claves de `configuraciones`
+sin ningún lector (`sync_*` ×5, `wa_escalacion_*` ×4, `wa_msg_*` ×2,
+`app_version`), sembradas por 047/048/054 para subsistemas borrados. Las
+siguen sembrando en una base nueva; la 301 corre después.
+
+**302_seed_gerente_configuracion_permissions.** Al cerrar el hueco de
+visibilidad del menú interno de Configuración, `gerente` quedaba viendo sólo
+«General». Decisión del usuario: lectura de todas las secciones + gestión de
+dispositivos, asignaciones y rutas de impresión. Solo `INSERT OR IGNORE`.
+
+---
+
 ## 252_meat_processing_resources_schema — 2026-09-03
 
 **Motivo:** PROC-19 (Recursos y capacidad) — cinco tablas nuevas sobre todo

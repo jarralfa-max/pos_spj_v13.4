@@ -15,23 +15,9 @@ from frontend.desktop.components import (
     apply_tooltip,
 )
 
-_DOCUMENT_TYPES = (
-    ("SALE_TICKET", "Ticket de venta"), ("QUOTE", "Cotización"),
-    ("DELIVERY_TICKET", "Ticket de delivery"), ("PICKING_TICKET", "Ticket de picking"),
-    ("ORDER_TICKET", "Ticket de pedido"), ("CASH_OPENING", "Apertura de caja"),
-    ("CASH_WITHDRAWAL", "Retiro de caja"), ("X_REPORT", "Corte X"), ("Z_REPORT", "Corte Z"),
-    ("PURCHASE_ORDER", "Orden de compra"), ("GOODS_RECEIPT", "Recepción de mercancía"),
-    ("TRANSFER_REQUEST", "Solicitud de transferencia"),
-    ("TRANSFER_DISPATCH", "Despacho de transferencia"),
-    ("TRANSFER_RECEIPT", "Recepción de transferencia"), ("PRODUCTION_ORDER", "Orden de producción"),
-    ("YIELD_REPORT", "Reporte de rendimiento"), ("LOSS_REPORT", "Reporte de merma"),
-    ("DISPOSITION_CERTIFICATE", "Certificado de disposición"),
-    ("CUSTOMER_STATEMENT", "Estado de cuenta"), ("LOYALTY_CARD", "Tarjeta de fidelidad"),
-    ("SWEEPSTAKES_TICKET", "Boleto de sorteo"), ("LOT_LABEL", "Etiqueta de lote"),
-    ("WEIGHT_LABEL", "Etiqueta de peso"), ("TRANSFER_LABEL", "Etiqueta de transferencia"),
-    ("COUNT_LABEL", "Etiqueta de conteo"), ("ADJUSTMENT_LABEL", "Etiqueta de ajuste"),
-    ("PRODUCT_LABEL", "Etiqueta de producto"),
-)
+from .document_type_labels import DOCUMENT_TYPE_LABELS
+
+_DOCUMENT_TYPES = DOCUMENT_TYPE_LABELS
 
 _RENDER_FORMATS = (
     ("ESC_POS", "ESC/POS (térmica)"), ("HTML", "HTML"), ("PDF", "PDF"), ("ZPL", "ZPL (etiquetas)"),

@@ -303,6 +303,9 @@ MIGRATIONS = [
     _Migration("297",  "migrations.standalone.297_loyalty_rewards_birthdays"),
     _Migration("298",  "migrations.standalone.298_birthday_grants_text_year"),
     _Migration("299",  "migrations.standalone.299_price_list_status_integrity"),
+    _Migration("300",  "migrations.standalone.300_logistics_qr_secret_to_secret_store"),
+    _Migration("301",  "migrations.standalone.301_drop_dead_configuration_keys"),
+    _Migration("302",  "migrations.standalone.302_seed_gerente_configuracion_permissions"),
 ]
 
 def _ensure_tracking_table(conn):

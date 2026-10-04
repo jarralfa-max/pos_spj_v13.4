@@ -1,5 +1,5 @@
 """`EmpresaPage` installation-branch pin widget smoke test, against the
-REAL `create_configuracion_view()` factory and real (in-memory) SQLite —
+REAL `build_configuracion_view()` factory and real (in-memory) SQLite —
 first real caller of `SetInstallationBranchUseCase` (`backend/application/
 use_cases/set_installation_branch_use_case.py`). Migrates the terminal-pin
 write path (`configuraciones.sucursal_instalacion_id`) off legacy
@@ -26,9 +26,11 @@ QApplication = QtWidgets.QApplication
 from backend.application.configuracion.permissions import ConfiguracionPermissions  # noqa: E402
 from backend.shared.ids import new_uuid  # noqa: E402
 from frontend.desktop.modules.configuracion.configuracion_routes import (  # noqa: E402
-    create_configuracion_view,
+    build_configuracion_view,
 )
-from repositories.config_repository import ConfigRepository  # noqa: E402
+from backend.infrastructure.db.repositories.settings.installation_branch_repository import (  # noqa: E402
+    SqliteInstallationBranchRepository,
+)
 from tests.integration._born_clean_db import make_db  # noqa: E402
 
 
@@ -60,7 +62,7 @@ def _view(app, conn):
         db = conn
         session = _FakeSession(_all_permissions())
 
-    return create_configuracion_view(_FakeContainer())
+    return build_configuracion_view(connection=_FakeContainer.db, session_context=_FakeContainer.session)
 
 
 @pytest.fixture
@@ -117,7 +119,7 @@ class TestEmpresaPageInstallationBranch:
         page._reload_installation_summary()
         assert "Esta instalación:" in page.installation_summary_label.text()
 
-        anchored = ConfigRepository(conn).get_installation_branch()
+        anchored = SqliteInstallationBranchRepository(conn).get()
         assert anchored is not None and anchored[0] == branch_id
 
     def test_set_installation_branch_rejects_unknown_branch(self, app, conn):

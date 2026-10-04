@@ -3,6 +3,8 @@ Mirrors `frontend/desktop/modules/transfers/transfers_routes.py`.
 """
 from __future__ import annotations
 
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+
 from .navigation.configuracion_sidebar import CONFIGURACION_NAV
 
 CONFIGURACION_ROUTE_IDS = frozenset(entry.page_id for entry in CONFIGURACION_NAV)
@@ -16,15 +18,15 @@ def build_page(page_id: str, presenter):
     return PAGE_CLASSES[page_id](presenter)
 
 
-def create_configuracion_view(container, parent=None):
-    """Factory used by the legacy `MainWindow`/`menu_lateral` navigation
-    (via `modulos/configuracion_workspace.py`) — mirrors
-    `frontend/desktop/modules/finance/finance_routes.py::create_finance_view`.
-    Extracts only what the module needs from `AppContainer`, never the
-    whole container. Uses `getattr(container, "session", None)` — NOT
-    `"session_context"`, an attribute that doesn't exist on
-    `AppContainer` (`core/app_container.py` sets `self.session`); finance/
-    hr's own wrappers still have that exact bug.
+def build_configuracion_view(*, connection, session_context, parent=None):
+    """La ÚNICA composición de Configuración: la usan la shell viva
+    (`ConfiguracionModuleActivator`) y las pruebas.
+
+    Hasta 2026-10-04 había dos composiciones con las mismas 84 dependencias.
+    Sólo la de las pruebas pasaba `has_permission` a la vista, así que la
+    shell viva mostraba las once secciones a cualquiera que abriera el
+    módulo (un usuario `solo_lectura` veía usuarios y auditoría) mientras
+    todas las pruebas pasaban. Una sola función cierra esa deriva.
     """
     from backend.application.queries.configuracion.workspace_query_service import (
         ConfiguracionWorkspaceQueryService,
@@ -164,8 +166,7 @@ def create_configuracion_view(container, parent=None):
     from frontend.desktop.modules.configuracion.configuracion_presenter import ConfiguracionPresenter
     from frontend.desktop.modules.configuracion.configuracion_view import ConfiguracionView
 
-    connection = getattr(container, "db", None)
-    session = getattr(container, "session", None)
+    session = session_context
     secret_store = build_default_secret_store()
     query_service = ConfiguracionWorkspaceQueryService(connection, secret_store)
     authorization = ConfiguracionAuthorizationPolicy(SessionPermissionChecker(session))
@@ -281,7 +282,11 @@ def create_configuracion_view(container, parent=None):
         return authorization.has_permission(
             getattr(session, "user_id", "") or "", permission)
 
-    pending_flag_requests = len(presenter.list_pending_feature_flag_change_requests())
+    # La insignia de Feature Flags sólo se calcula para quien puede ver esa
+    # sección: el conteo también es información de la sección.
+    pending_flag_requests = (
+        len(presenter.list_pending_feature_flag_change_requests())
+        if has_permission(ConfiguracionPermissions.FEATURE_FLAGS_VIEW) else 0)
     badges = {"pending_flag_requests": pending_flag_requests} if pending_flag_requests else {}
 
     return ConfiguracionView(presenter, has_permission=has_permission, badges=badges, parent=parent)

@@ -4,13 +4,13 @@ El servicio canónico de Logística se armaba en `core/events/wiring.py`
 (`_wire_logistics_pipeline`), que se borró con el shell legado. Desde entonces
 NADA lo construía en producción: la composición de Compras sólo creaba «Compra en
 origen» si recibía un servicio de Logística, y nunca lo recibía. Aquí se arma,
-con autorización real sobre la sesión y el secreto de firma de QR persistido.
+con autorización real sobre la sesión y el secreto de firma de QR guardado
+en el almacén de secretos.
 """
 
 from __future__ import annotations
 
 import secrets
-import sqlite3
 
 QR_SECRET_KEY = "logistics.qr_signing_secret"
 
@@ -31,31 +31,28 @@ class SessionLogisticsPermissionChecker:
         return bool(callable(check) and check(permission_code))
 
 
-def qr_signing_secret(connection) -> bytes:
-    """Secreto HMAC de los QR permanentes. Se genera una sola vez por instalación
-    y se guarda en `configuraciones`: cambiarlo invalidaría todas las etiquetas
-    ya impresas."""
-    try:
-        row = connection.execute("SELECT valor FROM configuraciones WHERE clave=?",
-                                 (QR_SECRET_KEY,)).fetchone()
-    except sqlite3.OperationalError:
-        row = None
-    if row and row[0] and len(str(row[0])) >= 64:
-        return bytes.fromhex(str(row[0]))
+def qr_signing_secret(secret_store) -> bytes:
+    """Secreto HMAC de los QR permanentes, en el almacén de secretos (§46).
+
+    Se genera una sola vez por instalación: cambiarlo invalidaría todas las
+    etiquetas ya impresas. Antes vivía en texto plano en `configuraciones` y,
+    si la lectura fallaba, se generaba OTRO en silencio — exactamente el
+    cambio que invalida las etiquetas. Ahora un almacén que no responde es un
+    error visible, no un secreto nuevo.
+    """
+    value = secret_store.get_secret(QR_SECRET_KEY)
+    if value and len(value) >= 64:
+        return bytes.fromhex(value)
     value = secrets.token_hex(32)
-    try:
-        connection.execute(
-            "INSERT INTO configuraciones (clave, valor, tipo, grupo, descripcion)"
-            " VALUES (?, ?, 'texto', 'logistica', 'Secreto de firma de QR de contenedores')"
-            " ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (QR_SECRET_KEY, value))
-        connection.commit()
-    except sqlite3.OperationalError:
-        pass
+    secret_store.set_secret(QR_SECRET_KEY, value)
     return bytes.fromhex(value)
 
 
-def build_logistics_services(connection, session_context):
+def build_logistics_services(connection, session_context, *, secret_store=None):
     """``(servicio de aplicación, consultas)`` de Logística listos para usar."""
+    if secret_store is None:
+        from backend.security.secrets.default_secret_store import build_default_secret_store
+        secret_store = build_default_secret_store()
     from backend.application.logistics.authorization import LogisticsAuthorizationPolicy
     from backend.application.logistics.queries import LogisticsShipmentQueryService
     from backend.application.logistics.service import LogisticsApplicationService
@@ -65,6 +62,6 @@ def build_logistics_services(connection, session_context):
     service = LogisticsApplicationService(
         connection,
         LogisticsAuthorizationPolicy(SessionLogisticsPermissionChecker(session_context)),
-        PermanentContainerQrService(qr_signing_secret(connection)))
+        PermanentContainerQrService(qr_signing_secret(secret_store)))
     queries = LogisticsShipmentQueryService(connection, LogisticsRepository(connection))
     return service, queries

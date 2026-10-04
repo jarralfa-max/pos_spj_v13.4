@@ -10,6 +10,7 @@ import json
 import logging
 
 from backend.application.configuracion.permissions import ConfiguracionPermissions
+from frontend.desktop.modules.configuracion.navigation.configuracion_sidebar import CONFIGURACION_NAV
 from backend.application.use_cases.configuracion.device_management_use_cases import DeviceStatusAction
 from backend.application.use_cases.configuracion.document_template_use_cases import (
     DocumentTemplateStatusAction,
@@ -73,6 +74,10 @@ except ImportError:
     _bcrypt = None
 
 logger = logging.getLogger("spj.configuracion.presenter")
+
+# Permiso de lectura de cada sección: el mismo que decide si aparece en el
+# menú interno, para que menú y revalidación no puedan divergir.
+_PAGE_VIEW_PERMISSIONS = {entry.page_id: entry.permission for entry in CONFIGURACION_NAV}
 
 # SET-1: permission code required for each mutating command whose gate
 # doesn't depend on the requested action (device/template status changes
@@ -311,16 +316,31 @@ class ConfiguracionPresenter:
             logger.exception("ConfiguracionPresenter._record_audit failed (entity=%s/%s)",
                               entity_type, entity_id)
 
+    def can(self, permission_code: str) -> bool:
+        """Sondeo sin excepción, para decidir qué tarjeta pintar."""
+        return self._authorize(permission_code) is None
+
+    def _require_read(self, permission_code: str) -> None:
+        """Las lecturas también se revalidan (§57): ocultar la sección en el
+        menú no impide que otro camino pida sus datos."""
+        denied = self._authorize(permission_code)
+        if denied:
+            raise ConfigurationPermissionDeniedError(denied)
+
     def load_page(self, page_id: str, search: str = ""):
+        self._require_read(_PAGE_VIEW_PERMISSIONS[page_id])
         return self._query_service.page(page_id=page_id, search=search)
 
     def list_pending_feature_flag_change_requests(self):
+        self._require_read(ConfiguracionPermissions.FEATURE_FLAGS_VIEW)
         return self._query_service.list_pending_feature_flag_change_requests()
 
     def list_feature_flags(self):
+        self._require_read(ConfiguracionPermissions.FEATURE_FLAGS_VIEW)
         return self._query_service.list_feature_flags()
 
     def list_feature_flag_rules(self, flag_id: str):
+        self._require_read(ConfiguracionPermissions.FEATURE_FLAGS_VIEW)
         return self._query_service.list_feature_flag_rules(flag_id)
 
     def list_design_tokens_for_theme(self, theme_id: str):
@@ -333,30 +353,39 @@ class ConfiguracionPresenter:
         return self._query_service.list_appearance_preferences()
 
     def list_cache_expiration_policies(self):
+        self._require_read(ConfiguracionPermissions.OFFLINE_VIEW)
         return self._query_service.list_cache_expiration_policies()
 
     def list_offline_cache_entries(self):
+        self._require_read(ConfiguracionPermissions.OFFLINE_VIEW)
         return self._query_service.list_offline_cache_entries()
 
     def list_users(self):
+        self._require_read(ConfiguracionPermissions.USUARIOS_VIEW)
         return self._query_service.list_users()
 
     def get_user_form_data(self, user_id: str):
+        self._require_read(ConfiguracionPermissions.USUARIOS_VIEW)
         return self._query_service.get_user_form_data(user_id)
 
     def list_roles(self):
+        self._require_read(ConfiguracionPermissions.ROLES_VIEW)
         return self._query_service.list_roles()
 
     def list_role_names(self):
+        self._require_read(ConfiguracionPermissions.USUARIOS_VIEW)
         return self._query_service.list_role_names()
 
     def list_branches_for_user_selector(self):
+        self._require_read(ConfiguracionPermissions.USUARIOS_VIEW)
         return self._query_service.list_branches_for_user_selector()
 
     def list_employees_for_user_selector(self):
+        self._require_read(ConfiguracionPermissions.USUARIOS_VIEW)
         return self._query_service.list_employees_for_user_selector()
 
     def audit_log_rows(self, limit: int = 200):
+        self._require_read(ConfiguracionPermissions.AUDITORIA_VIEW)
         return self._query_service.audit_log_rows(limit)
 
     def list_themes(self):
@@ -437,30 +466,39 @@ class ConfiguracionPresenter:
         return self._query_service.get_impression_summary(placement_id)
 
     def list_integration_definitions(self):
+        self._require_read(ConfiguracionPermissions.INTEGRACIONES_VIEW)
         return self._query_service.list_integration_definitions()
 
     def list_integration_instances(self, definition_id: str):
+        self._require_read(ConfiguracionPermissions.INTEGRACIONES_VIEW)
         return self._query_service.list_integration_instances(definition_id)
 
     def list_webhook_endpoints(self, instance_id: str):
+        self._require_read(ConfiguracionPermissions.INTEGRACIONES_VIEW)
         return self._query_service.list_webhook_endpoints(instance_id)
 
     def list_integration_health_checks(self, instance_id: str):
+        self._require_read(ConfiguracionPermissions.INTEGRACIONES_VIEW)
         return self._query_service.list_integration_health_checks(instance_id)
 
     def get_integration_health_status(self, instance_id: str) -> str:
+        self._require_read(ConfiguracionPermissions.INTEGRACIONES_VIEW)
         return self._query_service.get_integration_health_status(instance_id)
 
     def get_credential_status(self, credential_reference: str | None) -> str:
+        self._require_read(ConfiguracionPermissions.INTEGRACIONES_VIEW)
         return self._query_service.get_credential_status(credential_reference)
 
     def list_notification_accounts(self):
+        self._require_read(ConfiguracionPermissions.NOTIFICACIONES_VIEW)
         return self._query_service.list_notification_accounts()
 
     def list_notification_templates(self):
+        self._require_read(ConfiguracionPermissions.NOTIFICACIONES_VIEW)
         return self._query_service.list_notification_templates()
 
     def list_notification_routes(self):
+        self._require_read(ConfiguracionPermissions.NOTIFICACIONES_VIEW)
         return self._query_service.list_notification_routes()
 
     # session -----------------------------------------------------------------
