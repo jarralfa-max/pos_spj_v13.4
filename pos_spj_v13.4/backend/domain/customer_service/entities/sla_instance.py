@@ -93,6 +93,22 @@ class SLAInstance:
         self.escalation_level += 1
         return self.escalation_level
 
+    def first_response_status(self, *, as_of: str | None = None) -> SLABreachStatus:
+        """CRM-43 (§31, §86 «SLA respuesta»): el estado del plazo de PRIMERA
+        respuesta, independiente del de resolución."""
+        if self.first_response_at is not None or self.resolved_at is not None:
+            return SLABreachStatus.COMPLETED
+        if self.paused:
+            return SLABreachStatus.PAUSED
+        now = as_of or _utcnow()
+        if now > self.first_response_due_at:
+            return SLABreachStatus.BREACHED
+        total = (_parse(self.first_response_due_at) - _parse(self.created_at)).total_seconds()
+        elapsed = (_parse(now) - _parse(self.created_at)).total_seconds()
+        if total > 0 and (elapsed / total * 100) >= self.at_risk_threshold_pct:
+            return SLABreachStatus.AT_RISK
+        return SLABreachStatus.ON_TIME
+
     def effective_breach_status(self, *, as_of: str | None = None) -> SLABreachStatus:
         if self.resolved_at is not None:
             return SLABreachStatus.COMPLETED

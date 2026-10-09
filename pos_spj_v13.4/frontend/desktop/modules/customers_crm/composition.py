@@ -1,127 +1,22 @@
-"""Composition root for the Clientes y CRM desktop module.
+"""Punto de entrada de la vista de Clientes y CRM.
 
-This is the ONLY place that wires a real, live ``connection``/
-``session_context`` into query services, use cases and the presenter. Takes
-only plain arguments — never the app's whole dependency bundle, whatever it
-may be called elsewhere in this codebase — enforced by a CRM-1 guardrail
-that scans every file under this package for that broader-bundle shape.
-The outer unwrapping step (pulling a raw db handle off that bundle) lives
-OUTSIDE this package, in ``modulos/clientes_crm.py`` — mirrors
-``frontend/desktop/modules/finance/finance_routes.py``'s split, except
-finance has no such guardrail and keeps both layers in one file; this
-package can't.
+CRM-43: la raíz de composición (casos de uso, lectores, políticas de la
+sesión) vive en ``backend/infrastructure/desktop/customers_crm_factory.py``,
+como la de Caja. Esta capa de UI sólo recibe valores explícitos
+(``connection``, ``session_context``) — nunca el contenedor completo de la
+aplicación (guarda CRM-1) — y arma el workspace.
 """
 
 from __future__ import annotations
 
-from backend.application.crm.authorization import CRMAuthorizationPolicy
-from backend.application.crm.data_scope import CRMDataScopeResolver
-from backend.application.crm.queries.customer_dashboard_query_service import (
-    CustomerDashboardQueryService,
-)
-from backend.application.crm.queries.lead_directory_query_service import (
-    LeadDirectoryQueryService,
-)
-from backend.application.crm.queries.opportunity_directory_query_service import (
-    OpportunityDirectoryQueryService,
-)
-from backend.application.customer_service.queries.service_case_query_service import (
-    ServiceCaseQueryService,
-)
-from backend.application.customers.authorization import CustomerAuthorizationPolicy
-from backend.application.customers.data_scope import CustomerDataScopeResolver
-from backend.application.customers.queries.customer_360_query_service import (
-    Customer360QueryService,
-)
-from backend.application.customers.queries.customer_profile_query_service import (
-    CustomerProfileQueryService,
-)
-from backend.application.customers.session_authorization import (
-    CustomerSessionPermissionChecker,
-)
-from backend.application.customers.use_cases.address_use_cases import (
-    AddCustomerAddressUseCase,
-)
-from backend.application.customers.use_cases.lifecycle_use_cases import (
-    CreateCustomerUseCase,
-    UpdateCustomerUseCase,
-)
-from frontend.desktop.modules.customers_crm.customers_crm_presenter import (
-    CustomerCrmPresenter,
+from backend.infrastructure.desktop.customers_crm_factory import (
+    build_customers_crm_presenter,
 )
 
-
-def build_customers_crm_presenter(connection, session_context=None) -> CustomerCrmPresenter:
-    checker = CustomerSessionPermissionChecker(session_context)
-    customer_auth = CustomerAuthorizationPolicy(checker)
-    crm_auth = CRMAuthorizationPolicy(checker)
-    customer_scope_resolver = CustomerDataScopeResolver(checker)
-    crm_scope_resolver = CRMDataScopeResolver(checker)
-
-    query_services = {
-        "dashboard": CustomerDashboardQueryService(connection, crm_scope_resolver, crm_auth),
-        "customers_directory": CustomerProfileQueryService(connection, customer_scope_resolver),
-        "leads_directory": LeadDirectoryQueryService(connection, crm_scope_resolver, crm_auth),
-        "opportunities_directory": OpportunityDirectoryQueryService(
-            connection, crm_scope_resolver),
-        "cases_directory": ServiceCaseQueryService(connection, crm_scope_resolver, crm_auth),
-        "customer_360": Customer360QueryService(
-            connection, customer_scope_resolver, crm_scope_resolver, customer_auth, crm_auth),
-    }
-
-    def _create_customer_handler(**kwargs):
-        run = CreateCustomerUseCase(customer_auth).execute
-        return run(connection, **kwargs)
-
-    def _update_customer_handler(**kwargs):
-        run = UpdateCustomerUseCase(customer_auth).execute
-        return run(connection, **kwargs)
-
-    def _add_address_handler(**kwargs):
-        # `AddCustomerAddressUseCase` existía completo —permisos, auditoría,
-        # evento en outbox— y no tenía NINGÚN llamador: no había pantalla por
-        # donde capturar la dirección de un cliente.
-        run = AddCustomerAddressUseCase(customer_auth).execute
-        return run(connection, **kwargs)
-
-    def _set_birthday_handler(**kwargs):
-        from backend.application.customers.use_cases.birthday_use_cases import (
-            SetCustomerBirthdayUseCase,
-        )
-        return SetCustomerBirthdayUseCase(customer_auth).execute(connection, **kwargs)
-
-    def _birthday_query(customer_id: str):
-        from backend.application.customers.use_cases.birthday_use_cases import (
-            customer_birthday,
-        )
-        return customer_birthday(connection, customer_id)
-
-    query_services["customer_birthday"] = _birthday_query
-
-    command_handlers = {
-        "create_customer": _create_customer_handler,
-        "set_customer_birthday": _set_birthday_handler,
-        "update_customer": _update_customer_handler,
-        "add_address": _add_address_handler,
-    }
-
-    def _address_search_factory():
-        from backend.infrastructure.maps.address_search_factory import (
-            build_address_search_service,
-        )
-        return build_address_search_service(connection)
-
-    return CustomerCrmPresenter(
-        session_context=session_context,
-        query_services=query_services,
-        command_handlers=command_handlers,
-        address_search_factory=_address_search_factory,
-    )
+__all__ = ["build_customers_crm_presenter", "create_customers_crm_view"]
 
 
 def create_customers_crm_view(connection, session_context=None, parent=None):
-    """Factory used by ``modulos/clientes_crm.py``. Never receives the
-    container itself — only what it needs, already unwrapped."""
     from frontend.desktop.modules.customers_crm.customers_crm_workspace import (
         CustomersCrmWorkspace,
     )

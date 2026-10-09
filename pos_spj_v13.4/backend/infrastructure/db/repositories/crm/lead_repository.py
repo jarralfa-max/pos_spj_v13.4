@@ -11,6 +11,7 @@ from backend.domain.crm.entities.lead import Lead
 from backend.domain.crm.enums import LeadPriority, LeadSource, LeadStatus
 from backend.domain.crm.value_objects.lead_code import LeadCode
 from backend.infrastructure.db.repositories.crm.base import CRMRepositoryBase
+from backend.infrastructure.db.repositories.crm.scope_sql import scope_where
 
 _LEAD_COLS = (
     "id, lead_number, display_name, company_name, contact_name, phone_e164,"
@@ -86,6 +87,20 @@ class LeadRepository(CRMRepositoryBase):
             f"SELECT {_LEAD_COLS} FROM leads"
             " WHERE status NOT IN ('CONVERTED','ARCHIVED','LOST')"
             " ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
+        return [self._hydrate(r) for r in rows]
+
+    def list_in_scope(self, scope, *, open_only: bool = False, limit: int = 200,
+                      offset: int = 0) -> list[Lead]:
+        """CRM-43: el directorio según el alcance resuelto (OWN/TEAM/BRANCH/
+        COMPANY) — ver ``scope_sql.scope_where``."""
+        where, params = scope_where(scope, responsible_col="assigned_user_id",
+                                    creator_col="created_by_user_id",
+                                    branch_col="origin_branch_id")
+        if open_only:
+            where += " AND status NOT IN ('CONVERTED','ARCHIVED','LOST')"
+        rows = self._query(
+            f"SELECT {_LEAD_COLS} FROM leads WHERE {where}"
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?", (*params, limit, offset))
         return [self._hydrate(r) for r in rows]
 
     # helpers -----------------------------------------------------------------

@@ -46,26 +46,36 @@ def _customer_360_view():
         customer_type=SimpleNamespace(value="BUSINESS"),
         status=SimpleNamespace(value="ACTIVE"),
         lifecycle_stage=SimpleNamespace(value="CUSTOMER"),
-        account_owner_user_id="u-vendedor")
+        account_owner_user_id="u-vendedor", source="mostrador",
+        created_at="2026-10-01T15:00:00+00:00", purchase_count=4,
+        last_purchase_at="2026-10-05T18:30:00+00:00")
     profile = SimpleNamespace(
         customer=customer, contacts=[], addresses=[],
         tax_profile=SimpleNamespace(tax_identifier="XAXX010101000"))
     return SimpleNamespace(
         profile=profile, credit_summary=SimpleNamespace(
             status="AUTHORIZED", credit_limit="10000.00", available_credit="8000.00",
-            current_exposure="2000.00", overdue_amount="0.00", receivable_status="AL_CORRIENTE"),
+            current_exposure="2000.00", overdue_amount="0.00", receivable_status="AL_CORRIENTE",
+            risk_level="LOW", payment_terms_days=15, next_due_date=None),
         active_consents=[], ownership_by_type={}, current_portfolio=None,
         active_segments=[SimpleNamespace()], active_tags=[],
         open_opportunities=[], open_cases=[], recent_activities=[], pending_tasks=[],
         open_duplicate_candidates=[], open_quality_issues=[], recent_history=[],
-        orders_summary=SimpleNamespace(total_orders=3, open_orders=1),
-        delivery_summary=SimpleNamespace(total_deliveries=2, open_deliveries=0),
-        whatsapp_summary=SimpleNamespace(has_active_whatsapp_consent=True),
-        loyalty_summary=SimpleNamespace(enrolled=True, current_points=150, tier="Plata"))
+        orders_summary=SimpleNamespace(total_orders=3, open_orders=1, last_order_at=None),
+        delivery_summary=SimpleNamespace(total_deliveries=2, open_deliveries=0,
+                                         last_delivery_status=None),
+        whatsapp_summary=SimpleNamespace(has_active_whatsapp_consent=True,
+                                         last_conversation_at=None, open_conversations_count=0),
+        loyalty_summary=SimpleNamespace(enrolled=True, current_points=150, tier="Plata",
+                                        program="Club SPJ"))
 
 
-class _FakePresenter:
+from tests.unit._crm_fake_presenter import CrmFakePresenter
+
+
+class _FakePresenter(CrmFakePresenter):
     def __init__(self, view=None, *, raises: bool = False) -> None:
+        super().__init__()
         self._view = view
         self._raises = raises
         self.calls: list[str] = []
@@ -118,7 +128,7 @@ class TestCustomerCrmPresenterCustomer360:
         view = _customer_360_view()
 
         class _FakeService:
-            def get_360(self, customer_id, *, actor_user_id, team_member_ids):
+            def get_360(self, customer_id, *, actor_user_id, team_member_ids, branch_id=None):
                 assert customer_id == "c1"
                 assert actor_user_id == "u1"
                 return view
@@ -143,8 +153,10 @@ class TestCustomerProfilePage:
     def test_show_customer_populates_credito_tab(self, app):
         page = CustomerProfilePage(_FakePresenter(_customer_360_view()))
         page.show_customer("c1")
-        assert page._credito_labels["status"].text() == "AUTHORIZED"
-        assert page._credito_labels["receivable_status"].text() == "AL_CORRIENTE"
+        # CRM-43: etiquetas en español, nunca el código crudo del dominio.
+        assert page._credito_labels["status"].text() == "Autorizado"
+        assert page._credito_labels["receivable_status"].text() == "Al corriente"
+        assert page._credito_labels["limit"].text() == "$10,000.00"
 
     def test_show_customer_populates_comercial_and_integraciones(self, app):
         page = CustomerProfilePage(_FakePresenter(_customer_360_view()))
@@ -190,18 +202,12 @@ class TestDirectoryToProfileNavigation:
     def test_double_click_opens_expediente_for_that_customer(self, app):
         capabilities = CustomerCrmCapabilities(module_view=True, clientes=True)
 
-        class _FakePresenterWithDirectory:
-            def capabilities(self):
-                return capabilities
-
-            def customers_directory(self, *, search="", status=None):
-                return []
-
+        class _FakePresenterWithDirectory(CrmFakePresenter):
             def customer_360(self, customer_id):
-                view = _customer_360_view()
-                return view
+                return _customer_360_view()
 
-        workspace = CustomersCrmWorkspace(_FakePresenterWithDirectory())
+        workspace = CustomersCrmWorkspace(_FakePresenterWithDirectory(
+            capabilities, readers={"customer_rows": lambda **_kw: []}))
         workspace.select_route("customers.directory")
         directory_page = workspace._stack.currentWidget().findChild(QtWidgets.QScrollArea).widget()
         directory_page.entity_selected.emit("cust-42")

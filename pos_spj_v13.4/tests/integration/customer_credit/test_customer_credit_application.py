@@ -318,6 +318,46 @@ class TestCheckCreditSaleEligibility:
             operation_id=new_uuid(), is_public_customer=True)
         assert not result.success and result.error_code == "NOT_ELIGIBLE"
 
+    def test_public_customer_type_in_master_is_never_eligible(self, cc_conn):
+        """CRM-43: el POS nunca mandaba ``is_public_customer``; el tipo se lee
+        del maestro."""
+        from backend.application.customers.use_cases.lifecycle_use_cases import (
+            CreateCustomerUseCase,
+        )
+        from backend.application.customers.authorization import CustomerAuthorizationPolicy
+        from backend.application.customers.permissions import ALL_CUSTOMER_PERMISSIONS
+
+        class _All:
+            def has_permission(self, _u, code):
+                return code in ALL_CUSTOMER_PERMISSIONS
+
+        created = CreateCustomerUseCase(CustomerAuthorizationPolicy(_All())).execute(
+            cc_conn, actor_user_id="u1", display_name="Mostrador", operation_id=new_uuid(),
+            customer_type="PUBLIC_CUSTOMER")
+        _authorized(cc_conn, customer_id=created.entity_id)
+        result = CheckCreditSaleEligibilityUseCase(_allow()).execute(
+            cc_conn, actor_user_id="u1", customer_id=created.entity_id, amount="10",
+            operation_id=new_uuid())
+        assert not result.success
+        assert ("Para vender a crédito debe seleccionar un cliente con crédito autorizado."
+                in result.data["violations"])
+
+    def test_cashier_permission_is_eligibility_check_not_credit_view(self, cc_conn):
+        """CRM-43: exigía ``CLIENTES.credito.ver`` y ningún cajero lo tiene."""
+        from backend.application.customers.authorization import CustomerAuthorizationPolicy
+        from backend.application.customers.permissions import CustomerPermissions
+
+        class _Cashier:
+            def has_permission(self, _u, code):
+                return code == CustomerPermissions.COMMERCIAL_ELIGIBILITY_CHECK
+
+        _authorized(cc_conn, limit="10000")
+        result = CheckCreditSaleEligibilityUseCase(
+            CustomerAuthorizationPolicy(_Cashier())).execute(
+            cc_conn, actor_user_id="u1", customer_id="cust-1", amount="2000",
+            operation_id=new_uuid())
+        assert result.success
+
     def test_no_profile_at_all_not_eligible(self, cc_conn):
         result = CheckCreditSaleEligibilityUseCase(_allow()).execute(
             cc_conn, actor_user_id="u1", customer_id="cust-nonexistent", amount="500",

@@ -12,6 +12,7 @@ from backend.domain.customer_service.enums import (
     ServiceCaseType,
 )
 from backend.domain.customer_service.value_objects.service_case_code import ServiceCaseCode
+from backend.infrastructure.db.repositories.crm.scope_sql import scope_where
 from backend.infrastructure.db.repositories.customer_service.base import (
     CustomerServiceRepositoryBase,
 )
@@ -92,6 +93,20 @@ class ServiceCaseRepository(CustomerServiceRepositoryBase):
         rows = self._query(
             f"SELECT {_CASE_COLS} FROM service_cases WHERE customer_id=?"
             " ORDER BY created_at DESC LIMIT ? OFFSET ?", (customer_id, limit, offset))
+        return [self._hydrate(r) for r in rows]
+
+    def list_in_scope(self, scope, *, open_only: bool = False, limit: int = 200,
+                      offset: int = 0) -> list[CustomerServiceCase]:
+        """CRM-43: el directorio según el alcance resuelto (OWN/TEAM/BRANCH/
+        COMPANY) — ver ``scope_sql.scope_where``."""
+        where, params = scope_where(scope, responsible_col="assigned_user_id",
+                                    creator_col="created_by_user_id",
+                                    branch_col="origin_branch_id")
+        if open_only:
+            where += " AND status NOT IN ('CLOSED','CANCELLED')"
+        rows = self._query(
+            f"SELECT {_CASE_COLS} FROM service_cases WHERE {where}"
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?", (*params, limit, offset))
         return [self._hydrate(r) for r in rows]
 
     # helpers -----------------------------------------------------------------

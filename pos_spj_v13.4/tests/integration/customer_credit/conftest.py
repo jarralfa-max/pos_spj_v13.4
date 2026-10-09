@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS cuentas_por_cobrar (
 def cc_conn():
     conn = sqlite3.connect(":memory:")
     conn.execute("PRAGMA foreign_keys = ON")
+    # CRM-43: la elegibilidad lee tipo y estatus del cliente en el maestro.
+    from backend.infrastructure.db.schema.customers_crm_schema import (
+        create_customers_crm_schema,
+    )
+    create_customers_crm_schema(conn)
     _run_188(conn)
     conn.execute(_CXC_DDL)
     conn.commit()

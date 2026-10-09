@@ -35,8 +35,16 @@ def _allow_crm():
     return CRMAuthorizationPolicy(_AllowAllChecker())
 
 
+class _OwnTeamScopeChecker:
+    """Concede todo menos los ejes BRANCH/COMPANY (CRM-43): estas pruebas
+    fijan el filtrado por responsable, no la vista de toda la sucursal."""
+
+    def has_permission(self, user_id: str, permission_code: str) -> bool:
+        return not permission_code.endswith((".ver.sucursal", ".ver.compania"))
+
+
 def _scope_resolver():
-    return CRMDataScopeResolver(_AllowAllChecker())
+    return CRMDataScopeResolver(_OwnTeamScopeChecker())
 
 
 def _service(conn) -> CustomerDashboardQueryService:

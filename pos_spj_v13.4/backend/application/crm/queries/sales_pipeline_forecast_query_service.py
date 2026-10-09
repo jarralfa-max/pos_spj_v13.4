@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
+from backend.domain.crm.enums import OpportunityStatus
 from backend.application.crm.data_scope import CRMDataScopeResolver, CRMScopeContext
 from backend.application.crm.permissions import OPPORTUNITY_VIEW_SCOPE_PERMISSIONS
 from backend.domain.crm.entities.opportunity import Opportunity
@@ -51,10 +52,12 @@ class SalesPipelineForecastQueryService:
         stagnant_after_days: int = 14,
     ) -> SalesPipelineForecast:
         scope = self._scope_resolver.resolve_view_scope(context, OPPORTUNITY_VIEW_SCOPE_PERMISSIONS)
-        owner_ids = (scope.owner_user_id,) if scope.axis == "OWN" else scope.team_member_ids
         today = as_of or _today_utc()
 
-        open_opportunities = self._uow.opportunities.list_open_owned_by(owner_ids)
+        # Sólo OPEN (ON_HOLD queda fuera del pronóstico, como siempre).
+        open_opportunities = [
+            o for o in self._uow.opportunities.list_in_scope(scope, open_only=True, limit=5000)
+            if o.status is OpportunityStatus.OPEN]
 
         total = Decimal("0")
         weighted = Decimal("0")

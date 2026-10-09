@@ -48,6 +48,11 @@ class ServiceLevelPolicyRepository(CustomerServiceRepositoryBase):
             f"SELECT {_POLICY_COLS} FROM service_level_policies WHERE active=1")
         return [self._hydrate(r) for r in rows]
 
+    def list_all(self) -> list[ServiceLevelPolicy]:
+        rows = self._query(
+            f"SELECT {_POLICY_COLS} FROM service_level_policies ORDER BY active DESC, code")
+        return [self._hydrate(r) for r in rows]
+
     # helpers -----------------------------------------------------------------
     @staticmethod
     def _params(policy: ServiceLevelPolicy) -> tuple:

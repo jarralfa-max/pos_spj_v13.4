@@ -63,6 +63,12 @@ class CustomerCreditProfileRepository(CustomerCreditRepositoryBase):
             " ORDER BY updated_at DESC LIMIT ? OFFSET ?", (status, limit, offset))
         return [self._hydrate(r) for r in rows]
 
+    def list_all(self, *, limit: int = 1000) -> list[CustomerCreditProfile]:
+        rows = self._query(
+            f"SELECT {_PROFILE_COLS} FROM customer_credit_profiles"
+            " ORDER BY updated_at DESC LIMIT ?", (limit,))
+        return [self._hydrate(r) for r in rows]
+
     # helpers -----------------------------------------------------------------
     @staticmethod
     def _params(profile: CustomerCreditProfile, operation_id: str | None) -> tuple:

@@ -7,6 +7,7 @@ axes, see backend/application/crm/data_scope.py.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, datetime, timezone
 
 from backend.application.crm.data_scope import CRMDataScope, CRMDataScopeResolver, CRMScopeContext
 from backend.application.crm.permissions import OPPORTUNITY_VIEW_SCOPE_PERMISSIONS
@@ -22,6 +23,16 @@ class OpportunityProfile:
     opportunity: Opportunity
     stage_history: list[OpportunityStageHistory] = field(default_factory=list)
     product_interests: list[OpportunityProductInterest] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class OpportunityRow:
+    """§85: una fila de la tabla de oportunidades con lo que la pantalla no
+    debe calcular — próxima actividad y días sin movimiento."""
+
+    opportunity: Opportunity
+    next_activity_at: str | None
+    days_idle: int
 
 
 class OpportunityDirectoryQueryService:
@@ -46,8 +57,7 @@ class OpportunityDirectoryQueryService:
     def list_directory(self, context: CRMScopeContext, *, limit: int = 200,
                         offset: int = 0) -> list[Opportunity]:
         scope = self._scope_resolver.resolve_view_scope(context, OPPORTUNITY_VIEW_SCOPE_PERMISSIONS)
-        owner_ids = (scope.owner_user_id,) if scope.axis == "OWN" else scope.team_member_ids
-        return self._uow.opportunities.list_owned_by(owner_ids, limit=limit, offset=offset)
+        return self._uow.opportunities.list_in_scope(scope, limit=limit, offset=offset)
 
     def list_for_customer(self, customer_id: str, context: CRMScopeContext, *,
                           limit: int = 200) -> list[Opportunity]:
@@ -66,8 +76,7 @@ class OpportunityDirectoryQueryService:
         """Groups the caller's in-scope opportunities by ``stage_id`` — the
         read side of ``crm.pipeline``'s Kanban view (§19-22)."""
         scope = self._scope_resolver.resolve_view_scope(context, OPPORTUNITY_VIEW_SCOPE_PERMISSIONS)
-        owner_ids = (scope.owner_user_id,) if scope.axis == "OWN" else scope.team_member_ids
-        opportunities = self._uow.opportunities.list_owned_by(owner_ids, limit=2000)
+        opportunities = self._uow.opportunities.list_in_scope(scope, limit=2000)
         by_stage: dict[str, list[Opportunity]] = {}
         for opportunity in opportunities:
             bucket = by_stage.setdefault(opportunity.stage_id, [])
@@ -75,8 +84,25 @@ class OpportunityDirectoryQueryService:
                 bucket.append(opportunity)
         return by_stage
 
+    def list_rows(self, context: CRMScopeContext, *, limit: int = 500,
+                  as_of: date | None = None) -> list[OpportunityRow]:
+        """CRM-43: directorio + pipeline con próxima actividad y días sin
+        movimiento (``updated_at``), para la tabla y el Kanban."""
+        opportunities = self.list_directory(context, limit=limit)
+        upcoming = self._uow.activities.next_planned_for(
+            "OPPORTUNITY", tuple(o.id for o in opportunities))
+        today = as_of or datetime.now(timezone.utc).date()
+        rows = []
+        for o in opportunities:
+            try:
+                idle = (today - date.fromisoformat(o.updated_at[:10])).days
+            except ValueError:
+                idle = 0
+            rows.append(OpportunityRow(o, upcoming.get(o.id), max(idle, 0)))
+        return rows
+
     @staticmethod
     def _in_scope(opportunity: Opportunity, scope: CRMDataScope) -> bool:
-        if scope.axis == "OWN":
-            return opportunity.owner_user_id == scope.owner_user_id
-        return opportunity.owner_user_id in scope.team_member_ids
+        return scope.includes(responsible_user_id=opportunity.owner_user_id,
+                              created_by_user_id=opportunity.created_by_user_id,
+                              branch_id=opportunity.origin_branch_id)

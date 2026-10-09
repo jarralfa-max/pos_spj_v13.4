@@ -39,6 +39,12 @@ class CRMNoteRepository(CRMRepositoryBase):
             (related_entity_type, related_entity_id))
         return [self._hydrate(r) for r in rows]
 
+    def list_by_author(self, author_user_id: str, *, limit: int = 300) -> list[CRMNote]:
+        rows = self._query(
+            f"SELECT {_NOTE_COLS} FROM crm_notes WHERE author_user_id=?"
+            " ORDER BY created_at DESC LIMIT ?", (author_user_id, limit))
+        return [self._hydrate(r) for r in rows]
+
     @staticmethod
     def _hydrate(row: dict) -> CRMNote:
         return CRMNote(

@@ -206,3 +206,11 @@ class Opportunity:
 
     def is_open(self) -> bool:
         return self.status is OpportunityStatus.OPEN
+
+    @property
+    def weighted_value(self) -> Decimal:
+        """§19 ``weighted_value``: monto × probabilidad / 100 (0 sin monto)."""
+        if self.amount is None:
+            return Decimal("0")
+        return (self.amount * Decimal(int(self.probability)) / Decimal(100)).quantize(
+            Decimal("0.01"))

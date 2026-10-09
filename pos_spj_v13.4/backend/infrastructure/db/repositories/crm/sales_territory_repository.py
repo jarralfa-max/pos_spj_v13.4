@@ -50,3 +50,14 @@ class SalesTerritoryRepository(CRMRepositoryBase):
             description=row["description"] or "", active=bool(row["active"]),
             created_at=row["created_at"], updated_at=row["updated_at"],
         )
+
+    def customer_counts(self) -> dict[str, int]:
+        """CRM-43: clientes por territorio (``customers.territory_id``)."""
+        return {r["territory_id"]: int(r["n"]) for r in self._query(
+            "SELECT territory_id, COUNT(*) AS n FROM customers"
+            " WHERE territory_id IS NOT NULL GROUP BY territory_id")}
+
+    def customers_in(self, territory_id: str) -> list[dict]:
+        return self._query(
+            "SELECT id, updated_at FROM customers WHERE territory_id=? ORDER BY display_name",
+            (territory_id,))

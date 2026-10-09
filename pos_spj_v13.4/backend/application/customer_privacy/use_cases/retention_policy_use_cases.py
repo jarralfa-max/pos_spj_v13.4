@@ -48,3 +48,30 @@ class CreateDataRetentionPolicyUseCase:
             uow.retention_policies.save(policy)
         return CustomerPrivacyResult.ok("Política de retención creada", entity_id=policy.id,
                                         operation_id=operation_id, code=policy.code)
+
+
+class DeactivateDataRetentionPolicyUseCase:
+    """CRM-43: retirar una política (el plazo se «edita» retirándola y
+    creando otra; nunca se hardcodea, §44)."""
+
+    def __init__(self, authorization: CustomerAuthorizationPolicy | None = None) -> None:
+        self._auth = authorization or CustomerAuthorizationPolicy()
+
+    def execute(self, connection, *, actor_user_id: str, policy_id: str,
+                operation_id: str) -> CustomerPrivacyResult:
+        try:
+            self._auth.require(actor_user_id, CustomerPermissions.SETTINGS_MANAGE)
+        except CustomerDomainError as exc:
+            return CustomerPrivacyResult.fail(str(exc), "PERMISSION_DENIED",
+                                              operation_id=operation_id)
+        with CustomerPrivacyUnitOfWork(connection) as uow:
+            policy = uow.retention_policies.get(policy_id)
+            if policy is None or not policy.active:
+                return CustomerPrivacyResult.fail("La política no existe o ya está retirada.",
+                                                  "NOT_FOUND", operation_id=operation_id)
+            from datetime import datetime, timezone
+            policy.active = False
+            policy.updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            uow.retention_policies.update(policy)
+        return CustomerPrivacyResult.ok("Política de retención retirada", entity_id=policy_id,
+                                        operation_id=operation_id)

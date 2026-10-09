@@ -1,32 +1,22 @@
-"""CRM-17 — Expediente del cliente (route ``customers.profile``), §27-29.
+"""Expediente del cliente (route ``customers.profile``), §26-29.
 
-``Customer360QueryService`` (CRM-12, extended by CRM-13) already aggregates
-everything every tab below needs — this page is pure composition/rendering,
-never a second source of truth: no tab recomputes a total, a status, or a
-masked amount the backend didn't already hand it (§90 "la UI no calcula").
+``Customer360QueryService`` arma la vista consolidada; esta página sólo la
+presenta y ofrece las acciones de cada pestaña — nunca recalcula un total,
+un estado ni un importe enmascarado (§90 «la UI no calcula»).
 
-§27-29 names `PageHeader`, `CustomerSummaryHeader`, `ContextBar`, internal
-tabs (each with a `route_id`), `ActionBar`, `PageState`. Like every other
-CRM-14/15/16 UI phase, most of those names don't exist as real classes —
-`PageHeader` does; the rest are composed from `StatusBadge` (the "summary
-header"/"context bar" facts) and `PillTabBar` (see ``_pill_tab_bar.py`` for
-why not the forbidden raw tab widget).
+CRM-43 (re-auditoría sobre la base real): las pestañas eran tablas de sólo
+lectura con estados crudos (``NOT_CONFIGURED``, ``PUBLIC_CUSTOMER``). Ahora:
 
-Tabs (§27-29's own list, in order): Resumen, Identidad, Contactos,
-Direcciones, Actividad, Oportunidades, Comercial, Crédito, Atención,
-Consentimientos, Integraciones, Auditoría. "Comercial" renders
-`orders_summary`/`delivery_summary` (Pedidos/Delivery); "Integraciones"
-renders `whatsapp_summary`/`loyalty_summary` (WhatsApp/Fidelidad) — a
-deliberate split along §49-55's own module boundaries, not an arbitrary one.
-"Auditoría" is `recent_history` — the cross-context timeline
-`CustomerHistoryQueryService` (CRM-12) builds, i.e. this phase's "timeline"
-sub-topic.
+* Identidad / Contactos / Direcciones usan las secciones editables
+  (``customer_sections.py``) con datos sensibles enmascarados por permiso;
+* Actividad es el panel de seguimiento (actividades, tareas, notas);
+* Oportunidades, Crédito y Atención permiten dar de alta en contexto;
+* el encabezado ofrece «Estado…» (activar, suspender, bloquear, dar de baja,
+  cerrar) con motivo obligatorio — el ciclo de vida existía sin pantalla.
 
-This page stayed fully read-only until the module gained a real edit path
-(``pages/edit_customer_page.py``, route ``customers.edit``) — an "Editar"
-header action now emits ``edit_requested(customer_id)``, handled by the
-workspace the same way ``customers.create``'s success already hands off to
-this same page (``customers_crm_workspace.py::_open_customer_profile``).
+Tabs (§27): Resumen, Identidad, Contactos, Direcciones, Actividad,
+Oportunidades, Comercial, Crédito, Atención, Consentimientos, Integraciones,
+Auditoría — cada una con su clave estable.
 """
 
 from __future__ import annotations
@@ -41,6 +31,8 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from backend.application.crm.permissions import CRMPermissions
+from backend.application.customers.permissions import CustomerPermissions
 from frontend.desktop.components import (
     ColumnSpec,
     PageHeader,
@@ -53,26 +45,26 @@ from frontend.desktop.components import (
     create_state_widget,
 )
 from frontend.desktop.components.icons import Icons
-from frontend.desktop.formatters.money_formatter import format_money
+from frontend.desktop.modules.customers_crm.formatting import fmt_date, fmt_datetime, fmt_money
+from frontend.desktop.modules.customers_crm.forms import FieldSpec, ask
+from frontend.desktop.modules.customers_crm.labels import (
+    event_label,
+    label,
+    module_label,
+    variant,
+    yes_no,
+)
 from frontend.desktop.modules.customers_crm.pages._pill_tab_bar import PillTabBar
+from frontend.desktop.modules.customers_crm.pages._work_items import WorkItemsPanel
+from frontend.desktop.modules.customers_crm.pages.customer_sections import (
+    AccountsSection,
+    AddressesSection,
+    ContactsSection,
+    TaxProfileSection,
+)
 from frontend.desktop.navigation.navigation_intent import NavigationIntent
 from frontend.desktop.themes.tokens import Spacing
 
-_STATUS_LABELS = {
-    "DRAFT": "Borrador", "PROSPECT": "Prospecto", "ACTIVE": "Activo",
-    "INACTIVE": "Inactivo", "SUSPENDED": "Suspendido", "BLOCKED": "Bloqueado",
-    "CLOSED": "Cerrado", "MERGED": "Fusionado", "ANONYMIZED": "Anonimizado",
-}
-_STATUS_VARIANTS = {
-    "ACTIVE": "success", "PROSPECT": "info", "INACTIVE": "neutral",
-    "SUSPENDED": "warning", "BLOCKED": "danger", "CLOSED": "neutral",
-    "MERGED": "neutral", "ANONYMIZED": "neutral",
-}
-_LIFECYCLE_LABELS = {
-    "PROSPECT": "Prospecto", "LEAD": "Lead", "QUALIFIED": "Calificado",
-    "CUSTOMER": "Cliente", "REPEAT_CUSTOMER": "Cliente recurrente",
-    "AT_RISK": "En riesgo", "INACTIVE": "Inactivo", "LOST": "Perdido",
-}
 _TABS = (
     ("resumen", "Resumen"), ("identidad", "Identidad"), ("contactos", "Contactos"),
     ("direcciones", "Direcciones"), ("actividad", "Actividad"),
@@ -82,21 +74,33 @@ _TABS = (
     ("auditoria", "Auditoría"),
 )
 
+#: comando → (etiqueta, permiso, estados desde los que aplica, ¿motivo obligatorio?)
+_LIFECYCLE = (
+    ("activate_customer", "Activar", CustomerPermissions.ACTIVATE,
+     ("DRAFT", "PROSPECT", "INACTIVE", "SUSPENDED", "BLOCKED"), False),
+    ("suspend_customer", "Suspender", CustomerPermissions.SUSPEND, ("ACTIVE",), True),
+    ("block_customer", "Bloquear", CustomerPermissions.BLOCK, ("ACTIVE", "SUSPENDED"), True),
+    ("deactivate_customer", "Dar de baja (reversible)", CustomerPermissions.DEACTIVATE,
+     ("ACTIVE", "SUSPENDED", "PROSPECT"), True),
+    ("close_customer", "Cerrar", CustomerPermissions.CLOSE,
+     ("ACTIVE", "INACTIVE", "SUSPENDED", "BLOCKED"), True),
+)
+
 
 class CustomerProfilePage(QWidget):
     edit_requested = pyqtSignal(str)
-    #: CRM-32: cross-module jump, e.g. to Ventas with this customer
-    #: preselected. Payload is a `NavigationIntent` (plain dataclass, not a
-    #: registered Qt type — carried as `object` since PyQt doesn't need a
-    #: declared custom type for signals that only ever connect to Python
-    #: slots in this same process).
+    #: CRM-32: salto a otro módulo (p. ej. Ventas con el cliente preseleccionado).
     navigation_requested = pyqtSignal(object)
+    opportunity_opened = pyqtSignal(str)
+    case_opened = pyqtSignal(str)
 
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("customerProfilePage")
         self._presenter = presenter
         self._customer_id: str | None = None
+        self._status_value: str | None = None
+        self._view = None
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -110,9 +114,16 @@ class CustomerProfilePage(QWidget):
         new_sale_btn.clicked.connect(self._request_new_sale)
         cxc_btn = create_secondary_button(self, "Ver CxC")
         cxc_btn.clicked.connect(self._request_receivables)
+        actions = [new_sale_btn, cxc_btn, edit_btn]
+        if any(presenter.can(perm) for _c, _l, perm, _s, _r in _LIFECYCLE):
+            self._lifecycle_btn = create_secondary_button(self, "Estado…")
+            self._lifecycle_btn.setToolTip("Activar, suspender, bloquear, dar de baja o cerrar.")
+            self._lifecycle_btn.clicked.connect(self._change_status)
+            actions.append(self._lifecycle_btn)
+        actions.append(refresh)
         self._header = PageHeader(
             self, title="Expediente del cliente", icon=Icons.CUSTOMERS,
-            compact=True, actions=[new_sale_btn, cxc_btn, edit_btn, refresh])
+            compact=True, actions=actions)
         root.addWidget(self._header)
 
         self._summary_row = QHBoxLayout()
@@ -140,8 +151,8 @@ class CustomerProfilePage(QWidget):
         self._tab_index: dict[str, int] = {}
         self._tab_widgets: dict[str, QWidget] = {}
         self._tables: dict[str, StandardTable] = {}
-        for key, label in _TABS:
-            self._tab_bar.add_tab(key, label)
+        for key, text in _TABS:
+            self._tab_bar.add_tab(key, text)
             widget = self._build_tab(key)
             self._tab_widgets[key] = widget
             self._tab_index[key] = self._stack.count()
@@ -156,37 +167,40 @@ class CustomerProfilePage(QWidget):
             self._tab_index[key] += 1
         self._stack.setCurrentWidget(self._placeholder)
 
-    # -- navigation -------------------------------------------------------
+    # -- navegación ------------------------------------------------------------
     def _on_tab_changed(self, key: str) -> None:
         if self._customer_id is not None and key in self._tab_index:
             self._stack.setCurrentIndex(self._tab_index[key])
 
     def ensure_loaded(self) -> None:
-        pass  # nothing to show until a customer is selected — see show_customer()
+        pass  # nada que mostrar hasta elegir cliente — ver show_customer()
 
-    def show_customer(self, customer_id: str) -> None:
+    def show_customer(self, customer_id: str, tab: str = "resumen") -> None:
         self._customer_id = customer_id
-        self._tab_bar.activate("resumen")
-        self._stack.setCurrentIndex(self._tab_index["resumen"])
+        self._tab_bar.activate(tab)
+        self._stack.setCurrentIndex(self._tab_index.get(tab, self._tab_index["resumen"]))
+        for section in self._sections():
+            section.set_customer(customer_id)
+        self._work.set_entity("CUSTOMER", customer_id)
         self._reload_current()
+
+    def _sections(self):
+        return (self._tax_section, self._accounts_section, self._contacts_section,
+                self._addresses_section, self._consents_section, self._preferences_section,
+                *(section for _key, section in self._commercial_sections))
 
     def _request_edit(self) -> None:
         if self._customer_id is not None:
             self.edit_requested.emit(self._customer_id)
 
     def _request_new_sale(self) -> None:
-        """CRM-32: jump to Ventas with this customer preselected — the
-        first concrete `NavigationIntent` target. See
-        `ModuloVentas.aplicar_contexto` for how the receiving screen
-        resolves the Customer Master id back to its own legacy record."""
+        """CRM-32: salta a Ventas con este cliente preseleccionado."""
         if self._customer_id is not None:
             self.navigation_requested.emit(
                 NavigationIntent(route="sales.new", context={"customer_id": self._customer_id}))
 
     def _request_receivables(self) -> None:
-        """CRM-37 (Fase 3): jump to Finanzas' CxC screen with this
-        customer's exposure summary shown immediately, instead of an
-        admin typing the legacy id by hand."""
+        """CRM-37: salta a la CxC de Finanzas con este cliente."""
         if self._customer_id is not None:
             self.navigation_requested.emit(
                 NavigationIntent(
@@ -203,39 +217,111 @@ class CustomerProfilePage(QWidget):
             return
         try:
             view = self._presenter.customer_360(self._customer_id)
+            self._view = view
             self._populate(view)
             self._status.hide()
-        except Exception as exc:  # a page must always show *something*
+        except Exception as exc:  # una página siempre muestra algo
             self._status.setText(f"No fue posible cargar el expediente: {exc}")
             self._status.show()
 
-    #: tab key -> column specs, for the tabs that are plain tables.
+    # -- acciones ----------------------------------------------------------------
+    def _say(self, ok: bool, message: str) -> None:
+        self._status.setProperty("state", "SUCCESS" if ok else "ERROR")
+        self._status.setText(message)
+        self._status.show()
+
+    def _after(self, result) -> None:
+        if result is None:
+            return
+        ok = bool(getattr(result, "success", False))
+        self._say(ok, getattr(result, "message", "") or ("Listo." if ok else "Rechazado."))
+        if ok:
+            self.reload()
+
+    def _change_status(self) -> None:
+        if self._customer_id is None:
+            return
+        current = self._status_value or ""
+        choices = [(cmd, text) for cmd, text, perm, states, _r in _LIFECYCLE
+                   if current in states and self._presenter.can(perm)]
+        if not choices:
+            self._say(False, f"No hay cambios de estado disponibles desde "
+                             f"«{label('customer_status', current)}».")
+            return
+        reason_required = {cmd: needs for cmd, _t, _p, _s, needs in _LIFECYCLE}
+
+        def submit(v):
+            command = v["command"]
+            if reason_required.get(command) and not (v["reason"] or "").strip():
+                from frontend.desktop.modules.customers_crm.pages._outcomes import Fail
+                return Fail("Indica el motivo del cambio de estado.")
+            return self._presenter.run(command, customer_id=self._customer_id,
+                                       reason=v["reason"] or "")
+
+        self._after(ask(self, title="Cambiar estado del cliente", submit_text="Aplicar",
+                        intro="Suspender o bloquear detiene la venta a crédito; dar de baja es "
+                              "reversible y conserva el historial.", fields=(
+                            FieldSpec("command", "Acción", "choice", required=True,
+                                      options=tuple(choices), default=choices[0][0]),
+                            FieldSpec("reason", "Motivo", "textarea"),
+                        ), on_submit=submit))
+
+    def _new_opportunity(self) -> None:
+        from frontend.desktop.modules.customers_crm.pages.opportunity_pages import (
+            create_opportunity_dialog,
+        )
+        if self._customer_id:
+            self._after(create_opportunity_dialog(
+                self, self._presenter, customer_id=self._customer_id,
+                customer_label=self._header_title()))
+
+    def _new_case(self) -> None:
+        from frontend.desktop.modules.customers_crm.pages.service_pages import (
+            create_case_dialog,
+        )
+        if self._customer_id:
+            self._after(create_case_dialog(self, self._presenter, customer_id=self._customer_id,
+                                           customer_label=self._header_title()))
+
+    def _request_credit(self) -> None:
+        from frontend.desktop.modules.customers_crm.pages.credit_pages import (
+            request_credit_dialog,
+        )
+        if self._customer_id:
+            self._after(request_credit_dialog(self, self._presenter,
+                                              customer_id=self._customer_id,
+                                              customer_label=self._header_title()))
+
+    def _header_title(self) -> str:
+        view = self._view
+        return view.profile.customer.display_name if view is not None else ""
+
+    # -- construcción de pestañas (una vez) -----------------------------------------
     _TABLE_TAB_COLUMNS = {
-        "contactos": (ColumnSpec("Nombre"), ColumnSpec("Puesto"),
-                     ColumnSpec("Teléfono"), ColumnSpec("Correo")),
-        "direcciones": (ColumnSpec("Tipo"), ColumnSpec("Calle"),
-                        ColumnSpec("Municipio"), ColumnSpec("Estado")),
-        "actividad": (ColumnSpec("Tipo"), ColumnSpec("Asunto"), ColumnSpec("Fecha", "date")),
-        "oportunidades": (ColumnSpec("Nombre"), ColumnSpec("Estado", "status"),
-                          ColumnSpec("Monto", "numeric")),
-        "atencion": (ColumnSpec("Código"), ColumnSpec("Asunto"), ColumnSpec("Estado", "status")),
-        "consentimientos": (ColumnSpec("Tipo"), ColumnSpec("Estado", "status"),
-                            ColumnSpec("Canal")),
-        "auditoria": (ColumnSpec("Fecha", "date"), ColumnSpec("Módulo"), ColumnSpec("Acción")),
+        "oportunidades": (ColumnSpec("Oportunidad", stretch=True),
+                          ColumnSpec("Estado", "status"), ColumnSpec("Valor", "numeric"),
+                          ColumnSpec("Cierre esperado", "date")),
+        "atencion": (ColumnSpec("Caso"), ColumnSpec("Asunto", stretch=True),
+                     ColumnSpec("Tipo"), ColumnSpec("Estado", "status")),
+        "auditoria": (ColumnSpec("Fecha", "date"), ColumnSpec("Módulo"),
+                      ColumnSpec("Acción", stretch=True), ColumnSpec("Motivo")),
     }
 
-    # -- tab construction (structure only, built once) ---------------------
     def _build_tab(self, key: str) -> QWidget:
-        if key in self._TABLE_TAB_COLUMNS:
-            return self._build_table_tab(key)
         builders = {
             "resumen": self._build_resumen_tab,
             "identidad": self._build_identidad_tab,
+            "contactos": self._build_contactos_tab,
+            "direcciones": self._build_direcciones_tab,
+            "actividad": self._build_actividad_tab,
+            "consentimientos": self._build_consentimientos_tab,
             "comercial": self._build_comercial_tab,
             "credito": self._build_credito_tab,
             "integraciones": self._build_integraciones_tab,
         }
-        return builders[key]()
+        if key in builders:
+            return builders[key]()
+        return self._build_table_tab(key)
 
     def _build_table_tab(self, key: str) -> QWidget:
         card = SectionCard(self)
@@ -243,41 +329,24 @@ class CustomerProfilePage(QWidget):
         table.setObjectName(f"{key}Table")
         card.add(table)
         self._tables[key] = table
-        if key == "direcciones":
-            # La pestaña era de SÓLO LECTURA: `AddCustomerAddressUseCase` existía
-            # y no había por dónde llamarlo.
-            self.add_address_button = create_primary_button(card, "Agregar dirección")
-            self.add_address_button.setEnabled(self._presenter_can_add_address())
-            self.add_address_button.clicked.connect(self._add_address)
-            card.add(self.add_address_button)
+        extra = {
+            "oportunidades": ("Nueva oportunidad", CRMPermissions.OPPORTUNITIES_CREATE,
+                              self._new_opportunity),
+            "atencion": ("Nuevo caso", CRMPermissions.CASES_CREATE, self._new_case),
+        }.get(key)
+        if extra and self._presenter.can(extra[1]):
+            button = create_secondary_button(card, extra[0])
+            button.clicked.connect(extra[2])
+            card.add(button)
+        if key == "oportunidades":
+            table.doubleClicked.connect(
+                lambda *_: table.selected_row_id() and self.opportunity_opened.emit(
+                    table.selected_row_id()))
+        if key == "atencion":
+            table.doubleClicked.connect(
+                lambda *_: table.selected_row_id() and self.case_opened.emit(
+                    table.selected_row_id()))
         return card
-
-    def _presenter_can_add_address(self) -> bool:
-        comprobar = getattr(self._presenter, "can_add_address", None)
-        return bool(callable(comprobar) and comprobar())
-
-    def _add_address(self) -> None:
-        from frontend.desktop.modules.customers_crm.dialogs import CustomerAddressDialog
-
-        if self._customer_id is None:
-            return
-        servicio = getattr(self._presenter, "address_search_service", None)
-        dialogo = CustomerAddressDialog(
-            self, search_service=servicio() if callable(servicio) else None)
-        if not dialogo.exec_():
-            return
-        resultado = self._presenter.add_customer_address(
-            self._customer_id, **dialogo.values())
-        self._report_address_result(resultado)
-
-    def _report_address_result(self, resultado) -> None:
-        if getattr(resultado, "success", False):
-            self._status.hide()
-            self.reload()
-            return
-        self._status.setText(
-            f"No se pudo agregar la dirección: {getattr(resultado, 'message', '')}")
-        self._status.show()
 
     def _table_of(self, key: str) -> StandardTable:
         return self._tables[key]
@@ -285,147 +354,256 @@ class CustomerProfilePage(QWidget):
     def _build_form_tab(
         self, title: str, fields: tuple[tuple[str, str], ...],
     ) -> tuple[QWidget, dict[str, QLabel]]:
-        """A tab that's a vertical stack of "Etiqueta: valor" rows —
-        shared by Resumen/Identidad/Comercial/Crédito/Integraciones.
-        Returns the card plus a dict of the value labels, keyed by field,
-        so ``_populate()`` can update them on every reload without
-        rebuilding the widgets."""
         card = SectionCard(self, title=title)
         labels: dict[str, QLabel] = {}
-        for field_key, label in fields:
-            value = QLabel("—", self)
+        host = QWidget(card)
+        form = QFormLayout(host)
+        form.setContentsMargins(0, 0, 0, 0)
+        for field_key, caption in fields:
+            value = QLabel("—", host)
+            value.setWordWrap(True)
             labels[field_key] = value
-            row = QWidget()
-            form = QFormLayout(row)
-            form.setContentsMargins(0, 0, 0, 0)
-            form.addRow(f"{label}:", value)
-            card.add(row)
+            form.addRow(f"{caption}:", value)
+        card.add(host)
         return card, labels
 
     def _build_resumen_tab(self) -> QWidget:
         card, self._resumen_labels = self._build_form_tab("Resumen", (
-            ("owner", "Propietario asignado"), ("segments", "Segmentos activos"),
+            ("owner", "Responsable principal"), ("segments", "Segmentos activos"),
             ("tags", "Etiquetas"), ("opportunities", "Oportunidades abiertas"),
-            ("cases", "Casos abiertos"), ("credit_status", "Estatus de cuenta"),
+            ("cases", "Casos abiertos"), ("tasks", "Tareas pendientes"),
+            ("credit_status", "Crédito"), ("quality", "Pendientes de calidad de datos"),
+            ("duplicates", "Posibles duplicados"),
         ))
+        card.body().addStretch(1)
         return card
 
     def _build_identidad_tab(self) -> QWidget:
+        host = QWidget(self)
+        layout = QVBoxLayout(host)
+        layout.setContentsMargins(0, 0, 0, 0)
         card, self._identidad_labels = self._build_form_tab("Identidad", (
-            ("code", "Código"), ("legal_name", "Razón social"),
+            ("code", "Código"), ("display_name", "Nombre"), ("legal_name", "Razón social"),
             ("commercial_name", "Nombre comercial"), ("customer_type", "Tipo"),
-            ("tax_id", "RFC"),
+            ("tax_id", "RFC"), ("source", "Origen"), ("created", "Alta"),
         ))
+        layout.addWidget(card)
+        tax_card = SectionCard(host, title="Datos fiscales")
+        self._tax_section = TaxProfileSection(self._presenter, tax_card)
+        self._tax_section.changed.connect(self.reload)
+        tax_card.add(self._tax_section)
+        layout.addWidget(tax_card)
+        accounts_card = SectionCard(host, title="Cuentas comerciales")
+        self._accounts_section = AccountsSection(self._presenter, accounts_card)
+        accounts_card.add(self._accounts_section)
+        layout.addWidget(accounts_card, stretch=1)
+        return host
+
+    def _build_contactos_tab(self) -> QWidget:
+        card = SectionCard(self, title="Contactos")
+        self._contacts_section = ContactsSection(self._presenter, card)
+        card.add(self._contacts_section)
+        return card
+
+    def _build_direcciones_tab(self) -> QWidget:
+        card = SectionCard(self, title="Direcciones")
+        self._addresses_section = AddressesSection(self._presenter, card)
+        card.add(self._addresses_section)
+        return card
+
+    def _build_consentimientos_tab(self) -> QWidget:
+        from frontend.desktop.modules.customers_crm.pages.privacy_pages import (
+            ConsentsSection,
+            PreferencesSection,
+        )
+        host = QWidget(self)
+        layout = QVBoxLayout(host)
+        layout.setContentsMargins(0, 0, 0, 0)
+        consents_card = SectionCard(host, title="Consentimientos")
+        self._consents_section = ConsentsSection(self._presenter, consents_card)
+        consents_card.add(self._consents_section)
+        layout.addWidget(consents_card, stretch=1)
+        prefs_card = SectionCard(host, title="Preferencias de comunicación")
+        self._preferences_section = PreferencesSection(self._presenter, prefs_card)
+        prefs_card.add(self._preferences_section)
+        layout.addWidget(prefs_card)
+        return host
+
+    def _build_actividad_tab(self) -> QWidget:
+        card = SectionCard(self, title="Seguimiento")
+        self._work = WorkItemsPanel(self._presenter, card)
+        card.add(self._work)
         return card
 
     def _build_comercial_tab(self) -> QWidget:
-        card, self._comercial_labels = self._build_form_tab("Comercial", (
+        from frontend.desktop.modules.customers_crm.pages.commercial_pages import (
+            AffinitySection,
+            OrdersSection,
+            PaymentsSection,
+            PurchasesSection,
+            QuotesSection,
+            ReturnsSection,
+        )
+        host = QWidget(self)
+        layout = QVBoxLayout(host)
+        layout.setContentsMargins(0, 0, 0, 0)
+        card, self._comercial_labels = self._build_form_tab("Relación comercial", (
+            ("purchases", "Compras registradas"), ("last_purchase", "Última compra"),
             ("orders", "Pedidos totales"), ("orders_open", "Pedidos abiertos"),
-            ("deliveries", "Entregas totales"), ("deliveries_open", "Entregas abiertas"),
+            ("last_order", "Último pedido"), ("deliveries", "Entregas totales"),
+            ("deliveries_open", "Entregas abiertas"), ("last_delivery", "Última entrega"),
         ))
-        return card
+        layout.addWidget(card)
+        history_card = SectionCard(host, title="Historial")
+        tabs = PillTabBar(history_card)
+        stack = QStackedWidget(history_card)
+        self._commercial_sections = []
+        for key, text, section_class in (
+            ("compras", "Compras", PurchasesSection), ("pagos", "Pagos", PaymentsSection),
+            ("pedidos", "Pedidos", OrdersSection), ("cotizaciones", "Cotizaciones", QuotesSection),
+            ("devoluciones", "Devoluciones", ReturnsSection),
+            ("frecuentes", "Productos frecuentes", AffinitySection),
+        ):
+            tabs.add_tab(key, text)
+            section = section_class(self._presenter, history_card)
+            stack.addWidget(section)
+            self._commercial_sections.append((key, section))
+        keys = [key for key, _s in self._commercial_sections]
+        tabs.tab_changed.connect(lambda key: stack.setCurrentIndex(keys.index(key)))
+        history_card.add(tabs)
+        history_card.add(stack)
+        layout.addWidget(history_card, stretch=1)
+        return host
 
     def _build_credito_tab(self) -> QWidget:
         card, self._credito_labels = self._build_form_tab("Crédito", (
-            ("status", "Estatus"), ("limit", "Límite de crédito"),
-            ("available", "Crédito disponible"), ("exposure", "Exposición actual"),
-            ("overdue", "Monto vencido"), ("receivable_status", "Estatus de cobranza"),
+            ("status", "Estatus"), ("risk", "Riesgo"), ("terms", "Plazo"),
+            ("limit", "Límite de crédito"), ("available", "Crédito disponible"),
+            ("exposure", "Exposición actual"), ("overdue", "Monto vencido"),
+            ("next_due", "Próximo vencimiento"), ("receivable_status", "Estatus de cobranza"),
         ))
+        if self._presenter.can(CustomerPermissions.CREDIT_REQUEST):
+            button = create_secondary_button(card, "Solicitar crédito")
+            button.clicked.connect(self._request_credit)
+            card.add(button)
+        card.body().addStretch(1)
         return card
 
     def _build_integraciones_tab(self) -> QWidget:
         card, self._integraciones_labels = self._build_form_tab("Integraciones", (
             ("whatsapp_consent", "Consentimiento WhatsApp"),
+            ("whatsapp_last", "Última conversación"),
+            ("whatsapp_open", "Conversaciones abiertas"),
             ("loyalty_enrolled", "Programa de fidelidad"),
             ("loyalty_points", "Puntos"), ("loyalty_tier", "Nivel"),
         ))
+        hint = QLabel("Puntos, tarjetas y recompensas se administran en Fidelidad; "
+                      "las conversaciones, en WhatsApp.", card)
+        hint.setProperty("role", "muted")
+        hint.setWordWrap(True)
+        card.add(hint)
+        card.body().addStretch(1)
         return card
 
-    # -- population (data only, called on every reload) --------------------
+    # -- datos (en cada recarga) --------------------------------------------------
     def _populate(self, view) -> None:
         customer = view.profile.customer
+        self._status_value = customer.status.value
         self._header.set_title(customer.display_name)
         self._header.set_subtitle(str(customer.code))
-        self._status_badge.setText(_STATUS_LABELS.get(customer.status.value, customer.status.value))
-        self._status_badge.set_status(_STATUS_VARIANTS.get(customer.status.value, "neutral"))
-        self._lifecycle_label.setText(
-            _LIFECYCLE_LABELS.get(customer.lifecycle_stage.value, customer.lifecycle_stage.value))
+        self._status_badge.setText(label("customer_status", customer.status))
+        self._status_badge.set_status(variant("customer_status", customer.status))
+        self._lifecycle_label.setText(label("lifecycle", customer.lifecycle_stage))
 
-        self._resumen_labels["owner"].setText("Sí" if customer.account_owner_user_id else "No")
+        owners = view.ownership_by_type or {}
+        primary = owners.get("PRIMARY") if isinstance(owners, dict) else None
+        owner_id = (getattr(primary, "owner_user_id", None)
+                    or customer.account_owner_user_id)
+        credit = view.credit_summary
+        self._resumen_labels["owner"].setText(
+            self._presenter.user_name(owner_id) if owner_id else "Sin asignar")
         self._resumen_labels["segments"].setText(str(len(view.active_segments)))
         self._resumen_labels["tags"].setText(str(len(view.active_tags)))
         self._resumen_labels["opportunities"].setText(str(len(view.open_opportunities)))
         self._resumen_labels["cases"].setText(str(len(view.open_cases)))
+        self._resumen_labels["tasks"].setText(str(len(view.pending_tasks)))
         self._resumen_labels["credit_status"].setText(
-            view.credit_summary.status if view.credit_summary else "Sin datos")
+            label("credit_status", credit.status) if credit else "Sin datos")
+        self._resumen_labels["quality"].setText(str(len(view.open_quality_issues)))
+        self._resumen_labels["duplicates"].setText(str(len(view.open_duplicate_candidates)))
 
         tax_profile = view.profile.tax_profile
         self._identidad_labels["code"].setText(str(customer.code))
+        self._identidad_labels["display_name"].setText(customer.display_name)
         self._identidad_labels["legal_name"].setText(customer.legal_name or "—")
         self._identidad_labels["commercial_name"].setText(customer.commercial_name or "—")
-        self._identidad_labels["customer_type"].setText(customer.customer_type.value)
+        self._identidad_labels["customer_type"].setText(
+            label("customer_type", customer.customer_type))
         self._identidad_labels["tax_id"].setText(
-            tax_profile.tax_identifier if tax_profile else "—")
-
-        self._table_of("contactos").load_rows(
-            [[f"{c.first_name} {c.last_name}".strip(), c.job_title,
-              c.phone_e164 or "—", c.email or "—"] for c in view.profile.contacts],
-            row_ids=[c.id for c in view.profile.contacts])
-
-        self._table_of("direcciones").load_rows(
-            [[a.address_type.value, a.street, a.municipality, a.state]
-             for a in view.profile.addresses],
-            row_ids=[a.id for a in view.profile.addresses])
-
-        activity_rows = [["Actividad", a.subject, (a.scheduled_at or "")[:10]]
-                         for a in view.recent_activities]
-        activity_rows += [["Tarea", t.title, (t.due_at or "")[:10]] for t in view.pending_tasks]
-        activity_ids = [a.id for a in view.recent_activities] + [t.id for t in view.pending_tasks]
-        self._table_of("actividad").load_rows(activity_rows, row_ids=activity_ids)
+            (tax_profile.tax_identifier or "—") if tax_profile else "—")
+        self._identidad_labels["source"].setText(customer.source or "—")
+        self._identidad_labels["created"].setText(fmt_datetime(customer.created_at))
 
         self._table_of("oportunidades").load_rows(
-            [[o.name, o.status.value, format_money(o.amount) if o.amount is not None else "—"]
-             for o in view.open_opportunities],
+            [[o.name, label("opportunity_status", o.status), fmt_money(o.amount),
+              fmt_date(o.expected_close_date)] for o in view.open_opportunities],
             row_ids=[o.id for o in view.open_opportunities])
 
         orders = view.orders_summary
         deliveries = view.delivery_summary
+        self._comercial_labels["purchases"].setText(str(getattr(customer, "purchase_count",
+                                                                "—")))
+        self._comercial_labels["last_purchase"].setText(
+            fmt_datetime(getattr(customer, "last_purchase_at", None)))
         self._comercial_labels["orders"].setText(str(orders.total_orders) if orders else "—")
         self._comercial_labels["orders_open"].setText(str(orders.open_orders) if orders else "—")
+        self._comercial_labels["last_order"].setText(
+            fmt_datetime(orders.last_order_at) if orders else "—")
         self._comercial_labels["deliveries"].setText(
             str(deliveries.total_deliveries) if deliveries else "—")
         self._comercial_labels["deliveries_open"].setText(
             str(deliveries.open_deliveries) if deliveries else "—")
+        self._comercial_labels["last_delivery"].setText(
+            (deliveries.last_delivery_status or "—") if deliveries else "—")
 
-        credit = view.credit_summary
-        self._credito_labels["status"].setText(credit.status if credit else "—")
-        self._credito_labels["limit"].setText(credit.credit_limit if credit else "—")
-        self._credito_labels["available"].setText(credit.available_credit if credit else "—")
-        self._credito_labels["exposure"].setText(credit.current_exposure if credit else "—")
-        self._credito_labels["overdue"].setText(credit.overdue_amount if credit else "—")
+        self._credito_labels["status"].setText(
+            label("credit_status", credit.status) if credit else "—")
+        self._credito_labels["risk"].setText(
+            label("risk_level", credit.risk_level) if credit and credit.risk_level else "—")
+        self._credito_labels["terms"].setText(
+            f"{credit.payment_terms_days} días" if credit and credit.payment_terms_days
+            else "—")
+        for key, attr in (("limit", "credit_limit"), ("available", "available_credit"),
+                          ("exposure", "current_exposure"), ("overdue", "overdue_amount")):
+            raw = str(getattr(credit, attr, "") or "") if credit else ""
+            self._credito_labels[key].setText(
+                fmt_money(raw) if raw.replace(".", "", 1).replace("-", "", 1).isdigit()
+                else (raw or "—"))
+        self._credito_labels["next_due"].setText(
+            fmt_date(credit.next_due_date) if credit else "—")
         self._credito_labels["receivable_status"].setText(
-            credit.receivable_status if credit else "—")
+            label("receivable_status", credit.receivable_status) if credit else "—")
 
         self._table_of("atencion").load_rows(
-            [[str(case.code), case.subject, case.status.value] for case in view.open_cases],
+            [[str(case.code), case.subject, label("case_type", case.case_type),
+              label("case_status", case.status)] for case in view.open_cases],
             row_ids=[case.id for case in view.open_cases])
-
-        self._table_of("consentimientos").load_rows(
-            [[consent.consent_type.value, consent.status.value, consent.channel.value]
-             for consent in view.active_consents],
-            row_ids=[consent.id for consent in view.active_consents])
 
         whatsapp = view.whatsapp_summary
         loyalty = view.loyalty_summary
         self._integraciones_labels["whatsapp_consent"].setText(
-            ("Sí" if whatsapp.has_active_whatsapp_consent else "No") if whatsapp else "—")
+            yes_no(whatsapp.has_active_whatsapp_consent) if whatsapp else "—")
+        self._integraciones_labels["whatsapp_last"].setText(
+            fmt_datetime(whatsapp.last_conversation_at) if whatsapp else "—")
+        self._integraciones_labels["whatsapp_open"].setText(
+            str(whatsapp.open_conversations_count) if whatsapp else "—")
         self._integraciones_labels["loyalty_enrolled"].setText(
-            ("Sí" if loyalty.enrolled else "No") if loyalty else "—")
+            (loyalty.program or yes_no(loyalty.enrolled)) if loyalty else "—")
         self._integraciones_labels["loyalty_points"].setText(
             str(loyalty.current_points) if loyalty else "—")
         self._integraciones_labels["loyalty_tier"].setText(
             (loyalty.tier or "—") if loyalty else "—")
 
         self._table_of("auditoria").load_rows(
-            [[entry.occurred_at[:10], entry.source_module, entry.action]
-             for entry in view.recent_history])
+            [[fmt_datetime(entry.occurred_at), module_label(entry.source_module),
+              event_label(entry.action), entry.reason or "—"] for entry in view.recent_history])

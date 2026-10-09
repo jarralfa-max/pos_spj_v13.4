@@ -154,6 +154,15 @@ class CustomerRepository(CustomerRepositoryBase):
             " ORDER BY display_name LIMIT ? OFFSET ?", (limit, offset))
         return [self._hydrate(r) for r in rows]
 
+    def list_all(self, *, limit: int = 200, offset: int = 0) -> list[Customer]:
+        """CRM-43: el directorio con alcance de empresa. ``list_active`` dejaba
+        fuera a suspendidos y bloqueados: desaparecían de la pantalla y no había
+        desde dónde reactivarlos."""
+        rows = self._query(
+            f"SELECT {_MASTER_COLS} FROM customers ORDER BY display_name LIMIT ? OFFSET ?",
+            (limit, offset))
+        return [self._hydrate(r) for r in rows]
+
     def list_owned_by(self, owner_user_ids: tuple[str, ...], *,
                        limit: int = 200, offset: int = 0) -> list[Customer]:
         """Filter for CustomerDataScope(axis=OWN/TEAM) — reads by owner set."""
@@ -184,10 +193,10 @@ class CustomerRepository(CustomerRepositoryBase):
             " FROM customers c"
             " LEFT JOIN customer_contacts ct ON ct.customer_id=c.id AND ct.is_primary=1"
             " WHERE c.status NOT IN ('CLOSED','MERGED','ANONYMIZED')"
-            " AND (c.display_name LIKE ? OR c.legal_name LIKE ?"
+            " AND (c.display_name LIKE ? OR c.legal_name LIKE ? OR c.customer_number LIKE ?"
             " OR ct.phone_e164 LIKE ? OR ct.email LIKE ?)"
             " ORDER BY c.display_name LIMIT ?",
-            (pattern, pattern, pattern, pattern, limit))
+            (pattern, pattern, pattern, pattern, pattern, limit))
 
     def lookup_row(self, customer_id: str) -> dict | None:
         """La misma fila ligera de `search_lookup`, para UN cliente: lo que el

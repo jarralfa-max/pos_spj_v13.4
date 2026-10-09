@@ -37,6 +37,12 @@ class CustomerMergeRecordRepository(CustomerRepositoryBase):
                               (record_id,))
         return self._hydrate(row) if row else None
 
+    def list_recent(self, *, limit: int = 300) -> list[CustomerMergeRecord]:
+        rows = self._query(
+            f"SELECT {_COLS} FROM customer_merge_records ORDER BY created_at DESC LIMIT ?",
+            (limit,))
+        return [self._hydrate(r) for r in rows]
+
     def list_for_customer(self, customer_id: str) -> list[CustomerMergeRecord]:
         rows = self._query(
             f"SELECT {_COLS} FROM customer_merge_records"

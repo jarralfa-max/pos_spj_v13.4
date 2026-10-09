@@ -28,12 +28,15 @@ def app():
     return QApplication.instance() or QApplication([])
 
 
-class _FakePresenter:
-    def __init__(self, capabilities: CustomerCrmCapabilities) -> None:
-        self._capabilities = capabilities
+from tests.unit._crm_fake_presenter import CrmFakePresenter
 
-    def capabilities(self) -> CustomerCrmCapabilities:
-        return self._capabilities
+
+class _FakePresenter(CrmFakePresenter):
+    """CRM-43: el presentador real expone ``can``/``read``/``users``…; las
+    páginas operativas los usan al construirse."""
+
+    def __init__(self, capabilities: CustomerCrmCapabilities) -> None:
+        super().__init__(capabilities)
 
 
 _ALL_TRUE = CustomerCrmCapabilities(
@@ -138,14 +141,18 @@ class TestCustomersCrmWorkspace:
         workspace.select_route("customers.does_not_exist")
         assert workspace._stack.currentIndex() == before
 
-    def test_unbuilt_route_resolves_to_empty_state_placeholder(self, app):
+    def test_no_route_is_an_under_construction_placeholder(self, app):
+        """CRM-43: 53 de las 62 rutas eran «sección en construcción»."""
         workspace = CustomersCrmWorkspace(_FakePresenter(_ALL_TRUE))
-        workspace.select_route("crm.leads")
-        page_host = workspace._stack.currentWidget()
-        state_widget = page_host.findChild(QtWidgets.QWidget, None)
-        # The EMPTY state widget is nested inside a QScrollArea; just confirm
-        # the page host was built without raising and holds a real widget.
-        assert page_host is not None
+        under_construction = []
+        for route_id in workspace._route_index_by_id:
+            workspace.select_route(route_id)
+            host = workspace._stack.currentWidget()
+            page = host.findChild(QtWidgets.QScrollArea).widget()
+            texts = [label.text() for label in page.findChildren(QtWidgets.QLabel)]
+            if any("construcci" in text for text in texts):
+                under_construction.append(route_id)
+        assert under_construction == []
 
     def test_page_factories_override_takes_precedence(self, app):
         built = []

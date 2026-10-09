@@ -71,12 +71,11 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from backend.application.crm.data_scope import CRMScopeContext
 from backend.application.crm.queries.customer_dashboard_query_service import (
     CustomerDashboardView,
 )
-from backend.application.customers.data_scope import CustomerScopeContext
 from backend.application.customers.queries.customer_360_query_service import Customer360View
+from backend.application.customers.read_context import CrmReadContext
 from backend.application.customers.result import CustomerResult
 from backend.shared.ids import new_uuid
 from frontend.desktop.modules.customers_crm.capability_resolver import (
@@ -93,8 +92,11 @@ class CustomerCrmPresenter:
         command_handlers: dict[str, Callable[..., object]] | None = None,
         team_member_ids: tuple[str, ...] = (),
         address_search_factory: Callable[[], object] | None = None,
+        readers: dict[str, Callable[..., object]] | None = None,
     ) -> None:
         self._session = session_context
+        self._readers = dict(readers or {})
+        self._user_cache: list[tuple[str, str]] | None = None
         self._address_search_factory = address_search_factory
         self._query_services = dict(query_services or {})
         self._use_cases = dict(use_cases or {})
@@ -120,55 +122,73 @@ class CustomerCrmPresenter:
     def current_user_id(self) -> str:
         return str(getattr(self._session, "user_id", "") or "")
 
+    # -- CRM-43: comandos y lecturas genéricos ---------------------------------
+    def branch_id(self) -> str | None:
+        branch = str(getattr(self._session, "active_branch_id", "") or "").strip()
+        return branch or None
+
+    def read_context(self) -> CrmReadContext:
+        return CrmReadContext(user_id=self.current_user_id(), branch_id=self.branch_id(),
+                              team_member_ids=self._team_member_ids)
+
+    def has_reader(self, name: str) -> bool:
+        return name in self._readers
+
+    def read(self, reader_name: str, /, **kwargs):
+        """Lectura cableada por la raíz de composición (nunca SQL aquí)."""
+        reader = self._readers.get(reader_name)
+        if reader is None:
+            raise RuntimeError(f"La consulta «{reader_name}» no está disponible.")
+        return reader(self.read_context(), **kwargs)
+
+    def run(self, command: str, /, **kwargs):
+        """Ejecuta un caso de uso cableado. Inyecta el actor y una
+        ``operation_id`` nueva (idempotencia por intento) si no vienen.
+        ``command`` es posicional: varios casos de uso reciben un campo
+        ``name`` (segmentos, territorios, etapas…)."""
+        handler = self._command_handlers.get(command)
+        if handler is None:
+            return CustomerResult.fail(
+                "La operación no está disponible: falta la conexión al backend.", "NOT_WIRED")
+        kwargs.setdefault("actor_user_id", self.current_user_id())
+        kwargs.setdefault("operation_id", new_uuid())
+        return handler(**kwargs)
+
+    def users(self) -> list[tuple[str, str]]:
+        """``(user_id, nombre)`` de los usuarios activos, para asignar."""
+        if self._user_cache is None:
+            try:
+                self._user_cache = [(u.user_id, u.name) for u in self.read("assignable_users")]
+            except Exception:  # noqa: BLE001 — sin lector, no hay a quién asignar
+                self._user_cache = []
+        return list(self._user_cache)
+
+    def user_name(self, user_id: str | None) -> str:
+        if not user_id:
+            return "Sin asignar"
+        return dict(self.users()).get(user_id, "Otro usuario")
+
+    def customer_names(self, customer_ids) -> dict[str, str]:
+        ids = [i for i in customer_ids if i]
+        if not ids or not self.has_reader("customer_names"):
+            return {}
+        return self.read("customer_names", customer_ids=ids)
+
+    def customer_search_options(self, query: str) -> list:
+        """Proveedor de ``CustomerSearchBox``: busca por nombre, código, teléfono…"""
+        from frontend.desktop.components.search_selector import SearchOption
+
+        if len(query.strip()) < 2 or not self.has_reader("customer_lookup"):
+            return []
+        return [SearchOption(id=r.customer_id, label=r.display_name,
+                             subtitle=r.code) for r in self.read("customer_lookup", query=query)]
+
     def dashboard(self) -> CustomerDashboardView:
         service = self.query_service("dashboard")
         if service is None:
             return CustomerDashboardView()
         return service.get_dashboard(
             actor_user_id=self.current_user_id(), team_member_ids=self._team_member_ids)
-
-    def customers_directory(self, *, search: str = "", status: str | None = None) -> list:
-        service = self.query_service("customers_directory")
-        if service is None:
-            return []
-        context = CustomerScopeContext(
-            user_id=self.current_user_id(), team_member_ids=self._team_member_ids)
-        customers = service.list_directory(context, limit=200)
-        return self._filtered(
-            customers, search=search, status=status,
-            text_fields=lambda c: (c.display_name, c.legal_name, str(c.code)))
-
-    def leads_directory(self, *, search: str = "", status: str | None = None) -> list:
-        service = self.query_service("leads_directory")
-        if service is None:
-            return []
-        context = CRMScopeContext(
-            user_id=self.current_user_id(), team_member_ids=self._team_member_ids)
-        leads = service.list_directory(context, limit=200)
-        return self._filtered(
-            leads, search=search, status=status,
-            text_fields=lambda lead: (lead.display_name, lead.company_name))
-
-    def opportunities_directory(self, *, search: str = "", status: str | None = None) -> list:
-        service = self.query_service("opportunities_directory")
-        if service is None:
-            return []
-        context = CRMScopeContext(
-            user_id=self.current_user_id(), team_member_ids=self._team_member_ids)
-        opportunities = service.list_directory(context, limit=200)
-        return self._filtered(
-            opportunities, search=search, status=status, text_fields=lambda o: (o.name,))
-
-    def cases_directory(self, *, search: str = "", status: str | None = None) -> list:
-        service = self.query_service("cases_directory")
-        if service is None:
-            return []
-        context = CRMScopeContext(
-            user_id=self.current_user_id(), team_member_ids=self._team_member_ids)
-        cases = service.list_directory(context, limit=200)
-        return self._filtered(
-            cases, search=search, status=status,
-            text_fields=lambda case: (case.subject, str(case.code)))
 
     def customer_360(self, customer_id: str) -> Customer360View:
         service = self.query_service("customer_360")
@@ -177,7 +197,7 @@ class CustomerCrmPresenter:
                 "El expediente del cliente no está disponible: falta la conexión al backend.")
         return service.get_360(
             customer_id, actor_user_id=self.current_user_id(),
-            team_member_ids=self._team_member_ids)
+            team_member_ids=self._team_member_ids, branch_id=self.branch_id())
 
     def create_customer(
         self, *, display_name: str, customer_type: str, tax_identifier: str = "",
@@ -272,14 +292,3 @@ class CustomerCrmPresenter:
             latitude=address.latitude if address.is_geocoded else None,
             longitude=address.longitude if address.is_geocoded else None,
             is_default=bool(is_default))
-
-    @staticmethod
-    def _filtered(entities, *, search: str, status: str | None, text_fields) -> list:
-        result = entities
-        if status:
-            result = [e for e in result if e.status.value == status]
-        needle = search.strip().lower()
-        if needle:
-            result = [e for e in result
-                     if any(needle in (field or "").lower() for field in text_fields(e))]
-        return result

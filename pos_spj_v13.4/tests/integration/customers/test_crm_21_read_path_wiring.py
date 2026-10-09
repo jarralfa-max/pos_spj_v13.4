@@ -11,30 +11,9 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from backend.infrastructure.db.schema.customers_crm_schema import create_customers_crm_schema
 from backend.shared.ids import new_uuid
-
-
-@pytest.fixture
-def permissive_customer_auth(monkeypatch):
-    """The three query services CRM-21 wires into WhatsApp/Delivery/
-    Fidelidad (LoyaltyCustomerSummaryQuery/CustomerOrdersSummaryQuery/
-    CustomerDeliverySummaryQuery) each fail closed via
-    ``CustomerAuthorizationPolicy().require()`` when no PermissionChecker is
-    configured — true today in production (no composition root wires one
-    for the Customer Master context yet, a separate pre-existing gap none
-    of this phase's call sites can close). Every CRM-21 call site
-    deliberately swallows that failure and degrades to "unavailable" rather
-    than raising — proven by the tests that DON'T use this fixture. This
-    fixture patches ``.require()`` to a no-op only to prove the underlying
-    data-fetching logic is correct *once* that separate gap is closed,
-    mirroring ``permissive_for_tests()``'s intent without needing every
-    CRM-21 call site to expose an injectable ``authorization`` override."""
-    from backend.application.customers.authorization import CustomerAuthorizationPolicy
-    monkeypatch.setattr(CustomerAuthorizationPolicy, "require", lambda self, *a, **k: None)
 
 
 @pytest.fixture
@@ -94,103 +73,9 @@ def _insert_cliente(conn, cliente_id: str, nombre: str = "Restaurante El Sol") -
     conn.commit()
 
 
-class TestWhatsAppCrmSummaryEndpoint:
-    def _client(self, conn) -> TestClient:
-        from api.auth import verify_api_key
-        from api.deps import get_db
-        from api.routers.clientes import router
-
-        app = FastAPI()
-        app.include_router(router, prefix="/api/v1")
-        app.dependency_overrides[verify_api_key] = lambda: "test-key"
-        app.dependency_overrides[get_db] = lambda: conn
-        return TestClient(app)
-
-    def test_404_for_unknown_cliente(self, conn):
-        client = self._client(conn)
-        resp = client.get("/api/v1/clientes/does-not-exist/crm-summary")
-        assert resp.status_code == 404
-
-    def test_degrades_gracefully_when_permission_checker_unwired(self, conn):
-        """Today's real production default: no PermissionChecker is wired
-        for the Customer Master context, so loyalty/orders come back None,
-        but the endpoint still returns 200 with the bridge-derived name."""
-        _insert_cliente(conn, "legacy-wa-0")
-        client = self._client(conn)
-        resp = client.get("/api/v1/clientes/legacy-wa-0/crm-summary")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["loyalty"] is None
-        assert body["orders"] is None
-        # The bridge/resolver itself has no permission gate, so the
-        # friendlier name still comes through even when loyalty/orders don't.
-        assert body["display_name"] == "Restaurante El Sol"
-        assert body["customer_number"].startswith("CLI-")
-
-    def test_returns_loyalty_and_orders_for_known_cliente(self, conn, permissive_customer_auth):
-        _insert_cliente(conn, "legacy-wa-1")
-        conn.execute(
-            "INSERT INTO loyalty_snapshots (id, cliente_id, puntos_actuales, nivel, visitas,"
-            " importe_total) VALUES (?,?,?,?,?,?)",
-            (new_uuid(), "legacy-wa-1", 80, "Bronce", 2, 500.0))
-        conn.execute(
-            "INSERT INTO pedidos_whatsapp (id, numero_whatsapp, cliente_id, estado, fecha)"
-            " VALUES (?,?,?,?,datetime('now'))",
-            (new_uuid(), "+525500000000", "legacy-wa-1", "nuevo"))
-        conn.commit()
-
-        client = self._client(conn)
-        resp = client.get("/api/v1/clientes/legacy-wa-1/crm-summary")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["loyalty"]["enrolled"] is True
-        assert body["loyalty"]["current_points"] == 80
-        assert body["orders"]["total_orders"] == 1
-        # Bridge created lazily; friendlier name surfaced.
-        assert body["display_name"] == "Restaurante El Sol"
-        assert body["customer_number"].startswith("CLI-")
-
-
-class TestDeliveryPedidoCrmSummaryField:
-    def _client(self, conn) -> TestClient:
-        from api.auth import verify_api_key
-        from api.deps import get_db
-        from api.routers.pedidos import router
-
-        app = FastAPI()
-        app.include_router(router, prefix="/api/v1")
-        app.dependency_overrides[verify_api_key] = lambda: "test-key"
-        app.dependency_overrides[get_db] = lambda: conn
-        return TestClient(app)
-
-    def test_pedido_detail_includes_crm_delivery_summary(self, conn, permissive_customer_auth):
-        _insert_cliente(conn, "legacy-del-1")
-        venta_id = new_uuid()
-        conn.execute(
-            "INSERT INTO ventas (id, folio, cliente_id, total, estado) VALUES (?,?,?,?,?)",
-            (venta_id, "WA-TEST01", "legacy-del-1", 250.0, "pendiente_wa"))
-        conn.execute(
-            "INSERT INTO delivery_orders (cliente_id, direccion, estado, fecha)"
-            " VALUES (?,?,?,datetime('now'))", ("legacy-del-1", "Calle 1", "en_ruta"))
-        conn.commit()
-
-        client = self._client(conn)
-        resp = client.get(f"/api/v1/pedidos/{venta_id}")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["crm_delivery_summary"] is not None
-        assert body["crm_delivery_summary"]["total_deliveries"] == 1
-
-    def test_pedido_without_cliente_id_has_null_summary(self, conn):
-        venta_id = new_uuid()
-        conn.execute(
-            "INSERT INTO ventas (id, folio, cliente_id, total, estado) VALUES (?,?,?,?,?)",
-            (venta_id, "WA-TEST02", None, 100.0, "pendiente_wa"))
-        conn.commit()
-        client = self._client(conn)
-        resp = client.get(f"/api/v1/pedidos/{venta_id}")
-        assert resp.status_code == 200
-        assert resp.json()["crm_delivery_summary"] is None
+# CRM-43: `TestWhatsAppCrmSummaryEndpoint` y `TestDeliveryPedidoCrmSummaryField`
+# probaban `api/routers/clientes.py` y `api/routers/pedidos.py`, borrados con la
+# API legacy (la API viva es `backend/api/`, sin rutas de clientes).
 
 
 # `TestFidelidadClienteServiceCrmLoyaltySummary` (tested

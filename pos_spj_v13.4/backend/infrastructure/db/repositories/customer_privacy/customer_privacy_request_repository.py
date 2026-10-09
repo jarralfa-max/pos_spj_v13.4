@@ -73,6 +73,12 @@ class CustomerPrivacyRequestRepository(CustomerPrivacyRepositoryBase):
             " ORDER BY received_at ASC LIMIT ? OFFSET ?", (status, limit, offset))
         return [self._hydrate(r) for r in rows]
 
+    def list_all(self, *, limit: int = 500) -> list[CustomerPrivacyRequest]:
+        rows = self._query(
+            f"SELECT {_REQUEST_COLS} FROM customer_privacy_requests"
+            " ORDER BY received_at DESC LIMIT ?", (limit,))
+        return [self._hydrate(r) for r in rows]
+
     # helpers -----------------------------------------------------------------
     @staticmethod
     def _params(request: CustomerPrivacyRequest, operation_id: str | None) -> tuple:

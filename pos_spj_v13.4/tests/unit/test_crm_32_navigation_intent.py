@@ -63,8 +63,12 @@ def _customer_360_view():
         loyalty_summary=SimpleNamespace(enrolled=True, current_points=150, tier="Plata"))
 
 
-class _FakePresenter:
+from tests.unit._crm_fake_presenter import CrmFakePresenter
+
+
+class _FakePresenter(CrmFakePresenter):
     def __init__(self, view=None, *, capabilities: CustomerCrmCapabilities | None = None) -> None:
+        CrmFakePresenter.__init__(self)
         self._view = view
         self._capabilities = capabilities or _ALL_TRUE
 

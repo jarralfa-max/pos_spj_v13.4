@@ -90,6 +90,10 @@ class CRMUnitOfWork:
         self.automation_executions = CRMAutomationExecutionRepository(connection)
         self.sync_conflicts = CRMSyncConflictRepository(connection)
         self.audit = CRMAuditRepository(connection)
+        from backend.infrastructure.db.repositories.crm.insights_repository import (
+            CRMInsightsRepository,
+        )
+        self.insights = CRMInsightsRepository(connection)
         self.outbox = CRMOutboxRepository(connection)
         self.processed_events = CRMProcessedEventRepository(connection)
         self._completed = False

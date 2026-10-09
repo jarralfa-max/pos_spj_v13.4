@@ -19,7 +19,7 @@ design-system component, just this page's own internal navigation.
 from __future__ import annotations
 
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QButtonGroup, QHBoxLayout, QWidget
+from PyQt5.QtWidgets import QButtonGroup, QGridLayout, QWidget
 
 from frontend.desktop.components.buttons import create_ghost_button
 from frontend.desktop.themes.tokens import Spacing
@@ -31,9 +31,15 @@ class PillTabBar(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("customerCrmPillTabBar")
-        self._row = QHBoxLayout(self)
-        self._row.setContentsMargins(0, 0, 0, 0)
-        self._row.setSpacing(Spacing.XXS)
+        # CRM-43: en rejilla que se reacomoda — en una sola fila, las 12
+        # pestañas del Expediente desbordaban a 1366 px y toda la página
+        # quedaba con scroll horizontal.
+        self._grid = QGridLayout(self)
+        self._grid.setContentsMargins(0, 0, 0, 0)
+        self._grid.setHorizontalSpacing(Spacing.XXS)
+        self._grid.setVerticalSpacing(Spacing.XXS)
+        self._buttons: list = []
+        self._rows_signature: tuple = ()
         self._group = QButtonGroup(self)
         self._group.setExclusive(True)
         self._keys_by_button: dict[object, str] = {}
@@ -50,7 +56,8 @@ class PillTabBar(QWidget):
             button.setChecked(True)
         self._group.addButton(button)
         self._keys_by_button[button] = key
-        self._row.addWidget(button)
+        self._buttons.append(button)
+        self._relayout(self.width() or 10_000)
 
     def _on_clicked(self, button) -> None:
         key = self._keys_by_button.get(button)
@@ -69,3 +76,37 @@ class PillTabBar(QWidget):
             if button_key == key:
                 button.setChecked(True)
                 break
+
+    def _relayout(self, width: int) -> None:
+        rows, row, used = [], [], 0
+        spacing = self._grid.horizontalSpacing()
+        for button in self._buttons:
+            needed = button.sizeHint().width() + (spacing if row else 0)
+            if row and used + needed > width:
+                rows.append(row)
+                row, used = [], 0
+                needed = button.sizeHint().width()
+            row.append(button)
+            used += needed
+        if row:
+            rows.append(row)
+        signature = tuple(len(r) for r in rows)
+        if signature == self._rows_signature:
+            return
+        self._rows_signature = signature
+        while self._grid.count():
+            self._grid.takeAt(0)
+        for r, buttons in enumerate(rows):
+            for c, button in enumerate(buttons):
+                self._grid.addWidget(button, r, c)
+        self._grid.setColumnStretch(max(signature or (0,)), 1)
+
+    def minimumSizeHint(self):  # noqa: N802 — Qt override
+        hint = super().minimumSizeHint()
+        widest = max((b.sizeHint().width() for b in self._buttons), default=0)
+        hint.setWidth(widest)
+        return hint
+
+    def resizeEvent(self, event):  # noqa: N802 — Qt override
+        super().resizeEvent(event)
+        self._relayout(event.size().width())

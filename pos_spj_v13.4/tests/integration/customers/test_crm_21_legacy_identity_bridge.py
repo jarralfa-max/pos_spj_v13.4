@@ -24,8 +24,6 @@ from backend.domain.customers.entities.customer_contact import CustomerContactPe
 from backend.domain.customers.exceptions import CustomerNotFoundError
 from backend.infrastructure.db.repositories.customers.unit_of_work import CustomerUnitOfWork
 from backend.shared.ids import new_uuid
-from core.events.event_bus import EventBus, VENTA_CANCELADA, VENTA_COMPLETADA
-from core.events.wiring import _wire_customers_crm_sales_activity
 
 
 def _allow_cust():
@@ -179,56 +177,10 @@ class TestEnsureLegacyCustomerBridgeUseCase:
         assert count == 1
 
 
-class TestCustomersCrmSalesActivityWiring:
-    """The wiring CRM-21 activates: core/events/wiring.py's
-    `_wire_customers_crm_sales_activity` bridges VENTA_COMPLETADA/
-    VENTA_CANCELADA's legacy `cliente_id` before delegating to CRM-13's
-    `sales_event_handlers`, which previously only no-op'd against real data
-    (see TestSalesEventHandlers.test_handle_sale_completed_noops_on_unmapped_legacy_id
-    in test_crm_13_integraciones.py — that test's own direct-call contract
-    is unchanged; this is the new caller in front of it)."""
-
-    @pytest.fixture
-    def wired_bus(self, full_crm_conn_with_ops):
-        conn = full_crm_conn_with_ops
-
-        class _Container:
-            db = conn
-
-        bus = EventBus()
-        _wire_customers_crm_sales_activity(bus, _Container())
-        yield bus, conn
-
-    def test_venta_completada_bridges_and_projects(self, wired_bus):
-        bus, conn = wired_bus
-        _insert_legacy_cliente(conn, "legacy-venta-1", "Restaurante El Sol")
-        bus.publish(VENTA_COMPLETADA, {
-            "cliente_id": "legacy-venta-1", "venta_id": "v-100", "operation_id": "op-100",
-            "sale_datetime": "2026-08-13T10:00:00+00:00",
-        })
-        with CustomerUnitOfWork(conn) as uow:
-            bridged = uow.customers.get_by_legacy_customer_id("legacy-venta-1")
-        assert bridged is not None
-        assert bridged.purchase_count == 1
-
-    def test_venta_cancelada_bridges_and_decrements(self, wired_bus):
-        bus, conn = wired_bus
-        _insert_legacy_cliente(conn, "legacy-venta-2")
-        bus.publish(VENTA_COMPLETADA, {
-            "cliente_id": "legacy-venta-2", "venta_id": "v-200", "operation_id": "op-200",
-            "sale_datetime": "2026-08-13T10:00:00+00:00",
-        })
-        bus.publish(VENTA_CANCELADA, {
-            "cliente_id": "legacy-venta-2", "venta_id": "v-200", "operation_id": "op-200-cancel",
-        })
-        with CustomerUnitOfWork(conn) as uow:
-            bridged = uow.customers.get_by_legacy_customer_id("legacy-venta-2")
-        assert bridged.purchase_count == 0
-
-    def test_missing_cliente_id_is_a_silent_noop(self, wired_bus):
-        bus, conn = wired_bus
-        # Must not raise even with no container.db work to do.
-        bus.publish(VENTA_COMPLETADA, {"venta_id": "v-300", "operation_id": "op-300"})
+# CRM-43: `TestCustomersCrmSalesActivityWiring` probaba el cableado de
+# `core/events/wiring.py`, borrado con la shell legacy. El cableado canónico
+# de Ventas → Clientes vive en `backend/application/customers/integrations/
+# sales_wiring.py` y tiene sus propias pruebas.
 
 
 class TestCustomerCommercialEligibilityResolvesForLegacyOnlyCustomer:

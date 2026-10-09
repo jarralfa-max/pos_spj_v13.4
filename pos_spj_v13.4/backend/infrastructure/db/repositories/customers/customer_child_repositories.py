@@ -50,6 +50,15 @@ class CustomerAccountRepository(CustomerRepositoryBase):
             (customer_id,))
         return [self._hydrate(r) for r in rows]
 
+    def update(self, account: CustomerAccount) -> None:
+        self._execute(
+            "UPDATE customer_accounts SET account_type=?, industry=?, company_size=?,"
+            " website=?, parent_account_id=?, account_owner_user_id=?, territory_id=?,"
+            " status=? WHERE id=?",
+            (account.account_type, account.industry, account.company_size, account.website,
+             account.parent_account_id, account.account_owner_user_id, account.territory_id,
+             account.status, account.id))
+
     def reassign_customer_id(self, old_customer_id: str, new_customer_id: str) -> None:
         """CRM-11 merge support: move every account from a merged customer to
         the surviving master. No uniqueness constraint blocks this (a

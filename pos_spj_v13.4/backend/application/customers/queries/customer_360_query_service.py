@@ -139,12 +139,22 @@ class Customer360QueryService:
         customer_context = CustomerScopeContext(
             user_id=actor_user_id, branch_id=branch_id, territory_id=territory_id,
             portfolio_id=portfolio_id, team_member_ids=team_member_ids)
-        crm_context = CRMScopeContext(user_id=actor_user_id, team_member_ids=team_member_ids)
+        crm_context = CRMScopeContext(user_id=actor_user_id, team_member_ids=team_member_ids,
+                                      branch_ids=(branch_id,) if branch_id else ())
 
         # Hard gate: no profile access, no 360 view.
         profile = CustomerProfileQueryService(
             self._connection, self._customer_scope_resolver,
         ).get_profile(customer_id, customer_context)
+        # CRM-43 (§75): el expediente se entrega con teléfono, correo, RFC y calle
+        # enmascarados según el permiso de quien mira.
+        from backend.application.customers.queries.customer_display_profile import (
+            mask_profile,
+            resolve_visibility,
+        )
+        if self._customer_auth is not None:
+            profile = mask_profile(profile, resolve_visibility(self._customer_auth,
+                                                               actor_user_id))
 
         return Customer360View(
             profile=profile,

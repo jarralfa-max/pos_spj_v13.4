@@ -61,7 +61,7 @@ class CustomerProfileQueryService:
     ) -> list[Customer]:
         scope = self._scope_resolver.resolve_view_scope(context)
         if scope.axis == "COMPANY":
-            return self._uow.customers.list_active(limit=limit, offset=offset)
+            return self._uow.customers.list_all(limit=limit, offset=offset)
         if scope.axis in ("OWN", "TEAM"):
             owner_ids = (scope.owner_user_id,) if scope.axis == "OWN" else scope.team_member_ids
             return self._uow.customers.list_owned_by(owner_ids, limit=limit, offset=offset)

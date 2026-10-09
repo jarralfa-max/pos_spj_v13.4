@@ -46,8 +46,8 @@ class TestCRMPermissions:
         OPPORTUNITY_VIEW_SCOPE_PERMISSIONS,
         CASE_VIEW_SCOPE_PERMISSIONS,
     ])
-    def test_scope_axes_are_own_then_team(self, scope_permissions):
-        assert [axis for axis, _ in scope_permissions] == ["OWN", "TEAM"]
+    def test_scope_axes_are_own_team_branch_company(self, scope_permissions):
+        assert [axis for axis, _ in scope_permissions] == ["OWN", "TEAM", "BRANCH", "COMPANY"]
 
 
 class TestCRMDataScopeResolver:
@@ -81,6 +81,38 @@ class TestCRMDataScopeResolver:
         )
         assert scope.axis == "TEAM"
         assert scope.team_member_ids == ("u1", "u2")
+
+    def test_branch_scope_uses_the_session_branch(self):
+        """CRM-43: el gerente ve toda su sucursal."""
+        checker = _StaticChecker({CRMPermissions.LEADS_VIEW_OWN,
+                                  CRMPermissions.LEADS_VIEW_BRANCH})
+        scope = CRMDataScopeResolver(checker).resolve_view_scope(
+            CRMScopeContext(user_id="u1", branch_ids=("b1",)), LEAD_VIEW_SCOPE_PERMISSIONS)
+        assert scope == CRMDataScope(axis="BRANCH", branch_ids=("b1",))
+        assert scope.includes(responsible_user_id="otro", branch_id="b1")
+        assert not scope.includes(responsible_user_id="u1", branch_id="b2")
+
+    def test_branch_scope_without_active_branch_falls_back_to_narrower(self):
+        checker = _StaticChecker({CRMPermissions.LEADS_VIEW_OWN,
+                                  CRMPermissions.LEADS_VIEW_BRANCH})
+        scope = CRMDataScopeResolver(checker).resolve_view_scope(
+            CRMScopeContext(user_id="u1"), LEAD_VIEW_SCOPE_PERMISSIONS)
+        assert scope.axis == "OWN"
+
+    def test_company_scope_sees_everything(self):
+        checker = _StaticChecker({CRMPermissions.CASES_VIEW_COMPANY})
+        scope = CRMDataScopeResolver(checker).resolve_view_scope(
+            CRMScopeContext(user_id="u1"), CASE_VIEW_SCOPE_PERMISSIONS)
+        assert scope.axis == "COMPANY"
+        assert scope.includes(responsible_user_id=None, branch_id=None)
+
+    def test_own_scope_includes_unassigned_records_the_user_created(self):
+        """CRM-43: un prospecto recién creado (sin responsable) no aparecía en
+        ningún directorio — ni siquiera en el de quien lo dio de alta."""
+        scope = CRMDataScope(axis="OWN", owner_user_id="u1")
+        assert scope.includes(responsible_user_id=None, created_by_user_id="u1")
+        assert not scope.includes(responsible_user_id=None, created_by_user_id="u2")
+        assert not scope.includes(responsible_user_id="u2", created_by_user_id="u1")
 
     def test_opportunity_scope_is_independent_from_lead_scope(self):
         # Grant only opportunity-team, not lead-anything.

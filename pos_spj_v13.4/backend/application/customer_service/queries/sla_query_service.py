@@ -38,3 +38,8 @@ class SLAQueryService:
         self._auth.require(actor_user_id, CRMPermissions.SLA_VIEW)
         return [s for s in self._uow.sla_instances.list_open()
                 if s.effective_breach_status(as_of=as_of) is SLABreachStatus.AT_RISK]
+
+    def list_policies(self, *, actor_user_id: str):
+        """CRM-43: el catálogo de políticas (activas primero) para la pantalla SLA."""
+        self._auth.require(actor_user_id, CRMPermissions.SLA_VIEW)
+        return self._uow.policies.list_all()

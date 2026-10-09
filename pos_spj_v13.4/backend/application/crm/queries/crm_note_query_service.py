@@ -38,3 +38,9 @@ class CRMNoteQueryService:
                                                        CRMPermissions.NOTES_VIEW_PRIVATE)
         return [n for n in notes
                 if not n.is_private or can_view_private or n.is_authored_by(actor_user_id)]
+
+    def list_mine(self, *, actor_user_id: str, limit: int = 300) -> list[CRMNote]:
+        """CRM-43: «Notas» del menú — lo que el usuario escribió, en todos
+        sus registros (las privadas propias siempre se ven)."""
+        self._auth.require(actor_user_id, CRMPermissions.NOTES_VIEW)
+        return self._uow.notes.list_by_author(actor_user_id, limit=limit)

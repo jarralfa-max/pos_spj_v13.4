@@ -317,6 +317,9 @@ MIGRATIONS = [
     _Migration("311",  "migrations.standalone.311_backfill_cash_shift_business_date"),
     _Migration("312",  "migrations.standalone.312_seed_device_test_and_user_permissions"),
     _Migration("313",  "migrations.standalone.313_customer_display_media"),
+    _Migration("314",  "migrations.standalone.314_seed_customers_crm_role_permissions"),
+    _Migration("315",  "migrations.standalone.315_seed_service_level_policies"),
+    _Migration("316",  "migrations.standalone.316_backfill_customer_sales_projection"),
 ]
 
 def _ensure_tracking_table(conn):

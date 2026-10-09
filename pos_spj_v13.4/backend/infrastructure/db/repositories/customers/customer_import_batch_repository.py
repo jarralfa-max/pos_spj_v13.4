@@ -36,6 +36,12 @@ class CustomerImportBatchRepository(CustomerRepositoryBase):
                               (batch_id,))
         return self._hydrate(row) if row else None
 
+    def list_recent(self, *, limit: int = 200) -> list[CustomerImportBatch]:
+        rows = self._query(
+            f"SELECT {_COLS} FROM customer_import_batches ORDER BY created_at DESC LIMIT ?",
+            (limit,))
+        return [self._hydrate(r) for r in rows]
+
     def list_pending_approval(self) -> list[CustomerImportBatch]:
         rows = self._query(
             f"SELECT {_COLS} FROM customer_import_batches"

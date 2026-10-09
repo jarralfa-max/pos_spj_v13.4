@@ -74,6 +74,47 @@ class CustomerHistoryQueryService:
         self._conn = connection
         self._auth = authorization or CustomerAuthorizationPolicy()
 
+    # -- §28: historial comercial (CRM-43) -------------------------------------
+    # Lecturas de Ventas / Pedidos / Cotizaciones con ``customers.id`` canónico.
+    # Permiso ``CLIENTES.pedidos.ver``: ver la relación comercial no es ver la
+    # bitácora de auditoría (esa sigue en ``get_timeline``).
+    def _commercial(self, actor_user_id: str):
+        from backend.infrastructure.db.repositories.customers.commercial_history_repository import (
+            CommercialHistoryRepository,
+        )
+        self._auth.require(actor_user_id, CustomerPermissions.ORDERS_VIEW)
+        return CommercialHistoryRepository(self._conn)
+
+    def get_purchase_history(self, customer_id: str, *, actor_user_id: str) -> list[dict]:
+        return self._commercial(actor_user_id).purchases(customer_id)
+
+    def get_payment_history(self, customer_id: str, *, actor_user_id: str) -> list[dict]:
+        return self._commercial(actor_user_id).payments(customer_id)
+
+    def get_return_history(self, customer_id: str, *, actor_user_id: str) -> list[dict]:
+        return self._commercial(actor_user_id).returns(customer_id)
+
+    def get_order_history(self, customer_id: str, *, actor_user_id: str) -> list[dict]:
+        return self._commercial(actor_user_id).orders(customer_id)
+
+    def get_quote_history(self, customer_id: str, *, actor_user_id: str) -> list[dict]:
+        return self._commercial(actor_user_id).quotes(customer_id)
+
+    def get_product_affinity(self, customer_id: str, *, actor_user_id: str) -> list[dict]:
+        return self._commercial(actor_user_id).product_affinity(customer_id)
+
+    def get_credit_history(self, customer_id: str, *, actor_user_id: str) -> list[dict]:
+        self._auth.require(actor_user_id, CustomerPermissions.CREDIT_HISTORY_VIEW)
+        from backend.infrastructure.db.repositories.customer_credit.unit_of_work import (
+            CustomerCreditUnitOfWork,
+        )
+        return CustomerCreditUnitOfWork(self._conn).audit.list_for_customer(customer_id)
+
+    def get_activity_timeline(self, customer_id: str, *, actor_user_id: str,
+                              limit: int = 200) -> list["CustomerTimelineEntry"]:
+        """§28: alias del nombre del prompt para ``get_timeline``."""
+        return self.get_timeline(customer_id, actor_user_id=actor_user_id, limit=limit)
+
     def get_timeline(self, customer_id: str, *, actor_user_id: str,
                      limit: int = 200) -> list[CustomerTimelineEntry]:
         self._auth.require(actor_user_id, CustomerPermissions.AUDIT_VIEW)

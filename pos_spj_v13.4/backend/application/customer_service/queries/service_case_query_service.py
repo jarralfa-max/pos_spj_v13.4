@@ -12,15 +12,34 @@ masking (CRM-6) and CRM-2's ``FieldVisibility`` precedent.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from backend.application.crm.authorization import CRMAuthorizationPolicy
 from backend.application.crm.data_scope import CRMDataScope, CRMDataScopeResolver, CRMScopeContext
 from backend.application.crm.permissions import CASE_VIEW_SCOPE_PERMISSIONS, CRMPermissions
 from backend.domain.crm.exceptions import CRMPermissionDeniedError, CRMScopeError
 from backend.domain.customer_service.entities.customer_service_case import CustomerServiceCase
 from backend.domain.customer_service.exceptions import ServiceCaseNotFoundError
+from backend.domain.customer_service.entities.sla_instance import SLAInstance
 from backend.infrastructure.db.repositories.customer_service.unit_of_work import (
     CustomerServiceUnitOfWork,
 )
+
+
+@dataclass(frozen=True)
+class ServiceCaseRow:
+    """§86: un caso con su SLA (puede no tener: ninguna política coincidió)."""
+
+    case: CustomerServiceCase
+    sla: SLAInstance | None
+
+
+@dataclass(frozen=True)
+class ServiceCaseDetail:
+    case: CustomerServiceCase
+    sla: SLAInstance | None
+    escalations: list = field(default_factory=list)
+    resolution: object | None = None
 
 
 class ServiceCaseQueryService:
@@ -47,8 +66,7 @@ class ServiceCaseQueryService:
     def list_directory(self, context: CRMScopeContext, *, limit: int = 200,
                         offset: int = 0) -> list[CustomerServiceCase]:
         scope = self._scope_resolver.resolve_view_scope(context, CASE_VIEW_SCOPE_PERMISSIONS)
-        owner_ids = (scope.owner_user_id,) if scope.axis == "OWN" else scope.team_member_ids
-        cases = self._uow.cases.list_owned_by(owner_ids, limit=limit, offset=offset)
+        cases = self._uow.cases.list_in_scope(scope, limit=limit, offset=offset)
         can_view_sensitive = self._auth.has_permission(context.user_id,
                                                         CRMPermissions.CASES_VIEW_SENSITIVE)
         return [c for c in cases if not c.is_sensitive or can_view_sensitive]
@@ -67,6 +85,18 @@ class ServiceCaseQueryService:
 
     @staticmethod
     def _in_scope(case: CustomerServiceCase, scope: CRMDataScope) -> bool:
-        if scope.axis == "OWN":
-            return case.assigned_user_id == scope.owner_user_id
-        return case.assigned_user_id in scope.team_member_ids
+        return scope.includes(responsible_user_id=case.assigned_user_id,
+                              created_by_user_id=case.created_by_user_id,
+                              branch_id=case.origin_branch_id)
+
+    def list_rows(self, context: CRMScopeContext, *, limit: int = 500) -> list[ServiceCaseRow]:
+        """CRM-43: la bandeja de casos con el SLA de cada uno."""
+        return [ServiceCaseRow(c, self._uow.sla_instances.get_for_case(c.id))
+                for c in self.list_directory(context, limit=limit)]
+
+    def get_detail(self, case_id: str, context: CRMScopeContext) -> ServiceCaseDetail:
+        case = self.get_profile(case_id, context)
+        return ServiceCaseDetail(
+            case=case, sla=self._uow.sla_instances.get_for_case(case_id),
+            escalations=self._uow.escalations.list_for_case(case_id),
+            resolution=self._uow.resolutions.get_for_case(case_id))

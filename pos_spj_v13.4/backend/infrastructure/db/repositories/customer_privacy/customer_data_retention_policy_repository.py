@@ -35,6 +35,19 @@ class CustomerDataRetentionPolicyRepository(CustomerPrivacyRepositoryBase):
             f"SELECT {_POLICY_COLS} FROM customer_data_retention_policies WHERE active=1")
         return [self._hydrate(r) for r in rows]
 
+    def list_all(self) -> list[CustomerDataRetentionPolicy]:
+        rows = self._query(
+            f"SELECT {_POLICY_COLS} FROM customer_data_retention_policies"
+            " ORDER BY active DESC, data_category, code")
+        return [self._hydrate(r) for r in rows]
+
+    def update(self, policy: CustomerDataRetentionPolicy) -> None:
+        self._execute(
+            "UPDATE customer_data_retention_policies SET name=?, retention_days=?,"
+            " legal_basis=?, active=?, updated_at=? WHERE id=?",
+            (policy.name, policy.retention_days, policy.legal_basis, int(policy.active),
+             policy.updated_at, policy.id))
+
     # helpers -----------------------------------------------------------------
     @staticmethod
     def _params(policy: CustomerDataRetentionPolicy) -> tuple:

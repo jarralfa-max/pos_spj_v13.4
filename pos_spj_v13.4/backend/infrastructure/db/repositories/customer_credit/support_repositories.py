@@ -35,6 +35,12 @@ class CustomerCreditAuditRepository(CustomerCreditRepositoryBase):
             " FROM customer_credit_audit_log WHERE customer_id=? ORDER BY created_at DESC",
             (customer_id,))
 
+    def list_recent(self, *, limit: int = 300) -> list[dict]:
+        return self._query(
+            "SELECT customer_id, action, actor_user_id, authorized_by_user_id, reason,"
+            " before_json, after_json, created_at FROM customer_credit_audit_log"
+            " ORDER BY created_at DESC LIMIT ?", (limit,))
+
 
 class CustomerCreditOutboxRepository(CustomerCreditRepositoryBase):
     def enqueue(self, event_id: str, event_name: str, payload_json: str,

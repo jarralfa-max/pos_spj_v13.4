@@ -11,6 +11,7 @@ from backend.domain.crm.entities.opportunity import Opportunity
 from backend.domain.crm.enums import OpportunityStatus
 from backend.domain.crm.value_objects.opportunity_code import OpportunityCode
 from backend.infrastructure.db.repositories.crm.base import CRMRepositoryBase
+from backend.infrastructure.db.repositories.crm.scope_sql import scope_where
 
 _OPP_COLS = (
     "id, opportunity_number, customer_id, account_id, name, source_lead_id,"
@@ -102,6 +103,20 @@ class OpportunityRepository(CRMRepositoryBase):
         rows = self._query(
             f"SELECT {_OPP_COLS} FROM opportunities WHERE customer_id=?"
             " ORDER BY created_at DESC LIMIT ? OFFSET ?", (customer_id, limit, offset))
+        return [self._hydrate(r) for r in rows]
+
+    def list_in_scope(self, scope, *, open_only: bool = False, limit: int = 200,
+                      offset: int = 0) -> list[Opportunity]:
+        """CRM-43: el directorio según el alcance resuelto (OWN/TEAM/BRANCH/
+        COMPANY) — ver ``scope_sql.scope_where``."""
+        where, params = scope_where(scope, responsible_col="owner_user_id",
+                                    creator_col="created_by_user_id",
+                                    branch_col="origin_branch_id")
+        if open_only:
+            where += " AND status NOT IN ('WON','LOST','CANCELLED')"
+        rows = self._query(
+            f"SELECT {_OPP_COLS} FROM opportunities WHERE {where}"
+            " ORDER BY created_at DESC LIMIT ? OFFSET ?", (*params, limit, offset))
         return [self._hydrate(r) for r in rows]
 
     # helpers -----------------------------------------------------------------

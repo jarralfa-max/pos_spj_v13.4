@@ -73,7 +73,7 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="customers.create", icon=Icons.ADD, label="Alta rápida", group="Clientes",
         tooltip="Alta rápida de un nuevo cliente.",
-        required_permission=CustomerPermissions.VIEW, capability="clientes"),
+        required_permission=CustomerPermissions.CREATE, capability="clientes"),
     CustomerCrmRoute(
         route_id="customers.profile", icon=Icons.DOCUMENT, label="Expedientes", group="Clientes",
         tooltip="Expediente 360 del cliente.",
@@ -97,19 +97,19 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="customers.contacts", icon=Icons.PHONE, label="Contactos", group="Clientes",
         tooltip="Personas de contacto del cliente.",
-        required_permission=CustomerPermissions.VIEW, capability="clientes"),
+        required_permission=CustomerPermissions.CONTACT_VIEW, capability="clientes"),
     CustomerCrmRoute(
         route_id="customers.addresses", icon=Icons.ADDRESS, label="Direcciones", group="Clientes",
         tooltip="Direcciones fiscales y de entrega.",
-        required_permission=CustomerPermissions.VIEW, capability="clientes"),
+        required_permission=CustomerPermissions.ADDRESS_VIEW, capability="clientes"),
     CustomerCrmRoute(
         route_id="customers.tax_profiles", icon=Icons.FINANCE, label="Datos fiscales", group="Clientes",
         tooltip="Perfil fiscal (RFC, régimen, CFDI).",
-        required_permission=CustomerPermissions.VIEW, capability="clientes"),
+        required_permission=CustomerPermissions.TAX_PROFILE_VIEW, capability="clientes"),
     CustomerCrmRoute(
         route_id="customers.duplicates", icon=Icons.BUNDLE, label="Duplicados", group="Clientes",
         tooltip="Candidatos a duplicado y fusión.",
-        required_permission=CustomerPermissions.VIEW, capability="clientes"),
+        required_permission=CustomerPermissions.DUPLICATES_VIEW, capability="clientes"),
 
     # -- Prospectos --------------------------------------------------------------
     CustomerCrmRoute(
@@ -137,7 +137,7 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="crm.pipeline", icon=Icons.ROUTE, label="Pipeline", group="Oportunidades",
         tooltip="Vista del pipeline comercial.",
-        required_permission=CRMPermissions.OPPORTUNITIES_VIEW, capability="oportunidades"),
+        required_permission=CRMPermissions.PIPELINE_VIEW, capability="oportunidades"),
     CustomerCrmRoute(
         route_id="crm.opportunities", icon=Icons.SALES, label="Oportunidades", group="Oportunidades",
         tooltip="Directorio de oportunidades.",
@@ -149,7 +149,7 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="crm.forecast", icon=Icons.FORECAST, label="Pronóstico comercial", group="Oportunidades",
         tooltip="Pronóstico ponderado por etapa.",
-        required_permission=CRMPermissions.OPPORTUNITIES_VIEW, capability="oportunidades"),
+        required_permission=CRMPermissions.FORECAST_VIEW, capability="oportunidades"),
     CustomerCrmRoute(
         route_id="crm.lost_opportunities", icon=Icons.FAILED, label="Oportunidades perdidas", group="Oportunidades",
         tooltip="Oportunidades cerradas como perdidas.",
@@ -163,7 +163,7 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="crm.tasks", icon=Icons.TASKS, label="Tareas", group="Actividades",
         tooltip="Tareas pendientes y completadas.",
-        required_permission=CRMPermissions.ACTIVITIES_VIEW, capability="actividades"),
+        required_permission=CRMPermissions.TASKS_VIEW, capability="actividades"),
     CustomerCrmRoute(
         route_id="crm.calls", icon=Icons.PHONE, label="Llamadas", group="Actividades",
         tooltip="Registro de llamadas.",
@@ -179,7 +179,7 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="crm.activities", icon=Icons.EDIT, label="Notas", group="Actividades",
         tooltip="Notas y actividad general.",
-        required_permission=CRMPermissions.ACTIVITIES_VIEW, capability="actividades"),
+        required_permission=CRMPermissions.NOTES_VIEW, capability="actividades"),
     CustomerCrmRoute(
         route_id="crm.followups", icon=Icons.TRACKING, label="Seguimientos", group="Actividades",
         tooltip="Recordatorios y seguimientos.",
@@ -209,7 +209,7 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="crm.sla", icon=Icons.CLOCK, label="SLA", group="Atención al cliente",
         tooltip="Cumplimiento de niveles de servicio.",
-        required_permission=CRMPermissions.CASES_VIEW, capability="atencion"),
+        required_permission=CRMPermissions.SLA_VIEW, capability="atencion"),
     CustomerCrmRoute(
         route_id="crm.escalations", icon=Icons.EXTERNAL, label="Casos escalados", group="Atención al cliente",
         tooltip="Casos escalados y su historial.",
@@ -257,7 +257,7 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="customers.credit_history", icon=Icons.MOVEMENTS, label="Historial", group="Crédito",
         tooltip="Historial de movimientos de crédito.",
-        required_permission=CustomerPermissions.CREDIT_VIEW, capability="credito"),
+        required_permission=CustomerPermissions.CREDIT_HISTORY_VIEW, capability="credito"),
     CustomerCrmRoute(
         route_id="customers.credit_alerts", icon=Icons.ALERT, label="Alertas", group="Crédito",
         tooltip="Alertas de vencimiento y riesgo.",
@@ -271,25 +271,25 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="customers.tags", icon=Icons.PRICE, label="Etiquetas", group="Segmentación",
         tooltip="Etiquetas asignables a clientes.",
-        required_permission=CRMPermissions.SEGMENTS_VIEW, capability="segmentacion"),
+        required_permission=CRMPermissions.TAGS_VIEW, capability="segmentacion"),
     CustomerCrmRoute(
         route_id="customers.territories", icon=Icons.LOCATION, label="Territorios", group="Segmentación",
         tooltip="Territorios de venta.",
-        required_permission=CRMPermissions.SEGMENTS_VIEW, capability="segmentacion"),
+        required_permission=CRMPermissions.TERRITORIES_VIEW, capability="segmentacion"),
     CustomerCrmRoute(
         route_id="customers.portfolios", icon=Icons.CATALOG, label="Carteras", group="Segmentación",
         tooltip="Carteras comerciales.",
-        required_permission=CRMPermissions.SEGMENTS_VIEW, capability="segmentacion"),
+        required_permission=CRMPermissions.PORTFOLIOS_VIEW, capability="segmentacion"),
     CustomerCrmRoute(
         route_id="customers.ownership", icon=Icons.USER, label="Propietarios", group="Segmentación",
         tooltip="Propietario/responsable por cliente.",
-        required_permission=CRMPermissions.SEGMENTS_VIEW, capability="segmentacion"),
+        required_permission=CRMPermissions.CUSTOMER_OWNER_VIEW, capability="segmentacion"),
 
     # -- Comunicaciones ----------------------------------------------------------
     CustomerCrmRoute(
         route_id="customers.communication_preferences", icon=Icons.SETTINGS, label="Preferencias", group="Comunicaciones",
         tooltip="Preferencias de comunicación.",
-        required_permission=CustomerPermissions.CONSENT_VIEW, capability="comunicaciones"),
+        required_permission=CustomerPermissions.COMMUNICATION_PREFERENCE_VIEW, capability="comunicaciones"),
     CustomerCrmRoute(
         route_id="customers.consents", icon=Icons.APPROVAL, label="Consentimientos", group="Comunicaciones",
         tooltip="Evidencia de consentimiento.",
@@ -297,7 +297,7 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="customers.whatsapp_summary", icon=Icons.PHONE, label="WhatsApp", group="Comunicaciones",
         tooltip="Resumen de la integración con WhatsApp.",
-        required_permission=CustomerPermissions.CONSENT_VIEW, capability="comunicaciones"),
+        required_permission=CustomerPermissions.WHATSAPP_VIEW, capability="comunicaciones"),
     CustomerCrmRoute(
         route_id="customers.notification_history", icon=Icons.NOTIFICATIONS, label="Notificaciones", group="Comunicaciones",
         tooltip="Historial de notificaciones enviadas.",
@@ -311,7 +311,7 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="customers.retention", icon=Icons.CLOCK, label="Retención", group="Privacidad",
         tooltip="Política de retención de datos.",
-        required_permission=CustomerPermissions.PRIVACY_REQUEST_VIEW, capability="privacidad"),
+        required_permission=CustomerPermissions.SETTINGS_VIEW, capability="privacidad"),
     CustomerCrmRoute(
         route_id="customers.anonymization", icon=Icons.LOCK, label="Anonimización", group="Privacidad",
         tooltip="Anonimización de clientes.",
@@ -319,7 +319,7 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="customers.data_exports", icon=Icons.EXPORT, label="Exportaciones", group="Privacidad",
         tooltip="Exportaciones de datos sensibles.",
-        required_permission=CustomerPermissions.PRIVACY_REQUEST_VIEW, capability="privacidad"),
+        required_permission=CustomerPermissions.EXPORT, capability="privacidad"),
 
     # -- Control -------------------------------------------------------------
     CustomerCrmRoute(
@@ -329,25 +329,29 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
     CustomerCrmRoute(
         route_id="customers.imports", icon=Icons.IMPORT, label="Importaciones", group="Control",
         tooltip="Lotes de importación.",
-        required_permission=CustomerPermissions.DATA_QUALITY_VIEW, capability="control"),
+        required_permission=CustomerPermissions.IMPORT, capability="control"),
     CustomerCrmRoute(
         route_id="customers.audit", icon=Icons.AUDIT, label="Auditoría", group="Control",
         tooltip="Bitácora de auditoría del módulo.",
-        required_permission=CustomerPermissions.DATA_QUALITY_VIEW, capability="control"),
+        required_permission=CustomerPermissions.AUDIT_VIEW, capability="control"),
     CustomerCrmRoute(
         route_id="customers.settings", icon=Icons.SETTINGS, label="Configuración", group="Control",
         tooltip="Configuración del módulo.",
-        required_permission=CustomerPermissions.DATA_QUALITY_VIEW, capability="control"),
+        required_permission=CustomerPermissions.SETTINGS_VIEW, capability="control"),
 )
 
 
-def visible_routes(capabilities: CustomerCrmCapabilities) -> tuple[CustomerCrmRoute, ...]:
-    """Return routes authorized by UI capabilities, not raw route permissions."""
+def visible_routes(capabilities: CustomerCrmCapabilities,
+                   can=None) -> tuple[CustomerCrmRoute, ...]:
+    """Rutas visibles: el grupo debe estar habilitado y, si se da ``can``,
+    el usuario debe tener el permiso PROPIO de la ruta (CRM-43: antes bastaba
+    el del grupo y, por ejemplo, «Alta rápida» aparecía con sólo «ver»)."""
     if not capabilities.module_view:
         return ()
     return tuple(
         route for route in CUSTOMER_CRM_ROUTES
-        if bool(getattr(capabilities, route.capability, False)))
+        if bool(getattr(capabilities, route.capability, False))
+        and (can is None or can(route.required_permission)))
 
 
 def grouped_routes(

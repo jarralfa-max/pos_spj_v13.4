@@ -32,6 +32,19 @@ from backend.domain.customer_credit.entities.customer_credit_profile import Cust
 from backend.domain.customer_credit.enums import CreditProfileStatus
 
 
+_STATUS_TEXT = {
+    CreditProfileStatus.PENDING_APPROVAL: "por aprobar",
+    CreditProfileStatus.UNDER_REVIEW: "en revisión",
+    CreditProfileStatus.SUSPENDED: "suspendido",
+    CreditProfileStatus.BLOCKED: "bloqueado",
+    CreditProfileStatus.CLOSED: "cerrado",
+}
+
+
+def _money(value: Decimal) -> str:
+    return f"${Decimal(value).quantize(Decimal('0.01')):,.2f}"
+
+
 @dataclass(frozen=True)
 class CreditSaleEligibilityResult:
     eligible: bool
@@ -42,26 +55,33 @@ class CreditSaleEligibilityPolicy:
     def evaluate(
         self, profile: CustomerCreditProfile | None, *, amount: Decimal,
         is_public_customer: bool, available_credit: Decimal, documents_current: bool,
-        branch_allowed: bool,
+        branch_allowed: bool, customer_blocked: bool = False,
     ) -> CreditSaleEligibilityResult:
+        """CRM-43: los mensajes son los de §39, literales y con importes — el
+        cajero tiene que saber QUÉ falta (antes: «no elegible» a secas)."""
         violations: list[str] = []
 
         if is_public_customer:
-            violations.append("No se puede vender a crédito a público en general")
+            violations.append(
+                "Para vender a crédito debe seleccionar un cliente con crédito autorizado.")
+        if customer_blocked:
+            violations.append("El cliente está bloqueado.")
 
-        if profile is None:
-            violations.append("El cliente no tiene un perfil de crédito configurado")
-        else:
-            if profile.status is not CreditProfileStatus.AUTHORIZED:
-                violations.append(
-                    f"El perfil de crédito no está autorizado (estado: {profile.status.value})")
-            if profile.credit_limit <= 0:
-                violations.append("El límite de crédito debe ser mayor a cero")
+        if profile is None or profile.status is not CreditProfileStatus.AUTHORIZED:
+            detail = ""
+            if profile is not None and profile.status in _STATUS_TEXT:
+                detail = f" (crédito {_STATUS_TEXT[profile.status]})"
+            violations.append(f"El cliente no tiene crédito autorizado{detail}.")
+        elif profile.credit_limit <= 0:
+            violations.append("El cliente no tiene límite de crédito configurado.")
 
         if amount <= 0:
-            violations.append("El monto debe ser mayor a cero")
-        if available_credit < amount:
-            violations.append("Crédito disponible insuficiente para el monto solicitado")
+            violations.append("El monto debe ser mayor a cero.")
+        elif (profile is not None and profile.status is CreditProfileStatus.AUTHORIZED
+              and profile.credit_limit > 0 and available_credit < amount):
+            violations.append(
+                f"Crédito insuficiente: disponible {_money(available_credit)}, "
+                f"requerido {_money(amount)}.")
         if not documents_current:
             violations.append("Los documentos del cliente no están vigentes")
         if not branch_allowed:

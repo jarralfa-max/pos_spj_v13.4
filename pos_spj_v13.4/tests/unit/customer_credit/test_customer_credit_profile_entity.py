@@ -160,7 +160,24 @@ class TestCreditSaleEligibilityPolicy:
             profile, amount=Decimal("100"), is_public_customer=True,
             available_credit=Decimal("5000"), documents_current=True, branch_allowed=True)
         assert not result.eligible
-        assert any("público" in v for v in result.violations)
+        # §39, literal.
+        assert ("Para vender a crédito debe seleccionar un cliente con crédito autorizado."
+                in result.violations)
+
+    def test_insufficient_credit_message_carries_both_amounts(self):
+        """CRM-43 §39: «Crédito insuficiente: disponible $X, requerido $Y.»"""
+        result = self.policy.evaluate(
+            self._authorized_profile(), amount=Decimal("500"), is_public_customer=False,
+            available_credit=Decimal("100"), documents_current=True, branch_allowed=True)
+        assert result.violations == (
+            "Crédito insuficiente: disponible $100.00, requerido $500.00.",)
+
+    def test_blocked_customer_is_a_violation(self):
+        result = self.policy.evaluate(
+            self._authorized_profile(), amount=Decimal("10"), is_public_customer=False,
+            available_credit=Decimal("5000"), documents_current=True, branch_allowed=True,
+            customer_blocked=True)
+        assert "El cliente está bloqueado." in result.violations
 
     def test_no_profile_is_a_violation(self):
         result = self.policy.evaluate(

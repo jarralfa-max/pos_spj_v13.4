@@ -88,8 +88,12 @@ class TestCustomerCrmPresenterCreateCustomer:
         assert "operation_id" in calls[0]
 
 
-class _FakePresenter:
+from tests.unit._crm_fake_presenter import CrmFakePresenter
+
+
+class _FakePresenter(CrmFakePresenter):
     def __init__(self, result=None) -> None:
+        CrmFakePresenter.__init__(self)
         self._result = result or CustomerResult.ok("Cliente creado", entity_id="c1")
         self.calls: list[dict] = []
 

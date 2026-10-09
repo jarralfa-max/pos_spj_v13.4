@@ -94,3 +94,29 @@ class OverrideSLAUseCase:
                              case_id=case_id, reason=reason, operation_id=operation_id)
         return CustomerServiceResult.ok("SLA sobrescrita", entity_id=sla.id,
                                         operation_id=operation_id)
+
+
+class DeactivateServiceLevelPolicyUseCase:
+    """CRM-43: retirar una política (los casos abiertos conservan su SLA; los
+    nuevos usan la siguiente que coincida). Un tiempo se «edita» retirando la
+    política y creando otra."""
+
+    def __init__(self, authorization: CRMAuthorizationPolicy | None = None) -> None:
+        self._auth = authorization or CRMAuthorizationPolicy()
+
+    def execute(self, connection, *, actor_user_id: str, policy_id: str,
+                operation_id: str) -> CustomerServiceResult:
+        try:
+            self._auth.require(actor_user_id, CRMPermissions.SLA_MANAGE)
+        except CRMDomainError as exc:
+            return CustomerServiceResult.fail(str(exc), "PERMISSION_DENIED",
+                                              operation_id=operation_id)
+        with CustomerServiceUnitOfWork(connection) as uow:
+            policy = uow.policies.get(policy_id)
+            if policy is None or not policy.active:
+                return CustomerServiceResult.fail("La política no existe o ya está retirada.",
+                                                  "NOT_FOUND", operation_id=operation_id)
+            policy.deactivate()
+            uow.policies.update(policy)
+        return CustomerServiceResult.ok("Política retirada", entity_id=policy_id,
+                                        operation_id=operation_id)

@@ -37,6 +37,12 @@ from backend.domain.customers.policies.segregation_of_duties_policy import (
 from backend.infrastructure.db.repositories.customers.unit_of_work import CustomerUnitOfWork
 
 
+#: CRM-43: el mensaje decía «Importación partial».
+_STATUS_TEXT = {"COMPLETED": "completa", "PARTIAL": "parcial", "FAILED": "fallida",
+                "PENDING_APPROVAL": "por aprobar", "PROCESSING": "en proceso",
+                "REJECTED": "rechazada"}
+
+
 class _BaseUseCase:
     def __init__(self, authorization: CustomerAuthorizationPolicy | None = None) -> None:
         self._auth = authorization or CustomerAuthorizationPolicy()
@@ -158,7 +164,7 @@ class ImportCustomersUseCase(_BaseUseCase):
             self._emit(uow, CustomerEvents.IMPORT_BATCH_COMPLETED, "", operation_id,
                       actor_user_id, batch_id=batch.id)
         return CustomerResult.ok(
-            f"Importación {batch.status.value.lower()}: {batch.created_count} creados,"
+            f"Importación {_STATUS_TEXT.get(batch.status.value, batch.status.value.lower())}: {batch.created_count} creados,"
             f" {batch.updated_count} actualizados, {batch.duplicate_count} duplicados,"
             f" {batch.error_count} errores",
             entity_id=batch.id, operation_id=operation_id, status=batch.status.value,
@@ -207,7 +213,7 @@ class ApproveCustomerImportUseCase(_BaseUseCase):
             self._emit(uow, CustomerEvents.IMPORT_BATCH_APPROVED, "", operation_id,
                       actor_user_id, batch_id=batch.id)
         return CustomerResult.ok(
-            f"Importación aprobada y {batch.status.value.lower()}", entity_id=batch.id,
+            f"Importación aprobada y {_STATUS_TEXT.get(batch.status.value, batch.status.value.lower())}", entity_id=batch.id,
             operation_id=operation_id, status=batch.status.value,
             created=batch.created_count, updated=batch.updated_count)
 

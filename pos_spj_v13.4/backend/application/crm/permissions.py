@@ -14,6 +14,8 @@ class CRMPermissions:
     # ── leads (§64) — ejes OWN/TEAM sobre lectura ─────────────────────────
     LEADS_VIEW = "CRM.leads.ver"
     LEADS_VIEW_OWN = "CRM.leads.ver.propia"
+    LEADS_VIEW_BRANCH = "CRM.leads.ver.sucursal"
+    LEADS_VIEW_COMPANY = "CRM.leads.ver.compania"
     LEADS_VIEW_TEAM = "CRM.leads.ver.equipo"
     LEADS_CREATE = "CRM.leads.crear"
     LEADS_EDIT = "CRM.leads.editar"
@@ -28,6 +30,8 @@ class CRMPermissions:
     # ── oportunidades / pipeline / forecast (§65) ─────────────────────────
     OPPORTUNITIES_VIEW = "CRM.oportunidades.ver"
     OPPORTUNITIES_VIEW_OWN = "CRM.oportunidades.ver.propia"
+    OPPORTUNITIES_VIEW_BRANCH = "CRM.oportunidades.ver.sucursal"
+    OPPORTUNITIES_VIEW_COMPANY = "CRM.oportunidades.ver.compania"
     OPPORTUNITIES_VIEW_TEAM = "CRM.oportunidades.ver.equipo"
     OPPORTUNITIES_CREATE = "CRM.oportunidades.crear"
     OPPORTUNITIES_EDIT = "CRM.oportunidades.editar"
@@ -39,6 +43,8 @@ class CRMPermissions:
     OPPORTUNITIES_MARK_LOST = "CRM.oportunidades.marcar_perdida"
     OPPORTUNITIES_REOPEN = "CRM.oportunidades.reabrir"
     PIPELINE_VIEW = "CRM.pipeline.ver"
+    #: CRM-43: crear/editar/reordenar/retirar etapas del pipeline (§20).
+    PIPELINE_CONFIGURE = "CRM.pipeline.configurar"
     FORECAST_VIEW = "CRM.forecast.ver"
     FORECAST_VIEW_TEAM = "CRM.forecast.ver.equipo"
     FORECAST_VIEW_COMPANY = "CRM.forecast.ver.compania"
@@ -83,6 +89,8 @@ class CRMPermissions:
     # ── atención al cliente / SLA (§67) ───────────────────────────────────
     CASES_VIEW = "CRM.casos.ver"
     CASES_VIEW_OWN = "CRM.casos.ver.propia"
+    CASES_VIEW_BRANCH = "CRM.casos.ver.sucursal"
+    CASES_VIEW_COMPANY = "CRM.casos.ver.compania"
     CASES_VIEW_TEAM = "CRM.casos.ver.equipo"
     CASES_CREATE = "CRM.casos.crear"
     CASES_EDIT = "CRM.casos.editar"
@@ -163,18 +171,24 @@ ALL_CRM_PERMISSIONS = frozenset(
 )
 
 # Scope-suffixed view permissions per entity family, narrowest → widest.
-# Company-wide CRM read access ("todas las oportunidades/leads/casos de la
-# empresa") shares CustomerPermissions.VIEW_COMPANY — one COMPANY axis for
-# the whole Clientes/CRM module, not one per entity.
+# CRM-43: BRANCH/COMPANY son códigos propios por entidad — no comparten
+# CustomerPermissions.VIEW_COMPANY, porque los clientes son globales para
+# todos los roles con acceso y los prospectos/oportunidades/casos no.
 LEAD_VIEW_SCOPE_PERMISSIONS: tuple[tuple[str, str], ...] = (
     ("OWN", CRMPermissions.LEADS_VIEW_OWN),
     ("TEAM", CRMPermissions.LEADS_VIEW_TEAM),
+    ("BRANCH", CRMPermissions.LEADS_VIEW_BRANCH),
+    ("COMPANY", CRMPermissions.LEADS_VIEW_COMPANY),
 )
 OPPORTUNITY_VIEW_SCOPE_PERMISSIONS: tuple[tuple[str, str], ...] = (
     ("OWN", CRMPermissions.OPPORTUNITIES_VIEW_OWN),
     ("TEAM", CRMPermissions.OPPORTUNITIES_VIEW_TEAM),
+    ("BRANCH", CRMPermissions.OPPORTUNITIES_VIEW_BRANCH),
+    ("COMPANY", CRMPermissions.OPPORTUNITIES_VIEW_COMPANY),
 )
 CASE_VIEW_SCOPE_PERMISSIONS: tuple[tuple[str, str], ...] = (
     ("OWN", CRMPermissions.CASES_VIEW_OWN),
     ("TEAM", CRMPermissions.CASES_VIEW_TEAM),
+    ("BRANCH", CRMPermissions.CASES_VIEW_BRANCH),
+    ("COMPANY", CRMPermissions.CASES_VIEW_COMPANY),
 )

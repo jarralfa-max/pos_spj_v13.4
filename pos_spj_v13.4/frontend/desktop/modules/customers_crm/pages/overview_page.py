@@ -80,10 +80,25 @@ class CustomersCrmOverviewPage(QWidget):
         self._kpi_bar = KPIBar(cards=[])
         self._grid.add_kpi_bar(self._kpi_bar)
 
+        # CRM-43 (§81): KPIs secundarios bajo los seis principales.
+        self._secondary_bar = KPIBar(cards=[])
+        self._grid.add_kpi_bar(self._secondary_bar)
         self._pipeline_card = ChartCard(self)
         self._pipeline_chart = HtmlChartView(self._pipeline_card)
         self._pipeline_card.add(self._pipeline_chart)
         self._grid.add_full_width(self._pipeline_card)
+        # CRM-43 (§82): el resto de las gráficas, de dos en dos.
+        self._charts: dict[str, HtmlChartView] = {}
+        for left, right in (("leads_by_source", "outcomes"), ("by_owner", "cases_by_type"),
+                            ("sla", "segments")):
+            cards = []
+            for key in (left, right):
+                card = ChartCard(self)
+                chart = HtmlChartView(card)
+                card.add(chart)
+                self._charts[key] = chart
+                cards.append((card, 1))
+            self._grid.add_row(*cards)
 
         self._activity_table = StandardTable(
             [ColumnSpec("Actividad"), ColumnSpec("Tipo"), ColumnSpec("Vence", "date")], self)
@@ -104,6 +119,7 @@ class CustomersCrmOverviewPage(QWidget):
             self._kpi_bar.set_cards(self._build_kpis(view))
             self._alerts_bar.set_alerts(self._build_alerts(view))
             self._pipeline_chart.set_chart(self._build_pipeline_chart(view))
+            self._load_insights()
             self._activity_table.load_rows(self._build_activity_rows(view))
             self._loaded = True
             self._status.hide()
@@ -158,6 +174,56 @@ class CustomersCrmOverviewPage(QWidget):
             series=(series_from(
                 "Monto", [float(slice_.amount) for slice_ in view.pipeline_by_stage]),),
             currency_code="MXN")
+
+    # -- CRM-43: indicadores secundarios y gráficas (§81-82) --------------------
+    def _load_insights(self) -> None:
+        reader = getattr(self._presenter, "has_reader", None)
+        if not (callable(reader) and reader("insights")):
+            return
+        try:
+            insights = self._presenter.read("insights")
+        except Exception:  # noqa: BLE001 — sin permisos: se quedan los principales
+            return
+        self._secondary_bar.set_cards([
+            KPIDTO(key="active_customers", title="Clientes activos",
+                   value=str(insights.active_customers)),
+            KPIDTO(key="conversion", title="Conversión de prospectos",
+                   value=f"{insights.lead_conversion_pct}%"),
+            KPIDTO(key="won", title="Oportunidades ganadas", value=str(insights.opportunities_won),
+                   variant="success"),
+            KPIDTO(key="won_value", title="Valor ganado", value=f"${insights.won_value:,.2f}",
+                   variant="success"),
+            KPIDTO(key="open_cases", title="Casos abiertos", value=str(insights.open_cases)),
+            KPIDTO(key="no_follow", title="Clientes sin seguimiento",
+                   value=str(insights.customers_without_follow_up),
+                   variant="warning" if insights.customers_without_follow_up else "neutral"),
+        ])
+        from frontend.desktop.modules.customers_crm.labels import label
+        user = getattr(self._presenter, "user_name", lambda u: u or "Sin asignar")
+        self._chart("leads_by_source", ChartType.DONUT, "Prospectos por fuente",
+                    [(label("lead_source", k), v) for k, v in insights.leads_by_source])
+        self._chart("outcomes", ChartType.BAR, "Oportunidades por resultado",
+                    [(label("opportunity_status", k), v)
+                     for k, v in insights.opportunities_by_outcome])
+        self._chart("by_owner", ChartType.HORIZONTAL_BAR, "Pipeline por responsable",
+                    [(user(k), float(v)) for k, v in insights.pipeline_by_owner], money=True)
+        self._chart("cases_by_type", ChartType.BAR, "Casos por tipo",
+                    [(label("case_type", k), v) for k, v in insights.cases_by_type])
+        self._chart("sla", ChartType.DONUT, "Cumplimiento de SLA",
+                    [(label("sla_status", k), v) for k, v in insights.sla_compliance])
+        self._chart("segments", ChartType.BAR, "Clientes por segmento",
+                    list(insights.customers_by_segment))
+
+    def _chart(self, key: str, chart_type: str, title: str, pairs, *, money: bool = False):
+        if not pairs:
+            dto = ChartDataDTO.empty(f"crm_{key}", chart_type, title)
+        else:
+            dto = ChartDataDTO(
+                chart_id=f"crm_{key}", chart_type=chart_type, title=title, subtitle=None,
+                categories=tuple(str(k) for k, _v in pairs),
+                series=(series_from(title, [float(v) for _k, v in pairs]),),
+                currency_code="MXN" if money else None)
+        self._charts[key].set_chart(dto)
 
     @staticmethod
     def _build_activity_rows(view) -> list[list[str]]:

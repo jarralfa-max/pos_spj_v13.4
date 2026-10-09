@@ -45,8 +45,7 @@ class LeadDirectoryQueryService:
     def list_directory(self, context: CRMScopeContext, *, limit: int = 200,
                         offset: int = 0) -> list[Lead]:
         scope = self._scope_resolver.resolve_view_scope(context, LEAD_VIEW_SCOPE_PERMISSIONS)
-        owner_ids = (scope.owner_user_id,) if scope.axis == "OWN" else scope.team_member_ids
-        return self._uow.leads.list_owned_by(owner_ids, limit=limit, offset=offset)
+        return self._uow.leads.list_in_scope(scope, limit=limit, offset=offset)
 
     def count_new(self, *, actor_user_id: str) -> int:
         """CRM-15 (§90 dashboard KPI "Leads nuevos"): a NEW lead is by
@@ -66,6 +65,6 @@ class LeadDirectoryQueryService:
 
     @staticmethod
     def _in_scope(lead: Lead, scope: CRMDataScope) -> bool:
-        if scope.axis == "OWN":
-            return lead.assigned_user_id == scope.owner_user_id
-        return lead.assigned_user_id in scope.team_member_ids
+        return scope.includes(responsible_user_id=lead.assigned_user_id,
+                              created_by_user_id=lead.created_by_user_id,
+                              branch_id=lead.origin_branch_id)

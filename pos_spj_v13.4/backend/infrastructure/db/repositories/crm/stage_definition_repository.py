@@ -50,6 +50,16 @@ class CRMStageDefinitionRepository(CRMRepositoryBase):
             " WHERE active=1 ORDER BY sequence_order ASC")
         return [self._hydrate(r) for r in rows]
 
+    def list_all_ordered(self) -> list[CRMStageDefinition]:
+        rows = self._query(
+            f"SELECT {_STAGE_COLS} FROM crm_stage_definitions"
+            " ORDER BY active DESC, sequence_order ASC")
+        return [self._hydrate(r) for r in rows]
+
+    def max_sequence(self) -> int:
+        row = self._query_one("SELECT MAX(sequence_order) AS m FROM crm_stage_definitions")
+        return int(row["m"] or 0) if row else 0
+
     def get_won_stage(self) -> CRMStageDefinition | None:
         row = self._query_one(
             f"SELECT {_STAGE_COLS} FROM crm_stage_definitions"

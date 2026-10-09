@@ -59,14 +59,7 @@ from frontend.desktop.modules.customers_crm.pages.customers_directory_page impor
 from frontend.desktop.modules.customers_crm.pages.edit_customer_page import (
     EditCustomerPage,
 )
-from frontend.desktop.modules.customers_crm.pages.leads_directory_page import LeadsDirectoryPage
-from frontend.desktop.modules.customers_crm.pages.opportunities_directory_page import (
-    OpportunitiesDirectoryPage,
-)
 from frontend.desktop.modules.customers_crm.pages.overview_page import CustomersCrmOverviewPage
-from frontend.desktop.modules.customers_crm.pages.service_cases_directory_page import (
-    ServiceCasesDirectoryPage,
-)
 from frontend.desktop.modules.customers_crm.customers_crm_routes import (
     GROUP_ICONS,
     CUSTOMER_CRM_ROUTES,
@@ -140,7 +133,9 @@ class CustomersCrmWorkspace(QWidget):
                 page_index += 1
 
     def _visible_grouped_routes(self) -> list[tuple[str, list]]:
-        return grouped_routes(visible_routes(self._presenter.capabilities()))
+        can = getattr(self._presenter, "can", None)
+        return grouped_routes(visible_routes(self._presenter.capabilities(),
+                                             can if callable(can) else None))
 
     def _wrap_page(self, route_id: str, label: str, tooltip: str) -> QWidget:
         page = QFrame(self)
@@ -169,6 +164,8 @@ class CustomersCrmWorkspace(QWidget):
             self._profile_page = CustomerProfilePage(self._presenter, self)
             self._profile_page.edit_requested.connect(self._open_edit_customer)
             self._profile_page.navigation_requested.connect(self.navigation_requested.emit)
+            self._profile_page.opportunity_opened.connect(self._open_opportunity)
+            self._profile_page.case_opened.connect(self._open_case)
             return self._profile_page
         if route_id == "customers.edit":
             self._edit_page = EditCustomerPage(self._presenter, self)
@@ -177,23 +174,155 @@ class CustomersCrmWorkspace(QWidget):
         if route_id == "customers.directory":
             directory = CustomersDirectoryPage(self._presenter, self)
             directory.entity_selected.connect(self._open_customer_profile)
+            directory.create_requested.connect(lambda: self.select_route("customers.create"))
             return directory
         if route_id == "customers.create":
             create_page = CreateCustomerPage(self._presenter, self)
             create_page.customer_created.connect(self._open_customer_profile)
             return create_page
-        if route_id == "crm.leads":
-            return LeadsDirectoryPage(self._presenter, self)
-        if route_id == "crm.opportunities":
-            return OpportunitiesDirectoryPage(self._presenter, self)
-        if route_id == "crm.service_cases":
-            return ServiceCasesDirectoryPage(self._presenter, self)
+        page = self._create_crm43_page(route_id)
+        if page is not None:
+            return page
 
         placeholder = create_state_widget(
             ViewState.EMPTY, self,
             message=f"{label}: seccion en construccion (proxima fase).")
         apply_tooltip(placeholder, tooltip, help_id=f"customers_crm.{route_id}")
         return placeholder
+
+    # -- CRM-43: páginas operativas -------------------------------------------
+    def _create_crm43_page(self, route_id: str):
+        """Páginas construidas en la re-auditoría CRM-43 (antes «en construcción»)."""
+        from frontend.desktop.modules.customers_crm.pages.activity_pages import (
+            ACTIVITY_ROUTE_PAGES,
+        )
+        from frontend.desktop.modules.customers_crm.pages.leads_pages import (
+            LEAD_ROUTE_PAGES,
+            LeadDetailPage,
+        )
+        from frontend.desktop.modules.customers_crm.pages.service_pages import (
+            CASE_ROUTE_PAGES,
+            CaseDetailPage,
+            SlaPage,
+        )
+        from frontend.desktop.modules.customers_crm.pages.opportunity_pages import (
+            OPPORTUNITY_ROUTE_PAGES,
+            ForecastPage,
+            OpportunityDetailPage,
+            PipelinePage,
+        )
+
+        if route_id in LEAD_ROUTE_PAGES:
+            page = LEAD_ROUTE_PAGES[route_id](self._presenter, self)
+            page.row_opened.connect(self._open_lead)
+            return page
+        if route_id == "crm.lead_detail":
+            self._lead_detail = LeadDetailPage(self._presenter, self)
+            return self._lead_detail
+        if route_id in OPPORTUNITY_ROUTE_PAGES:
+            page = OPPORTUNITY_ROUTE_PAGES[route_id](self._presenter, self)
+            page.row_opened.connect(self._open_opportunity)
+            return page
+        if route_id == "crm.pipeline":
+            page = PipelinePage(self._presenter, self)
+            page.opportunity_opened.connect(self._open_opportunity)
+            return page
+        if route_id == "crm.forecast":
+            return ForecastPage(self._presenter, self)
+        if route_id == "crm.opportunity_detail":
+            self._opportunity_detail = OpportunityDetailPage(self._presenter, self)
+            return self._opportunity_detail
+        if route_id in ACTIVITY_ROUTE_PAGES:
+            return ACTIVITY_ROUTE_PAGES[route_id](self._presenter, self)
+        if route_id in CASE_ROUTE_PAGES:
+            page = CASE_ROUTE_PAGES[route_id](self._presenter, self)
+            page.row_opened.connect(self._open_case)
+            return page
+        if route_id == "crm.case_detail":
+            self._case_detail = CaseDetailPage(self._presenter, self)
+            return self._case_detail
+        if route_id == "crm.sla":
+            return SlaPage(self._presenter, self)
+        from frontend.desktop.modules.customers_crm.pages.credit_pages import (
+            CREDIT_ROUTE_PAGES,
+        )
+        if route_id in CREDIT_ROUTE_PAGES:
+            return CREDIT_ROUTE_PAGES[route_id](self._presenter, self)
+        from frontend.desktop.modules.customers_crm.pages.control_pages import (
+            CONTROL_ROUTE_PAGES,
+        )
+        if route_id in CONTROL_ROUTE_PAGES:
+            page = CONTROL_ROUTE_PAGES[route_id](self._presenter, self)
+            if hasattr(page, "customer_opened"):
+                page.customer_opened.connect(self._open_customer_profile)
+            return page
+        from frontend.desktop.modules.customers_crm.pages.segmentation_pages import (
+            SEGMENTATION_ROUTE_PAGES,
+        )
+        if route_id in SEGMENTATION_ROUTE_PAGES:
+            return SEGMENTATION_ROUTE_PAGES[route_id](self._presenter, self)
+        from frontend.desktop.modules.customers_crm.pages import customer_sections as cs
+        scoped = {
+            "customers.contacts": (cs.ContactsSection, "Contactos",
+                                   "Personas de contacto de cada cliente.", Icons.PHONE),
+            "customers.addresses": (cs.AddressesSection, "Direcciones",
+                                    "Direcciones fiscales, de entrega y comerciales.",
+                                    Icons.ADDRESS),
+            "customers.tax_profiles": (cs.TaxProfileSection, "Datos fiscales",
+                                       "RFC, régimen, uso de CFDI y correo de facturación.",
+                                       Icons.FINANCE),
+            "customers.accounts": (cs.AccountsSection, "Cuentas comerciales",
+                                   "Cuentas de clientes empresariales.", Icons.COMPANY),
+        }
+        from frontend.desktop.modules.customers_crm.pages import privacy_pages as pv
+        if route_id in pv.PRIVACY_ROUTE_PAGES:
+            return pv.PRIVACY_ROUTE_PAGES[route_id](self._presenter, self)
+        scoped.update({
+            "customers.communication_preferences": (
+                pv.PreferencesSection, "Preferencias de comunicación",
+                "Canal, horario y tipos de aviso que acepta cada cliente.", Icons.SETTINGS),
+            "customers.consents": (
+                pv.ConsentsSection, "Consentimientos",
+                "Aviso de privacidad, WhatsApp, marketing… con su evidencia.", Icons.APPROVAL),
+            "customers.whatsapp_summary": (
+                pv.WhatsAppSection, "WhatsApp",
+                "Consentimiento, conversaciones y mensajes del cliente (sin contenido).",
+                Icons.PHONE),
+            "customers.notification_history": (
+                pv.WhatsAppSection, "Notificaciones",
+                "Avisos enviados al cliente y su estado de entrega.", Icons.NOTIFICATIONS),
+        })
+        from frontend.desktop.modules.customers_crm.pages.commercial_pages import (
+            COMMERCIAL_SECTIONS,
+        )
+        for commercial_route, (section, title, subtitle) in COMMERCIAL_SECTIONS.items():
+            scoped[commercial_route] = (section, title, subtitle, Icons.SALES)
+        if route_id in scoped:
+            section, title, subtitle, icon = scoped[route_id]
+            return cs.scoped_page(route_id, section, title, subtitle, icon)(
+                self._presenter, self)
+        return None
+
+    def _open_lead(self, lead_id: str) -> None:
+        detail = getattr(self, "_lead_detail", None)
+        if detail is None:
+            return
+        self.select_route("crm.lead_detail")
+        detail.show_lead(lead_id)
+
+    def _open_case(self, case_id: str) -> None:
+        detail = getattr(self, "_case_detail", None)
+        if detail is None:
+            return
+        self.select_route("crm.case_detail")
+        detail.show_case(case_id)
+
+    def _open_opportunity(self, opportunity_id: str) -> None:
+        detail = getattr(self, "_opportunity_detail", None)
+        if detail is None:
+            return
+        self.select_route("crm.opportunity_detail")
+        detail.show_opportunity(opportunity_id)
 
     def _open_customer_profile(self, customer_id: str) -> None:
         """CRM-17: double-clicking a row in the customers directory opens

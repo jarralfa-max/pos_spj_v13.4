@@ -39,12 +39,16 @@ def wire_cross_context_events(connection) -> dict:
     from backend.application.procurement.integrations.wiring import wire_procurement
     from backend.application.sales.integrations.wiring import wire_sales
     from backend.application.quality.wiring import wire_quality
+    from backend.application.customers.integrations.sales_wiring import wire_customers_sales
 
     bus = get_bus()
     summary = {
         "procurement": wire_procurement(bus, connection),
         # Fase 6 (2026-09-18): la venta completada llega a contabilidad.
         "sales": wire_sales(bus, connection),
+        # CRM-43 (2026-10-08): la compra llega al expediente del cliente (número de
+        # compras, última compra, etapa). Se cableaba en core/events, ya borrado.
+        "customers": wire_customers_sales(bus, connection),
         # CASH-26 (2026-10-07): el Corte Z y la custodia de Caja llegan a Finanzas.
         "cash_register": wire_cash_register(bus, connection),
         "pricing": wire_pricing(bus, connection),

@@ -70,8 +70,12 @@ def _fake_360_view(*, display_name="Ana Torres", legal_name="", commercial_name=
     return SimpleNamespace(profile=profile)
 
 
-class _FakePresenter:
+from tests.unit._crm_fake_presenter import CrmFakePresenter
+
+
+class _FakePresenter(CrmFakePresenter):
     def __init__(self, *, view=None, update_result=None) -> None:
+        CrmFakePresenter.__init__(self)
         self._view = view or _fake_360_view()
         self._update_result = update_result or CustomerResult.ok(
             "Cliente actualizado", entity_id="c1")
@@ -83,6 +87,12 @@ class _FakePresenter:
     def update_customer(self, customer_id, **kwargs):
         self.update_calls.append({"customer_id": customer_id, **kwargs})
         return self._update_result
+
+    def customer_birthday(self, customer_id):
+        return None
+
+    def set_customer_birthday(self, customer_id, **kwargs):
+        return CustomerResult.ok("Cumpleaños sin cambios", entity_id=customer_id)
 
 
 class TestEditCustomerPage:

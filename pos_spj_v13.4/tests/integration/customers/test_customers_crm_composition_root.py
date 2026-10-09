@@ -46,12 +46,18 @@ class TestBuildCustomersCrmPresenter:
         session = _FakeSession({CustomerPermissions.VIEW})
         presenter = build_customers_crm_presenter(full_crm_conn, session)
         assert presenter.current_user_id() == "u1"
-        # Every query service the workspace/pages rely on must be present.
-        for key in ("dashboard", "customers_directory", "leads_directory",
-                    "opportunities_directory", "cases_directory", "customer_360"):
+        # CRM-43: los directorios leen por ``presenter.read(...)``; quedan como
+        # servicios con nombre sólo el tablero y el expediente.
+        for key in ("dashboard", "customer_360"):
             assert presenter.query_service(key) is not None
-        assert presenter.command_handler("create_customer") is not None
-        assert presenter.command_handler("update_customer") is not None
+        for reader in ("customer_rows", "leads", "opportunity_rows", "case_rows", "credit_rows",
+                       "segments", "privacy_requests", "audit_trail", "insights"):
+            assert presenter.has_reader(reader), reader
+        for command in ("create_customer", "update_customer", "create_lead", "convert_lead",
+                        "move_opportunity_stage", "create_case", "escalate_case",
+                        "approve_credit", "capture_consent", "anonymize_customer",
+                        "execute_merge", "import_customers", "export_data", "create_stage"):
+            assert presenter.command_handler(command) is not None, command
 
     def test_constructs_with_no_session_at_all(self, full_crm_conn):
         """Composition must not raise just because no user is logged in yet
@@ -111,22 +117,7 @@ class TestCreateCustomersCrmView:
         app.processEvents()
 
 
-class TestModuloClientesCrmShim:
-    def test_unwraps_container_and_builds_view(self, app, full_crm_conn):
-        """modulos/clientes_crm.py — the legacy-navigation-compatible entry
-        point interfaz/main_window.py calls. Verifies the container is
-        unwrapped to the real `.db`/`.session` attributes (not the finance
-        module's apparently-nonexistent `.session_context`)."""
-        from modulos.clientes_crm import ModuloClientesCrm
+# CRM-43: `TestModuloClientesCrmShim` probaba `modulos/clientes_crm.py`, borrado
+# con la shell legacy; la entrada viva es `CustomersCrmModuleActivator`.
 
-        class _FakeContainer:
-            db = full_crm_conn
-            session = _FakeSession({CustomerPermissions.VIEW})
 
-        view = ModuloClientesCrm(_FakeContainer())
-        from frontend.desktop.modules.customers_crm.customers_crm_workspace import (
-            CustomersCrmWorkspace,
-        )
-        assert isinstance(view, CustomersCrmWorkspace)
-        view.deleteLater()
-        app.processEvents()

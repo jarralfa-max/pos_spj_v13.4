@@ -50,6 +50,16 @@ class CustomerCreditSummaryView:
     visibility: FieldVisibility
 
 
+@dataclass(frozen=True)
+class CreditProfileRow:
+    """CRM-43: un perfil de crédito con su exposición (CxC de Finanzas) para
+    las bandejas de crédito. Importes enmascarados según el permiso."""
+
+    profile: object
+    summary: CustomerCreditSummaryView
+    alerts: tuple[str, ...] = ()
+
+
 class CustomerCreditQueryService:
     def __init__(self, connection, authorization: CustomerAuthorizationPolicy | None = None) -> None:
         self._connection = connection
@@ -87,3 +97,50 @@ class CustomerCreditQueryService:
         if self._auth.has_permission(actor_user_id, CustomerPermissions.CREDIT_VIEW_SUMMARY):
             return FieldVisibility.PARTIALLY_VISIBLE
         return FieldVisibility.MASKED
+
+    # -- CRM-43: bandejas de crédito ------------------------------------------
+    def list_rows(self, *, actor_user_id: str, statuses: tuple[str, ...] = (),
+                  as_of: date | None = None) -> list[CreditProfileRow]:
+        """Perfiles (filtrados por estado) con exposición y alertas. La
+        exposición sale de CxC (Finanzas es el dueño, §40); aquí sólo se lee."""
+        self._auth.require(actor_user_id, CustomerPermissions.CREDIT_VIEW)
+        today = as_of or date.today()
+        profiles = self._uow.profiles.list_all()
+        if statuses:
+            profiles = [p for p in profiles if p.status.value in statuses]
+        rows = []
+        for profile in profiles:
+            summary = self.get_summary(profile.customer_id, actor_user_id=actor_user_id)
+            rows.append(CreditProfileRow(profile, summary,
+                                         self._alerts(profile, profile.customer_id, today)))
+        return rows
+
+    def _alerts(self, profile, customer_id: str, today: date) -> tuple[str, ...]:
+        """§37/§39: lo que un analista debe mirar — sin importes (van enmascarados aparte)."""
+        alerts = []
+        status = profile.status.value
+        ar = CustomerAccountsReceivableSummaryQuery(self._connection).get_summary(
+            customer_id, payment_terms_days=profile.payment_terms_days or 0, as_of=today)
+        if ar.overdue_amount > 0:
+            alerts.append("Saldo vencido")
+        if status == "AUTHORIZED" and profile.credit_limit > 0:
+            if ar.current_exposure > profile.credit_limit:
+                alerts.append("Límite excedido")
+            elif ar.current_exposure >= profile.credit_limit * Decimal("0.9"):
+                alerts.append("Uso mayor al 90%")
+        if profile.review_at and profile.review_at[:10] <= today.isoformat():
+            alerts.append("Revisión periódica pendiente")
+        if status in ("SUSPENDED", "BLOCKED"):
+            alerts.append("Crédito " + ("suspendido" if status == "SUSPENDED" else "bloqueado"))
+        if status in ("PENDING_APPROVAL", "UNDER_REVIEW"):
+            alerts.append("Solicitud por resolver")
+        return tuple(alerts)
+
+    def history(self, *, actor_user_id: str, customer_id: str | None = None,
+                limit: int = 300) -> list[dict]:
+        """§38: historial del workflow (quién solicitó, revisó, aprobó, cambió
+        el límite…). Sin ``customer_id``: lo más reciente de todos."""
+        self._auth.require(actor_user_id, CustomerPermissions.CREDIT_HISTORY_VIEW)
+        if customer_id:
+            return self._uow.audit.list_for_customer(customer_id)
+        return self._uow.audit.list_recent(limit=limit)

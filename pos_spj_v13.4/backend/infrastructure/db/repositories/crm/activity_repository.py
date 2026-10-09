@@ -55,6 +55,21 @@ class CRMActivityRepository(CRMRepositoryBase):
             " WHERE assigned_user_id=? ORDER BY created_at DESC", (user_id,))
         return [self._hydrate(r) for r in rows]
 
+    def next_planned_for(self, related_entity_type: str,
+                         entity_ids: tuple[str, ...]) -> dict[str, str]:
+        """CRM-43: la próxima actividad pendiente (programada o en curso) de
+        cada registro — columna «Próxima actividad» de §85."""
+        ids = tuple(i for i in dict.fromkeys(entity_ids) if i)
+        if not ids:
+            return {}
+        marks = ",".join("?" for _ in ids)
+        rows = self._query(
+            "SELECT related_entity_id AS rid, MIN(scheduled_at) AS nxt FROM crm_activities"
+            f" WHERE related_entity_type=? AND related_entity_id IN ({marks})"
+            " AND status IN ('PLANNED','IN_PROGRESS') AND scheduled_at IS NOT NULL"
+            " GROUP BY related_entity_id", (related_entity_type, *ids))
+        return {r["rid"]: r["nxt"] for r in rows}
+
     # helpers -----------------------------------------------------------------
     @staticmethod
     def _params(activity: CRMActivity, operation_id: str | None) -> tuple:
