@@ -146,6 +146,14 @@ class CashPrintRepository:
             for row in cursor.fetchall()
         )
 
+    def delivery_status(self, print_id: str) -> tuple[str, str | None]:
+        """(estado, último error) del trabajo, para decirle al cajero si salió papel."""
+        row = self.connection.execute(
+            "SELECT status,last_error FROM cash_print_jobs WHERE id=?", (print_id,)).fetchone()
+        if row is None:
+            raise ValueError("Cash print job not found")
+        return str(row[0]), (None if row[1] is None else str(row[1]))
+
     def mark_printed(self, *, print_id: str, actor_user_id: str,
                      gateway_reference: str | None = None) -> None:
         self._record_delivery_status(

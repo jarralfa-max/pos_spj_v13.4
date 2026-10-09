@@ -21,6 +21,12 @@ from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
     create_secondary_button, create_state_widget, create_warning_button,
 )
+from frontend.desktop.modules.configuracion.dialogs.role_permissions_dialog import (
+    RolePermissionsDialog,
+)
+from frontend.desktop.modules.configuracion.dialogs.user_permissions_dialog import (
+    UserPermissionsDialog,
+)
 from frontend.desktop.modules.configuracion.dialogs import (
     RoleCreateDialog,
     RoleEditDialog,
@@ -64,9 +70,10 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
         self.activate_user_button = create_secondary_button(self, "Activar")
         self.deactivate_user_button = create_warning_button(self, "Desactivar")
         self.unlock_user_button = create_danger_button(self, "Desbloquear")
+        self.user_permissions_button = create_secondary_button(self, "Permisos")
         user_actions = _button_row(
             self, self.new_user_button, self.edit_user_button, self.activate_user_button,
-            self.deactivate_user_button, self.unlock_user_button,
+            self.deactivate_user_button, self.unlock_user_button, self.user_permissions_button,
         )
         self.layout().insertWidget(1, user_actions)
 
@@ -75,6 +82,7 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
         self.activate_user_button.clicked.connect(lambda: self._on_change_user_status(True))
         self.deactivate_user_button.clicked.connect(lambda: self._on_change_user_status(False))
         self.unlock_user_button.clicked.connect(self._on_unlock_user)
+        self.user_permissions_button.clicked.connect(self._on_user_permissions)
 
         self._build_roles_card()
         self._build_audit_card()
@@ -181,11 +189,14 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
 
         self.new_role_button = create_primary_button(self.roles_card, "Nuevo rol")
         self.edit_role_button = create_secondary_button(self.roles_card, "Editar")
-        self.roles_card.add(_button_row(self.roles_card, self.new_role_button, self.edit_role_button))
+        self.permissions_button = create_secondary_button(self.roles_card, "Permisos")
+        self.roles_card.add(_button_row(self.roles_card, self.new_role_button, self.edit_role_button,
+                                        self.permissions_button))
         self.layout().addWidget(self.roles_card)
 
         self.new_role_button.clicked.connect(self._on_new_role)
         self.edit_role_button.clicked.connect(self._on_edit_role)
+        self.permissions_button.clicked.connect(self._on_role_permissions)
         self._reload_roles()
 
     def _reload_roles(self) -> None:
@@ -239,6 +250,40 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
         (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
         if ok:
             self._reload_roles()
+
+    def _on_user_permissions(self) -> None:
+        user_id = self._selected_user_id()
+        if not user_id:
+            return
+        matrix = self._presenter.user_permission_matrix(user_id)
+        if matrix is None:
+            QMessageBox.warning(self, "Usuarios y Roles", "El usuario ya no existe.")
+            return
+        if matrix.mode == "FULL_ACCESS":
+            QMessageBox.information(self, "Usuarios y Roles", matrix.note)
+            return
+        dlg = UserPermissionsDialog(self, matrix=matrix)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        ok, message = self._presenter.save_user_permissions(user_id=user_id, changes=dlg.changes())
+        (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
+
+    def _on_role_permissions(self) -> None:
+        role_id = self._selected_role_id()
+        if not role_id:
+            return
+        matrix = self._presenter.role_permission_matrix(role_id)
+        if matrix is None:
+            QMessageBox.warning(self, "Usuarios y Roles", "El rol ya no existe.")
+            return
+        if matrix.mode == "FULL_ACCESS":
+            QMessageBox.information(self, "Usuarios y Roles", matrix.note)
+            return
+        dlg = RolePermissionsDialog(self, matrix=matrix)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        ok, message = self._presenter.save_role_permissions(role_id=role_id, changes=dlg.changes())
+        (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
 
     # ── Auditoría (solo lectura, sin botones de acción) ─────────────────────
 

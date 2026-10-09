@@ -90,6 +90,7 @@ from frontend.desktop.components.worklist_page import WorklistPage
 from frontend.desktop.components.branding import BrandAssetProvider, BrandLabel
 from frontend.desktop.components.standard_window import StandardWindow
 from frontend.desktop.components.page_viewport import PageViewport
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.pages import (
     StandardPage, ScrollablePage, DashboardPage, FormPage, MasterDetailPage,
     SplitPage, TabbedPage, WizardPage, POSPage,
@@ -104,7 +105,7 @@ __all__ = [
     "LoadingState", "EmptyState", "ErrorState", "Toast",
     "IconProvider", "BrandAssetProvider", "BrandLabel", "StandardWindow",
     "PrimaryButton", "SecondaryButton", "GhostButton", "DangerButton", "IconButton",
-    "PageViewport", "StandardPage", "ScrollablePage", "DashboardPage", "FormPage",
+    "PageViewport", "ModuleLayout", "StandardPage", "ScrollablePage", "DashboardPage", "FormPage",
     "MasterDetailPage", "SplitPage", "TabbedPage", "WizardPage", "POSPage",
     "TabBar", "Tabs", "KeyboardAwareInput", "VirtualKeyboard", "WeightInput",
     "StandardComboBox", "StandardCheckBox", "StandardRadioButton",

@@ -110,9 +110,9 @@ _DECLARED_MODULE_ACTIONS: dict[str, tuple[str, ...]] = {
     "CONFIG_SEGURIDAD": ("ver", "editar"),
 
     # Ciclo de vida de valores de Configuración (borrador -> aprobar ->
-    # activar -> rollback). Ningún contexto acotado lo declara todavía porque
-    # el módulo de Configuration Governance no existe en la arquitectura
-    # nueva; el vocabulario lo fija SET-1 en
+    # activar -> rollback). Ningún contexto acotado lo declara: los parámetros
+    # de negocio se editan en la pantalla de SU módulo, no en Configuración
+    # (decisión del usuario, 2026-10-04); el vocabulario lo fija SET-1 en
     # tests/architecture/test_settings_permission_catalog.py.
     "CONFIGURACION": ("valor.crear", "valor.aprobar", "valor.activar", "valor.rollback"),
 

@@ -108,8 +108,8 @@ DDL = (
         recurrence_count INTEGER NOT NULL CHECK(recurrence_count>0),
         status TEXT NOT NULL CHECK(status IN ('DETECTED','EXPLAINED','UNDER_REVIEW','RESOLVED')),
         explanation TEXT, explained_by TEXT, reviewed_by TEXT, resolution TEXT, resolved_by TEXT,
-        CHECK(reviewed_by IS NULL OR (reviewed_by<>detected_by AND reviewed_by<>explained_by)),
-        CHECK(resolved_by IS NULL OR (resolved_by<>detected_by AND resolved_by<>explained_by AND resolved_by<>reviewed_by)))""",
+        CHECK(reviewed_by IS NULL OR (reviewed_by<>responsible_user_id AND reviewed_by<>explained_by)),
+        CHECK(resolved_by IS NULL OR (resolved_by<>responsible_user_id AND resolved_by<>explained_by)))""",
     f"""CREATE TABLE IF NOT EXISTS cash_handovers (
         id TEXT NOT NULL PRIMARY KEY CHECK({U('id')}), shift_id TEXT NOT NULL REFERENCES cash_shifts(id),
         branch_id TEXT NOT NULL CHECK({U('branch_id')}), amount TEXT NOT NULL CHECK(CAST(amount AS NUMERIC)>0),

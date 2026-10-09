@@ -6,7 +6,9 @@ safe sizing, initial focus, Escape when safe, theme-aware via `#standardDialog`.
 
 from __future__ import annotations
 
-from PyQt5.QtCore import QSize, QTimer
+from collections.abc import Callable
+
+from PyQt5.QtCore import QRect, QSize, Qt, QTimer
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
@@ -36,16 +38,27 @@ class StandardDialog(QDialog):
         self.setWindowIcon(BrandAssetProvider.window_icon())
         self.setProperty("overflowPolicy", "auto")
         self._preferred_width = width
+        self._screen = None
+        self._window_handle = None
+        self._fitting = False
+        self._shown_once = False
+        self._requested_minimum = QSize(0, 0)
+        self._bounded_minimum = None
+        self._fit_timer = QTimer(self)
+        self._fit_timer.setSingleShot(True)
+        self._fit_timer.setInterval(1)
+        self._fit_timer.timeout.connect(self.fit_to_viewport)
         self._frame = QVBoxLayout(self)
         self._frame.setSizeConstraint(QLayout.SetNoConstraint)
         self._frame.setContentsMargins(DialogMetrics.PADDING, DialogMetrics.PADDING,
                                       DialogMetrics.PADDING, DialogMetrics.PADDING)
         self._frame.setSpacing(Spacing.MD)
-        if title:
-            heading = QLabel(title, self)
-            heading.setProperty("role", "dialogTitle")
-            heading.setWordWrap(True)
-            self._frame.addWidget(heading)
+        self._heading = QLabel(title, self)
+        self._heading.setProperty("role", "dialogTitle")
+        self._heading.setWordWrap(True)
+        self._heading.setVisible(bool(title))
+        self._frame.addWidget(self._heading)
+        self.windowTitleChanged.connect(self._update_heading)
         self.viewport = PageViewport(self)
         self._body = QWidget()
         # Keep the established _root contract used by existing dialog subclasses.
@@ -55,25 +68,29 @@ class StandardDialog(QDialog):
         self.viewport.set_page(self._body)
         self._frame.addWidget(self.viewport, 1)
         self._button_boxes = []
-        self._screen = None
-        self._fitting = False
         ThemeManager.instance().density_changed.connect(self._density_changed)
 
     def content_layout(self) -> QVBoxLayout:
         return self._root
 
     def add_button_box(self, *, ok_text: str = None, cancel_text: str = None,
-                       ok_role=QDialogButtonBox.Ok) -> QDialogButtonBox:
+                       ok_role=QDialogButtonBox.Ok,
+                       on_accept: Callable[[], None] | None = None) -> QDialogButtonBox:
+        """Add a sticky footer; a validation callback owns acceptance when given."""
         box = QDialogButtonBox(ok_role | QDialogButtonBox.Cancel, self)
         box.button(ok_role).setText(ok_text or ui("action.accept"))
         box.button(QDialogButtonBox.Cancel).setText(cancel_text or ui("action.cancel"))
         box.button(ok_role).setDefault(True)
-        box.accepted.connect(self.accept)
+        box.accepted.connect(self.accept if on_accept is None else on_accept)
         box.rejected.connect(self.reject)
         self._frame.addWidget(box)
         self._button_boxes.append(box)
         self._density_changed()
         return box
+
+    def _update_heading(self, title: str) -> None:
+        self._heading.setText(title)
+        self._heading.setVisible(bool(title))
 
     def _density_changed(self, _density=None):
         for box in self._button_boxes:
@@ -81,12 +98,20 @@ class StandardDialog(QDialog):
                 button.setMinimumHeight(density_metrics().button_height)
                 button.setAccessibleName(button.text())
         if self.isVisible():
-            QTimer.singleShot(0, self.fit_to_viewport)
+            self._fit_timer.start()
 
     def available_geometry(self):
         parent = self.parentWidget()
-        screen = parent.screen() if parent is not None else self.screen()
-        return (screen or QApplication.primaryScreen()).availableGeometry()
+        # Before Qt creates the native dialog, use its owner's monitor. Once
+        # it has a handle, follow the dialog itself when it is moved elsewhere.
+        screen = (self.screen() if self.windowHandle() is not None or parent is None
+                  else parent.screen())
+        screen = screen or QApplication.primaryScreen()
+        return screen.availableGeometry() if screen is not None else QRect()
+
+    def _schedule_fit(self, _geometry=None) -> None:
+        self.fit_to_viewport()
+        self._fit_timer.start()
 
     def fit_to_viewport(self):
         """Clamp the full native frame to the available monitor work area."""
@@ -95,11 +120,18 @@ class StandardDialog(QDialog):
         self._fitting = True
         try:
             available = self.available_geometry()
+            if not available.isValid():
+                return
             frame = self.frameGeometry()
-            extra = frame.size() - self.size()
+            extra = (frame.size() - self.size()).expandedTo(QSize(0, 0))
             maximum = QSize(max(1, available.width() - extra.width()),
                             max(1, available.height() - extra.height()))
+            minimum = self.minimumSize()
+            if self._bounded_minimum is None or minimum != self._bounded_minimum:
+                self._requested_minimum = minimum
             self.setMaximumSize(maximum)
+            self._bounded_minimum = self._requested_minimum.boundedTo(maximum)
+            self.setMinimumSize(self._bounded_minimum)
             self.resize(self.size().boundedTo(maximum))
             frame = self.frameGeometry()
             x = max(available.left(), min(frame.left(), available.right() - frame.width() + 1))
@@ -110,22 +142,51 @@ class StandardDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        if self._screen is None and self.windowHandle() is not None:
-            self.windowHandle().screenChanged.connect(self._screen_changed)
-            self._screen_changed(self.screen())
+        handle = self.windowHandle()
+        if handle is not self._window_handle:
+            if self._window_handle is not None:
+                try:
+                    self._window_handle.screenChanged.disconnect(self._screen_changed)
+                except (RuntimeError, TypeError):
+                    pass
+            self._window_handle = handle
+            if handle is not None:
+                handle.screenChanged.connect(self._screen_changed)
+        self._screen_changed()
         available = self.available_geometry()
-        self.resize(min(self._preferred_width, available.width()),
-                    min(max(self.sizeHint().height(), self._body.sizeHint().height() + self._frame.spacing() * 4), available.height()))
-        self.fit_to_viewport()
-        QTimer.singleShot(0, self.fit_to_viewport)
+        if not self._shown_once and available.isValid():
+            self.resize(min(self._preferred_width, available.width()),
+                        min(max(self.sizeHint().height(), self._body.sizeHint().height() + self._frame.spacing() * 4), available.height()))
+        self._shown_once = True
+        self._schedule_fit()
 
-    def _screen_changed(self, screen):
-        if self._screen is not None:
-            self._screen.availableGeometryChanged.disconnect(self.fit_to_viewport)
-        self._screen = screen
-        if screen is not None:
-            screen.availableGeometryChanged.connect(self.fit_to_viewport)
-        self.fit_to_viewport()
+    def _screen_changed(self, _screen=None):
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is not self._screen:
+            if self._screen is not None:
+                try:
+                    self._screen.availableGeometryChanged.disconnect(self._schedule_fit)
+                except (RuntimeError, TypeError):
+                    pass
+            self._screen = screen
+            if screen is not None:
+                screen.availableGeometryChanged.connect(self._schedule_fit)
+        self._schedule_fit()
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        if (self._fitting or not self.isVisible() or
+                self.windowState() & (Qt.WindowMaximized | Qt.WindowFullScreen | Qt.WindowMinimized)):
+            return
+        available = self.available_geometry()
+        frame = self.frameGeometry()
+        if not available.isValid() or available.contains(frame):
+            return
+        if (frame.width() <= available.width() and frame.height() <= available.height() and
+                any(screen is not self._screen and screen.availableGeometry().intersects(frame)
+                    for screen in QApplication.screens())):
+            return  # Allow intermediate positions while crossing to another screen.
+        self._fit_timer.start()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

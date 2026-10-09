@@ -9,11 +9,10 @@ class TransfersSidebarWidget(SideNav):
     route_requested = pyqtSignal(str)
 
     def __init__(self, *, has_permission, badges=None, parent=None) -> None:
-        super().__init__(parent, toggle_visible=False)
+        super().__init__(parent)
         self.setObjectName("moduleSidebar")
+        self.setProperty("role", "nav")
         self.setAccessibleName("Navegación de transferencias")
-        self.setMinimumWidth(210)
-        self.setMaximumWidth(250)
         for entry, badge in visible_entries(has_permission, badges):
             label = entry.title if badge is None else f"{entry.title} ({badge})"
             self.add_section(label, entry.icon)

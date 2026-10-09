@@ -13,7 +13,7 @@ whenever the page does.
 from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QWidget
 
 from frontend.desktop.components import (
-    ColumnSpec, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
+    ColumnSpec, ConfirmationDialog, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
     create_secondary_button, create_state_widget, create_warning_button,
 )
 from frontend.desktop.modules.configuracion.dialogs import (
@@ -23,12 +23,19 @@ from frontend.desktop.modules.configuracion.dialogs import (
     DeviceProfileCreateDialog,
     PrintRouteCreateDialog,
     PrintRouteEditDialog,
+    WindowsPrinterDialog,
 )
 from frontend.desktop.themes.tokens import Spacing
 
 from frontend.desktop.modules.configuracion.dialogs.document_type_labels import label_for
 
 from .base_page import ConfiguracionWorkspacePage
+
+
+_TEST_COLUMNS = [
+    ColumnSpec("Prueba"), ColumnSpec("Resultado", "status"), ColumnSpec("Detalle"),
+    ColumnSpec("Probó"), ColumnSpec("Fecha"),
+]
 
 
 def _scope_text(route, branch_names) -> str:
@@ -115,10 +122,87 @@ class DispositivosPage(ConfiguracionWorkspacePage):
 
         self._routes_by_id: dict = {}
         self._reload_routes()
+        self._build_tests_card()
 
     def reload(self, search: str = "") -> None:
         super().reload(search)
         self._reload_routes()
+        if getattr(self, "tests_card", None) is not None:
+            self.table.itemSelectionChanged.connect(self._reload_tests)
+            self._reload_tests()
+
+    # ── pruebas del dispositivo seleccionado ─────────────────────────────
+    def _build_tests_card(self) -> None:
+        self.tests_card = SectionCard(self, title="Pruebas del dispositivo")
+        self.test_connection_button = create_primary_button(self.tests_card, "Probar conexión")
+        self.test_print_button = create_secondary_button(self.tests_card, "Imprimir página de prueba")
+        self.windows_printer_button = create_secondary_button(
+            self.tests_card, "Elegir impresora de Windows")
+        botones = QWidget(self.tests_card)
+        fila = QHBoxLayout(botones)
+        fila.setContentsMargins(0, 0, 0, 0)
+        fila.setSpacing(Spacing.SM)
+        fila.addWidget(self.test_connection_button)
+        fila.addWidget(self.test_print_button)
+        fila.addWidget(self.windows_printer_button)
+        fila.addStretch(1)
+        self.tests_card.add(botones)
+        self.tests_table = StandardTable(_TEST_COLUMNS, self.tests_card)
+        self.tests_table.setAccessibleName("Historial de pruebas del dispositivo seleccionado")
+        self.tests_card.add(self.tests_table)
+        self.tests_empty = None
+        self.layout().addWidget(self.tests_card)
+        self.test_connection_button.clicked.connect(lambda: self._on_test("CONNECTIVITY"))
+        self.test_print_button.clicked.connect(lambda: self._on_test("TEST_PRINT"))
+        self.windows_printer_button.clicked.connect(self._on_windows_printer)
+        self._reload_tests()
+
+    def _reload_tests(self) -> None:
+        device_id = self.table.selected_row_id() if self.table is not None else None
+        pruebas = self._presenter.list_device_tests(device_id) if device_id else ()
+        self.tests_table.load_rows(
+            [[p.test, p.result, p.message, p.tested_by, p.tested_at] for p in pruebas],
+            row_ids=[p.entity_id for p in pruebas])
+        if self.tests_empty is not None:
+            self.tests_empty.setParent(None)
+            self.tests_empty = None
+        if not pruebas:
+            self.tests_empty = create_state_widget(
+                ViewState.EMPTY, self.tests_card,
+                message="Selecciona un dispositivo para probarlo." if not device_id
+                else "Este dispositivo no se ha probado todavía.")
+            self.tests_card.add(self.tests_empty)
+        self.tests_table.setVisible(bool(pruebas))
+
+    def _on_windows_printer(self) -> None:
+        device_id = self._selected_device_id()
+        if not device_id:
+            return
+        detalle = self._presenter.get_device(device_id)
+        dlg = WindowsPrinterDialog(
+            self, device_name=getattr(detalle, "name", ""),
+            current=self._presenter.get_device_windows_printer(device_id),
+            windows_printers=self._presenter.list_windows_printers())
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        ok, message = self._presenter.set_device_windows_printer(
+            device_id=device_id, printer_name=dlg.printer_name())
+        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+
+    def _on_test(self, test_type: str) -> None:
+        device_id = self._selected_device_id()
+        if not device_id:
+            return
+        if test_type == "TEST_PRINT":
+            confirmar = ConfirmationDialog(
+                self, title="Imprimir página de prueba",
+                message="Se imprimirá una página corta en este dispositivo. ¿Continuar?",
+                confirm_text="Imprimir")
+            if confirmar.exec_() != QDialog.Accepted:
+                return
+        ok, message = self._presenter.test_device(device_id=device_id, test_type=test_type)
+        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+        self._reload_tests()
 
     def _selected_device_id(self) -> str | None:
         row_id = self.table.selected_row_id() if self.table is not None else None
@@ -159,7 +243,8 @@ class DispositivosPage(ConfiguracionWorkspacePage):
         return row_id
 
     def _on_new_profile(self) -> None:
-        dlg = DeviceProfileCreateDialog(self)
+        dlg = DeviceProfileCreateDialog(
+            self, windows_printers=self._presenter.list_windows_printers())
         if dlg.exec_() != QDialog.Accepted:
             return
         values = dlg.values()

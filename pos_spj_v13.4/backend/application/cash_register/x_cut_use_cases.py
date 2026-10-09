@@ -22,6 +22,34 @@ class XCutCommandResult:
     idempotent: bool = False
 
 
+#: Movimientos que Ventas ya asentó contra la cuenta de la caja registradora.
+#: Todo lo demás (fondo, ingresos, retiros, bóveda) es custodia entre la caja y
+#: el efectivo general y no pasa por contabilidad hasta el Corte Z.
+_SALE_MOVEMENTS = frozenset({"CASH_SALE", "CASH_REFUND"})
+
+
+def _sales_cash(rows: list[dict]) -> Decimal:
+    """Efectivo neto de ventas del turno: cobros − reembolsos − reversos de cobro.
+
+    `REVERSAL` sirve tanto para un cobro reversado como para un movimiento
+    manual reversado; se distingue por el tipo del asiento que revierte.
+    """
+    by_id = {row["id"]: row for row in rows}
+    total = Decimal("0")
+    for row in rows:
+        kind = row["movement_type"]
+        if kind == "REVERSAL":
+            original = by_id.get(row.get("reversal_of_id"))
+            is_sale = (original["movement_type"] in _SALE_MOVEMENTS if original
+                       else bool(row.get("related_sale_id")))
+        else:
+            is_sale = kind in _SALE_MOVEMENTS
+        if is_sale:
+            amount = Decimal(row["amount"])
+            total += amount if row["direction"] == "INFLOW" else -amount
+    return total
+
+
 def _snapshot(rows: list[dict]) -> tuple[Decimal, dict[str, str]]:
     inflows = outflows = Decimal("0")
     by_type: dict[str, Decimal] = {}
@@ -35,6 +63,7 @@ def _snapshot(rows: list[dict]) -> tuple[Decimal, dict[str, str]]:
     snapshot = {
         "inflows": str(inflows), "outflows": str(outflows),
         "expected_cash": str(balance), "movement_count": str(len(rows)),
+        "sales_cash": str(_sales_cash(rows)),
     }
     snapshot.update({f"movement.{key}": str(value) for key, value in sorted(by_type.items())})
     return balance, snapshot
@@ -63,7 +92,8 @@ class GenerateXCutUseCase:
             expected, snapshot = _snapshot(uow.ledger.list_for_shift(shift_id))
             cut = XCut.generate(
                 shift_id=shift_id, branch_id=branch_id, generated_by=actor_user_id,
-                expected_cash=expected, operation_id=operation_id, snapshot=snapshot)
+                expected_cash=expected, operation_id=operation_id, snapshot=snapshot,
+                document_number=uow.folios.next("X", branch_id))
             uow.cuts.add(cut)
             _record(uow, CashEvents.X_CUT_GENERATED, operation_id=operation_id,
                     entity_id=cut.id, branch_id=branch_id,

@@ -19,7 +19,6 @@ from backend.application.queries.asset_query_service import AssetQueryService
 from backend.application.queries.delivery_query_service import DeliveryQueryService
 from backend.application.queries.production_query_service import ProductionQueryService
 from backend.application.queries.quote_query_service import QuoteQueryService
-from backend.application.queries.cash_register_query_service import CashRegisterQueryService
 from backend.application.queries.purchase_planning_query_service import PurchasePlanningQueryService
 from backend.application.queries.module_settings_query_service import ModuleSettingsQueryService
 
@@ -41,9 +40,6 @@ __all__ = [
     "DeliveryQueryService",
     "ProductionQueryService",
     "QuoteQueryService",
-    "CashRegisterQueryService",
     "PurchasePlanningQueryService",
     "ModuleSettingsQueryService",
 ]
-from backend.application.queries.hardware_settings_query_service import HardwareSettingsQueryService
-from backend.application.queries.ticket_settings_query_service import TicketSettingsQueryService

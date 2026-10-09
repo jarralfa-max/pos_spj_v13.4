@@ -1,6 +1,9 @@
 """Nombres visibles de los tipos de documento y de los módulos que piden una
 ruta de impresión. Una sola tabla para plantillas, rutas y listados: el
 administrador elige un nombre en español y se guarda el código canónico.
+
+Tarjetas de fidelidad y boletos de sorteo no están: los diseña e imprime
+Fidelidad (`LOYALTY_OWNED_DOCUMENT_TYPES`).
 """
 
 from __future__ import annotations
@@ -26,8 +29,6 @@ DOCUMENT_TYPE_LABELS: tuple[tuple[str, str], ...] = (
     (DocumentType.LOSS_REPORT.value, "Reporte de merma"),
     (DocumentType.DISPOSITION_CERTIFICATE.value, "Certificado de disposición"),
     (DocumentType.CUSTOMER_STATEMENT.value, "Estado de cuenta"),
-    (DocumentType.LOYALTY_CARD.value, "Tarjeta de fidelidad"),
-    (DocumentType.SWEEPSTAKES_TICKET.value, "Boleto de sorteo"),
     (DocumentType.LOT_LABEL.value, "Etiqueta de lote"),
     (DocumentType.WEIGHT_LABEL.value, "Etiqueta de peso"),
     (DocumentType.TRANSFER_LABEL.value, "Etiqueta de transferencia"),

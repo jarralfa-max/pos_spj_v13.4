@@ -11,9 +11,13 @@ class CashConfigurationUiTests(unittest.TestCase):
         source = PAGE.read_text(encoding="utf-8")
         for component in ("PageHeader", "StandardTable", "create_primary_button"):
             self.assertIn(component, source)
-        for label in ("Jerarquía", "Vigencias", "Denominaciones", "Medios de pago",
-                      "Límites", "Alertas", "WhatsApp", "Permisos"):
+        # CASH-26 (2026-10-07): sólo catálogos que Caja lee al operar; los avisos
+        # y sus destinatarios (en el sistema y WhatsApp) son editables.
+        for label in ('"Denominaciones"', '"Motivos"', '"Límites"', '"Tolerancias"',
+                      '"Avisos"', '"Destinatarios"'):
             self.assertIn(label, source)
+        for retired in ('"Jerarquía"', '"Vigencias"', '"Permisos"', '"Medios de pago"'):
+            self.assertNotIn(retired, source)
         upper = source.upper()
         for forbidden in ("SQLITE3", "SELECT ", "INSERT ", "UPDATE ", "DELETE ",
                           ".COMMIT(", ".ROLLBACK(", "SETSTYLESHEET"):

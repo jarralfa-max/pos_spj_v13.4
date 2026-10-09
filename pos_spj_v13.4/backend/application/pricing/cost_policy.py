@@ -8,17 +8,19 @@ Ahora:
 * La proyección mantiene SIEMPRE las dos vistas: el promedio de empresa y el de
   cada sucursal, cada uno con su propia existencia real. Así cambiar de política
   no pierde historia ni exige recalcular.
-* La POLÍTICA (``configuraciones.costing.cost_policy``: ``GLOBAL`` por omisión, o
+* La POLÍTICA (parámetro gobernado ``costing.cost_policy``: ``GLOBAL`` por omisión, o
   ``PER_BRANCH``) decide cuál es "el" costo que ven los consumidores.
 * ``ProductCostingService`` es el único que decide; las pantallas sólo consultan.
 """
 
 from __future__ import annotations
 
-import sqlite3
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
+
+from backend.application.settings.configuration_reader import ConfigurationReader
+from backend.application.settings.governance import GovernedSettingsWriter
 
 COST_POLICY_KEY = "costing.cost_policy"
 
@@ -35,26 +37,21 @@ COST_POLICY_LABELS = {
 
 
 class CostPolicySettings:
+    """La política vigente es un parámetro gobernado de Configuración."""
+
     def __init__(self, connection) -> None:
         self._conn = connection
 
     def current(self) -> CostPolicy:
-        try:
-            row = self._conn.execute("SELECT valor FROM configuraciones WHERE clave=?",
-                                     (COST_POLICY_KEY,)).fetchone()
-        except sqlite3.OperationalError:
-            return CostPolicy.GLOBAL
-        try:
-            return CostPolicy(str(row[0])) if row and row[0] else CostPolicy.GLOBAL
-        except ValueError:
-            return CostPolicy.GLOBAL
+        return CostPolicy(ConfigurationReader(self._conn).get(COST_POLICY_KEY))
 
-    def store(self, policy: CostPolicy) -> None:
-        self._conn.execute(
-            "INSERT INTO configuraciones (clave, valor, tipo, grupo, descripcion)"
-            " VALUES (?, ?, 'texto', 'costeo', 'Política de costo multi-sucursal')"
-            " ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
-            (COST_POLICY_KEY, policy.value))
+    def store(self, policy: CostPolicy, *, actor_user_id: str, operation_id: str):
+        """Versiona el cambio dentro de la transacción del llamador. Devuelve el
+        escritor: el llamador publica sus eventos después de confirmar."""
+        writer = GovernedSettingsWriter(self._conn)
+        writer.stage({COST_POLICY_KEY: CostPolicy(policy).value}, actor_user_id=actor_user_id,
+                     operation_id=operation_id, reason="Precios → Configuración")
+        return writer
 
 
 @dataclass(frozen=True)

@@ -196,3 +196,37 @@ class TestRouteMustBeResolvable:
         device, _profile = SalesTicketPrinter(conn, branch_id=branch_id)._resolve_device()
 
         assert device.id == primary.id
+
+
+class TestOwnedByOtherModules:
+    """Decisión del usuario (2026-10-04): Configuración no controla lo que ya
+    tiene dueño en otro módulo."""
+
+    @pytest.mark.parametrize("document_type", ["LOYALTY_CARD", "SWEEPSTAKES_TICKET"])
+    def test_no_route_for_documents_fidelidad_owns(self, conn, branch_id, document_type):
+        primary = _saved_printer(conn, branch_id)
+        with pytest.raises(DeviceInvalidValueError):
+            CreatePrintRouteUseCase(conn).execute(
+                document_type=document_type, primary_device_id=primary.id)
+
+    @pytest.mark.parametrize("document_type", ["LOYALTY_CARD", "SWEEPSTAKES_TICKET"])
+    def test_no_template_for_documents_fidelidad_owns(self, conn, document_type):
+        from backend.application.use_cases.configuracion.document_template_use_cases import (
+            CreateDocumentTemplateUseCase,
+        )
+        from backend.domain.document_output.exceptions import DocumentInvalidValueError
+
+        with pytest.raises(DocumentInvalidValueError, match="Fidelidad"):
+            CreateDocumentTemplateUseCase(conn).execute(
+                document_type=document_type, name="Tarjeta", module="loyalty",
+                content_format="HTML", content="x")
+
+    def test_no_cash_drawer_or_terminal_assignment(self, conn, branch_id):
+        from backend.application.use_cases.configuracion.device_assignment_use_cases import (
+            AssignDeviceUseCase,
+        )
+
+        with pytest.raises(DeviceInvalidValueError, match="Caja"):
+            AssignDeviceUseCase(conn).execute(
+                workstation_id=new_uuid(), device_id=_saved_printer(conn, branch_id).id,
+                role="CASH_DRAWER")

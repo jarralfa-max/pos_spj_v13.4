@@ -1,13 +1,7 @@
-"""ASSET-20 — responsive behavior at the master prompt's named resolutions
-(§100) and accessibility metadata (§104) on the Activos workspace.
+"""Activos uses the Pricing module layout and preserves manual sidebar choice.
 
-No dedicated compact/comfortable/touch density *system* exists anywhere in
-this repo's Design System yet — same documented gap
-``customers_crm_workspace.py`` already flagged for its own module (see
-``docs/refactor/ASSET-20_responsive_touch.md``). This phase verifies and
-locks in the one real lever that DOES exist: ``PageHeader(compact=...)`` +
-the ``SideNav`` width collapse below ``ResponsiveBreakpoints.COMPACT``,
-already wired into ``AssetsWorkspace`` since ASSET-16.
+The module header spans the sidebar and viewport at all supported resolutions;
+resizing does not replace the user's expanded/collapsed navigation preference.
 """
 
 import os
@@ -22,7 +16,6 @@ QApplication = QtWidgets.QApplication
 
 from frontend.desktop.modules.assets.assets_presenter import AssetsPresenter
 from frontend.desktop.modules.assets.assets_workspace import AssetsWorkspace
-from frontend.desktop.themes.tokens import ResponsiveBreakpoints
 
 
 @pytest.fixture(scope="module")
@@ -38,7 +31,7 @@ class _FakeSession:
         return True
 
 
-_NAMED_RESOLUTIONS = [(1366, 768), (1440, 900), (1600, 900), (1920, 1080)]
+_NAMED_RESOLUTIONS = [(1280, 720), (1366, 768), (1440, 900), (1600, 900), (1920, 1080)]
 
 
 class TestAssetsWorkspaceResponsive:
@@ -47,28 +40,43 @@ class TestAssetsWorkspaceResponsive:
         presenter = AssetsPresenter(session_context=_FakeSession())
         workspace = AssetsWorkspace(presenter)
         workspace.resize(width, height)
-        # None of §100's named resolutions are below the COMPACT breakpoint
-        # (1366px) under the current shared threshold — every one renders
-        # the full-width nav, same behavior `customers_crm` already has at
-        # these sizes. Assert that explicitly rather than assuming it.
-        assert width >= ResponsiveBreakpoints.COMPACT
-        assert workspace._nav.maximumWidth() == 240
-
-    def test_collapses_nav_below_compact_breakpoint(self, app):
-        presenter = AssetsPresenter(session_context=_FakeSession())
-        workspace = AssetsWorkspace(presenter)
-        workspace.resize(1200, 800)
-        workspace.resizeEvent(None)
-        assert workspace._nav.maximumWidth() == 180
-        assert workspace._nav.minimumWidth() == 160
-
-    def test_full_width_nav_above_compact_breakpoint(self, app):
-        presenter = AssetsPresenter(session_context=_FakeSession())
-        workspace = AssetsWorkspace(presenter)
-        workspace.resize(1920, 1080)
-        workspace.resizeEvent(None)
+        workspace.show()
+        app.processEvents()
         assert workspace._nav.maximumWidth() == 240
         assert workspace._nav.minimumWidth() == 180
+        assert workspace._header is workspace.module_layout.header
+        assert workspace._header.x() == 20
+        assert workspace._header.width() == width - 40
+        assert workspace._header.geometry().bottom() < workspace._nav.y()
+        workspace.close()
+
+    def test_resize_preserves_manually_collapsed_nav_and_active_page(self, app):
+        presenter = AssetsPresenter(session_context=_FakeSession())
+        workspace = AssetsWorkspace(presenter)
+        workspace.select_route("assets.directory")
+        active_page = workspace._stack.currentWidget()
+        workspace._nav.set_collapsed(True)
+        workspace.show()
+        for width, height in _NAMED_RESOLUTIONS:
+            workspace.resize(width, height)
+            app.processEvents()
+            assert workspace._nav.maximumWidth() == 64
+            assert workspace._nav.minimumWidth() == 60
+            assert workspace._stack.currentWidget() is active_page
+        workspace.close()
+
+    def test_resize_preserves_manually_expanded_nav(self, app):
+        presenter = AssetsPresenter(session_context=_FakeSession())
+        workspace = AssetsWorkspace(presenter)
+        workspace._nav.set_collapsed(True)
+        workspace._nav.set_collapsed(False)
+        workspace.show()
+        for width, height in reversed(_NAMED_RESOLUTIONS):
+            workspace.resize(width, height)
+            app.processEvents()
+            assert workspace._nav.maximumWidth() == 240
+            assert workspace._nav.minimumWidth() == 180
+        workspace.close()
 
 
 class TestAssetsWorkspaceAccessibility:

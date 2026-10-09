@@ -30,7 +30,7 @@ from __future__ import annotations
 from backend.application.inventory.labels.gateway import PrintDeliveryError
 from backend.domain.device_management.entities.device import Device
 from backend.domain.device_management.entities.device_profile import DeviceProfile
-from backend.domain.device_management.enums import ConnectionType, DeviceStatus
+from backend.domain.device_management.enums import DeviceStatus
 from backend.domain.device_management.exceptions import NoAvailablePrinterError, PrintRouteNotFoundError
 from backend.domain.document_output.enums import DocumentType
 from backend.domain.inventory.enums import LabelFormat, LabelType
@@ -64,8 +64,6 @@ _RENDERERS = {
     LabelFormat.TEXT: lambda doc, copies: render_text_label(doc, copies=copies),
 }
 
-_NETWORK_TYPES = {ConnectionType.NETWORK, ConnectionType.HTTP}
-_USB_TYPES = {ConnectionType.USB, ConnectionType.SYSTEM}
 
 
 class NetworkLabelPrintGateway:
@@ -125,20 +123,18 @@ class NetworkLabelPrintGateway:
 
     @staticmethod
     def _connection_target(profile: DeviceProfile):
-        from backend.infrastructure.printing.transport import TransportType
+        """La MISMA regla que tickets y cortes (`routed_printer.connection_target`):
+        antes era una copia que mandaba todo USB a la impresora predeterminada de
+        Windows, aunque el perfil indicara otra cola."""
+        from backend.infrastructure.printing.routed_printer import (
+            PrintTargetUnavailable,
+            connection_target,
+        )
 
-        connection_type = profile.connection_profile.connection_type
-        if connection_type in _NETWORK_TYPES:
-            endpoint = profile.connection_profile.network_endpoint
-            if endpoint is None:
-                raise PrintDeliveryError("Perfil de conexión de red sin network_endpoint")
-            return TransportType.NETWORK, f"{endpoint.host}:{endpoint.port}", 9600
-        if connection_type is ConnectionType.SERIAL:
-            serial = profile.connection_profile.serial_port
-            if serial is None:
-                raise PrintDeliveryError("Perfil de conexión serial sin serial_port")
-            return TransportType.SERIAL, serial.port, serial.baud_rate
-        if connection_type in _USB_TYPES:
-            return TransportType.USB_WIN32, "", 9600
-        raise PrintDeliveryError(
-            f"Tipo de conexión no soportado para entrega real: {connection_type.value}")
+        class _Device:
+            code = profile.name
+
+        try:
+            return connection_target(_Device, profile)
+        except PrintTargetUnavailable as exc:
+            raise PrintDeliveryError(str(exc)) from exc

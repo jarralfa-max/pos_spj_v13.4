@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="3" failures="0" skipped="0" tests="69" time="39.655" timestamp="2026-10-02T19:41:23.512647+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution0]" time="0.847" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution1]" time="0.382" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution2]" time="0.508" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution3]" time="0.508" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution4]" time="1.141" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution0]" time="0.701" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution1]" time="1.475" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution2]" time="1.360" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution3]" time="1.423" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution4]" time="1.369" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution0]" time="0.289" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution1]" time="0.637" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution2]" time="0.904" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution3]" time="1.175" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution4]" time="1.002" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution0]" time="1.048" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution1]" time="1.684" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution2]" time="1.580" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution3]" time="1.959" /><testcase classname="tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution4]" time="1.571" /><testcase classname="tests.ui.test_responsive_components" name="test_page_viewport_scrolls_oversized_content_in_both_directions" time="0.019" /><testcase classname="tests.ui.test_responsive_components" name="test_table_reload_while_sorted_keeps_each_uuid_with_all_of_its_values" time="0.036" /><testcase classname="tests.ui.test_responsive_components" name="test_table_minimum_width_scroll_visibility_and_saved_width_survive_resize" time="0.065" /><testcase classname="tests.ui.test_responsive_components" name="test_table_rejects_incomplete_rows_without_destroying_existing_data" time="0.005" /><testcase classname="tests.ui.test_responsive_components" name="test_table_filter_loading_and_manual_population_state" time="0.009" /><testcase classname="tests.ui.test_responsive_components" name="test_runtime_density_updates_existing_inputs_tables_and_tabs" time="0.664" /><testcase classname="tests.ui.test_responsive_components" name="test_virtual_keyboard_preserves_validation_selection_and_read_only" time="0.056" /><testcase classname="tests.ui.test_responsive_components" name="test_virtual_keyboard_keeps_touch_targets_after_global_density_changes" time="0.605" /><testcase classname="tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[text]" time="0.019" /><testcase classname="tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[integer]" time="0.010" /><testcase classname="tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[decimal]" time="0.011" /><testcase classname="tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[money]" time="0.014" /><testcase classname="tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[weight]" time="0.114" /><testcase classname="tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[phone]" time="0.167" /><testcase classname="tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[email]" time="0.087" /><testcase classname="tests.ui.test_responsive_components" name="test_keyboard_attach_is_idempotent_and_destructive_default_is_cancel" time="0.104" /><testcase classname="tests.ui.test_responsive_components" name="test_wizard_prevents_navigation_past_first_or_last_step" time="0.004" /><testcase classname="tests.ui.test_responsive_components" name="test_pricing_scroll_preserves_lazy_routes_when_opened_out_of_order" time="0.196" /><testcase classname="tests.ui.test_responsive_components" name="test_yield_monitoring_uses_page_scroll_without_eager_queries" time="0.111" /><testcase classname="tests.ui.test_purchasing_sidebar_icons" name="test_purchasing_routes_render_distinct_semantic_icons[light]" time="0.142"><error message="failed on setup with &quot;AttributeError: type object 'Icons' has no attribute 'PURCHASING'. Did you mean: 'PURCHASE'?&quot;">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018B9BBB6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000018B9BCC6AD0&gt;
+
+    @pytest.fixture
+    def shell(qt_font_resources, monkeypatch):
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(qt_font_resources, "light")
+        for name in ("ProcurementDashboardPage", "RequisitionsPage", "QuotationsPage", "OrdersPage",
+                     "LogisticsRelatedPage", "PurchaseHistoryPage", "InvoicesPage"):
+            monkeypatch.setattr(module, name, PageBody)
+        presenter = Presenter()
+&gt;       view = module.PurchasingModuleShell(presenter, direct_purchase_views={
+            "create": PageBody(), "history": PageBody()})
+
+tests\ui\test_purchasing_sidebar_icons.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;frontend.desktop.modules.purchasing.purchasing_module_shell.PurchasingModuleShell object at 0x0000018B9BCED2E0&gt;
+presenter = &lt;tests.ui.test_purchasing_sidebar_icons.Presenter object at 0x0000018B9BBEDBE0&gt;
+parent = None
+direct_purchase_views = {'create': &lt;tests.ui.test_purchasing_sidebar_icons.PageBody object at 0x0000018B9BCED7F0&gt;, 'history': &lt;tests.ui.test_purchasing_sidebar_icons.PageBody object at 0x0000018B9BCED400&gt;}
+
+    def __init__(self, presenter, parent=None, *, direct_purchase_views=None) -&gt; None:
+        super().__init__(parent)
+        self.setObjectName("purchasingModuleShell")
+        self._presenter = presenter
+        self._direct_purchase_views = direct_purchase_views or {}
+        self._loaded = False
+        self._row_to_page: dict[int, int] = {}
+        self._route_to_page: dict[str, int] = {}
+        self._route_to_row: dict[str, int] = {}
+        self._route_badges: dict[str, str] = {}
+        self._pages: list[QWidget] = []
+    
+        self.sidebar = SideNav(self)
+        self.sidebar.setAccessibleName("Navegación de Compras")
+    
+        body = QWidget(self)
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(Spacing.MD)
+        session = presenter.session_summary()
+        self.filters = ContextFilters(session, presenter.warehouse_options(), self)
+        self.filters.period.range_changed.connect(self._period_changed)
+        self.filters.warehouse.selection_changed.connect(self._warehouse_changed)
+        refresh = create_primary_button(self, "Actualizar")
+        refresh.clicked.connect(self.reload)
+        self.filters.add_action(refresh)
+        body_layout.addWidget(self.filters)
+        self._warehouse_notice = QLabel(
+            "Selecciona un almacén para consultar embarques o ejecutar operaciones logísticas.",
+            self)
+        self._warehouse_notice.setObjectName("purchasingWarehouseNotice")
+        self._warehouse_notice.setProperty("state", "WARNING")
+        self._warehouse_notice.setWordWrap(True)
+        self._warehouse_notice.setVisible(not session["warehouse_selected"])
+        body_layout.addWidget(self._warehouse_notice)
+        self.content = QStackedWidget(self)
+        body_layout.addWidget(self.content, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Compras",
+            subtitle="Solicitudes, órdenes, compras, recepciones y facturación.",
+&gt;           icon=Icons.PURCHASES, sidebar=self.sidebar, content=body,
+                 ^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: type object 'Icons' has no attribute 'PURCHASING'. Did you mean: 'PURCHASE'?
+
+frontend\desktop\modules\purchasing\purchasing_module_shell.py:108: AttributeError</error></testcase><testcase classname="tests.ui.test_purchasing_sidebar_icons" name="test_purchasing_routes_render_distinct_semantic_icons[dark]" time="0.124"><error message="failed on setup with &quot;AttributeError: type object 'Icons' has no attribute 'PURCHASING'. Did you mean: 'PURCHASE'?&quot;">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018B9BBB6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000018B9BD89E10&gt;
+
+    @pytest.fixture
+    def shell(qt_font_resources, monkeypatch):
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(qt_font_resources, "light")
+        for name in ("ProcurementDashboardPage", "RequisitionsPage", "QuotationsPage", "OrdersPage",
+                     "LogisticsRelatedPage", "PurchaseHistoryPage", "InvoicesPage"):
+            monkeypatch.setattr(module, name, PageBody)
+        presenter = Presenter()
+&gt;       view = module.PurchasingModuleShell(presenter, direct_purchase_views={
+            "create": PageBody(), "history": PageBody()})
+
+tests\ui\test_purchasing_sidebar_icons.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;frontend.desktop.modules.purchasing.purchasing_module_shell.PurchasingModuleShell object at 0x0000018B9BD039B0&gt;
+presenter = &lt;tests.ui.test_purchasing_sidebar_icons.Presenter object at 0x0000018B9BBFDF90&gt;
+parent = None
+direct_purchase_views = {'create': &lt;tests.ui.test_purchasing_sidebar_icons.PageBody object at 0x0000018B9BD036E0&gt;, 'history': &lt;tests.ui.test_purchasing_sidebar_icons.PageBody object at 0x0000018B9BD03920&gt;}
+
+    def __init__(self, presenter, parent=None, *, direct_purchase_views=None) -&gt; None:
+        super().__init__(parent)
+        self.setObjectName("purchasingModuleShell")
+        self._presenter = presenter
+        self._direct_purchase_views = direct_purchase_views or {}
+        self._loaded = False
+        self._row_to_page: dict[int, int] = {}
+        self._route_to_page: dict[str, int] = {}
+        self._route_to_row: dict[str, int] = {}
+        self._route_badges: dict[str, str] = {}
+        self._pages: list[QWidget] = []
+    
+        self.sidebar = SideNav(self)
+        self.sidebar.setAccessibleName("Navegación de Compras")
+    
+        body = QWidget(self)
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(Spacing.MD)
+        session = presenter.session_summary()
+        self.filters = ContextFilters(session, presenter.warehouse_options(), self)
+        self.filters.period.range_changed.connect(self._period_changed)
+        self.filters.warehouse.selection_changed.connect(self._warehouse_changed)
+        refresh = create_primary_button(self, "Actualizar")
+        refresh.clicked.connect(self.reload)
+        self.filters.add_action(refresh)
+        body_layout.addWidget(self.filters)
+        self._warehouse_notice = QLabel(
+            "Selecciona un almacén para consultar embarques o ejecutar operaciones logísticas.",
+            self)
+        self._warehouse_notice.setObjectName("purchasingWarehouseNotice")
+        self._warehouse_notice.setProperty("state", "WARNING")
+        self._warehouse_notice.setWordWrap(True)
+        self._warehouse_notice.setVisible(not session["warehouse_selected"])
+        body_layout.addWidget(self._warehouse_notice)
+        self.content = QStackedWidget(self)
+        body_layout.addWidget(self.content, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Compras",
+            subtitle="Solicitudes, órdenes, compras, recepciones y facturación.",
+&gt;           icon=Icons.PURCHASES, sidebar=self.sidebar, content=body,
+                 ^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: type object 'Icons' has no attribute 'PURCHASING'. Did you mean: 'PURCHASE'?
+
+frontend\desktop\modules\purchasing\purchasing_module_shell.py:108: AttributeError</error></testcase><testcase classname="tests.ui.test_purchasing_sidebar_icons" name="test_purchasing_permission_refresh_preserves_available_route_icons" time="0.204"><error message="failed on setup with &quot;AttributeError: type object 'Icons' has no attribute 'PURCHASING'. Did you mean: 'PURCHASE'?&quot;">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000018B9BBB6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000018B9BD8A270&gt;
+
+    @pytest.fixture
+    def shell(qt_font_resources, monkeypatch):
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(qt_font_resources, "light")
+        for name in ("ProcurementDashboardPage", "RequisitionsPage", "QuotationsPage", "OrdersPage",
+                     "LogisticsRelatedPage", "PurchaseHistoryPage", "InvoicesPage"):
+            monkeypatch.setattr(module, name, PageBody)
+        presenter = Presenter()
+&gt;       view = module.PurchasingModuleShell(presenter, direct_purchase_views={
+            "create": PageBody(), "history": PageBody()})
+
+tests\ui\test_purchasing_sidebar_icons.py:57: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;frontend.desktop.modules.purchasing.purchasing_module_shell.PurchasingModuleShell object at 0x0000018B9BD68950&gt;
+presenter = &lt;tests.ui.test_purchasing_sidebar_icons.Presenter object at 0x0000018B9BBFE0D0&gt;
+parent = None
+direct_purchase_views = {'create': &lt;tests.ui.test_purchasing_sidebar_icons.PageBody object at 0x0000018B9BD685F0&gt;, 'history': &lt;tests.ui.test_purchasing_sidebar_icons.PageBody object at 0x0000018B9BD688C0&gt;}
+
+    def __init__(self, presenter, parent=None, *, direct_purchase_views=None) -&gt; None:
+        super().__init__(parent)
+        self.setObjectName("purchasingModuleShell")
+        self._presenter = presenter
+        self._direct_purchase_views = direct_purchase_views or {}
+        self._loaded = False
+        self._row_to_page: dict[int, int] = {}
+        self._route_to_page: dict[str, int] = {}
+        self._route_to_row: dict[str, int] = {}
+        self._route_badges: dict[str, str] = {}
+        self._pages: list[QWidget] = []
+    
+        self.sidebar = SideNav(self)
+        self.sidebar.setAccessibleName("Navegación de Compras")
+    
+        body = QWidget(self)
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(Spacing.MD)
+        session = presenter.session_summary()
+        self.filters = ContextFilters(session, presenter.warehouse_options(), self)
+        self.filters.period.range_changed.connect(self._period_changed)
+        self.filters.warehouse.selection_changed.connect(self._warehouse_changed)
+        refresh = create_primary_button(self, "Actualizar")
+        refresh.clicked.connect(self.reload)
+        self.filters.add_action(refresh)
+        body_layout.addWidget(self.filters)
+        self._warehouse_notice = QLabel(
+            "Selecciona un almacén para consultar embarques o ejecutar operaciones logísticas.",
+            self)
+        self._warehouse_notice.setObjectName("purchasingWarehouseNotice")
+        self._warehouse_notice.setProperty("state", "WARNING")
+        self._warehouse_notice.setWordWrap(True)
+        self._warehouse_notice.setVisible(not session["warehouse_selected"])
+        body_layout.addWidget(self._warehouse_notice)
+        self.content = QStackedWidget(self)
+        body_layout.addWidget(self.content, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Compras",
+            subtitle="Solicitudes, órdenes, compras, recepciones y facturación.",
+&gt;           icon=Icons.PURCHASES, sidebar=self.sidebar, content=body,
+                 ^^^^^^^^^^^^^^^^
+        )
+E       AttributeError: type object 'Icons' has no attribute 'PURCHASING'. Did you mean: 'PURCHASE'?
+
+frontend\desktop\modules\purchasing\purchasing_module_shell.py:108: AttributeError</error></testcase><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-losses-LossesSidebarWidget]" time="0.880" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-meat_processing-MeatProcessingSidebarWidget]" time="0.950" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-orders_delivery-OrdersDeliverySidebarWidget]" time="0.822" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-business_intelligence-BusinessIntelligenceSidebarWidget]" time="0.567" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-transfers-TransfersSidebarWidget]" time="0.492" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[False-configuracion-ConfiguracionSidebarWidget]" time="0.695" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-losses-LossesSidebarWidget]" time="0.679" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-meat_processing-MeatProcessingSidebarWidget]" time="0.546" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-orders_delivery-OrdersDeliverySidebarWidget]" time="0.666" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-business_intelligence-BusinessIntelligenceSidebarWidget]" time="0.485" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-transfers-TransfersSidebarWidget]" time="0.493" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_custom_sidebar_icons_preserve_permissions_badges_and_route_signals[True-configuracion-ConfiguracionSidebarWidget]" time="0.490" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_inventory_icons_follow_filtered_registry_without_reordering_pages[False]" time="1.184" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_inventory_icons_follow_filtered_registry_without_reordering_pages[True]" time="0.891" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_pricing_icons_follow_visible_routes_and_keep_lazy_navigation[False]" time="0.765" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_pricing_icons_follow_visible_routes_and_keep_lazy_navigation[True]" time="0.349" /><testcase classname="tests.ui.test_operational_sidebar_icons" name="test_products_real_composition_has_distinct_section_icons" time="0.674" /><testcase classname="tests.architecture.test_purchasing_desktop_shell" name="test_purchasing_root_is_sidebar_shell_not_tab_widget" time="0.006" /><testcase classname="tests.architecture.test_purchasing_desktop_shell" name="test_shell_exposes_only_implemented_permission_gated_routes" time="0.002" /><testcase classname="tests.architecture.test_purchasing_desktop_shell" name="test_dashboard_has_quick_actions_and_clickable_implemented_flow" time="0.002" /><testcase classname="tests.architecture.test_purchasing_desktop_shell" name="test_dashboard_uses_canonical_charts_with_visual_hierarchy" time="0.002" /><testcase classname="tests.architecture.test_purchasing_desktop_shell" name="test_dashboard_has_alerts_bar" time="0.002" /><testcase classname="tests.architecture.test_purchasing_desktop_shell" name="test_orders_have_master_detail_timeline_and_contextual_actions" time="0.004" /><testcase classname="tests.architecture.test_purchasing_desktop_shell" name="test_requisitions_have_master_detail_and_real_sourcing_actions" time="0.005" /><testcase classname="tests.architecture.test_purchasing_desktop_shell" name="test_receipts_and_invoices_are_real_master_detail_workspaces" time="0.004" /><testcase classname="tests.architecture.test_purchasing_desktop_shell" name="test_purchasing_ui_has_no_inline_styles_or_direct_buttons" time="0.002" /><testcase classname="tests.architecture.test_purchasing_desktop_shell" name="test_business_actions_moved_out_of_page_level_bottom_row" time="0.002" /></testsuite></testsuites>

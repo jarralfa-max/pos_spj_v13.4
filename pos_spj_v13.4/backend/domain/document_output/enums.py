@@ -46,6 +46,12 @@ class DocumentType(str, Enum):
     PRODUCT_LABEL = "PRODUCT_LABEL"
 
 
+#: Documentos que diseña e imprime FIDELIDAD (diseñador de tarjetas versionado,
+#: boletos de sorteo). Configuración no ofrece plantillas ni rutas para ellos
+#: (decisión del usuario, 2026-10-04).
+LOYALTY_OWNED_DOCUMENT_TYPES = frozenset({DocumentType.LOYALTY_CARD, DocumentType.SWEEPSTAKES_TICKET})
+
+
 LABEL_DOCUMENT_TYPES = frozenset({
     DocumentType.LOT_LABEL, DocumentType.WEIGHT_LABEL, DocumentType.TRANSFER_LABEL,
     DocumentType.COUNT_LABEL, DocumentType.ADJUSTMENT_LABEL, DocumentType.PRODUCT_LABEL,

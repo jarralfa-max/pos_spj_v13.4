@@ -14,6 +14,7 @@ from backend.domain.cash_register.entities import (
     CashRegister, CashShift, PosTerminal, XCut, ZCut,
 )
 from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
+from backend.shared.business_dates import local_business_date
 from backend.shared.ids import new_uuid
 
 
@@ -33,15 +34,19 @@ class CashShiftRepository(_Repository):
     _ACTIVE_STATUSES = tuple(status.value for status in CashShiftLifecyclePolicy.ACTIVE_STATUSES)
 
     def add(self, shift: CashShift) -> None:
+        # §33 (CASH-26, 2026-10-07): el turno pertenece al día LOCAL en que abrió,
+        # aunque cierre pasada la medianoche. Hasta hoy la columna quedaba NULL.
         self.execute(
             """INSERT INTO cash_shifts
             (id,branch_id,register_id,drawer_id,terminal_id,cashier_user_id,
-             opening_amount,opening_operation_id,status,opened_at,z_cut_id,closed_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+             opening_amount,opening_operation_id,business_date,status,opened_at,
+             z_cut_id,closed_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (shift.id, shift.branch_id, shift.register_id, shift.drawer_id,
              shift.terminal_id, shift.cashier_user_id, str(shift.opening_amount),
-             shift.opening_operation_id, shift.status.value, shift.opened_at,
-             shift.z_cut_id, shift.closed_at))
+             shift.opening_operation_id,
+             local_business_date(shift.opened_at).isoformat(),
+             shift.status.value, shift.opened_at, shift.z_cut_id, shift.closed_at))
 
     def get(self, shift_id: str):
         cursor = self.execute("SELECT * FROM cash_shifts WHERE id=?", (shift_id,))
@@ -716,6 +721,26 @@ class CashOutboxRepository(_Repository):
             (outbox_id, event["event_id"], event["event_name"], event["operation_id"],
              event["entity_id"], _json(event), event["timestamp"]))
         return outbox_id
+
+    # Despacho en proceso hacia Finanzas (CASH-26 bloque 2). Independiente del
+    # envío fuera de línea, que lleva su propio estado en `cash_sync_envelopes`.
+    def list_pending(self, *, limit: int = 500) -> list[dict]:
+        cursor = self.execute(
+            """SELECT id,event_id,event_name,payload_json,attempt_count FROM cash_outbox
+            WHERE status='PENDING' ORDER BY created_at,id LIMIT ?""", (limit,))
+        columns = [item[0] for item in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+    def mark_dispatched(self, outbox_id: str, *, now: str) -> None:
+        self.execute(
+            """UPDATE cash_outbox SET status='DISPATCHED',dispatched_at=?,last_error=NULL
+            WHERE id=? AND status='PENDING'""", (now, outbox_id))
+
+    def mark_attempt_failed(self, outbox_id: str, *, error: str, dead: bool) -> None:
+        self.execute(
+            """UPDATE cash_outbox SET attempt_count=attempt_count+1,last_error=?,
+            status=CASE WHEN ? THEN 'DEAD_LETTER' ELSE status END
+            WHERE id=? AND status='PENDING'""", (error[:500], 1 if dead else 0, outbox_id))
 
 
 class CashSyncRepository(_Repository):

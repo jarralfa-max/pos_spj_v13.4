@@ -23,12 +23,22 @@ from __future__ import annotations
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.hardware import CashDrawerGateway
-from backend.application.cash_register.hardware_use_cases import OpenCashDrawerUseCase
+from backend.application.cash_register.hardware_use_cases import (
+    OpenCashDrawerUseCase,
+    OpenDrawerForCashSaleUseCase,
+)
 
 
 class SalesCashDrawerGateway:
     def __init__(self, authorization: CashAuthorizationPolicy, gateway: CashDrawerGateway) -> None:
         self._use_case = OpenCashDrawerUseCase(authorization, gateway)
+        self._for_sale = OpenDrawerForCashSaleUseCase(authorization, gateway)
+
+    def open_for_cash_sale(self, connection, *, sale_id: str, branch_id: str,
+                           actor_user_id: str, operation_id: str) -> bool:
+        """Abre el cajón si el cobro dejó efectivo en Caja (CASH-26, 2026-10-07)."""
+        return self._for_sale.execute(connection, sale_id=sale_id, branch_id=branch_id,
+                                      actor_user_id=actor_user_id, operation_id=operation_id)
 
     def open(
         self, connection, *, drawer_id: str, branch_id: str, actor_user_id: str,

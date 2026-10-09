@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="5" time="8.186" timestamp="2026-10-04T22:54:49.975083+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_standard_window_geometry" name="test_window_can_cross_connected_monitor_edge[neighbor0-position0]" time="1.351"><failure message="assert 476 == 600&#10; +  where 476 = &lt;built-in method x of QPoint object at 0x000001F3A89307C0&gt;()&#10; +    where &lt;built-in method x of QPoint object at 0x000001F3A89307C0&gt; = PyQt5.QtCore.QPoint(476, 40).x&#10; +      where PyQt5.QtCore.QPoint(476, 40) = &lt;built-in method topLeft of QRect object at 0x000001F3A8931550&gt;()&#10; +        where &lt;built-in method topLeft of QRect object at 0x000001F3A8931550&gt; = PyQt5.QtCore.QRect(476, 40, 804, 504).topLeft&#10; +          where PyQt5.QtCore.QRect(476, 40, 804, 504) = &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8944050&gt;()&#10; +            where &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8944050&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8944050&gt;.frameGeometry">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F3A83DB9B0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...ject at 0x000001F3A8944170&gt;, &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8944050&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F3A89543E0&gt;
+neighbor = PyQt5.QtCore.QRect(1280, 0, 1280, 720), position = (600, 40)
+
+    @pytest.mark.parametrize(("neighbor", "position"), [
+        (QRect(1280, 0, 1280, 720), (600, 40)),
+        (QRect(-1280, 0, 1280, 720), (-100, 40)),
+        (QRect(0, 720, 1280, 720), (100, 300)),
+        (QRect(0, -720, 1280, 720), (100, -100)),
+    ])
+    def test_window_can_cross_connected_monitor_edge(desktop, monkeypatch, neighbor, position):
+        app, _, screen, window = desktop
+        screen.geometry = QRect(0, 0, 1280, 720)
+        adjacent = DesktopScreen(neighbor)
+        monkeypatch.setattr(QApplication, "screens", lambda: [screen, adjacent])
+        window.resize(800, 500)
+        window.move(100, 100)
+        window.show()
+        settle(app)
+        # The centre still belongs to the old monitor. The next movement must
+        # remain possible instead of snapping the frame back inside that monitor.
+        window.move(*position)
+        settle(app)
+&gt;       assert window.frameGeometry().topLeft().x() == position[0]
+E       assert 476 == 600
+E        +  where 476 = &lt;built-in method x of QPoint object at 0x000001F3A89307C0&gt;()
+E        +    where &lt;built-in method x of QPoint object at 0x000001F3A89307C0&gt; = PyQt5.QtCore.QPoint(476, 40).x
+E        +      where PyQt5.QtCore.QPoint(476, 40) = &lt;built-in method topLeft of QRect object at 0x000001F3A8931550&gt;()
+E        +        where &lt;built-in method topLeft of QRect object at 0x000001F3A8931550&gt; = PyQt5.QtCore.QRect(476, 40, 804, 504).topLeft
+E        +          where PyQt5.QtCore.QRect(476, 40, 804, 504) = &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8944050&gt;()
+E        +            where &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8944050&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8944050&gt;.frameGeometry
+
+tests\ui\test_standard_window_geometry.py:153: AssertionError</failure></testcase><testcase classname="tests.ui.test_standard_window_geometry" name="test_window_can_cross_connected_monitor_edge[neighbor1-position1]" time="0.185"><failure message="assert 0 == -100&#10; +  where 0 = &lt;built-in method x of QPoint object at 0x000001F3A8931EF0&gt;()&#10; +    where &lt;built-in method x of QPoint object at 0x000001F3A8931EF0&gt; = PyQt5.QtCore.QPoint(0, 40).x&#10; +      where PyQt5.QtCore.QPoint(0, 40) = &lt;built-in method topLeft of QRect object at 0x000001F3A89320B0&gt;()&#10; +        where &lt;built-in method topLeft of QRect object at 0x000001F3A89320B0&gt; = PyQt5.QtCore.QRect(0, 40, 804, 504).topLeft&#10; +          where PyQt5.QtCore.QRect(0, 40, 804, 504) = &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996840&gt;()&#10; +            where &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996840&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8996840&gt;.frameGeometry">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F3A83DB9B0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...ject at 0x000001F3A83DBEC0&gt;, &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8996840&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F3A80F8E90&gt;
+neighbor = PyQt5.QtCore.QRect(-1280, 0, 1280, 720), position = (-100, 40)
+
+    @pytest.mark.parametrize(("neighbor", "position"), [
+        (QRect(1280, 0, 1280, 720), (600, 40)),
+        (QRect(-1280, 0, 1280, 720), (-100, 40)),
+        (QRect(0, 720, 1280, 720), (100, 300)),
+        (QRect(0, -720, 1280, 720), (100, -100)),
+    ])
+    def test_window_can_cross_connected_monitor_edge(desktop, monkeypatch, neighbor, position):
+        app, _, screen, window = desktop
+        screen.geometry = QRect(0, 0, 1280, 720)
+        adjacent = DesktopScreen(neighbor)
+        monkeypatch.setattr(QApplication, "screens", lambda: [screen, adjacent])
+        window.resize(800, 500)
+        window.move(100, 100)
+        window.show()
+        settle(app)
+        # The centre still belongs to the old monitor. The next movement must
+        # remain possible instead of snapping the frame back inside that monitor.
+        window.move(*position)
+        settle(app)
+&gt;       assert window.frameGeometry().topLeft().x() == position[0]
+E       assert 0 == -100
+E        +  where 0 = &lt;built-in method x of QPoint object at 0x000001F3A8931EF0&gt;()
+E        +    where &lt;built-in method x of QPoint object at 0x000001F3A8931EF0&gt; = PyQt5.QtCore.QPoint(0, 40).x
+E        +      where PyQt5.QtCore.QPoint(0, 40) = &lt;built-in method topLeft of QRect object at 0x000001F3A89320B0&gt;()
+E        +        where &lt;built-in method topLeft of QRect object at 0x000001F3A89320B0&gt; = PyQt5.QtCore.QRect(0, 40, 804, 504).topLeft
+E        +          where PyQt5.QtCore.QRect(0, 40, 804, 504) = &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996840&gt;()
+E        +            where &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996840&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8996840&gt;.frameGeometry
+
+tests\ui\test_standard_window_geometry.py:153: AssertionError</failure></testcase><testcase classname="tests.ui.test_standard_window_geometry" name="test_window_can_cross_connected_monitor_edge[neighbor2-position2]" time="0.168"><failure message="assert 216 == 300&#10; +  where 216 = &lt;built-in method y of QPoint object at 0x000001F3A8932820&gt;()&#10; +    where &lt;built-in method y of QPoint object at 0x000001F3A8932820&gt; = PyQt5.QtCore.QPoint(100, 216).y&#10; +      where PyQt5.QtCore.QPoint(100, 216) = &lt;built-in method topLeft of QRect object at 0x000001F3A8932B30&gt;()&#10; +        where &lt;built-in method topLeft of QRect object at 0x000001F3A8932B30&gt; = PyQt5.QtCore.QRect(100, 216, 804, 504).topLeft&#10; +          where PyQt5.QtCore.QRect(100, 216, 804, 504) = &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996720&gt;()&#10; +            where &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996720&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8996720&gt;.frameGeometry">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F3A83DB9B0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...ject at 0x000001F3A8996A80&gt;, &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8996720&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F3A8910A70&gt;
+neighbor = PyQt5.QtCore.QRect(0, 720, 1280, 720), position = (100, 300)
+
+    @pytest.mark.parametrize(("neighbor", "position"), [
+        (QRect(1280, 0, 1280, 720), (600, 40)),
+        (QRect(-1280, 0, 1280, 720), (-100, 40)),
+        (QRect(0, 720, 1280, 720), (100, 300)),
+        (QRect(0, -720, 1280, 720), (100, -100)),
+    ])
+    def test_window_can_cross_connected_monitor_edge(desktop, monkeypatch, neighbor, position):
+        app, _, screen, window = desktop
+        screen.geometry = QRect(0, 0, 1280, 720)
+        adjacent = DesktopScreen(neighbor)
+        monkeypatch.setattr(QApplication, "screens", lambda: [screen, adjacent])
+        window.resize(800, 500)
+        window.move(100, 100)
+        window.show()
+        settle(app)
+        # The centre still belongs to the old monitor. The next movement must
+        # remain possible instead of snapping the frame back inside that monitor.
+        window.move(*position)
+        settle(app)
+        assert window.frameGeometry().topLeft().x() == position[0]
+&gt;       assert window.frameGeometry().topLeft().y() == position[1]
+E       assert 216 == 300
+E        +  where 216 = &lt;built-in method y of QPoint object at 0x000001F3A8932820&gt;()
+E        +    where &lt;built-in method y of QPoint object at 0x000001F3A8932820&gt; = PyQt5.QtCore.QPoint(100, 216).y
+E        +      where PyQt5.QtCore.QPoint(100, 216) = &lt;built-in method topLeft of QRect object at 0x000001F3A8932B30&gt;()
+E        +        where &lt;built-in method topLeft of QRect object at 0x000001F3A8932B30&gt; = PyQt5.QtCore.QRect(100, 216, 804, 504).topLeft
+E        +          where PyQt5.QtCore.QRect(100, 216, 804, 504) = &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996720&gt;()
+E        +            where &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996720&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8996720&gt;.frameGeometry
+
+tests\ui\test_standard_window_geometry.py:154: AssertionError</failure></testcase><testcase classname="tests.ui.test_standard_window_geometry" name="test_window_can_cross_connected_monitor_edge[neighbor3-position3]" time="0.326"><failure message="assert -98 == -100&#10; +  where -98 = &lt;built-in method y of QPoint object at 0x000001F3A89326D0&gt;()&#10; +    where &lt;built-in method y of QPoint object at 0x000001F3A89326D0&gt; = PyQt5.QtCore.QPoint(100, -98).y&#10; +      where PyQt5.QtCore.QPoint(100, -98) = &lt;built-in method topLeft of QRect object at 0x000001F3A8932D60&gt;()&#10; +        where &lt;built-in method topLeft of QRect object at 0x000001F3A8932D60&gt; = PyQt5.QtCore.QRect(100, -98, 804, 504).topLeft&#10; +          where PyQt5.QtCore.QRect(100, -98, 804, 504) = &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996C30&gt;()&#10; +            where &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996C30&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8996C30&gt;.frameGeometry">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F3A83DB9B0&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager obje...ject at 0x000001F3A8997140&gt;, &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8996C30&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F3A84139B0&gt;
+neighbor = PyQt5.QtCore.QRect(0, -720, 1280, 720), position = (100, -100)
+
+    @pytest.mark.parametrize(("neighbor", "position"), [
+        (QRect(1280, 0, 1280, 720), (600, 40)),
+        (QRect(-1280, 0, 1280, 720), (-100, 40)),
+        (QRect(0, 720, 1280, 720), (100, 300)),
+        (QRect(0, -720, 1280, 720), (100, -100)),
+    ])
+    def test_window_can_cross_connected_monitor_edge(desktop, monkeypatch, neighbor, position):
+        app, _, screen, window = desktop
+        screen.geometry = QRect(0, 0, 1280, 720)
+        adjacent = DesktopScreen(neighbor)
+        monkeypatch.setattr(QApplication, "screens", lambda: [screen, adjacent])
+        window.resize(800, 500)
+        window.move(100, 100)
+        window.show()
+        settle(app)
+        # The centre still belongs to the old monitor. The next movement must
+        # remain possible instead of snapping the frame back inside that monitor.
+        window.move(*position)
+        settle(app)
+        assert window.frameGeometry().topLeft().x() == position[0]
+&gt;       assert window.frameGeometry().topLeft().y() == position[1]
+E       assert -98 == -100
+E        +  where -98 = &lt;built-in method y of QPoint object at 0x000001F3A89326D0&gt;()
+E        +    where &lt;built-in method y of QPoint object at 0x000001F3A89326D0&gt; = PyQt5.QtCore.QPoint(100, -98).y
+E        +      where PyQt5.QtCore.QPoint(100, -98) = &lt;built-in method topLeft of QRect object at 0x000001F3A8932D60&gt;()
+E        +        where &lt;built-in method topLeft of QRect object at 0x000001F3A8932D60&gt; = PyQt5.QtCore.QRect(100, -98, 804, 504).topLeft
+E        +          where PyQt5.QtCore.QRect(100, -98, 804, 504) = &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996C30&gt;()
+E        +            where &lt;built-in method frameGeometry of StandardWindow object at 0x000001F3A8996C30&gt; = &lt;frontend.desktop.components.standard_window.StandardWindow object at 0x000001F3A8996C30&gt;.frameGeometry
+
+tests\ui\test_standard_window_geometry.py:154: AssertionError</failure></testcase><testcase classname="tests.ui.test_standard_window_geometry" name="test_two_monitors_do_not_disable_recovery_of_oversized_or_lost_windows" time="0.752" /></testsuite></testsuites>

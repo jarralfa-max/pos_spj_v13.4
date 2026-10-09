@@ -11,6 +11,7 @@ from .repositories import (
     CashOutboxRepository, CashSettlementRepository, CashShiftRepository, CashSyncRepository,
 )
 from .configuration_repository import CashConfigurationWriteRepository
+from .folio_repository import CashDocumentFolioRepository
 from .notification_repository import CashNotificationRepository
 from .printing_repository import CashPrintRepository
 
@@ -30,6 +31,7 @@ class CashRegisterUnitOfWork:
         self.idempotency = CashIdempotencyRepository(connection)
         self.counts = CashCountRepository(connection)
         self.cuts = CashCutRepository(connection)
+        self.folios = CashDocumentFolioRepository(connection)
         self.differences = CashDifferenceRepository(connection)
         self.difference_policies = CashDifferencePolicyRepository(connection)
         self.events = CashEventRepository(connection)

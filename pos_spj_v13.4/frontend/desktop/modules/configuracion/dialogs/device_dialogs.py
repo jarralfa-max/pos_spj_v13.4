@@ -16,11 +16,11 @@ from frontend.desktop.components import (
     apply_tooltip,
 )
 
+# Cajones de dinero y terminales de pago no aparecen: los administra Caja.
 _DEVICE_TYPES = (
     ("THERMAL_PRINTER", "Impresora térmica"), ("LABEL_PRINTER", "Impresora de etiquetas"),
     ("DOCUMENT_PRINTER", "Impresora de documentos"), ("SCALE", "Báscula"),
     ("BARCODE_SCANNER", "Lector de código de barras"), ("QR_SCANNER", "Lector QR"),
-    ("CASH_DRAWER", "Cajón de dinero"), ("PAYMENT_TERMINAL", "Terminal de pago"),
     ("CUSTOMER_DISPLAY", "Pantalla del cliente"), ("TEMPERATURE_SENSOR", "Sensor de temperatura"),
     ("CARD_PRINTER", "Impresora de tarjetas"), ("MOBILE_DEVICE", "Dispositivo móvil"),
     ("OTHER", "Otro"),
@@ -57,21 +57,6 @@ _SCALE_PROTOCOLS = (
     ("CONTINUOUS", "Continuo"), ("ON_DEMAND", "Bajo demanda"),
 )
 _PROTOCOLS = _PRINTER_PROTOCOLS + _SCALE_PROTOCOLS + (("VIRTUAL", "Virtual"),)
-# §20 — only meaningful when device_type is PAYMENT_TERMINAL; the use
-# case validates via payment_terminal_profile_policy.
-# assert_valid_payment_terminal_profile() (at least one required). Unlike
-# WEIGH/DRAWER_PULSE/SCAN_1D/SCAN_2D, this isn't deterministic from
-# device_type — a terminal's payment methods are a genuine choice, so
-# it's the one capability set this dialog actually asks for (checkboxes,
-# not the comma-separated-codes convention used for device references —
-# this is a small fixed enum, not an open-ended list).
-_PAYMENT_CAPABILITIES = (
-    ("CARD_SWIPE", "Tarjeta banda magnética"), ("CARD_CHIP", "Tarjeta chip"),
-    ("CARD_CONTACTLESS", "Tarjeta sin contacto"), ("ACCEPT_CASH", "Acepta efectivo"),
-    ("DISPENSE_CASH", "Dispensa efectivo"),
-)
-
-
 class DeviceProfileCreateDialog(FormDialog):
     """Registers a `DeviceProfile` (the reusable connection/capability
     template one or more `Device`s point at). Serial/network fields are
@@ -84,7 +69,7 @@ class DeviceProfileCreateDialog(FormDialog):
     case itself, not asked here — a payment terminal's capabilities are
     the one exception, a genuine choice via the checkboxes below."""
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, *, windows_printers=()) -> None:
         super().__init__(parent, title="Nuevo perfil de dispositivo")
         self.name = StandardLineEdit(self)
         self.name.setAccessibleName("Nombre del perfil")
@@ -139,19 +124,15 @@ class DeviceProfileCreateDialog(FormDialog):
         self.protocol.setAccessibleName("Protocolo")
         self.form.addRow("Protocolo (impresoras/básculas):", self.protocol)
 
-        self.driver_name = StandardLineEdit(self)
-        self.driver_name.setAccessibleName("Controlador")
-        self.form.addRow("Controlador (opcional):", self.driver_name)
+        # USB: la cola de Windows a la que se envía. Se ELIGE de las instaladas;
+        # vacío = la predeterminada de Windows (que puede no ser la térmica).
+        self.windows_printer = SearchableComboBox(self, placeholder="Predeterminada de Windows")
+        self.windows_printer.set_options([(n, n) for n in windows_printers])
+        self.windows_printer.setAccessibleName("Impresora de Windows")
+        apply_tooltip(self.windows_printer,
+                      "Sólo para conexión USB: la impresora instalada en Windows que recibe los tickets.")
+        self.form.addRow("Impresora de Windows (USB):", self.windows_printer)
 
-        payment_capabilities_widget = QWidget(self)
-        payment_capabilities_layout = QVBoxLayout(payment_capabilities_widget)
-        payment_capabilities_layout.setContentsMargins(0, 0, 0, 0)
-        self.payment_capability_checkboxes: dict[str, QCheckBox] = {}
-        for code, label in _PAYMENT_CAPABILITIES:
-            checkbox = QCheckBox(label, payment_capabilities_widget)
-            self.payment_capability_checkboxes[code] = checkbox
-            payment_capabilities_layout.addWidget(checkbox)
-        self.form.addRow("Capacidades de pago (solo terminales):", payment_capabilities_widget)
 
         self.add_button_box(ok_text="Crear perfil")
 
@@ -164,10 +145,7 @@ class DeviceProfileCreateDialog(FormDialog):
             "host": self.host.text().strip(), "port": self.port.value(),
             "paper_profile": self.paper_profile.current_id() or "",
             "protocol": self.protocol.current_id() or "",
-            "driver_name": self.driver_name.text().strip(),
-            "payment_capabilities": tuple(
-                code for code, checkbox in self.payment_capability_checkboxes.items() if checkbox.isChecked()
-            ),
+            "driver_name": self.windows_printer.current_id() or "",
         }
 
 
@@ -256,3 +234,21 @@ class BlockDeviceDialog(FormDialog):
 
     def reason_text(self) -> str:
         return self.reason.toPlainText().strip()
+
+
+class WindowsPrinterDialog(FormDialog):
+    """Elige la impresora de Windows (cola USB) del dispositivo seleccionado."""
+
+    def __init__(self, parent=None, *, device_name: str = "", current: str = "",
+                 windows_printers=()) -> None:
+        super().__init__(parent, title=f"Impresora de Windows de {device_name}")
+        self.printer = SearchableComboBox(self, placeholder="Predeterminada de Windows")
+        self.printer.set_options([(n, n) for n in windows_printers])
+        if current:
+            self.printer.set_current_id(current)
+        self.printer.setAccessibleName("Impresora de Windows")
+        self.form.addRow("Impresora:", self.printer)
+        self.add_button_box(ok_text="Guardar")
+
+    def printer_name(self) -> str:
+        return self.printer.current_id() or ""

@@ -131,6 +131,55 @@ def test_screen_change_rebinds_available_area_and_disconnects_previous(desktop, 
     assert new_screen.availableGeometry().contains(window.frameGeometry())
 
 
+@pytest.mark.parametrize(("neighbor", "position"), [
+    (QRect(1280, 0, 1280, 720), (600, 40)),
+    (QRect(-1280, 0, 1280, 720), (-100, 40)),
+    (QRect(0, 720, 1280, 720), (100, 300)),
+    (QRect(0, -720, 1280, 720), (100, -100)),
+])
+def test_window_can_cross_connected_monitor_edge(desktop, monkeypatch, neighbor, position):
+    app, _, screen, window = desktop
+    screen.geometry = QRect(0, 0, 1280, 720)
+    adjacent = DesktopScreen(neighbor)
+    monkeypatch.setattr(QApplication, "screens", lambda: [screen, adjacent])
+    window.resize(800, 500)
+    window.move(100, 100)
+    window.show()
+    settle(app)
+    # The centre still belongs to the old monitor. The next movement must
+    # remain possible instead of snapping the frame back inside that monitor.
+    window.move(*position)
+    settle(app)
+    # Native borders can shift a negative requested position by a few pixels.
+    # The contract is an intermediate frame spanning both monitors, with its
+    # centre still on the old one, rather than an exact platform coordinate.
+    frame = window.frameGeometry()
+    assert screen.availableGeometry().contains(frame.center())
+    assert not screen.availableGeometry().contains(frame)
+    assert neighbor.intersects(frame)
+    monkeypatch.setattr(window, "screen", lambda: adjacent)
+    window.move(neighbor.topLeft())
+    handle = window.windowHandle()
+    handle.screenChanged.emit(handle.screen())
+    settle(app)
+    assert neighbor.contains(window.frameGeometry())
+
+
+def test_two_monitors_do_not_disable_recovery_of_oversized_or_lost_windows(desktop, monkeypatch):
+    app, _, screen, window = desktop
+    screen.geometry = QRect(0, 0, 1280, 720)
+    adjacent = DesktopScreen(QRect(1280, 0, 1280, 720))
+    monkeypatch.setattr(QApplication, "screens", lambda: [screen, adjacent])
+    window.show()
+    settle(app)
+    window.resize(3000, 2000)
+    settle(app)
+    assert screen.availableGeometry().contains(window.frameGeometry())
+    window.move(6000, 6000)
+    settle(app)
+    assert screen.availableGeometry().contains(window.frameGeometry())
+
+
 @pytest.mark.parametrize("state", [Qt.WindowMaximized, Qt.WindowFullScreen, Qt.WindowMinimized])
 def test_available_area_does_not_override_managed_window_state(desktop, state):
     app, _, screen, window = desktop

@@ -50,6 +50,7 @@ from backend.infrastructure.db.schema.products_schema import create_products_sch
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema  # noqa: E402
 from backend.shared.events.application_bus import ApplicationEventBus  # noqa: E402
 from backend.shared.ids import new_uuid  # noqa: E402
+from tests.integration._governed_settings import ensure_governance, set_setting
 from frontend.desktop.modules.sales_pos.composition import create_sales_pos_view  # noqa: E402
 from frontend.desktop.modules.sales_pos.dialogs.redeem_points_dialog import (  # noqa: E402
     RedeemPointsDialog,
@@ -158,8 +159,7 @@ def test_points_to_earn_follow_the_loyalty_rules(pos):
     pos._on_customer_selected(customer)
     assert pos.checkout.totals._points_value.text() == "10 pts"
 
-    pos.conn.execute("INSERT INTO configuraciones (clave, valor) VALUES"
-                     " ('loyalty_pesos_por_punto', '5')")
+    set_setting(pos.conn, "loyalty.pesos_per_point", "5")
     pos._refresh()
     assert pos.checkout.totals._points_value.text() == "20 pts"
 

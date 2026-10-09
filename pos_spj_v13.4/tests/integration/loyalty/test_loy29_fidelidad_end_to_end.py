@@ -26,6 +26,7 @@ import pytest  # noqa: E402
 
 from backend.application.loyalty.queries.records_query_service import LoyaltyRecord as R  # noqa: E402
 from backend.shared.ids import new_uuid  # noqa: E402
+from tests.integration._governed_settings import ensure_governance  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -45,6 +46,7 @@ def template_db():
                   create_commercial_instruments_schema, create_sweepstakes_schema,
                   create_loyalty_cards_schema):
         crear(c)
+    ensure_governance(c)  # los parámetros de Fidelidad son parámetros gobernados
     c.commit()
     yield c
     c.close()

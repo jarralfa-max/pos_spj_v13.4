@@ -260,6 +260,16 @@ class DeviceDetailViewModel:
 
 
 @dataclass(frozen=True, slots=True)
+class DeviceTestViewModel:
+    entity_id: str
+    test: str
+    result: str
+    message: str
+    tested_by: str
+    tested_at: str
+
+
+@dataclass(frozen=True, slots=True)
 class DeviceOptionViewModel:
     entity_id: str
     code: str
@@ -1093,6 +1103,31 @@ class ConfiguracionWorkspaceQueryService:
             )
             for v in versions
         )
+
+    def list_windows_printers(self) -> tuple[str, ...]:
+        """Impresoras instaladas en Windows, para elegir la cola USB."""
+        from backend.infrastructure.printing.transport import installed_windows_printers
+        return installed_windows_printers()
+
+    def get_device_windows_printer(self, device_id: str) -> str:
+        device = SqliteDeviceRepository(self._conn).get(device_id)
+        profile = SqliteDeviceProfileRepository(self._conn).get(device.profile_id) if device else None
+        return profile.driver_name if profile else ""
+
+    def list_device_tests(self, device_id: str) -> tuple["DeviceTestViewModel", ...]:
+        """Historial de pruebas del dispositivo, la más reciente primero."""
+        from backend.infrastructure.db.repositories.device_management.device_test_result_repository import (  # noqa: E501
+            SqliteDeviceTestResultRepository,
+        )
+        nombres = {str(r[0]): str(r[1]) for r in self._conn.execute(
+            "SELECT id, COALESCE(NULLIF(nombre,''), usuario) FROM usuarios")}
+        etiquetas = {"CONNECTIVITY": "Conexión", "TEST_PRINT": "Página de prueba"}
+        return tuple(DeviceTestViewModel(
+            entity_id=r.id, test=etiquetas.get(r.test_type, r.test_type),
+            result="Éxito" if r.success else "Falla", message=r.message,
+            tested_by=nombres.get(r.tested_by_user_id or "", "—"),
+            tested_at=r.tested_at[:16].replace("T", " "),
+        ) for r in SqliteDeviceTestResultRepository(self._conn).list_for_device(device_id))
 
     def get_device(self, device_id: str) -> DeviceDetailViewModel | None:
         device = SqliteDeviceRepository(self._conn).get(device_id)

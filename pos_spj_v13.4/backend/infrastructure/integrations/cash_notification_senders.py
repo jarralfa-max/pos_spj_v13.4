@@ -40,3 +40,20 @@ class EmailNotificationSender:
             address=message.recipient, subject=message.title, body=message.body,
             idempotency_key=message.job_id,
         )
+
+
+class ErpWhatsAppTextClient:
+    """`WhatsAppClient` de Caja sobre el cliente que configura Integraciones
+    (`wa_base_url` / `wa_internal_api_key`), el mismo que usan Productos y
+    Delivery (CASH-26 bloque 2). Hasta hoy la shell nunca inyectaba un cliente
+    y los avisos por WhatsApp quedaban en reintento para siempre."""
+
+    def __init__(self, connection) -> None:
+        from backend.infrastructure.integrations.whatsapp_client import WhatsAppClient
+
+        self._client = WhatsAppClient(connection=connection)
+
+    def send_text(self, *, phone_e164: str, text: str, idempotency_key: str) -> str:
+        if not self._client.enviar_mensaje(phone_e164, text):
+            raise ConnectionError("WhatsApp no confirmó el envío")
+        return idempotency_key

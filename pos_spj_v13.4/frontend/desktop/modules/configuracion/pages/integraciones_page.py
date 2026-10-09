@@ -328,11 +328,14 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
         self.health_card.add(self.health_table)
         self.health_empty = None
 
+        self.test_connection_button = create_primary_button(self.health_card, "Probar conexión")
         self.record_health_button = create_secondary_button(self.health_card, "Registrar chequeo")
-        self.health_card.add(_button_row(self.health_card, self.record_health_button))
+        self.health_card.add(_button_row(self.health_card, self.test_connection_button,
+                                         self.record_health_button))
         self.layout().addWidget(self.health_card)
 
         self.record_health_button.clicked.connect(self._on_record_health_check)
+        self.test_connection_button.clicked.connect(self._on_test_connection)
 
     def _reload_health(self) -> None:
         if not self._selected_instance_id:
@@ -355,6 +358,14 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
             self.health_empty = create_state_widget(ViewState.EMPTY, self.health_card, message=message)
             self.health_card.add(self.health_empty)
         self.health_table.setVisible(bool(rows))
+
+    def _on_test_connection(self) -> None:
+        instance_id = self._selected_instance()
+        if not instance_id:
+            return
+        ok, message = self._presenter.test_integration_connection(instance_id)
+        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        self._reload_health()
 
     def _on_record_health_check(self) -> None:
         instance_id = self._selected_instance()

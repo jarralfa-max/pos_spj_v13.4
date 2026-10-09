@@ -27,6 +27,9 @@ arreglan distinto:
    las cargas COINCIDEN (`shift_id`/`branch_id`/`operation_id`). Falta la línea
    que los conecta — y `cash_finance_router.py`, que es justo esa tabla, tampoco
    tiene consumidor.
+   **CERRADO 2026-10-07 (CASH-26)**: el servicio legacy se borró; el Corte Z
+   canónico sale de `cash_outbox` por `dispatch_cash_outbox` y
+   `wire_cash_register` suscribe el router (ver `cash_register/finance_wiring.py`).
 
 2. SIN PUBLICADOR REAL. `CashRegisterApplicationService` recibe
    `publisher or (lambda *_: None)`. Nadie le pasa uno, y de hecho **nadie

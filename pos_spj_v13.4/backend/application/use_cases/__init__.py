@@ -6,7 +6,6 @@ from backend.application.use_cases.execute_meat_production_use_case import Execu
 from backend.application.use_cases.create_delivery_order_use_case import CreateDeliveryOrderUseCase
 from backend.application.use_cases.create_product_use_case import CreateProductUseCase
 from backend.application.use_cases.update_product_use_case import UpdateProductUseCase
-from backend.application.use_cases.generate_z_cut_use_case import GenerateZCutUseCase
 from backend.application.use_cases.convert_quote_to_sale_use_case import ConvertQuoteToSaleUseCase
 from backend.application.use_cases.generate_purchase_plan_use_case import GeneratePurchasePlanUseCase
 
@@ -17,7 +16,6 @@ __all__ = [
     "CreateDeliveryOrderUseCase",
     "CreateProductUseCase",
     "UpdateProductUseCase",
-    "GenerateZCutUseCase",
     "ConvertQuoteToSaleUseCase",
     "GeneratePurchasePlanUseCase",
 ]

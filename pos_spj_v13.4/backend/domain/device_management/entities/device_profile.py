@@ -81,6 +81,12 @@ class DeviceProfile:
         self.capabilities = tuple(c for c in self.capabilities if c.code != code)
         self._touch()
 
+    def set_windows_printer(self, printer_name: str) -> None:
+        """Para USB: la cola de Windows a la que se envía (`driver_name`).
+        Vacío = la impresora predeterminada de Windows."""
+        self.driver_name = str(printer_name or "").strip()
+        self._touch()
+
     def replace_connection_profile(self, connection_profile: ConnectionProfile) -> None:
         self.connection_profile = connection_profile
         self._touch()

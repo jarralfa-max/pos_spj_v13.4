@@ -159,3 +159,29 @@ def test_active_item_id_for_route_returns_none_for_unmatched_route(routes, modul
 def test_active_item_id_for_route_returns_none_for_none_input(routes, modules):
     resolver = _resolver(routes, modules)
     assert resolver.active_item_id_for_route(None) is None
+
+
+# ── módulos por sucursal (flag `modulo.<id>`, migración 305) ──────────────────
+def test_a_module_switched_off_for_the_branch_is_hidden(routes, modules):
+    nav_items = NavigationItemRegistry()
+    nav_items.register(_nav_item())
+    resolver = _resolver(routes, modules, nav_items=nav_items)
+    apagado = make_context(feature_context=FeatureContext.from_flags_dict({"modulo.sales": False}))
+    encendido = make_context(feature_context=FeatureContext.from_flags_dict({"modulo.sales": True}))
+    assert resolver.resolve(context=apagado, health_report=healthy_report()) == ()
+    assert len(resolver.resolve(context=encendido, health_report=healthy_report())) == 1
+
+
+def test_a_module_without_its_flag_stays_visible(routes, modules):
+    nav_items = NavigationItemRegistry()
+    nav_items.register(_nav_item())
+    resolver = _resolver(routes, modules, nav_items=nav_items)
+    assert len(resolver.resolve(context=make_context(), health_report=healthy_report())) == 1
+
+
+def test_configuracion_can_never_be_switched_off():
+    from backend.application.feature_flags.module_flags import module_disabled
+
+    contexto = FeatureContext.from_flags_dict({"modulo.configuracion": False, "modulo.hr": False})
+    assert module_disabled(contexto, "configuracion") is False
+    assert module_disabled(contexto, "hr") is True

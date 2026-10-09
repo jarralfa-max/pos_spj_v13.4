@@ -1,0 +1,97 @@
+2026-10-02 12:52:08,016 SPJ.Boot INFO =======================================================
+2026-10-02 12:52:08,065 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-02 12:52:08,142 SPJ.Boot INFO =======================================================
+2026-10-02 12:52:13,212 spj.migrations.278 INFO 278: índice único de orden por adjudicación y proveedor asegurado.
+2026-10-02 12:52:13,311 spj.migrations INFO Migración 278 ejecutada.
+2026-10-02 12:52:13,624 spj.migrations.279 INFO 279: orden de compra enterprise + confirmación del proveedor.
+2026-10-02 12:52:13,743 spj.migrations INFO Migración 279 ejecutada.
+2026-10-02 12:52:14,716 spj.migrations.280 INFO 280: compra en origen (origen del proveedor, llegada y recepción).
+2026-10-02 12:52:15,320 spj.migrations INFO Migración 280 ejecutada.
+2026-10-02 12:52:15,551 spj.migrations.281 INFO 281: 0 líneas de recepción ligadas a su línea de orden.
+2026-10-02 12:52:15,838 spj.migrations INFO Migración 281 ejecutada.
+2026-10-02 12:52:16,166 spj.migrations.282 INFO 282: peso variable en las líneas de compra rápida.
+2026-10-02 12:52:16,333 spj.migrations INFO Migración 282 ejecutada.
+2026-10-02 12:52:16,548 spj.migrations.283 INFO 283: 276 permisos de Compras/Logística concedidos; roles ausentes: ninguno
+2026-10-02 12:52:16,852 spj.migrations INFO Migración 283 ejecutada.
+2026-10-02 12:52:17,178 spj.migrations.284 INFO 284: lista base ORIGIN-00001 desactivada (queda una sola activa).
+2026-10-02 12:52:17,285 spj.migrations INFO Migración 284 ejecutada.
+2026-10-02 12:52:17,347 spj.migrations.285 INFO 285: forma de surtido en la compra rápida.
+2026-10-02 12:52:17,413 spj.migrations INFO Migración 285 ejecutada.
+2026-10-02 12:52:17,860 spj.migrations.286 INFO 286: política de recepción fraccionada por presentación.
+2026-10-02 12:52:18,027 spj.migrations INFO Migración 286 ejecutada.
+2026-10-02 12:52:18,150 spj.migrations.287 INFO 287: orden de compra a precio por kg.
+2026-10-02 12:52:18,315 spj.migrations INFO Migración 287 ejecutada.
+2026-10-02 12:52:18,566 spj.migrations.288 INFO 288: folio comercial único en ventas.
+2026-10-02 12:52:18,772 spj.migrations INFO Migración 288 ejecutada.
+2026-10-02 12:52:18,818 spj.migrations INFO Migraciones completadas: 11 ejecutadas.
+2026-10-02 12:52:21,237 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-02 12:52:21,259 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-02 12:52:22,951 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-02 12:52:23,750 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-02 12:52:24,230 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-02 12:52:24,252 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 1 subscriptions
+2026-10-02 12:52:24,252 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-02 12:52:24,315 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-02 12:52:24,374 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-02 12:52:24,451 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-10-02 12:52:53,604 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\main.py", line 13, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 276, in main
+    if not coordinator.run():
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\auth\authentication_coordinator.py", line 82, in run
+    self._on_authenticated(context)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 247, in _on_authenticated
+    from frontend.desktop.shell.desktop_shell_window_composition import (
+        build_application_window,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\desktop_shell_window_composition.py", line 80, in <module>
+    from frontend.desktop.modules.cash_register.shell_registration import (
+    ...<2 lines>...
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\cash_register\__init__.py", line 7, in <module>
+    from .cash_register_workspace import CashRegisterWorkspace
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\cash_register\cash_register_workspace.py", line 20, in <module>
+    from frontend.desktop.components.module_layout import ModuleLayout
+ModuleNotFoundError: No module named 'frontend.desktop.components.module_layout'
+
+2026-10-02 13:46:27,026 SPJ.Boot INFO =======================================================
+2026-10-02 13:46:27,303 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-02 13:46:27,387 SPJ.Boot INFO =======================================================
+2026-10-02 13:46:33,127 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-10-02 13:46:36,009 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-02 13:46:36,012 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-02 13:46:36,657 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-02 13:46:37,700 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-02 13:46:38,158 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-02 13:46:38,158 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 6 subscriptions
+2026-10-02 13:46:38,159 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-02 13:46:38,160 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-02 13:46:38,161 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-02 13:46:38,161 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-10-02 13:48:50,796 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-02 14:17:07,707 SPJ.Boot INFO Sesión iniciada: Juana Rodriguez en Corregidora.
+2026-10-02 14:20:17,968 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-02 14:21:06,245 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-10-02 14:56:45,738 SPJ.Boot INFO =======================================================
+2026-10-02 14:56:45,738 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-02 14:56:45,739 SPJ.Boot INFO =======================================================
+2026-10-02 14:56:49,690 spj.migrations.289 INFO 289: 19 permisos, tope de reembolso sembrado, 3 reglas de puntos.
+2026-10-02 14:56:49,706 spj.migrations INFO Migración 289 ejecutada.
+2026-10-02 14:56:49,716 spj.migrations INFO Migraciones completadas: 1 ejecutadas.
+2026-10-02 14:56:50,432 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-02 14:56:50,439 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-02 14:56:51,504 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-02 14:56:52,224 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-02 14:56:52,529 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-02 14:56:52,536 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-02 14:56:52,536 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-02 14:56:52,540 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-02 14:56:52,543 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-02 14:56:52,544 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-10-02 15:02:12,636 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-02 15:04:39,212 SPJ.Boot INFO Sistema cerrado. Código: 0

@@ -163,6 +163,12 @@ page.add_action(save)
 
 ## Verificación reproducible
 
+Las ventanas operativas heredan `StandardWindow`; no recalcular los bordes
+nativos ni volver a ajustar su posición desde cada módulo. El componente
+conserva el traslado entre monitores conectados y recupera ventanas que quedan
+fuera del escritorio. La galería y `ApplicationWindow` consumen este contrato.
+Ver el [punto 8, revalidado el 5 de octubre](../../../docs/refactor/standard_window_phase_8.md).
+
 Desde el paquete interno en PowerShell, usando el entorno de la raíz externa:
 
 ```powershell

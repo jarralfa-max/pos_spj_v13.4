@@ -5,6 +5,61 @@ documentarse aquí antes del commit.
 
 ---
 
+## 312/313 — Pruebas de dispositivo, permisos por usuario y media de pantalla — 2026-10-08
+
+**312_seed_device_test_and_user_permissions.** `DISPOSITIVOS.probar` (dueño y
+gerente) para «Probar conexión» / «Imprimir página de prueba»; y
+`CONFIGURACION.usuario.permisos` (sólo el dueño) para dar o quitar permisos a
+UN usuario además de los de su rol. Sólo `INSERT OR IGNORE`.
+
+**313_customer_display_media.** Tabla `display_media` (UUIDv7, tipo, nombre
+original, nombre guardado, tamaño, sha256 único). El contenido IMAGE/VIDEO de
+la pantalla del cliente guarda su id; el archivo se copia a
+`AppPaths.display_media_dir`. DDL en `customer_display_schema.py`.
+
+Sin migración, pero con efecto en impresión real: para USB, `driver_name` del
+perfil es ahora la cola de Windows (antes todo USB iba a la predeterminada de
+Windows; en la instalación real, «Microsoft Print to PDF», no la TL2X).
+
+---
+
+## 304/305 — Permisos por rol y módulos por sucursal — 2026-10-04
+
+**304_seed_role_permissions_permission.** Nuevo código `CONFIGURACION.rol.permisos`
+(dar o quitar permisos a un rol desde Configuración → Usuarios y Roles →
+Permisos). Lo recibe `system_owner`; los administradores ya lo tienen por `*`.
+Sólo `INSERT OR IGNORE`.
+
+**305_seed_module_feature_flags.** Un flag `modulo.<id>` por cada módulo del
+shell (16), ENCENDIDO por omisión: nada cambia hasta que alguien agrega, en
+Configuración → Feature Flags, una regla de ámbito Sucursal que lo apague.
+Configuración no recibe flag (apagarla dejaría sin la pantalla para volver a
+encenderla). Lista fija de módulos el día que corrió; idempotente.
+
+---
+
+## 303_configuration_governance_live — 2026-10-04
+
+**Motivo:** el gobierno de configuración (§5-11) existía (208) con 0 filas y 0
+consumidores; los contextos leían y escribían sus parámetros como texto en
+`configuraciones`. Detalle en `docs/refactor/SET-26_reauditoria.md`.
+**Qué hace:** (0) si `configuration_values` nació sin los ámbitos SPECIES,
+WORK_CENTER, PRODUCTION_AREA, PLANT y SUPPLIER, reconstruye su CHECK
+(`legacy_alter_table=ON`); (1) sincroniza el catálogo
+`backend/application/settings/catalog.py` (18 parámetros); (2) pasa cada valor
+de `configuraciones` a una versión 1 ACTIVA ya tipada — las claves de Fidelidad
+se renombran a `loyalty.*` / `loyalty_cards.*` porque el formato canónico exige
+punto; las tolerancias de Cárnico por nivel (`...@NIVEL:ref`) y de factura por
+proveedor (`...supplier.<id>`) pasan al ámbito de su nivel; un valor ilegible
+no se migra (se reporta y rige el de omisión); (3) borra las claves migradas.
+**No siembra permisos:** Configuración no tiene pantalla para estos parámetros;
+cada uno se edita en su módulo con el permiso de ese módulo (decisión del
+usuario: Configuración no controla lo que ya existe en otro módulo).
+**Base real (copia):** 18 definiciones, 9 valores migrados; en
+`configuraciones` queda sólo `sucursal_instalacion_id` (identidad de la terminal).
+
+---
+
 ## 300/301/302 — Re-auditoría de Configuración (SET-26) — 2026-10-04
 
 Hallazgos medidos sobre una copia de la base real; detalle en
@@ -4569,3 +4624,75 @@ Aprobar y Activar con OTRO usuario (segregación de funciones). Al activarse, la
 copia reemplaza a la lista vacía, que queda INACTIVE como historial. Verificado
 sobre copia de la base real (2026-10-04): `BASE01` → `BASE01-2` con 3 precios;
 cobro y tarjeta del POS coinciden.
+
+### 306 — acciones de Caja por rol (2026-10-07)
+
+Re-auditoría CASH-26 sobre copia de la base real: ningún rol tenía las 93 acciones
+granulares de `CashPermissions`; sólo dueño/admin operaban por el paso libre del
+evaluador. Un cajero no podía abrir turno y, como el POS exige turno abierto, no podía
+vender. Siembra por rol (decisión del usuario): `system_owner`/`admin` todo; `gerente`
+supervisión de sucursal (revisar/resolver diferencias, autorizar excesos y reembolsos,
+reversar, recibir entregas) sin definir la instalación; `cajero` opera su turno
+completo; `solo_lectura` consulta. Borra `CAJA.crear/editar/eliminar` (gruesos, fuera
+del catálogo). Idempotente; un rol inexistente se omite.
+
+### 307 — catálogos mínimos de Caja (2026-10-07)
+
+Denominaciones MXN (el $20 billete/moneda es una fila: el conteo es por valor), motivos
+§14/§15, límites «moderados» (fondo 2,000/5,000; movimiento manual 1,000/5,000; bóveda
+10,000/50,000) y tolerancia de diferencias ($10, crítica $200, 3 en 30 días). Sin ellos
+el conteo no se confirmaba, el Corte Z no procedía y todo movimiento se rechazaba (tope
+$0). Sólo siembra lo que no tenga fila vigente. Valores decididos por el usuario.
+
+### 308 — diferencias de caja con dos personas (2026-10-07)
+
+`cash_differences` exigía tres personas distintas (detectó ≠ revisó ≠ resolvió); con los
+dos usuarios reales nunca se resolvía. Nueva regla (decisión del usuario): revisa y
+resuelve alguien distinto del RESPONSABLE y de quien explicó; quien revisó puede
+resolver. Reconstruye la tabla con el DDL de la 175 (ya corregido para bases nuevas),
+con `legacy_alter_table=ON`.
+
+### CASH-26 bloque 2 — Caja conectada a Finanzas, impresora, cajón y avisos (2026-10-07)
+
+Sin migración propia de esquema. Medido sobre copia de la base real:
+* `cash_outbox` no tenía despachador y `CashFinanceEventRouter` no tenía suscriptor:
+  ningún Corte Z llegó nunca a contabilidad. `wire_cash_register` (en
+  `wire_cross_context_events`) suscribe el router; `dispatch_cash_outbox` entrega lo
+  pendiente después de cada operación de Caja (estricto, uno a uno, `DEAD_LETTER` a los
+  10 intentos).
+* El asiento del corte acreditaba la caja registradora por TODO el esperado, cuando esa
+  cuenta sólo recibe lo que Ventas asienta: cada turno habría dejado un residuo del
+  fondo y la custodia. Ahora acredita `sales_cash` (cobros − reembolsos − reversos de
+  cobro) y lleva al efectivo general `sales_cash + diferencia`.
+* Impresión: el corte se encolaba en HTML para la impresora literal
+  `default-cash-printer` y nadie despachaba la cola. Ahora la impresora la asigna
+  Document Output (Corte X / Corte Z), se renderiza ESC/POS al ancho del papel y se
+  entrega por `routed_printer.py` (extraído de `SalesTicketPrinter`, sin cambiar sus
+  mensajes). La pantalla sólo dice «impreso» si salió papel.
+* Cajón: `StubCashHardwareGateway` → pulso ESC p por la impresora del ticket; el cobro
+  con efectivo en el POS abre el cajón (antes nunca).
+* Avisos: texto legible (folio y nombres, sin UUID), sin aviso dentro de tolerancia,
+  envío automático tras cada operación, cliente de WhatsApp de Integraciones, y alta/baja
+  de avisos y destinatarios en Caja → Configuración.
+* Reembolsos: la página lista lo ejecutado (la devolución del POS lo origina); se retiró
+  la ejecución manual que pedía UUIDs. Medios de pago muestra la clasificación del
+  dominio (`settlements.py`).
+
+### 309 — los Cortes X y Z se imprimen en la impresora del ticket (2026-10-07)
+
+Por cada ruta activa de `SALE_TICKET` crea `X_REPORT` y `Z_REPORT` con la misma
+impresora, sin módulo, sólo si ese alcance no tiene ya ruta de corte. La base real tenía
+una sola impresora (PRN-01) y una sola ruta.
+
+### 310 — aviso de diferencias para los dueños (2026-10-07)
+
+Regla `CASH_DIFFERENCE_DETECTED` (Advertencia; en el sistema y WhatsApp, decisión del
+usuario) con los `system_owner` activos como destinatarios en el sistema, sólo si no hay
+regla para ese evento. No siembra teléfonos.
+
+### 311 — fecha de negocio de los turnos (2026-10-07)
+
+`cash_shifts.business_date` (§33) quedaba siempre NULL. Desde hoy el turno la recibe al
+abrir (día LOCAL de la apertura) y el asiento del Corte Z se fecha con ella, no con el
+día UTC del evento. La migración la completa para los turnos anteriores: el turno real
+«del 25» abrió a las 20:36 del 24 en hora local.

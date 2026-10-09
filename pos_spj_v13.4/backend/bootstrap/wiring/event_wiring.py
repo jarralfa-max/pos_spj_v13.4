@@ -33,6 +33,7 @@ def wire_cross_context_events(connection) -> dict:
     left out here rather than wired with a fabricated one — see
     `backend/application/logistics/wiring.py::wire_logistics`.
     """
+    from backend.application.cash_register.finance_wiring import wire_cash_register
     from backend.application.costing.wiring import wire_costing
     from backend.application.pricing.integrations.wiring import wire_pricing
     from backend.application.procurement.integrations.wiring import wire_procurement
@@ -44,6 +45,8 @@ def wire_cross_context_events(connection) -> dict:
         "procurement": wire_procurement(bus, connection),
         # Fase 6 (2026-09-18): la venta completada llega a contabilidad.
         "sales": wire_sales(bus, connection),
+        # CASH-26 (2026-10-07): el Corte Z y la custodia de Caja llegan a Finanzas.
+        "cash_register": wire_cash_register(bus, connection),
         "pricing": wire_pricing(bus, connection),
         # Costos publica el costo real de lo producido (Precios ya lo escucha)
         # y el hecho contable de la producción, que aquí se entrega a Finanzas.

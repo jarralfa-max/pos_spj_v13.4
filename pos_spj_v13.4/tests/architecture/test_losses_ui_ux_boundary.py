@@ -14,7 +14,8 @@ def test_losses_ui_uses_canonical_theme_tooltips_and_view_states():
     assert 'setProperty("role", "nav")' in sidebar
     assert "apply_tooltip" in placeholder
     assert "ViewState.EMPTY" in placeholder
-    assert "ResponsiveBreakpoints" in view
+    assert "ModuleLayout(" in view
+    assert "sidebar=self.sidebar, content=self.stack" in view
 
 
 def test_losses_ui_has_no_inline_styles_or_data_access():

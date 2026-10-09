@@ -18,12 +18,27 @@ class CashConfigurationRow:
 
 class CashConfigurationReadRepository(Protocol):
     def list_configuration_rows(self, section: str) -> list[dict]: ...
+    def alert_rule_options(self) -> list[dict]: ...
+    def user_options(self) -> list[dict]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class CashAlertRuleOption:
+    id: str
+    event_name: str
+    channels: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CashUserOption:
+    id: str
+    name: str
 
 
 class CashConfigurationQueryService:
     SECTIONS = frozenset({
         "hierarchy", "validity", "denominations", "payment_methods",
-        "limits", "alerts", "whatsapp", "permissions",
+        "limits", "alerts", "whatsapp", "permissions", "reasons", "tolerances", "recipients",
     })
 
     def __init__(self, repository: CashConfigurationReadRepository) -> None:
@@ -40,3 +55,13 @@ class CashConfigurationQueryService:
             status=str(row.get("status", "")),
         ) for row in self._repository.list_configuration_rows(section)]
 
+
+    def alert_rule_options(self) -> list[CashAlertRuleOption]:
+        """Avisos vigentes, para elegir a cuál se agrega un destinatario."""
+        return [CashAlertRuleOption(str(row["id"]), str(row["event_name"]),
+                                    tuple(row["channels"]))
+                for row in self._repository.alert_rule_options()]
+
+    def user_options(self) -> list[CashUserOption]:
+        return [CashUserOption(str(row["id"]), str(row["name"]))
+                for row in self._repository.user_options()]

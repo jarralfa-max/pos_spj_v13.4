@@ -19,14 +19,17 @@ unlike `DocumentTemplateVersion`'s one-active-per-template rule.
 from __future__ import annotations
 
 from enum import Enum
+from pathlib import Path
 
 from backend.domain.customer_display.entities.advertising_slot import AdvertisingSlot
 from backend.domain.customer_display.entities.campaign_placement import CampaignPlacement
 from backend.domain.customer_display.entities.content import Content
 from backend.domain.customer_display.entities.content_campaign import ContentCampaign
+from backend.domain.customer_display.entities.display_media import DisplayMedia
 from backend.domain.customer_display.enums import ContentType, CustomerDisplayMode
 from backend.domain.customer_display.exceptions import (
     CampaignPlacementSlotOccupiedError,
+    CustomerDisplayInvalidValueError,
     CustomerDisplayNotFoundError,
 )
 from backend.domain.customer_display.policies.campaign_placement_policy import assign_placement
@@ -41,6 +44,9 @@ from backend.infrastructure.db.repositories.customer_display.content_campaign_re
 )
 from backend.infrastructure.db.repositories.customer_display.content_repository import (
     SqliteContentRepository,
+)
+from backend.infrastructure.db.repositories.customer_display.display_media_repository import (
+    SqliteDisplayMediaRepository,
 )
 
 
@@ -66,6 +72,57 @@ class AdvertisingSlotStatusAction(str, Enum):
 
 # ── Content ──────────────────────────────────────────────────────────────────
 
+_MEDIA_TYPES = frozenset({ContentType.IMAGE, ContentType.VIDEO})
+
+
+def _assert_media_body(connection, content_type: ContentType, body: str) -> None:
+    """Imagen y video guardan en `body` el id de un archivo de `display_media`
+    del mismo tipo — nunca una ruta escrita a mano."""
+    if content_type not in _MEDIA_TYPES:
+        return
+    media = SqliteDisplayMediaRepository(connection).get(str(body or "").strip())
+    if media is None:
+        raise CustomerDisplayInvalidValueError(
+            "Adjunta el archivo de imagen o video; no se aceptan rutas escritas a mano.")
+    if media.media_type != content_type.value:
+        nombres = {"IMAGE": "una imagen", "VIDEO": "un video"}
+        raise CustomerDisplayInvalidValueError(
+            f"El archivo adjunto es {nombres[media.media_type]}, no "
+            f"{nombres[content_type.value]}.")
+
+
+class ImportDisplayMediaUseCase:
+    """Copia un archivo elegido a la carpeta de media de la aplicación y lo
+    registra. El mismo archivo (mismo hash) devuelve el registro existente."""
+
+    def __init__(self, connection, storage=None) -> None:
+        from backend.infrastructure.customer_display.media_storage import DisplayMediaStorage
+
+        self._conn = connection
+        self._media = SqliteDisplayMediaRepository(connection)
+        self._storage = storage or DisplayMediaStorage()
+
+    def execute(self, *, source_path: str, media_type: str,
+                actor_user_id: str | None = None) -> DisplayMedia:
+        source = Path(str(source_path or "")).expanduser()
+        if not source.is_file():
+            raise CustomerDisplayInvalidValueError("El archivo elegido no existe.")
+        size, sha256 = self._storage.fingerprint(source)
+        media = DisplayMedia.create(
+            media_type=media_type, original_name=source.name, extension=source.suffix,
+            size_bytes=size, sha256=sha256, created_by_user_id=actor_user_id)
+        existing = self._media.get_by_hash(sha256)
+        if existing is not None:
+            if existing.media_type != media.media_type:
+                raise CustomerDisplayInvalidValueError(
+                    "Ese archivo ya está registrado con otro tipo.")
+            return existing
+        self._storage.store(source, media.stored_name)
+        self._media.save(media)
+        self._conn.commit()
+        return media
+
+
 class CreateContentUseCase:
     def __init__(self, connection) -> None:
         self._conn = connection
@@ -74,6 +131,7 @@ class CreateContentUseCase:
     def execute(
         self, *, title: str, content_type: ContentType | str, body: str, duration_seconds: int = 10,
     ) -> Content:
+        _assert_media_body(self._conn, ContentType(content_type), body)
         content = Content.create(
             title=title, content_type=ContentType(content_type), body=body,
             duration_seconds=duration_seconds,
@@ -92,6 +150,7 @@ class UpdateContentUseCase:
         content = self._content.get(content_id)
         if content is None:
             raise CustomerDisplayNotFoundError(f"Contenido {content_id} no encontrado")
+        _assert_media_body(self._conn, content.content_type, body)
         content.update_details(title=title, body=body, duration_seconds=duration_seconds)
         self._content.save(content)
         self._conn.commit()

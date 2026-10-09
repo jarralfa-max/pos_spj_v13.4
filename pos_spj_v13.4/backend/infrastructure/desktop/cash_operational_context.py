@@ -125,6 +125,17 @@ class DesktopCashOperationalContextResolver:
         count_id = self._root_value("active_cash_count_id")
         branch_id = self._branch_id()
         user_id = self._user_id()
+        if not count_id and branch_id and user_id:
+            # El conteo abierto vive en la base, no sólo en memoria: si Caja se
+            # reabre a mitad del arqueo, el cajero debe poder continuarlo.
+            shift_id = self.active_shift_id()
+            row = self._connection.execute(
+                "SELECT id FROM cash_counts WHERE shift_id=? AND branch_id=? AND status='OPEN'",
+                (shift_id, branch_id),
+            ).fetchone() if shift_id else None
+            if row is not None:
+                count_id = str(row[0])
+                setattr(self._composition_root, "active_cash_count_id", count_id)
         if count_id and branch_id and user_id:
             return str(count_id), branch_id, user_id
         return None

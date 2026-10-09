@@ -31,6 +31,8 @@ from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import QMessageBox, QShortcut, QSplitter, QVBoxLayout, QWidget
 
+from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.sales_pos.components.cashier_bar import CashierBar
 from frontend.desktop.modules.sales_pos.components.catalog_panel import CatalogPanel
 from frontend.desktop.modules.sales_pos.components.checkout_panel import CheckoutPanel
@@ -104,7 +106,8 @@ class SalesPosWorkspace(QWidget):
         self._ad_timer.setInterval(1000)
         self._ad_timer.timeout.connect(self._on_ad_timer_tick)
 
-        root = QVBoxLayout(self)
+        body = QWidget(self)
+        root = QVBoxLayout(body)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
@@ -148,6 +151,10 @@ class SalesPosWorkspace(QWidget):
         self._splitter.setChildrenCollapsible(False)
 
         root.addWidget(self._splitter, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Punto de Venta", icon=Icons.SALES,
+            sidebar=None, content=body,
+        )
 
         self._wire_shortcuts()
         self.catalog.load_categories()
@@ -592,4 +599,5 @@ class SalesPosWorkspace(QWidget):
 
     def _show_current_ad(self) -> None:
         ad = self._ad_rotation[self._ad_index]
-        self._customer_display_window.render_idle_ad(ad.content_type, ad.title, ad.body)
+        self._customer_display_window.render_idle_ad(
+            ad.content_type, ad.title, ad.body, getattr(ad, "media_path", None))

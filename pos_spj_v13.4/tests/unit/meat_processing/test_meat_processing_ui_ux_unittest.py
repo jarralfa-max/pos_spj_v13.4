@@ -55,17 +55,22 @@ class MeatProcessingUiUxTest(unittest.TestCase):
         page_ids = {sidebar.item(row).data(Qt.UserRole) for row in range(sidebar.count())}
         self.assertIn("mp_animal_reception", page_ids)
 
-    def test_workspace_switches_sidebar_at_responsive_breakpoint(self):
+    def test_workspace_preserves_manual_sidebar_choice_when_resized(self):
         view = MeatProcessingView(
             has_permission=lambda _permission: True,
             page_builder=lambda page_id: QLabel(page_id),
         )
-        view.resize(820, 600)
-        view.apply_responsive_layout()
-        self.assertTrue(view.sidebar.collapsed)
-        view.resize(1440, 700)
-        view.apply_responsive_layout()
-        self.assertFalse(view.sidebar.collapsed)
+        try:
+            view.show()
+            for collapsed in (True, False):
+                view.sidebar.set_collapsed(collapsed)
+                for width in (820, 1440):
+                    view.resize(width, 700)
+                    self.app.processEvents()
+                    self.assertEqual(view.sidebar.collapsed, collapsed)
+        finally:
+            view.close()
+            view.deleteLater()
 
     def test_workspace_routes_to_the_first_visible_entry_on_load(self):
         view = MeatProcessingView(

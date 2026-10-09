@@ -35,6 +35,7 @@ from .device_dialogs import (
     DeviceCreateDialog,
     DeviceEditDialog,
     DeviceProfileCreateDialog,
+    WindowsPrinterDialog,
 )
 from .document_template_dialogs import (
     DocumentTemplateCreateDialog,
@@ -73,7 +74,7 @@ from .workstation_dialogs import (
 )
 
 __all__ = [
-    "RejectChangeRequestDialog", "SetDefaultThemeDialog", "DeviceProfileCreateDialog",
+    "RejectChangeRequestDialog", "SetDefaultThemeDialog", "DeviceProfileCreateDialog", "WindowsPrinterDialog",
     "DeviceCreateDialog", "DeviceEditDialog", "BlockDeviceDialog", "DocumentTemplateCreateDialog",
     "NewTemplateVersionDialog", "RejectTemplateVersionDialog", "CompanyProfileDialog",
     "BranchProfileCreateDialog", "BranchProfileEditDialog", "WorkstationCreateDialog",

@@ -46,13 +46,23 @@ class FeatureContext:
     branch-scoped snapshot rather than a live, mutable cache lookup."""
 
     enabled_features: frozenset[str] = field(default_factory=frozenset)
+    #: Flags que EXISTEN y quedaron apagados para la sucursal. Distinto de "no
+    #: encendido": un flag ausente no apaga nada (p. ej. un módulo sin flag de
+    #: módulo sigue visible).
+    disabled_features: frozenset[str] = field(default_factory=frozenset)
 
     def is_enabled(self, feature_name: str) -> bool:
         return feature_name in self.enabled_features
 
+    def is_disabled(self, feature_name: str) -> bool:
+        return feature_name in self.disabled_features
+
     @classmethod
     def from_flags_dict(cls, flags: dict) -> "FeatureContext":
-        return cls(enabled_features=frozenset(name for name, enabled in (flags or {}).items() if enabled))
+        flags = flags or {}
+        return cls(
+            enabled_features=frozenset(name for name, enabled in flags.items() if enabled),
+            disabled_features=frozenset(name for name, enabled in flags.items() if not enabled))
 
 
 @dataclass(frozen=True)

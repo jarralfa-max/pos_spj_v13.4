@@ -31,8 +31,19 @@ def test_cash_workspace_uses_canonical_pages_and_no_sql():
     assert not any(token in src for token in forbidden)
 
 
-def test_cash_register_service_is_sole_cash_event_emitter():
-    svc = (REPO / "backend" / "application" / "services"
-           / "cash_register_application_service.py").read_text(encoding="utf-8")
-    for evt in ("CASH_SHIFT_OPENED", "CASH_MOVEMENT_RECORDED", "CASH_Z_CUT_GENERATED"):
-        assert evt in svc
+def test_legacy_cash_application_layer_is_gone():
+    """CASH-26 (2026-10-07): el `CashRegisterApplicationService` de la «FASE 7.7»
+    delegaba en el `FinanceService` legacy (ya borrado) y no tenía un solo
+    consumidor. Caja emite sus eventos desde sus propios casos de uso en
+    `backend/application/cash_register/`; no debe renacer una segunda ruta."""
+    app = REPO / "backend" / "application"
+    for legacy in (
+        app / "services" / "cash_register_application_service.py",
+        app / "services" / "cash_count_service.py",
+        app / "commands" / "cash_register_commands.py",
+        app / "queries" / "cash_register_query_service.py",
+        app / "use_cases" / "generate_z_cut_use_case.py",
+        app / "use_cases" / "open_cash_shift_use_case.py",
+        app / "use_cases" / "register_cash_movement_use_case.py",
+    ):
+        assert not legacy.exists(), legacy

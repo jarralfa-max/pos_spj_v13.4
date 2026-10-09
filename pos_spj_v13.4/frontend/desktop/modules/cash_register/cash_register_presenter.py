@@ -11,6 +11,7 @@ from collections.abc import Callable
 from decimal import Decimal
 
 from frontend.desktop.modules.cash_register.capability_resolver import resolve_cash_capabilities
+from frontend.desktop.modules.cash_register.presentation import display_code
 from frontend.desktop.modules.cash_register.view_models import CashCapabilities
 
 
@@ -112,6 +113,13 @@ class CashRegisterPresenter:
     def query_service(self, key: str):
         return self._query_services.get(key)
 
+    def resolve_authorizer(self, *, username: str, password: str) -> str:
+        """Id del autorizador probado con su clave; nunca el nombre tecleado."""
+        handler = self._command_handlers.get("verify_authorizer")
+        if handler is None:
+            raise CashContextError("Verificacion del autorizador no disponible")
+        return str(handler(username=username, password=password))
+
     def start_blind_count(self):
         handler = self._command_handlers.get("start_blind_count")
         if handler is None:
@@ -158,31 +166,43 @@ class CashRegisterPresenter:
             register_id=register_id,
         )
 
-    def configure_cash_register(
-        self,
-        *,
-        section: str,
-        name: str,
-        value: str,
-        scope_type: str = "SYSTEM",
-        scope_id: str | None = None,
-        effective_from: str | None = None,
-        effective_to: str | None = None,
-    ):
-        handler = self._command_handlers.get("configure_cash_register")
+    def configure_cash_catalog(self, *, section: str, fields: dict[str, object]):
+        handler = self._command_handlers.get("configure_cash_catalog")
         if handler is None:
             raise CashContextError("Comando de configuracion no disponible")
-        return handler(
-            section=section,
-            name=name,
-            value=value,
-            scope_type=scope_type,
-            scope_id=scope_id,
-            effective_from=effective_from,
-            effective_to=effective_to,
-            branch_id=self.active_branch_id(),
-            actor_user_id=self.actor_user_id(),
-        )
+        return handler(section=section, fields=dict(fields),
+                       branch_id=self.active_branch_id(), actor_user_id=self.actor_user_id())
+
+    def deactivate_cash_configuration(self, *, section: str, row_id: str):
+        handler = self._command_handlers.get("deactivate_cash_configuration")
+        if handler is None:
+            raise CashContextError("Comando de configuracion no disponible")
+        return handler(section=section, row_id=row_id,
+                       branch_id=self.active_branch_id(), actor_user_id=self.actor_user_id())
+
+    def add_cash_alert_recipient(self, *, alert_rule_id: str, channel: str, address: str,
+                                 display_name: str = ""):
+        handler = self._command_handlers.get("add_cash_alert_recipient")
+        if handler is None:
+            raise CashContextError("Comando de configuracion no disponible")
+        return handler(alert_rule_id=alert_rule_id, channel=channel, address=address,
+                       display_name=display_name, branch_id=self.active_branch_id(),
+                       actor_user_id=self.actor_user_id())
+
+    def deactivate_cash_alert_recipient(self, *, row_id: str):
+        handler = self._command_handlers.get("deactivate_cash_alert_recipient")
+        if handler is None:
+            raise CashContextError("Comando de configuracion no disponible")
+        return handler(row_id=row_id, branch_id=self.active_branch_id(),
+                       actor_user_id=self.actor_user_id())
+
+    def alert_rule_options(self):
+        service = self._query_services.get("configuration")
+        return () if service is None else service.alert_rule_options()
+
+    def alert_user_options(self):
+        service = self._query_services.get("configuration")
+        return () if service is None else service.user_options()
 
     def set_cash_device_status(self, *, kind: str, device_id: str,
                                activate: bool, reason: str = "",
@@ -353,29 +373,13 @@ class CashRegisterPresenter:
             reason=reason,
         )
 
-    def execute_cash_refund(
-        self,
-        *,
-        refund_id: str,
-        sale_id: str,
-        authorized_by: str,
-        original_payment_lines: dict[str, Decimal],
-        refund_lines: dict[str, Decimal],
-        reason: str,
-    ):
-        handler = self._command_handlers.get("execute_cash_refund")
-        if handler is None:
-            raise CashContextError("Comando de reembolso no disponible")
-        return handler(
-            refund_id=refund_id,
-            sale_id=sale_id,
-            branch_id=self.active_branch_id(),
-            cashier_user_id=self.actor_user_id(),
-            authorized_by=authorized_by,
-            original_payment_lines=original_payment_lines,
-            refund_lines=refund_lines,
-            reason=reason,
-        )
+    def cash_refunds(self, *, limit: int = 200):
+        """Reembolsos ejecutados (los origina la devolución del POS)."""
+        service = self._query_services.get("operational_read")
+        if service is None:
+            raise CashContextError("Consulta de reembolsos no disponible")
+        return service.refunds(branch_id=self.active_branch_id(),
+                               requester_user_id=self.actor_user_id(), limit=limit)
 
     def explain_cash_difference(self, *, difference_id: str, explanation: str):
         handler = self._command_handlers.get("explain_cash_difference")
@@ -602,7 +606,7 @@ class CashRegisterPresenter:
             "z_cut": ("z_cut", "cash_generate_z_cut_uc"),
             "differences": (),
             "handover": (),
-            "refunds": (),
+            "refunds": ("operational_read",),
             "hardware": (
                 "hardware",
                 "cash_device_create_uc",
@@ -653,11 +657,17 @@ class CashRegisterPresenter:
         if "sync" in self._query_services:
             try:
                 state = self.cash_sync_state()
-                sync_state = (
-                    f"{state.get('connectivity', 'ONLINE')} / "
-                    f"{state.get('sync_status', 'IDLE')} "
-                    f"P:{state.get('pending_count', 0)} C:{state.get('conflict_count', 0)}"
-                )
+                online = str(state.get("connectivity", "ONLINE")).upper() == "ONLINE"
+                pending = int(state.get("pending_count", 0) or 0)
+                conflicts = int(state.get("conflict_count", 0) or 0)
+                parts = ["En linea" if online else "Sin conexion"]
+                if conflicts:
+                    parts.append(f"{conflicts} conflicto(s)")
+                elif pending:
+                    parts.append(f"{pending} pendiente(s)")
+                else:
+                    parts.append("al dia")
+                sync_state = " · ".join(parts)
             except Exception:
                 sync_state = "No disponible"
         alerts = 0
@@ -667,7 +677,8 @@ class CashRegisterPresenter:
             except Exception:
                 alerts = 0
         return {
-            "shift": self.optional_active_shift_id() or "Sin turno activo",
+            "shift": (display_code("TUR", self.optional_active_shift_id())
+                      if self.optional_active_shift_id() else "Sin turno activo"),
             "sync": sync_state,
             "alerts": alerts,
         }

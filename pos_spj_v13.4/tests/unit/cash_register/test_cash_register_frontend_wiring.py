@@ -129,16 +129,14 @@ class CashRegisterFrontendWiringTests(unittest.TestCase):
 
         presenter = CashRegisterPresenter(
             session_context=_ContextSession({CashPermissions.ACCESS}),
-            command_handlers={"configure_cash_register": configure},
+            command_handlers={"configure_cash_catalog": configure},
         )
-        presenter.configure_cash_register(
-            section="limits",
-            name="SAFE_DROP",
-            value="100.00 / 500.00",
-        )
+        fields = {"operation_type": "SAFE_DROP", "approval_threshold": Decimal("100.00"),
+                  "hard_cap": Decimal("500.00")}
+        presenter.configure_cash_catalog(section="limits", fields=fields)
         self.assertEqual(calls["branch_id"], "branch-1")
         self.assertEqual(calls["actor_user_id"], "user-1")
-        self.assertEqual(calls["scope_type"], "SYSTEM")
+        self.assertEqual(calls["fields"], fields)
         self.assertEqual(calls["section"], "limits")
 
 

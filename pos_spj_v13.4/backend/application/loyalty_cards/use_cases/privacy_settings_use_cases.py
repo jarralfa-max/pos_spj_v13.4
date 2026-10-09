@@ -1,7 +1,8 @@
 """Privacidad de lo que se imprime en una tarjeta (LOY-29, §37, §58).
 
 Cómo se imprime el nombre (completo, sólo nombre, iniciales o nada) y si se
-imprime el saldo de puntos (por omisión, NO). Viven en `configuraciones`, las
+imprime el saldo de puntos (por omisión, NO). Son parámetros gobernados de
+Configuración (`GovernedSettingsWriter`); antes vivían en `configuraciones`, las
 lee `LoyaltyCardRenderDataQuery` al armar cada tarjeta y la proyección digital.
 
 Exige `TARJETAS_FIDELIDAD.configuracion.editar`; el antes y el después quedan en
@@ -18,8 +19,10 @@ from backend.application.loyalty_cards.queries.card_render_data_query import (
 )
 from backend.application.loyalty_cards.result import LoyaltyCardResult, fail_from_domain_error
 from backend.application.loyalty_cards.use_cases._base import _LoyaltyCardsBaseUseCase
+from backend.application.settings.governance import GovernedSettingsWriter
 from backend.domain.loyalty_cards.exceptions import LoyaltyCardDomainError
 from backend.domain.loyalty_cards.policies.privacy_policy import CardNameMode
+from backend.domain.settings.exceptions import ConfigurationDomainError
 from backend.infrastructure.db.repositories.loyalty_cards.unit_of_work import LoyaltyCardsUnitOfWork
 from backend.shared.ids import new_uuid
 
@@ -33,18 +36,21 @@ class UpdateLoyaltyCardPrivacySettingsUseCase(_LoyaltyCardsBaseUseCase):
         except (LoyaltyCardDomainError, ValueError) as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
         antes = LoyaltyCardRenderDataQuery(connection).privacy_settings()
-        nuevos = {NAME_MODE_KEY: modo.value, PRINT_POINTS_KEY: "1" if print_points_balance else "0"}
-        with LoyaltyCardsUnitOfWork(connection) as uow:
-            for clave, valor in nuevos.items():
-                connection.execute(
-                    "INSERT INTO configuraciones (clave, valor, grupo) VALUES (?,?,'fidelidad')"
-                    " ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (clave, valor))
-            self._audit(uow, "UpdateLoyaltyCardPrivacySettings", entity_id=new_uuid(),
-                        operation_id=operation_id, branch_id=actor_branch_id,
-                        actor_user_id=actor_user_id,
-                        before={NAME_MODE_KEY: antes.name_mode.value,
-                                PRINT_POINTS_KEY: "1" if antes.print_points_balance else "0"},
-                        after=nuevos)
+        nuevos = {NAME_MODE_KEY: modo.value, PRINT_POINTS_KEY: bool(print_points_balance)}
+        writer = GovernedSettingsWriter(connection)
+        try:
+            with LoyaltyCardsUnitOfWork(connection) as uow:
+                writer.stage(nuevos, actor_user_id=actor_user_id, operation_id=operation_id,
+                             reason="Tarjetas → Privacidad")
+                self._audit(uow, "UpdateLoyaltyCardPrivacySettings", entity_id=new_uuid(),
+                            operation_id=operation_id, branch_id=actor_branch_id,
+                            actor_user_id=actor_user_id,
+                            before={NAME_MODE_KEY: antes.name_mode.value,
+                                    PRINT_POINTS_KEY: antes.print_points_balance},
+                            after=nuevos)
+        except ConfigurationDomainError as exc:
+            return fail_from_domain_error(LoyaltyCardDomainError(str(exc)), operation_id=operation_id)
+        writer.publish()
         return LoyaltyCardResult.ok("Privacidad de tarjetas guardada", operation_id=operation_id)
 
 

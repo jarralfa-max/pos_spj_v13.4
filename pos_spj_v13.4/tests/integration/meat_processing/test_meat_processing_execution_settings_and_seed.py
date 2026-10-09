@@ -25,8 +25,10 @@ from backend.application.meat_processing.yield_settings import (
     YieldToleranceSettingsQueryService,
 )
 from backend.shared.ids import new_uuid
+from tests.integration._governed_settings import ensure_governance, set_setting
 
 m270 = importlib.import_module("migrations.standalone.270_meat_processing_execution")
+m303 = importlib.import_module("migrations.standalone.303_configuration_governance_live")
 m271 = importlib.import_module(
     "migrations.standalone.271_seed_meat_processing_role_permissions")
 
@@ -38,6 +40,7 @@ def conn():
     c = sqlite3.connect(":memory:")
     c.execute("CREATE TABLE configuraciones (clave TEXT PRIMARY KEY, valor TEXT)")
     m270.run(c)
+    ensure_governance(c)
     try:
         yield c
     finally:
@@ -91,6 +94,7 @@ class TestTolerancias:
         conn.execute("UPDATE configuraciones SET valor='7'"
                      " WHERE clave='meat_processing.yield.tolerance_pct'")
         m270.run(conn)
+        m303.run(conn)  # la cadena completa: la 303 pasa el valor al gobierno
         assert YieldToleranceSettingsQueryService(conn).get().tolerance_pct == Decimal("7")
 
 

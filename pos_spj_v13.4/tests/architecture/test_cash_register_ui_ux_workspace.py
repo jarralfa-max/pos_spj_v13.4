@@ -12,15 +12,16 @@ class CashRegisterUiUxWorkspaceTests(unittest.TestCase):
         for required in (
             "SideNav",
             "QStackedWidget",
-            "PageHeader",
+            "ModuleLayout",
+            "self._header = self.module_layout.header",
+            "self._header.add_action(refresh)",
+            "self.module_layout.add_context(self._status_bar)",
             "KPIBar",
             "ViewState",
             "create_state_widget",
-            "ResponsiveBreakpoints",
             "setAccessibleName",
             "setAccessibleDescription",
             "apply_tooltip",
-            "resizeEvent",
         ):
             self.assertIn(required, source)
         upper = source.upper()
@@ -114,11 +115,14 @@ class CashRegisterUiUxWorkspaceTests(unittest.TestCase):
         use_case = (ROOT / "backend/application/cash_register/configuration_use_cases.py").read_text(
             encoding="utf-8"
         )
-        self.assertIn("CashConfigurationDialog", page)
-        self.assertIn("configure_cash_register(", page)
+        self.assertIn("CashCatalogDialog", page)
+        self.assertIn("configure_cash_catalog(", page)
         self.assertNotIn("pyqtSignal", page)
         self.assertIn("presenter=self._presenter", workspace)
-        self.assertIn("def configure_cash_register", presenter)
+        self.assertIn("def configure_cash_catalog", presenter)
+        # La ruta de texto libre «nombre / valor» se retiró (re-auditoría 2026-10-07).
+        self.assertNotIn("def configure_cash_register", presenter)
+        self.assertNotIn("_legacy_payload_to_command", use_case)
         self.assertIn("ConfigureCashRegisterUseCase", factory)
         self.assertIn("CashRegisterUnitOfWork", use_case)
         self.assertIn("CashPermissions.SETTINGS_MANAGE", use_case)

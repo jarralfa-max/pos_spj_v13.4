@@ -29,8 +29,13 @@ from enum import Enum
 
 from backend.domain.document_output.entities.document_template import DocumentTemplate
 from backend.domain.document_output.entities.document_template_version import DocumentTemplateVersion
-from backend.domain.document_output.enums import DocumentType, RenderFormat
+from backend.domain.document_output.enums import (
+    LOYALTY_OWNED_DOCUMENT_TYPES,
+    DocumentType,
+    RenderFormat,
+)
 from backend.domain.document_output.exceptions import (
+    DocumentInvalidValueError,
     DocumentTemplateNotFoundError,
     TemplateVersionNotFoundError,
 )
@@ -41,6 +46,16 @@ from backend.infrastructure.db.repositories.document_output.document_template_ve
     SqliteDocumentTemplateVersionRepository,
 )
 
+
+
+def _configurable(document_type) -> DocumentType:
+    """Las tarjetas de fidelidad y los boletos de sorteo los diseña e imprime
+    Fidelidad: Configuración no crea plantillas para ellos."""
+    tipo = DocumentType(document_type)
+    if tipo in LOYALTY_OWNED_DOCUMENT_TYPES:
+        raise DocumentInvalidValueError(
+            "Las tarjetas de fidelidad y los boletos de sorteo se diseñan en Fidelidad.")
+    return tipo
 
 class TemplateVersionAction(str, Enum):
     SUBMIT_FOR_APPROVAL = "SUBMIT_FOR_APPROVAL"
@@ -72,7 +87,8 @@ class CreateDocumentTemplateUseCase:
         content_format: RenderFormat | str, content: str, created_by_user_id: str = "",
     ) -> tuple[DocumentTemplate, DocumentTemplateVersion]:
         template = DocumentTemplate.create(
-            document_type=DocumentType(document_type), name=name, module=module, description=description,
+            document_type=_configurable(document_type), name=name, module=module,
+            description=description,
         )
         version = DocumentTemplateVersion.create(
             template_id=template.id, content_format=RenderFormat(content_format), content=content,

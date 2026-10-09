@@ -95,6 +95,14 @@ ROLE_COMPATIBLE_DEVICE_TYPES: dict[AssignmentRole, frozenset[DeviceType]] = {
 }
 
 
+#: Aparatos que administra CAJA (CASH-18: `cash_drawers`, `pos_terminals`, su
+#: propia página de dispositivos). Configuración no los registra ni los asigna:
+#: dos registros del mismo aparato se contradicen (decisión del usuario,
+#: 2026-10-04).
+CASH_REGISTER_OWNED_DEVICE_TYPES = frozenset({DeviceType.CASH_DRAWER, DeviceType.PAYMENT_TERMINAL})
+CASH_REGISTER_OWNED_ROLES = frozenset({AssignmentRole.CASH_DRAWER, AssignmentRole.PAYMENT_TERMINAL})
+
+
 class PrintRouteModule(str, Enum):
     """Módulos que PIDEN una ruta de impresión acotada por módulo.
 

@@ -49,11 +49,19 @@ class SafeDropResult:
 class RegisterSafeDropUseCase:
     def __init__(self, authorization: CashAuthorizationPolicy,
                  movement_limit: CashMonetaryLimitPolicy,
-                 *, alert_threshold: Decimal) -> None:
-        if not isinstance(alert_threshold, Decimal) or alert_threshold < 0:
+                 *, alert_threshold: Decimal | None = None) -> None:
+        if alert_threshold is not None and (
+                not isinstance(alert_threshold, Decimal) or alert_threshold < 0):
             raise TypeError("alert_threshold must be a non-negative Decimal")
         self._auth, self._limit = authorization, movement_limit
-        self._alert_threshold = alert_threshold
+        self._fixed_alert_threshold = alert_threshold
+
+    @property
+    def _alert_threshold(self) -> Decimal:
+        """Sin umbral fijo, alerta desde el umbral de autorización VIGENTE del límite."""
+        if self._fixed_alert_threshold is not None:
+            return self._fixed_alert_threshold
+        return self._limit.approval_threshold
 
     def execute(self, connection, *, shift_id: str, branch_id: str,
                 amount: Decimal, reason_code: str, actor_user_id: str,

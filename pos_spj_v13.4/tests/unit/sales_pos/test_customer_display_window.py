@@ -98,13 +98,24 @@ class TestRenderIdleAd:
         finally:
             window.close()
 
-    @pytest.mark.parametrize("content_type", ["IMAGE", "VIDEO", "HTML"])
-    def test_non_text_content_renders_an_honest_placeholder_not_fabricated_rendering(self, app, content_type):
+    def test_html_content_renders_an_honest_placeholder_not_fabricated_rendering(self, app):
         window = CustomerDisplayWindow()
         try:
-            window.render_idle_ad(content_type, "Promo", "<html>ignored</html>")
-            assert window._ad_label.text() == f"Promo ({content_type})"
+            window.render_idle_ad("HTML", "Promo", "<html>ignored</html>")
+            assert window._ad_label.text() == "Promo (HTML)"
             assert "<html>" not in window._ad_label.text()
+        finally:
+            window.close()
+
+    @pytest.mark.parametrize("content_type", ["IMAGE", "VIDEO"])
+    def test_media_without_its_file_says_so_instead_of_painting_anything(self, app, content_type):
+        """Desde 2026-10-08 imagen y video se muestran de verdad (migración
+        313); si el archivo ya no está, la pantalla lo dice — no inventa nada
+        ni muestra el id del archivo."""
+        window = CustomerDisplayWindow()
+        try:
+            window.render_idle_ad(content_type, "Promo", "01a00000-0000-7000-8000-000000000000", None)
+            assert window._ad_label.text() == "Promo (el archivo ya no está disponible)"
         finally:
             window.close()
 

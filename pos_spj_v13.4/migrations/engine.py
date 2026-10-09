@@ -306,6 +306,17 @@ MIGRATIONS = [
     _Migration("300",  "migrations.standalone.300_logistics_qr_secret_to_secret_store"),
     _Migration("301",  "migrations.standalone.301_drop_dead_configuration_keys"),
     _Migration("302",  "migrations.standalone.302_seed_gerente_configuracion_permissions"),
+    _Migration("303",  "migrations.standalone.303_configuration_governance_live"),
+    _Migration("304",  "migrations.standalone.304_seed_role_permissions_permission"),
+    _Migration("305",  "migrations.standalone.305_seed_module_feature_flags"),
+    _Migration("306",  "migrations.standalone.306_seed_cash_register_role_permissions"),
+    _Migration("307",  "migrations.standalone.307_seed_cash_register_catalogs"),
+    _Migration("308",  "migrations.standalone.308_cash_difference_two_person_rule"),
+    _Migration("309",  "migrations.standalone.309_seed_cash_cut_print_routes"),
+    _Migration("310",  "migrations.standalone.310_seed_cash_difference_alert"),
+    _Migration("311",  "migrations.standalone.311_backfill_cash_shift_business_date"),
+    _Migration("312",  "migrations.standalone.312_seed_device_test_and_user_permissions"),
+    _Migration("313",  "migrations.standalone.313_customer_display_media"),
 ]
 
 def _ensure_tracking_table(conn):

@@ -128,8 +128,10 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         if dlg.exec_() != QDialog.Accepted:
             return
         values = dlg.values()
-        if not values["title"] or not values["content_type"] or not values["body"]:
-            QMessageBox.warning(self, "Pantalla del cliente", "Título, tipo y contenido son obligatorios.")
+        if not values["title"] or not values["content_type"] or not (
+                values["body"] or values.get("media_path")):
+            QMessageBox.warning(self, "Pantalla del cliente",
+                                "Título, tipo y contenido (o el archivo adjunto) son obligatorios.")
             return
         ok, message = self._presenter.create_display_content(**values)
         (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
@@ -145,7 +147,8 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
             QMessageBox.warning(self, "Pantalla del cliente", "El contenido ya no existe.")
             return
         dlg = ContentEditDialog(
-            self, title=content.title, body=content.body, duration_seconds=content.duration_seconds)
+            self, title=content.title, body=content.body, duration_seconds=content.duration_seconds,
+            content_type=content.content_type)
         if dlg.exec_() != QDialog.Accepted:
             return
         values = dlg.values()

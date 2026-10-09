@@ -9,6 +9,8 @@ from decimal import Decimal
 import pytest
 
 from backend.domain.meat_processing.enums import ProcessType
+from backend.domain.settings.enums import ScopeType
+from tests.integration._governed_settings import set_setting
 from tests.integration.meat_processing._generic_plant import Planta, build_db
 
 ESPECIES = [("Bovino", "Canal bovina", "Pulpa"),
@@ -51,14 +53,14 @@ def test_every_species_runs_through_the_same_pipeline_with_the_same_result(espec
 
 def test_a_species_tolerance_is_configuration_not_code():
     """6 kg de 6.5 esperados (−7.7 %) queda fuera de la tolerancia global (5 %)
-    y dentro de la de la especie cuando alguien la configura en 10 %."""
+    y dentro de la de la especie cuando alguien la configura en 10 % — como
+    parámetro gobernado en el ámbito ESPECIE (Configuración → Parámetros)."""
     orden = _Orden("Pescado", "Huachinango entero", "Filete")
     r = orden.ejecutar("6")
     assert not r.success and r.error_code == "YIELD_AUTHORIZATION_REQUIRED"
 
-    orden.conn.execute("INSERT OR REPLACE INTO configuraciones (clave, valor) VALUES (?,?)",
-                       (f"meat_processing.yield.tolerance_pct@SPECIES:{orden.especie}", "10"))
-    orden.conn.commit()
+    set_setting(orden.conn, "meat_processing.yield.tolerance_pct", "10",
+                scope_type=ScopeType.SPECIES, scope_id=orden.especie)
     r = orden.ejecutar("6")
     assert r.success, r.message
     assert r.data["out_of_tolerance"] is False

@@ -45,6 +45,25 @@ class CashNotificationRepository:
             (rule_id,),
         ).fetchall()]
 
+    def user_display_name(self, user_id: str | None) -> str:
+        """Nombre de la persona para el texto del aviso; nunca el UUID."""
+        if not user_id:
+            return "sin asignar"
+        try:
+            row = self.connection.execute(
+                "SELECT COALESCE(NULLIF(trim(nombre),''), usuario) FROM usuarios WHERE id=?",
+                (user_id,)).fetchone()
+        except Exception:  # noqa: BLE001 - bases sin `usuarios` (pruebas aisladas)
+            row = None
+        return str(row[0]) if row and row[0] else "usuario"
+
+    def cut_folio(self, cut_id: str | None) -> str:
+        if not cut_id:
+            return ""
+        row = self.connection.execute(
+            "SELECT document_number FROM cash_cuts WHERE id=?", (cut_id,)).fetchone()
+        return str(row[0]) if row and row[0] else ""
+
     def add_job(self, *, source_event_id: str, rule_id: str, channel: str,
                 recipient: str, severity: str, title: str, body: str,
                 created_at: str) -> bool:

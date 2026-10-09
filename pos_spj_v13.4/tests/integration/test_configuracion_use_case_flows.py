@@ -12,8 +12,6 @@ from uuid import UUID
 from backend.application.commands.settings_commands import (
     ExecuteMonthlyClosingCommand,
     SaveHappyHourRuleCommand,
-    SaveHardwareConfigCommand,
-    SaveModuleToggleCommand,
     SaveRoleCommand,
     SaveRolePermissionsCommand,
     SaveUserCommand,
@@ -21,7 +19,6 @@ from backend.application.commands.settings_commands import (
 )
 from backend.application.use_cases.execute_monthly_closing_use_case import ExecuteMonthlyClosingUseCase
 from backend.application.use_cases.save_happy_hour_rule_use_case import SaveHappyHourRuleUseCase
-from backend.application.use_cases.save_module_toggle_use_case import SaveModuleToggleUseCase
 from backend.application.use_cases.save_role_permissions_use_case import SaveRolePermissionsUseCase
 from backend.application.use_cases.save_role_use_case import SaveRoleUseCase
 from backend.application.use_cases.save_user_use_case import SaveUserUseCase
@@ -211,19 +208,6 @@ def test_save_happy_hour_rule_flow():
     assert result.success and UUID(result.entity_id).version == 7
     row = conn.execute("SELECT nombre, valor FROM happy_hour_rules WHERE id=?", (result.entity_id,)).fetchone()
     assert row["nombre"] == "Tarde" and row["valor"] == 10.0
-
-
-def test_save_module_toggle_flow():
-    conn, _, _ = _conn()
-    service = ModuleSettingsService(ConfigRepository(conn))
-    uc = SaveModuleToggleUseCase(service)
-    cmd = SaveModuleToggleCommand(
-        operation_id=new_uuid(), branch_id=new_uuid(), user_name="admin",
-        key="loyalty", enabled=True,
-    )
-    result = uc.execute(cmd)
-    assert result.success and result.entity_id == "loyalty"
-    assert service.is_enabled("loyalty") is True
 
 
 def test_save_system_setting_flow():

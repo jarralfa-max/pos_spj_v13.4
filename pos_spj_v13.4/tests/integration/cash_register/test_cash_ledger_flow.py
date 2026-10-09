@@ -8,6 +8,7 @@ from backend.application.cash_register.ledger_query_service import CashLedgerQue
 from backend.application.cash_register.ledger_use_cases import (
     RegisterCashMovementUseCase, ReverseCashMovementUseCase,
 )
+from backend.application.cash_register.movement_use_cases import RegisterSafeDropUseCase
 from backend.application.cash_register.permissions import ALL_CASH_PERMISSIONS
 from backend.application.cash_register.shift_use_cases import OpenCashShiftUseCase
 from backend.domain.cash_register.enums import CashMovementType
@@ -18,6 +19,12 @@ from backend.domain.cash_register.exceptions import (
 from backend.domain.cash_register.policies.security_policies import CashMonetaryLimitPolicy
 from backend.infrastructure.db.repositories.cash_register.repositories import CashLedgerRepository
 from backend.shared.ids import new_uuid
+
+
+_REASONS = {
+    CashMovementType.MANUAL_INCOME: "CHANGE_ADDITION",
+    CashMovementType.MANUAL_WITHDRAWAL: "AUTHORIZED_OPERATION",
+}
 
 
 class _Permissions:
@@ -32,6 +39,9 @@ class CashLedgerFlowTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
         importlib.import_module("migrations.standalone.175_cash_register_bounded_context_schema").run(self.db)
+        # Catálogos reales de producción (motivos §14): la 176 crea las tablas y la 307 las siembra.
+        importlib.import_module("migrations.standalone.176_cash_register_configuration_schema").run(self.db)
+        importlib.import_module("migrations.standalone.307_seed_cash_register_catalogs").run(self.db)
         self.auth = CashAuthorizationPolicy(_Permissions(), _Scopes())
         self.limit = CashMonetaryLimitPolicy(
             approval_threshold=Decimal("1000"), hard_cap=Decimal("5000"))
@@ -59,12 +69,17 @@ class CashLedgerFlowTests(unittest.TestCase):
             self.db, shift_id=self.shift_id, branch_id=self.branch,
             movement_type=kind, amount=amount, concept="Operación de prueba",
             actor_user_id=self.cashier, operation_id=operation_id or new_uuid(),
-            authorized_by=authorized_by)
+            authorized_by=authorized_by, reason_code=_REASONS.get(kind))
+
+    def _safe_drop(self, amount):
+        return RegisterSafeDropUseCase(self.auth, self.limit).execute(
+            self.db, shift_id=self.shift_id, branch_id=self.branch, amount=amount,
+            reason_code="CASH_LIMIT", actor_user_id=self.cashier, operation_id=new_uuid())
 
     def test_movements_and_projection_reconstruct_exact_decimal_balance(self):
         self._record(CashMovementType.MANUAL_INCOME, Decimal("100.10"))
         self._record(CashMovementType.MANUAL_WITHDRAWAL, Decimal("25.05"))
-        self._record(CashMovementType.SAFE_DROP, Decimal("50"))
+        self._safe_drop(Decimal("50"))
         projection = CashLedgerQueryService(CashLedgerRepository(self.db)).projection(self.shift_id)
         self.assertEqual(projection.balance, Decimal("525.05"))
         self.assertEqual(projection.inflows, Decimal("600.10"))
@@ -77,13 +92,46 @@ class CashLedgerFlowTests(unittest.TestCase):
         with self.assertRaises(CashInvalidStateError):
             self._record(CashMovementType.MANUAL_WITHDRAWAL, Decimal("500.01"))
         with self.assertRaises(CashInvalidStateError):
-            self._record(CashMovementType.SAFE_DROP, Decimal("500.01"))
-
+            self._safe_drop(Decimal("500.01"))
         self._record(CashMovementType.MANUAL_INCOME, Decimal("25"))
         self._record(CashMovementType.MANUAL_WITHDRAWAL, Decimal("525"))
-
         projection = CashLedgerQueryService(CashLedgerRepository(self.db)).projection(self.shift_id)
         self.assertEqual(projection.balance, Decimal("0"))
+
+    def test_safe_drop_cannot_bypass_its_own_flow(self):
+        # El retiro a bóveda exige motivo §15 y entrega a Tesorería: no entra por
+        # el registro genérico de movimientos.
+        with self.assertRaises(CashInvalidStateError):
+            self._record(CashMovementType.SAFE_DROP, Decimal("50"))
+
+    def test_manual_movement_requires_catalog_reason(self):
+        # §14: «pago a proveedor» no es un motivo; sin código del catálogo se rechaza.
+        with self.assertRaises(CashInvalidStateError):
+            self.command.execute(
+                self.db, shift_id=self.shift_id, branch_id=self.branch,
+                movement_type=CashMovementType.MANUAL_WITHDRAWAL, amount=Decimal("10"),
+                concept="pago a proveedor", actor_user_id=self.cashier,
+                operation_id=new_uuid())
+        with self.assertRaises(CashInvalidStateError):
+            self.command.execute(
+                self.db, shift_id=self.shift_id, branch_id=self.branch,
+                movement_type=CashMovementType.MANUAL_WITHDRAWAL, amount=Decimal("10"),
+                concept="pago a proveedor", actor_user_id=self.cashier,
+                operation_id=new_uuid(), reason_code="PAGO_PROVEEDOR")
+
+    def test_reason_that_always_requires_authorization_asks_for_authorizer(self):
+        with self.assertRaises(CashAuthorizationRequiredError):
+            self.command.execute(
+                self.db, shift_id=self.shift_id, branch_id=self.branch,
+                movement_type=CashMovementType.MANUAL_WITHDRAWAL, amount=Decimal("10"),
+                concept="Corrección", actor_user_id=self.cashier,
+                operation_id=new_uuid(), reason_code="CASH_CORRECTION_OUT")
+        self.command.execute(
+            self.db, shift_id=self.shift_id, branch_id=self.branch,
+            movement_type=CashMovementType.MANUAL_WITHDRAWAL, amount=Decimal("10"),
+            concept="Corrección", actor_user_id=self.cashier, operation_id=new_uuid(),
+            reason_code="CASH_CORRECTION_OUT", authorized_by=self.supervisor)
+
 
     def test_explicit_idempotency_does_not_duplicate_side_effects(self):
         operation_id = new_uuid()

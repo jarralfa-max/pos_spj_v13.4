@@ -33,17 +33,22 @@ class LossesUiUxTest(unittest.TestCase):
         self.assertTrue(pending.toolTip())
         self.assertTrue(pending.data(Qt.AccessibleDescriptionRole))
 
-    def test_workspace_switches_sidebar_at_responsive_breakpoint(self):
+    def test_workspace_preserves_manual_sidebar_choice_when_resized(self):
         view = LossesView(
             has_permission=lambda _permission: True,
             page_builder=lambda page_id: QLabel(page_id),
         )
-        view.resize(820, 600)
-        view.apply_responsive_layout()
-        self.assertTrue(view.sidebar.collapsed)
-        view.resize(1440, 700)
-        view.apply_responsive_layout()
-        self.assertFalse(view.sidebar.collapsed)
+        try:
+            view.show()
+            for collapsed in (True, False):
+                view.sidebar.set_collapsed(collapsed)
+                for width in (820, 1440):
+                    view.resize(width, 700)
+                    self.app.processEvents()
+                    self.assertEqual(view.sidebar.collapsed, collapsed)
+        finally:
+            view.close()
+            view.deleteLater()
 
     def test_placeholder_page_is_identified_and_announces_empty_state(self):
         page = LossesPlaceholderPage(title="Alertas", subtitle="Excepciones críticas")

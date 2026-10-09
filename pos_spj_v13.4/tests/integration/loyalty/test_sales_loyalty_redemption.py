@@ -28,6 +28,8 @@ from backend.infrastructure.db.schema.loyalty_schema import create_loyalty_schem
 from backend.application.loyalty.authorization import LoyaltyAuthorizationPolicy
 from backend.infrastructure.integrations.sales_loyalty_client import SalesLoyaltyClient
 from backend.shared.ids import new_uuid
+from tests.integration._governed_settings import ensure_governance, set_setting
+from backend.domain.settings.exceptions import ConfigurationInvalidValueError
 
 
 @pytest.fixture
@@ -57,8 +59,7 @@ def _client(conn, **kwargs) -> SalesLoyaltyClient:
 
 def _settings(conn, **valores):
     for clave, valor in valores.items():
-        conn.execute("INSERT OR REPLACE INTO configuraciones VALUES (?,?)", (clave, str(valor)))
-    conn.commit()
+        set_setting(conn, clave, valor)
 
 
 def _canonical_account(conn, customer_id: str, puntos: int = 0) -> str:
@@ -160,17 +161,18 @@ class TestSingleLedgerBalance:
 # ── ajustes ─────────────────────────────────────────────────────────────────
 class TestSettings:
     def test_configured_values_are_used(self, conn):
-        _settings(conn, loyalty_valor_estrella="0.25", loyalty_min_puntos_canje="10",
-                  loyalty_max_pct_canje="0.3")
+        _settings(conn, **{"loyalty.point_value": "0.25", "loyalty.min_points_to_redeem": "10",
+                           "loyalty.max_redeem_fraction": "0.3"})
         settings = LoyaltyRedemptionPreviewQuery(conn).settings()
         assert settings.point_value == Decimal("0.25")
         assert settings.min_points == 10
         assert settings.max_percent == Decimal("0.3")
 
-    def test_a_corrupt_value_falls_back_instead_of_breaking_the_sale(self, conn):
-        """Dejar el cobro tirado porque un ajuste está corrupto es peor que
-        canjear con los parámetros de fábrica."""
-        _settings(conn, loyalty_valor_estrella="no-es-un-numero")
+    def test_a_corrupt_value_cannot_be_stored_and_the_sale_keeps_the_default(self, conn):
+        """Antes un valor corrupto se guardaba y el lector caía al de fábrica.
+        Ahora el gobierno lo rechaza al guardarlo: nunca llega al cobro."""
+        with pytest.raises(ConfigurationInvalidValueError):
+            _settings(conn, **{"loyalty.point_value": "no-es-un-numero"})
         assert LoyaltyRedemptionPreviewQuery(conn).settings().point_value == Decimal("0.10")
 
 

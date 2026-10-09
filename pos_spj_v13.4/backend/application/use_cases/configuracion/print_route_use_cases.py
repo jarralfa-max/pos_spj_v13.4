@@ -22,7 +22,7 @@ from backend.domain.device_management.exceptions import (
     PrintRouteConflictError,
     PrintRouteNotFoundError,
 )
-from backend.domain.document_output.enums import DocumentType
+from backend.domain.document_output.enums import LOYALTY_OWNED_DOCUMENT_TYPES, DocumentType
 from backend.infrastructure.db.repositories.device_management.print_route_repository import (
     SqlitePrintRouteRepository,
 )
@@ -40,7 +40,8 @@ def _same_scope(route: PrintRoute, *, branch_id, workstation_id, module, channel
     )
 
 
-_DOCUMENT_TYPES = frozenset(t.value for t in DocumentType)
+_DOCUMENT_TYPES = frozenset(
+    t.value for t in DocumentType if t not in LOYALTY_OWNED_DOCUMENT_TYPES)
 _ROUTE_MODULES = frozenset(m.value for m in PrintRouteModule)
 
 

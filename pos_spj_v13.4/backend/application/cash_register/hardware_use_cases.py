@@ -80,6 +80,28 @@ class OpenCashDrawerUseCase:
                     sale_id=sale_id, without_sale=sale_id is None)
 
 
+class OpenDrawerForCashSaleUseCase:
+    """«Cajón con venta» (CASH-26 bloque 2): tras un cobro con efectivo se abre
+    el cajón del turno donde Caja registró ese efectivo. Una venta sin efectivo
+    (tarjeta, transferencia, puntos) no abre nada."""
+
+    def __init__(self, authorization: CashAuthorizationPolicy,
+                 gateway: CashDrawerGateway) -> None:
+        self._open = OpenCashDrawerUseCase(authorization, gateway)
+
+    def execute(self, connection, *, sale_id: str, branch_id: str,
+                actor_user_id: str, operation_id: str) -> bool:
+        with CashRegisterUnitOfWork(connection) as uow:
+            entry = uow.ledger.find_sale_entry(sale_id)
+            shift = uow.shifts.get(entry["shift_id"]) if entry else None
+        if not entry or not shift or Decimal(entry["amount"]) <= 0:
+            return False
+        self._open.execute(connection, drawer_id=shift["drawer_id"], branch_id=branch_id,
+                           actor_user_id=actor_user_id, operation_id=operation_id,
+                           sale_id=sale_id)
+        return True
+
+
 class PrintCashDocumentUseCase:
     def __init__(self, authorization: CashAuthorizationPolicy,
                  gateway: ReceiptPrinterGateway) -> None:

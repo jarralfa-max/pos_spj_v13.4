@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="2.498" timestamp="2026-10-02T13:40:16.666526-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_module_sidebar_layout" name="test_sidebar_matches_pricing_and_collapse_preserves_navigation[compact-light-losses-LossesSidebarWidget]" time="0.634"><failure message="assert (210, 260) == (180, 240)&#10;  &#10;  At index 0 diff: 210 != 180&#10;  Use -v to get more diff">manager = &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x00000143E02505F0&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000143E0250560&gt;
+module = 'losses', class_name = 'LossesSidebarWidget', theme = 'light'
+density = 'compact'
+
+    @pytest.mark.parametrize("module,class_name", SIDEBARS)
+    @pytest.mark.parametrize("theme", ("light", "dark"))
+    @pytest.mark.parametrize("density", ("compact", "comfortable", "touch"))
+    def test_sidebar_matches_pricing_and_collapse_preserves_navigation(
+        manager, qt_font_resources, module, class_name, theme, density,
+    ):
+        manager.apply(qt_font_resources, theme, density=density)
+        root = f"frontend.desktop.modules.{module}"
+        navigation = import_module(f"{root}.navigation.{module}_sidebar")
+        sidebar_class = getattr(import_module(f"{root}.widgets.{module}_sidebar_widget"), class_name)
+        entries = navigation.visible_entries(lambda _permission: True)
+        badges = {entry.badge_key: 3 for entry, _ in entries if entry.badge_key}
+        expected = navigation.visible_entries(lambda _permission: True, badges)
+        sidebar = sidebar_class(has_permission=lambda _permission: True, badges=badges)
+        reference = SideNav()
+        reference.setProperty("role", "nav")
+        for entry, badge in expected:
+            reference.add_section(entry.title if badge is None else f"{entry.title} ({badge})", entry.icon)
+        routes = []
+        sidebar.route_requested.connect(routes.append)
+        try:
+            sidebar.resize(240, 768)
+            reference.resize(240, 768)
+            sidebar.show()
+            reference.show()
+            qt_font_resources.processEvents()
+            assert sidebar.property("role") == "nav"
+&gt;           assert (sidebar.minimumWidth(), sidebar.maximumWidth()) == (180, 240)
+E           assert (210, 260) == (180, 240)
+E             
+E             At index 0 diff: 210 != 180
+E             Use -v to get more diff
+
+tests\ui\test_module_sidebar_layout.py:49: AssertionError</failure></testcase></testsuite></testsuites>

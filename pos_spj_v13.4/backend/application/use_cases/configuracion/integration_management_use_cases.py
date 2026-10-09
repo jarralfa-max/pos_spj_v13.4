@@ -25,6 +25,8 @@ from backend.domain.integrations.enums import IntegrationCategory, WebhookSignat
 from backend.domain.integrations.exceptions import (
     IntegrationDefinitionNotFoundError,
     IntegrationInstanceNotFoundError,
+    IntegrationsInvalidValueError,
+    MissingCredentialError,
     WebhookEndpointNotFoundError,
 )
 from backend.infrastructure.db.repositories.integrations.integration_definition_repository import (
@@ -237,6 +239,58 @@ class RecordIntegrationHealthCheckUseCase:
 
     def execute(self, *, instance_id: str, success: bool, message: str = "") -> IntegrationHealthCheck:
         check = IntegrationHealthCheck.record(instance_id=instance_id, success=success, message=message)
+        self._checks.save(check)
+        self._conn.commit()
+        return check
+
+
+def _mercado_pago_verifier(token: str):
+    from backend.application.services.payment_provider_verification_service import (
+        PaymentProviderVerificationService,
+    )
+    return PaymentProviderVerificationService().verify_mercado_pago_token(token)
+
+
+#: Código de definición → (nombre de la credencial, verificador). Sólo hay un
+#: verificador real hoy; los demás proveedores se siguen registrando a mano.
+DEFAULT_CONNECTION_VERIFIERS = {"MERCADOPAGO": ("mp_access_token", _mercado_pago_verifier)}
+
+
+class TestIntegrationConnectionUseCase:
+    """«Probar conexión»: llama al proveedor con la credencial GUARDADA y
+    registra el resultado real como chequeo de salud.
+
+    Antes la salud sólo se capturaba a mano ("éxito"/"falla"), así que podía
+    decir "éxito" con un token vencido. El token se lee del almacén de secretos
+    y nunca sale de aquí: ni a la pantalla ni al mensaje del chequeo.
+    """
+
+    __test__ = False  # no es una prueba de pytest pese al nombre
+
+    def __init__(self, connection, secret_store, verifiers=None) -> None:
+        self._conn = connection
+        self._secret_store = secret_store
+        self._verifiers = DEFAULT_CONNECTION_VERIFIERS if verifiers is None else verifiers
+        self._definitions = SqliteIntegrationDefinitionRepository(connection)
+        self._instances = SqliteIntegrationInstanceRepository(connection)
+        self._checks = SqliteIntegrationHealthCheckRepository(connection)
+
+    def execute(self, *, instance_id: str) -> IntegrationHealthCheck:
+        instance = self._instances.get(instance_id)
+        if instance is None:
+            raise IntegrationInstanceNotFoundError(f"Instancia {instance_id} no encontrada")
+        definition = self._definitions.get(instance.definition_id)
+        if definition is None or definition.code not in self._verifiers:
+            raise IntegrationsInvalidValueError(
+                "No hay prueba automática para este proveedor; registra el chequeo a mano.")
+        credential_name, verify = self._verifiers[definition.code]
+        secret_name = instance.credential_references.get(credential_name)
+        if not secret_name:
+            raise MissingCredentialError(
+                f"La instancia no tiene referencia a la credencial «{credential_name}».")
+        result = verify(self._secret_store.get_secret(secret_name) or "")
+        check = IntegrationHealthCheck.record(
+            instance_id=instance.id, success=bool(result.ok), message=f"Prueba automática: {result.message}")
         self._checks.save(check)
         self._conn.commit()
         return check

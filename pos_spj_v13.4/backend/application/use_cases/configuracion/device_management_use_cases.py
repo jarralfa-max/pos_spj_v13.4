@@ -18,8 +18,7 @@ from enum import Enum
 from backend.domain.device_management.entities.device import Device
 from backend.domain.device_management.entities.device_profile import DeviceProfile
 from backend.domain.device_management.enums import (
-    CASH_DRAWER_DEVICE_TYPES,
-    PAYMENT_TERMINAL_DEVICE_TYPES,
+    CASH_REGISTER_OWNED_DEVICE_TYPES,
     PRINTER_DEVICE_TYPES,
     READER_DEVICE_TYPES,
     SCALE_DEVICE_TYPES,
@@ -27,12 +26,10 @@ from backend.domain.device_management.enums import (
     DeviceCapabilityCode,
     DeviceType,
 )
-from backend.domain.device_management.exceptions import DeviceNotFoundError, DeviceProfileNotFoundError
-from backend.domain.device_management.policies.cash_drawer_profile_policy import (
-    assert_valid_cash_drawer_profile,
-)
-from backend.domain.device_management.policies.payment_terminal_profile_policy import (
-    assert_valid_payment_terminal_profile,
+from backend.domain.device_management.exceptions import (
+    DeviceInvalidValueError,
+    DeviceNotFoundError,
+    DeviceProfileNotFoundError,
 )
 from backend.domain.device_management.policies.printer_profile_policy import assert_valid_printer_profile
 from backend.domain.device_management.policies.reader_profile_policy import (
@@ -97,9 +94,12 @@ class RegisterDeviceProfileUseCase:
         self, *, name: str, device_type: DeviceType | str, connection_type: ConnectionType | str,
         manufacturer: str = "", model: str = "", serial_port: str = "", baud_rate: int | None = None,
         host: str = "", port: int | None = None, paper_profile: str = "", protocol: str = "",
-        driver_name: str = "", payment_capabilities: tuple[str, ...] = (),
+        driver_name: str = "",
     ) -> DeviceProfile:
         device_type = DeviceType(device_type)
+        if device_type in CASH_REGISTER_OWNED_DEVICE_TYPES:
+            raise DeviceInvalidValueError(
+                "Los cajones de dinero y las terminales de pago se administran en Caja.")
         connection_type = ConnectionType(connection_type)
 
         serial_port_vo = None
@@ -119,12 +119,6 @@ class RegisterDeviceProfileUseCase:
             capabilities = (DeviceCapability.create(DeviceCapabilityCode.WEIGH),)
         elif device_type in READER_DEVICE_TYPES:
             capabilities = (DeviceCapability.create(REQUIRED_CAPABILITY_BY_TYPE[device_type]),)
-        elif device_type in CASH_DRAWER_DEVICE_TYPES:
-            capabilities = (DeviceCapability.create(DeviceCapabilityCode.DRAWER_PULSE),)
-        elif device_type in PAYMENT_TERMINAL_DEVICE_TYPES:
-            capabilities = tuple(
-                DeviceCapability.create(DeviceCapabilityCode(code)) for code in payment_capabilities
-            )
 
         profile = DeviceProfile.create(
             name=name, device_type=device_type, connection_profile=connection_profile,
@@ -137,10 +131,6 @@ class RegisterDeviceProfileUseCase:
             assert_valid_scale_profile(profile)
         elif device_type in READER_DEVICE_TYPES:
             assert_valid_reader_profile(profile)
-        elif device_type in CASH_DRAWER_DEVICE_TYPES:
-            assert_valid_cash_drawer_profile(profile)
-        elif device_type in PAYMENT_TERMINAL_DEVICE_TYPES:
-            assert_valid_payment_terminal_profile(profile)
         self._profiles.save(profile)
         self._conn.commit()
         return profile
@@ -208,3 +198,40 @@ class ChangeDeviceStatusUseCase:
         self._devices.save(device)
         self._conn.commit()
         return device
+
+
+class SetDeviceWindowsPrinterUseCase:
+    """Elige la impresora de Windows (cola USB) del perfil de un dispositivo.
+
+    Es lo único del perfil que hacía falta poder corregir después de creado:
+    sin ella, una térmica USB que no fuera la predeterminada de Windows no
+    recibía nada (se imprimía en la predeterminada, p. ej. «Microsoft Print to
+    PDF»). Sólo se aceptan nombres de impresoras realmente instaladas.
+    """
+
+    def __init__(self, connection, installed_printers=None) -> None:
+        self._conn = connection
+        self._devices = SqliteDeviceRepository(connection)
+        self._profiles = SqliteDeviceProfileRepository(connection)
+        self._installed = installed_printers
+
+    def execute(self, *, device_id: str, printer_name: str):
+        from backend.domain.device_management.enums import ConnectionType
+        from backend.infrastructure.printing.transport import installed_windows_printers
+
+        device = self._devices.get(device_id)
+        if device is None:
+            raise DeviceNotFoundError(f"Dispositivo {device_id} no encontrado")
+        profile = self._profiles.get(device.profile_id)
+        if profile is None:
+            raise DeviceProfileNotFoundError("El dispositivo no tiene perfil.")
+        if profile.connection_profile.connection_type not in (ConnectionType.USB, ConnectionType.SYSTEM):
+            raise DeviceInvalidValueError("Sólo un dispositivo USB usa una impresora de Windows.")
+        nombre = str(printer_name or "").strip()
+        instaladas = self._installed() if self._installed else installed_windows_printers()
+        if nombre and nombre not in instaladas:
+            raise DeviceInvalidValueError(f"«{nombre}» no está instalada en esta computadora.")
+        profile.set_windows_printer(nombre)
+        self._profiles.save(profile)
+        self._conn.commit()
+        return profile

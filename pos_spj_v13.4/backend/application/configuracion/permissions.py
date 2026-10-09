@@ -32,6 +32,7 @@ class ConfiguracionPermissions:
     DISPOSITIVOS_EDITAR = permission_code("DISPOSITIVOS", "editar")
     DISPOSITIVOS_ASIGNAR = permission_code("DISPOSITIVOS", "asignar")
     DISPOSITIVOS_DESHABILITAR = permission_code("DISPOSITIVOS", "deshabilitar")
+    DISPOSITIVOS_PROBAR = permission_code("DISPOSITIVOS", "probar")
     DISPOSITIVOS_RUTAS_GESTIONAR = permission_code("DISPOSITIVOS", "configuracion.gestionar")
     DOCUMENTOS_VIEW = permission_code("DOCUMENTOS", "plantilla.ver")
     DOCUMENTOS_PLANTILLA_CREAR = permission_code("DOCUMENTOS", "plantilla.crear")
@@ -74,6 +75,8 @@ class ConfiguracionPermissions:
     USUARIOS_CREAR = permission_code("CONFIGURACION", "usuario.crear")
     USUARIOS_EDITAR = permission_code("CONFIGURACION", "usuario.editar")
     USUARIOS_ACTIVAR = permission_code("CONFIGURACION", "usuario.activar")
+    # Excepciones de permiso de un usuario (además de las de su rol).
+    USUARIOS_PERMISOS = permission_code("CONFIGURACION", "usuario.permisos")
     # No USUARIOS_DESBLOQUEAR here — unlock is gated by
     # UserSecurityService.unlock_user()'s own internal permission check
     # against its pre-existing codes (CONFIG_SEGURIDAD.editar /
@@ -81,6 +84,8 @@ class ConfiguracionPermissions:
     ROLES_VIEW = permission_code("CONFIGURACION", "rol.ver")
     ROLES_CREAR = permission_code("CONFIGURACION", "rol.crear")
     ROLES_EDITAR = permission_code("CONFIGURACION", "rol.editar")
+    # Dar o quitar permisos a un rol (matriz de permisos).
+    ROLES_PERMISOS = permission_code("CONFIGURACION", "rol.permisos")
     AUDITORIA_VIEW = permission_code("CONFIGURACION", "auditoria.ver")
 
 

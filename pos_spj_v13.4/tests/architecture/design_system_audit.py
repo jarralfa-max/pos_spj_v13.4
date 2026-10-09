@@ -24,7 +24,7 @@ CANONICAL_PAGES = {
     "MasterDetailPage", "SplitPage", "TabbedPage", "WizardPage", "POSPage",
     "StandardWindow", "ApplicationWindow", "StandardDialog",
 }
-OVERFLOW_HOSTS = CANONICAL_PAGES | {"PageViewport", "ContentHost", "QScrollArea"}
+OVERFLOW_HOSTS = CANONICAL_PAGES | {"ModuleLayout", "PageViewport", "ContentHost", "QScrollArea"}
 CONTROLS = {
     "QPushButton", "QToolButton", "QLineEdit", "QComboBox", "QSpinBox",
     "QDoubleSpinBox", "PrimaryButton", "SecondaryButton", "GhostButton",
@@ -221,7 +221,7 @@ def module_adoption(root: Path = REPO):
                 isinstance(node, ast.ImportFrom) and (node.module or "").startswith("frontend.desktop.components")
                 for node in nodes)
             counts["files_using_page_layouts"] += any(
-                isinstance(node, ast.Name) and node.id in CANONICAL_PAGES | {"PageViewport"}
+                isinstance(node, ast.Name) and node.id in CANONICAL_PAGES | {"ModuleLayout", "PageViewport"}
                 for node in nodes)
             counts["files_using_standard_table"] += any(
                 isinstance(node, ast.Name) and node.id == "StandardTable" for node in nodes)

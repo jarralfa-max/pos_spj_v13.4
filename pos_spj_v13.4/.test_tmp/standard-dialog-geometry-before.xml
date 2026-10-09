@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="6" time="92.200" timestamp="2026-10-07T18:43:54.045381+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_standard_dialog_geometry" name="test_moved_dialog_uses_its_own_monitor_and_disconnects_parent_screen" time="27.079"><failure message="assert PyQt5.QtCore.QRect(0, 0, 1280, 720) == PyQt5.QtCore.QRect(-1440, 0, 1440, 900)&#10; +  where PyQt5.QtCore.QRect(0, 0, 1280, 720) = available_geometry()&#10; +    where available_geometry = &lt;frontend.desktop.components.dialogs.StandardDialog object at 0x000001D3F3574290&gt;.available_geometry&#10; +  and   PyQt5.QtCore.QRect(-1440, 0, 1440, 900) = availableGeometry()&#10; +    where availableGeometry = &lt;tests.ui.test_standard_window_geometry.DesktopScreen object at 0x000001D3F2FAFB60&gt;.availableGeometry">dialog_desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D3F3574200&gt;, &lt;tests.ui.test_standard_window_geometry.DesktopScreen ob...object at 0x000001D3F3574290&gt;, &lt;frontend.desktop.components.text_inputs.StandardLineEdit object at 0x000001D3F3574710&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D3F3083CE0&gt;
+
+    def test_moved_dialog_uses_its_own_monitor_and_disconnects_parent_screen(dialog_desktop, monkeypatch):
+        app, primary, secondary, dialog, field = dialog_desktop
+        dialog.show()
+        settle(app)
+        monkeypatch.setattr(dialog, "screen", lambda: secondary)
+        dialog.move(-1400, 40)
+        handle = dialog.windowHandle()
+        handle.screenChanged.emit(handle.screen())
+        settle(app)
+&gt;       assert dialog.available_geometry() == secondary.availableGeometry()
+E       assert PyQt5.QtCore.QRect(0, 0, 1280, 720) == PyQt5.QtCore.QRect(-1440, 0, 1440, 900)
+E        +  where PyQt5.QtCore.QRect(0, 0, 1280, 720) = available_geometry()
+E        +    where available_geometry = &lt;frontend.desktop.components.dialogs.StandardDialog object at 0x000001D3F3574290&gt;.available_geometry
+E        +  and   PyQt5.QtCore.QRect(-1440, 0, 1440, 900) = availableGeometry()
+E        +    where availableGeometry = &lt;tests.ui.test_standard_window_geometry.DesktopScreen object at 0x000001D3F2FAFB60&gt;.availableGeometry
+
+tests\ui\test_standard_dialog_geometry.py:44: AssertionError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_geometry" name="test_explicit_minimum_yields_to_small_screen_and_recovers" time="1.081"><failure message="assert False&#10; +  where False = &lt;built-in method contains of QRect object at 0x000001D3F3559860&gt;(PyQt5.QtCore.QRect(0, 0, 904, 764))&#10; +    where &lt;built-in method contains of QRect object at 0x000001D3F3559860&gt; = PyQt5.QtCore.QRect(0, 0, 800, 600).contains&#10; +      where PyQt5.QtCore.QRect(0, 0, 800, 600) = availableGeometry()&#10; +        where availableGeometry = &lt;tests.ui.test_standard_window_geometry.DesktopScreen object at 0x000001D3F3574320&gt;.availableGeometry&#10; +    and   PyQt5.QtCore.QRect(0, 0, 904, 764) = &lt;built-in method frameGeometry of StandardDialog object at 0x000001D3F35CA330&gt;()&#10; +      where &lt;built-in method frameGeometry of StandardDialog object at 0x000001D3F35CA330&gt; = &lt;frontend.desktop.components.dialogs.StandardDialog object at 0x000001D3F35CA330&gt;.frameGeometry">dialog_desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D3F3574200&gt;, &lt;tests.ui.test_standard_window_geometry.DesktopScreen ob...object at 0x000001D3F35CA330&gt;, &lt;frontend.desktop.components.text_inputs.StandardLineEdit object at 0x000001D3F35CA720&gt;)
+
+    def test_explicit_minimum_yields_to_small_screen_and_recovers(dialog_desktop):
+        app, primary, _, dialog, _ = dialog_desktop
+        dialog.setMinimumSize(900, 760)
+        primary.geometry = QRect(0, 0, 800, 600)
+        dialog.show()
+        settle(app)
+&gt;       assert primary.availableGeometry().contains(dialog.frameGeometry())
+E       assert False
+E        +  where False = &lt;built-in method contains of QRect object at 0x000001D3F3559860&gt;(PyQt5.QtCore.QRect(0, 0, 904, 764))
+E        +    where &lt;built-in method contains of QRect object at 0x000001D3F3559860&gt; = PyQt5.QtCore.QRect(0, 0, 800, 600).contains
+E        +      where PyQt5.QtCore.QRect(0, 0, 800, 600) = availableGeometry()
+E        +        where availableGeometry = &lt;tests.ui.test_standard_window_geometry.DesktopScreen object at 0x000001D3F3574320&gt;.availableGeometry
+E        +    and   PyQt5.QtCore.QRect(0, 0, 904, 764) = &lt;built-in method frameGeometry of StandardDialog object at 0x000001D3F35CA330&gt;()
+E        +      where &lt;built-in method frameGeometry of StandardDialog object at 0x000001D3F35CA330&gt; = &lt;frontend.desktop.components.dialogs.StandardDialog object at 0x000001D3F35CA330&gt;.frameGeometry
+
+tests\ui\test_standard_dialog_geometry.py:62: AssertionError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_geometry" name="test_reopening_preserves_user_size_and_capture" time="1.884"><failure message="assert PyQt5.QtCore.QSize(600, 161) == PyQt5.QtCore.QSize(850, 500)&#10; +  where PyQt5.QtCore.QSize(600, 161) = &lt;built-in method size of StandardDialog object at 0x000001D3F35CA840&gt;()&#10; +    where &lt;built-in method size of StandardDialog object at 0x000001D3F35CA840&gt; = &lt;frontend.desktop.components.dialogs.StandardDialog object at 0x000001D3F35CA840&gt;.size">dialog_desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D3F3574200&gt;, &lt;tests.ui.test_standard_window_geometry.DesktopScreen ob...object at 0x000001D3F35CA840&gt;, &lt;frontend.desktop.components.text_inputs.StandardLineEdit object at 0x000001D3F35CAE70&gt;)
+
+    def test_reopening_preserves_user_size_and_capture(dialog_desktop):
+        app, _, _, dialog, field = dialog_desktop
+        dialog.show()
+        settle(app)
+        dialog.resize(850, 500)
+        settle(app)
+        saved = dialog.size()
+        dialog.hide()
+        dialog.show()
+        settle(app)
+&gt;       assert dialog.size() == saved
+E       assert PyQt5.QtCore.QSize(600, 161) == PyQt5.QtCore.QSize(850, 500)
+E        +  where PyQt5.QtCore.QSize(600, 161) = &lt;built-in method size of StandardDialog object at 0x000001D3F35CA840&gt;()
+E        +    where &lt;built-in method size of StandardDialog object at 0x000001D3F35CA840&gt; = &lt;frontend.desktop.components.dialogs.StandardDialog object at 0x000001D3F35CA840&gt;.size
+
+tests\ui\test_standard_dialog_geometry.py:80: AssertionError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_geometry" name="test_lost_dialog_moves_back_inside_available_screen" time="1.011"><failure message="assert False&#10; +  where False = &lt;built-in method contains of QRect object at 0x000001D3F3559B70&gt;(PyQt5.QtCore.QRect(5000, 5000, 604, 165))&#10; +    where &lt;built-in method contains of QRect object at 0x000001D3F3559B70&gt; = PyQt5.QtCore.QRect(0, 0, 1280, 720).contains&#10; +      where PyQt5.QtCore.QRect(0, 0, 1280, 720) = availableGeometry()&#10; +        where availableGeometry = &lt;tests.ui.test_standard_window_geometry.DesktopScreen object at 0x000001D3F35CA3C0&gt;.availableGeometry&#10; +    and   PyQt5.QtCore.QRect(5000, 5000, 604, 165) = &lt;built-in method frameGeometry of StandardDialog object at 0x000001D3F35CAB10&gt;()&#10; +      where &lt;built-in method frameGeometry of StandardDialog object at 0x000001D3F35CAB10&gt; = &lt;frontend.desktop.components.dialogs.StandardDialog object at 0x000001D3F35CAB10&gt;.frameGeometry">dialog_desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D3F3574200&gt;, &lt;tests.ui.test_standard_window_geometry.DesktopScreen ob...object at 0x000001D3F35CAB10&gt;, &lt;frontend.desktop.components.text_inputs.StandardLineEdit object at 0x000001D3F35CB380&gt;)
+
+    def test_lost_dialog_moves_back_inside_available_screen(dialog_desktop):
+        app, primary, _, dialog, _ = dialog_desktop
+        dialog.show()
+        settle(app)
+        dialog.move(5000, 5000)
+        settle(app)
+&gt;       assert primary.availableGeometry().contains(dialog.frameGeometry())
+E       assert False
+E        +  where False = &lt;built-in method contains of QRect object at 0x000001D3F3559B70&gt;(PyQt5.QtCore.QRect(5000, 5000, 604, 165))
+E        +    where &lt;built-in method contains of QRect object at 0x000001D3F3559B70&gt; = PyQt5.QtCore.QRect(0, 0, 1280, 720).contains
+E        +      where PyQt5.QtCore.QRect(0, 0, 1280, 720) = availableGeometry()
+E        +        where availableGeometry = &lt;tests.ui.test_standard_window_geometry.DesktopScreen object at 0x000001D3F35CA3C0&gt;.availableGeometry
+E        +    and   PyQt5.QtCore.QRect(5000, 5000, 604, 165) = &lt;built-in method frameGeometry of StandardDialog object at 0x000001D3F35CAB10&gt;()
+E        +      where &lt;built-in method frameGeometry of StandardDialog object at 0x000001D3F35CAB10&gt; = &lt;frontend.desktop.components.dialogs.StandardDialog object at 0x000001D3F35CAB10&gt;.frameGeometry
+
+tests\ui\test_standard_dialog_geometry.py:90: AssertionError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_geometry" name="test_crossing_monitor_edge_is_not_undone_before_screen_change" time="1.488" /><testcase classname="tests.ui.test_standard_dialog_geometry" name="test_validation_callback_does_not_accept_before_validation" time="0.095"><failure message="TypeError: StandardDialog.add_button_box() got an unexpected keyword argument 'on_accept'">dialog_desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001D3F3574200&gt;, &lt;tests.ui.test_standard_window_geometry.DesktopScreen ob...object at 0x000001D3F3574170&gt;, &lt;frontend.desktop.components.text_inputs.StandardLineEdit object at 0x000001D3F3574290&gt;)
+
+    def test_validation_callback_does_not_accept_before_validation(dialog_desktop):
+        app, _, _, dialog, _ = dialog_desktop
+        from PyQt5.QtCore import Qt
+        from PyQt5.QtTest import QTest
+        from PyQt5.QtWidgets import QDialogButtonBox
+    
+        attempts = []
+&gt;       box = dialog.add_button_box(on_accept=lambda: attempts.append("invalid"))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: StandardDialog.add_button_box() got an unexpected keyword argument 'on_accept'
+
+tests\ui\test_standard_dialog_geometry.py:111: TypeError</failure></testcase></testsuite></testsuites>

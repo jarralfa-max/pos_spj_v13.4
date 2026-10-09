@@ -40,6 +40,7 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         ChangeDeviceStatusUseCase,
         RegisterDeviceProfileUseCase,
         RegisterDeviceUseCase,
+        SetDeviceWindowsPrinterUseCase,
         UpdateDeviceUseCase,
     )
     from backend.application.use_cases.configuracion.document_template_use_cases import (
@@ -62,6 +63,7 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         CreateAdvertisingSlotUseCase,
         CreateContentCampaignUseCase,
         CreateContentUseCase,
+        ImportDisplayMediaUseCase,
         UnassignCampaignPlacementUseCase,
         UpdateAdvertisingSlotUseCase,
         UpdateContentCampaignUseCase,
@@ -76,6 +78,7 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         CreateWebhookEndpointUseCase,
         RecordIntegrationHealthCheckUseCase,
         SetIntegrationInstanceCredentialUseCase,
+        TestIntegrationConnectionUseCase,
         UpdateIntegrationDefinitionUseCase,
         UpdateIntegrationInstanceUseCase,
     )
@@ -115,6 +118,15 @@ def build_configuracion_view(*, connection, session_context, parent=None):
     from backend.application.use_cases.save_user_use_case import SaveUserUseCase
     from backend.application.use_cases.set_user_active_use_case import SetUserActiveUseCase
     from backend.application.use_cases.save_role_use_case import SaveRoleUseCase
+    from backend.application.use_cases.save_role_permissions_use_case import (
+        SaveRolePermissionsUseCase,
+    )
+    from backend.application.security.role_permission_matrix import RolePermissionMatrixQuery
+    from backend.application.security.user_permission_matrix import UserPermissionMatrixQuery
+    from backend.application.use_cases.save_user_permissions_use_case import (
+        SaveUserPermissionsUseCase,
+    )
+    from backend.application.use_cases.configuracion.device_test_use_cases import TestDeviceUseCase
     from backend.application.use_cases.set_installation_branch_use_case import (
         SetInstallationBranchUseCase,
     )
@@ -264,6 +276,14 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         save_role_uc=SaveRoleUseCase(role_management_service),
         company_profile_service=company_profile_service,
         set_installation_branch_uc=SetInstallationBranchUseCase(company_profile_service),
+        role_permission_matrix_query=RolePermissionMatrixQuery(connection),
+        save_role_permissions_uc=SaveRolePermissionsUseCase(connection, authorization),
+        test_integration_connection_uc=TestIntegrationConnectionUseCase(connection, secret_store),
+        test_device_uc=TestDeviceUseCase(connection),
+        user_permission_matrix_query=UserPermissionMatrixQuery(connection),
+        save_user_permissions_uc=SaveUserPermissionsUseCase(connection, authorization),
+        import_display_media_uc=ImportDisplayMediaUseCase(connection),
+        set_device_windows_printer_uc=SetDeviceWindowsPrinterUseCase(connection),
     )
 
     def has_permission(permission: str) -> bool:

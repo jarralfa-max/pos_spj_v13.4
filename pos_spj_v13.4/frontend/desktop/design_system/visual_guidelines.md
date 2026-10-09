@@ -92,6 +92,11 @@ y del área de trabajo y recupera su mínimo al volver a una pantalla mayor.
 La maximización, pantalla completa y minimización pertenecen al gestor de
 ventanas de Qt. Al restaurar, vuelve a comprobar los límites.
 
+Durante un traslado entre monitores conectados, el marco puede atravesar el
+borde compartido sin saltar al monitor anterior. Al mostrar, restaurar o cambiar
+el área disponible se ajusta el marco completo; las ventanas demasiado grandes
+o completamente fuera del escritorio recuperan una posición accesible.
+
 Tema y densidad se heredan del `QApplication`; no se aplican estilos locales a
 la ventana. `ApplicationWindow` conserva su barra de estado y contexto de sesión.
 Los mensajes nativos de `statusBar()` no se borran al ajustar geometría o tema.

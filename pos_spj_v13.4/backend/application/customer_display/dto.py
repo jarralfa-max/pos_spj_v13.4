@@ -16,3 +16,6 @@ class ResolvedAdDTO:
     content_type: str
     body: str
     duration_seconds: int
+    #: Archivo ya resuelto para IMAGE/VIDEO (ruta en la carpeta de media de la
+    #: aplicación); `None` si es texto o si el archivo ya no está.
+    media_path: str | None = None

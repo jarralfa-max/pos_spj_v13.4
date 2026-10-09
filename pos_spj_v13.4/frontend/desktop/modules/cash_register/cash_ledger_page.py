@@ -12,6 +12,7 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.components.view_states import ViewState, create_state_widget
+from frontend.desktop.modules.cash_register.cash_register_presenter import CashContextError
 from frontend.desktop.modules.cash_register.cash_register_dialogs import (
     CashDenominationDialog,
     CashReasonDialog,
@@ -136,23 +137,24 @@ class CashLedgerPage(QWidget):
         try:
             response = self._presenter.reverse_cash_movement(
                 entry_id=entry_id,
-                authorized_by=result.authorizer_user,
+                authorized_by=self._presenter.resolve_authorizer(
+                    username=result.authorizer_user, password=result.password),
                 reason=result.reason,
             )
             self._show_result(getattr(response, "message", "Movimiento reversado"))
             self.refresh()
-        except CashRegisterError as exc:
+        except (CashRegisterError, CashContextError) as exc:
             self._show_error(user_facing_error(exc))
 
     def _request_movement(self, movement_type: str, title: str) -> None:
         if self._presenter is None:
             return
-        reason_options = ()
-        if movement_type == "SAFE_DROP":
-            reason_options = tuple(self._presenter.movement_reason_options("SAFE_DROP"))
-            if not reason_options:
-                self._show_error("No hay motivos vigentes configurados para retiro a boveda.")
-                return
+        reason_options = tuple(self._presenter.movement_reason_options(movement_type))
+        if not reason_options:
+            self._show_error(
+                "No hay motivos vigentes para este movimiento. "
+                "Configuralos en Caja > Configuracion > Motivos.")
+            return
         dialog = CashReasonDialog(self, title=title, reason_options=reason_options)
         if dialog.exec_() != dialog.Accepted:
             return
@@ -178,9 +180,11 @@ class CashLedgerPage(QWidget):
                     amount=result.amount,
                     concept=concept,
                     reason_code=result.reason_code,
-                    authorized_by=authorization.authorizer_user,
+                    authorized_by=self._presenter.resolve_authorizer(
+                        username=authorization.authorizer_user,
+                        password=authorization.password),
                 )
-            except CashRegisterError as exc:
+            except (CashRegisterError, CashContextError) as exc:
                 self._show_error(user_facing_error(exc))
                 return
         except CashRegisterError as exc:

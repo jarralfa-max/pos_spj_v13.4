@@ -1,11 +1,20 @@
-"""Resolve invoice tolerances from canonical configuration, never UI constants."""
+"""Tolerancias de factura: parámetros gobernados de Configuración.
+
+`procurement.tolerance.{quantity,price,tax}`, afinables por proveedor
+(ámbito SUPPLIER) y resueltos con la regla única del gobierno: proveedor →
+global → omisión (0). Antes eran claves sueltas en `configuraciones`
+(`...default`, `...supplier.<id>`, `...nature.<x>`); sin ellas la conciliación
+reventaba (migración 266). Con valor de omisión en el catálogo eso ya no puede
+pasar. El nivel por "naturaleza" se retiró: ningún llamador lo mandaba nunca.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
 
+from backend.application.settings.configuration_reader import ConfigurationReader
 from backend.domain.procurement.value_objects import Tolerance
+from backend.domain.settings.enums import ScopeType
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,27 +26,10 @@ class InvoiceTolerances:
 
 class ProcurementToleranceSettingsQueryService:
     def __init__(self, connection) -> None:
-        self._connection = connection
+        self._reader = ConfigurationReader(connection)
 
-    def invoice_tolerances(self, *, supplier_id: str | None = None,
-                           nature: str | None = None) -> InvoiceTolerances:
-        return InvoiceTolerances(
-            quantity=Tolerance(self._value("quantity", supplier_id, nature)),
-            price=Tolerance(self._value("price", supplier_id, nature)),
-            tax=Tolerance(self._value("tax", supplier_id, nature)),
-        )
-
-    def _value(self, kind: str, supplier_id: str | None,
-               nature: str | None) -> Decimal:
-        keys = []
-        if supplier_id:
-            keys.append(f"procurement.tolerance.{kind}.supplier.{supplier_id}")
-        if nature:
-            keys.append(f"procurement.tolerance.{kind}.nature.{nature}")
-        keys.append(f"procurement.tolerance.{kind}.default")
-        for key in keys:
-            row = self._connection.execute(
-                "SELECT valor FROM configuraciones WHERE clave=?", (key,)).fetchone()
-            if row is not None:
-                return Decimal(str(row[0]))
-        raise LookupError(f"Falta configuración canónica de tolerancia: {kind}")
+    def invoice_tolerances(self, *, supplier_id: str | None = None) -> InvoiceTolerances:
+        context = {ScopeType.SUPPLIER: supplier_id} if supplier_id else None
+        return InvoiceTolerances(**{
+            kind: Tolerance(self._reader.get(f"procurement.tolerance.{kind}", context=context))
+            for kind in ("quantity", "price", "tax")})

@@ -21,7 +21,6 @@ from frontend.desktop.modules.customers_crm.customers_crm_routes import (
 )
 from frontend.desktop.modules.customers_crm.customers_crm_workspace import CustomersCrmWorkspace
 from frontend.desktop.modules.customers_crm.view_models import CustomerCrmCapabilities
-from frontend.desktop.themes.tokens import ResponsiveBreakpoints
 
 
 @pytest.fixture(scope="module")
@@ -171,19 +170,30 @@ class TestCustomersCrmWorkspace:
         assert workspace._stack.count() == len(CUSTOMER_CRM_ROUTES)
         assert workspace._stack.count() != clientes_only_count
 
-    def test_resize_below_breakpoint_collapses_nav_width(self, app):
+    def test_resize_preserves_manual_sidebar_width_and_active_page(self, app):
         workspace = CustomersCrmWorkspace(_FakePresenter(_ALL_TRUE))
+        workspace.select_route("crm.pipeline")
+        active_page = workspace._stack.currentWidget()
         workspace.show()
-        workspace.resize(ResponsiveBreakpoints.COMPACT - 100, 800)
-        QtWidgets.QApplication.processEvents()
-        assert workspace._nav.maximumWidth() == 180
+        for collapsed, limits in ((False, (180, 240)), (True, (60, 64))):
+            workspace._nav.set_collapsed(collapsed)
+            for width, height in ((1280, 720), (1920, 1080)):
+                workspace.resize(width, height)
+                app.processEvents()
+                assert (workspace._nav.minimumWidth(), workspace._nav.maximumWidth()) == limits
+                assert workspace._stack.currentWidget() is active_page
+        workspace.close()
 
-    def test_resize_above_breakpoint_expands_nav_width(self, app):
+    def test_manual_expand_restores_sidebar_width_at_large_resolution(self, app):
         workspace = CustomersCrmWorkspace(_FakePresenter(_ALL_TRUE))
+        workspace._nav.set_collapsed(True)
         workspace.show()
-        workspace.resize(ResponsiveBreakpoints.WIDE, 900)
-        QtWidgets.QApplication.processEvents()
+        workspace.resize(1920, 1080)
+        workspace._nav.set_collapsed(False)
+        app.processEvents()
+        assert workspace._nav.minimumWidth() == 180
         assert workspace._nav.maximumWidth() == 240
+        workspace.close()
 
     def test_page_header_shows_module_title(self, app):
         workspace = CustomersCrmWorkspace(_FakePresenter(_ALL_TRUE))

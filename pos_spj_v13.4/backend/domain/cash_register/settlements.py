@@ -60,6 +60,11 @@ _ALIASES = {
 }
 
 
+def settlement_catalog() -> tuple[CashSettlementDefinition, ...]:
+    """Todos los medios que Caja sabe liquidar, en el orden del catálogo."""
+    return tuple(_DEFINITIONS.values())
+
+
 def classify_settlement(raw_type: str, *, allow_future: bool = False) -> CashSettlementDefinition:
     key = str(raw_type or "").strip().upper()
     canonical = _ALIASES.get(key)

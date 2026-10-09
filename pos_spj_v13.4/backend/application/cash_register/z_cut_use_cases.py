@@ -70,7 +70,7 @@ class GenerateZCutUseCase:
                 shift_id=shift_id, branch_id=branch_id, generated_by=actor_user_id,
                 expected_cash=expected, counted_cash=counted,
                 blind_count_id=count["id"], operation_id=operation_id,
-                snapshot=snapshot)
+                snapshot=snapshot, document_number=uow.folios.next("Z", branch_id))
             uow.cuts.add(cut)
             difference = None
             if difference_amount != 0:
@@ -120,6 +120,8 @@ class GenerateZCutUseCase:
                     actor_user_id=actor_user_id, shift_id=shift_id,
                     document_number=cut.document_number,
                     expected_cash=str(expected), counted_cash=str(counted),
+                    sales_cash=snapshot["sales_cash"],
+                    business_date=shift.get("business_date"),
                     difference=str(difference_amount),
                     difference_id=difference.id if difference else None,
                     blind_count_id=count["id"], final=True,

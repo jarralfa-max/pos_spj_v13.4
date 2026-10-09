@@ -20,16 +20,14 @@ a su vez llama al servicio de lectura de la capa de aplicación.
 from __future__ import annotations
 
 from PyQt5.QtCore import QSignalBlocker
-from PyQt5.QtWidgets import QHBoxLayout, QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QStackedWidget, QWidget
 
 from frontend.desktop.components.icons import Icons
-from frontend.desktop.components.page_header import PageHeader
-from frontend.desktop.components.page_viewport import PageViewport
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.view_states import ViewState, create_state_widget
 from frontend.desktop.modules.pricing.navigation import visible_entries
 from frontend.desktop.modules.pricing.routes import build_page
-from frontend.desktop.themes.tokens import Spacing
 
 
 class PricingWorkspace(QWidget):
@@ -51,33 +49,20 @@ class PricingWorkspace(QWidget):
         self.setObjectName("pricingWorkspace")
         self.setAccessibleName("Módulo de Precios y Costos")
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(
-            Spacing.PAGE_MARGIN_HORIZONTAL, Spacing.PAGE_MARGIN_VERTICAL,
-            Spacing.PAGE_MARGIN_HORIZONTAL, Spacing.PAGE_MARGIN_VERTICAL)
-        root.setSpacing(Spacing.MD)
-
-        root.addWidget(PageHeader(
-            self, title="Precios y Costos",
-            subtitle="Listas de precio, precios por producto, costos e historial.",
-            icon=Icons.FINANCE, compact=True))
-
-        shell = QHBoxLayout()
-        shell.setSpacing(Spacing.LG)
-        root.addLayout(shell, stretch=1)
-
         self._nav = SideNav(self)
         self._nav.setProperty("role", "nav")
         self._nav.setAccessibleName("Navegación de Precios y Costos")
         self._nav.navigated.connect(self._on_navigated)
-        shell.addWidget(self._nav)
 
         self._stack = QStackedWidget(self)
         self._stack.setObjectName("pricingStack")
         self._stack.setAccessibleName("Páginas del módulo de Precios y Costos")
-        self.viewport = PageViewport(self)
-        self.viewport.set_page(self._stack)
-        shell.addWidget(self.viewport, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Precios y Costos",
+            subtitle="Listas de precio, precios por producto, costos e historial.",
+            icon=Icons.FINANCE, sidebar=self._nav, content=self._stack,
+        )
+        self.viewport = self.module_layout.viewport
 
         self._build_routes()
 

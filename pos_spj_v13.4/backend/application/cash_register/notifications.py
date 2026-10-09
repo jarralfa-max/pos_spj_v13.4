@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
+from backend.application.cash_register.notification_text import describe_cash_event
 from backend.application.cash_register.permissions import CashPermissions
 from backend.infrastructure.db.repositories.cash_register.unit_of_work import CashRegisterUnitOfWork
 from backend.shared.ids import new_uuid, validate_uuidv7
@@ -53,8 +54,13 @@ class PrepareCashNotificationsUseCase:
             if policy is None:
                 return NotificationDispatchResult()
             payload = json.loads(event["payload_json"])
-            title = f"Caja · {event['event_name']}"
-            body = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+            # Una diferencia dentro de tolerancia queda registrada sin avisar.
+            if payload.get("alert_required") is False:
+                return NotificationDispatchResult()
+            title, body = describe_cash_event(
+                event["event_name"], payload,
+                user_name=uow.notifications.user_display_name,
+                cut_folio=uow.notifications.cut_folio)
             prepared = 0
             for channel in policy["channels"]:
                 for recipient in uow.notifications.recipients(

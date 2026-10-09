@@ -23,9 +23,11 @@ from backend.application.loyalty.queries.program_settings_query import (  # noqa
 )
 from backend.infrastructure.db.schema.loyalty_schema import create_loyalty_schema  # noqa: E402
 from backend.shared.ids import new_uuid  # noqa: E402
+from tests.integration._governed_settings import ensure_governance  # noqa: E402
 
 _289 = importlib.import_module("migrations.standalone.289_sales_returns_loyalty_seed")
 _176 = importlib.import_module("migrations.standalone.176_cash_register_configuration_schema")
+_303 = importlib.import_module("migrations.standalone.303_configuration_governance_live")
 
 
 @pytest.fixture
@@ -35,6 +37,7 @@ def conn():
     create_loyalty_schema(c)
     c.execute("CREATE TABLE configuraciones (clave TEXT PRIMARY KEY, valor TEXT,"
               " tipo TEXT, grupo TEXT, descripcion TEXT)")
+    ensure_governance(c)
     c.commit()
     yield c
     c.close()
@@ -144,6 +147,7 @@ def test_migration_289_never_overwrites_an_existing_refund_cap_or_rule(conn):
     conn.execute("INSERT INTO configuraciones (clave, valor) VALUES"
                  " ('loyalty_pesos_por_punto', '25')")
     _289.run(conn)
+    _303.run(conn)  # la cadena completa: la 303 pasa el valor al gobierno
 
     assert [tuple(r) for r in conn.execute(
         "SELECT approval_threshold, hard_cap FROM cash_operation_limits")] == [("1000", "2000")]

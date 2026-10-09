@@ -19,10 +19,11 @@ from __future__ import annotations
 from backend.domain.device_management.entities.workstation_device_assignment import (
     WorkstationDeviceAssignment,
 )
-from backend.domain.device_management.enums import AssignmentRole
+from backend.domain.device_management.enums import CASH_REGISTER_OWNED_ROLES, AssignmentRole
 from backend.domain.device_management.exceptions import (
     DeviceAssignmentConflictError,
     DeviceAssignmentNotFoundError,
+    DeviceInvalidValueError,
     DeviceNotFoundError,
 )
 from backend.domain.device_management.policies.device_assignment_policy import (
@@ -49,6 +50,9 @@ class AssignDeviceUseCase:
         assigned_by_user_id: str = "",
     ) -> WorkstationDeviceAssignment:
         role = AssignmentRole(role)
+        if role in CASH_REGISTER_OWNED_ROLES:
+            raise DeviceInvalidValueError(
+                "El cajón y la terminal de pago de una caja se asignan en Caja.")
         device = self._devices.get(device_id)
         if device is None:
             raise DeviceNotFoundError(f"Dispositivo {device_id} no encontrado")

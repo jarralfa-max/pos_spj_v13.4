@@ -31,6 +31,7 @@ from backend.application.loyalty.use_cases.program_settings_use_cases import (
 from backend.domain.loyalty.policies.accrual_policy import AccrualSettings, LoyaltyAccrualPolicy
 from backend.infrastructure.db.schema.loyalty_schema import create_loyalty_schema
 from backend.shared.ids import new_uuid
+from tests.integration._governed_settings import ensure_governance, set_setting
 
 
 @pytest.fixture
@@ -40,6 +41,7 @@ def conn():
     create_loyalty_schema(c)
     c.execute("CREATE TABLE configuraciones (clave TEXT PRIMARY KEY, valor TEXT,"
               " tipo TEXT, grupo TEXT, descripcion TEXT)")
+    ensure_governance(c)
     c.commit()
     yield c
     c.close()
@@ -95,7 +97,7 @@ def test_a_walk_in_sale_earns_nothing(conn):
 
 
 def test_credit_accrual_is_configurable(conn):
-    conn.execute("INSERT INTO configuraciones (clave, valor) VALUES ('loyalty_credito_acumula','0')")
+    set_setting(conn, "loyalty.credit_earns", False)
     customer = new_uuid()
     SaleLoyaltyEventHandlers(conn).on_sale_completed(_completed(
         customer=customer, total="300",
@@ -187,7 +189,7 @@ def test_invalid_settings_are_rejected_and_nothing_changes(conn):
         credit_earns=True, expiration_months=12, point_value=Decimal("0.10"), min_points=0,
         max_percent=Decimal("0.5"))
     assert result.success is False
-    assert conn.execute("SELECT COUNT(*) FROM configuraciones").fetchone()[0] == 0
+    assert conn.execute("SELECT COUNT(*) FROM configuration_values").fetchone()[0] == 0
 
 
 def test_editing_settings_requires_the_program_permission(conn):

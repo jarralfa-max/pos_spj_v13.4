@@ -37,6 +37,10 @@ class FilePathInput(QWidget):
     def path(self) -> str:
         return self._field.text().strip()
 
+    def set_file_filter(self, file_filter: str) -> None:
+        """Cambia los tipos de archivo que ofrece el selector."""
+        self._filter = file_filter
+
     def set_path(self, value: str | None) -> None:
         self._field.setText(value or "")
 

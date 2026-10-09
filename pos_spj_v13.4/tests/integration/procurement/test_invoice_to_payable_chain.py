@@ -124,14 +124,16 @@ def _payables(conn):
 
 
 class TestTolerancesAreConfigured:
-    def test_without_the_seeded_tolerances_matching_crashed(self, conn):
-        """Fija el defecto: sin la 266 la conciliación reventaba y la pantalla
-        decía "Error inesperado"."""
+    def test_without_saved_tolerances_matching_uses_the_catalog_default(self, conn):
+        """Antes, sin la 266 la conciliación reventaba ("Error inesperado").
+        Desde SET-26 las tolerancias son parámetros gobernados con valor de
+        omisión (0) en el catálogo: sin nada guardado, concilia igual."""
         conn.execute("DELETE FROM configuraciones WHERE clave LIKE 'procurement.tolerance%'")
         conn.commit()
         compras, _g, po, line = _received_order(conn)
-        ok, msg, _ = compras.match_invoice(_invoice(compras, po=po, line=line))
-        assert not ok and "inesperado" in msg
+        ok, msg, d = compras.match_invoice(_invoice(compras, po=po, line=line))
+        assert ok, msg
+        assert d["match_result"] == "MATCHED"
 
     def test_with_266_a_clean_invoice_matches(self, conn):
         compras, _g, po, line = _received_order(conn)

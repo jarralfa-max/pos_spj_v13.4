@@ -67,6 +67,11 @@ class AppPaths:
         return self.user_data_dir / "imagenes_productos"
 
     @property
+    def display_media_dir(self) -> Path:
+        """Imágenes y videos de la pantalla del cliente (registro `display_media`)."""
+        return self.user_data_dir / "media" / "pantalla_cliente"
+
+    @property
     def updater_dir(self) -> Path:
         return self.user_data_dir / "updater"
 
@@ -88,6 +93,7 @@ class AppPaths:
             self.backups_dir,
             self.logs_dir,
             self.product_images_dir,
+            self.display_media_dir,
             self.downloads_dir,
             self.manifests_dir,
         ):

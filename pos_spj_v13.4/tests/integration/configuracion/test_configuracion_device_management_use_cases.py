@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import pytest
 
+from backend.domain.device_management.exceptions import DeviceInvalidValueError
+
 from backend.application.use_cases.configuracion.device_management_use_cases import (
     ChangeDeviceStatusUseCase,
     DeviceStatusAction,
@@ -20,7 +22,6 @@ from backend.domain.device_management.exceptions import (
     DeviceNotFoundError,
     DeviceProfileNotFoundError,
     DeviceTransitionNotAllowedError,
-    InvalidPaymentTerminalProfileError,
     InvalidPrinterProfileError,
     InvalidReaderProfileError,
     InvalidScaleProfileError,
@@ -96,9 +97,9 @@ class TestRegisterDeviceProfileUseCase:
     def test_accepts_string_or_enum_for_device_type_and_connection_type(self, conn):
         use_case = RegisterDeviceProfileUseCase(conn)
         profile = use_case.execute(
-            name="Cajón", device_type=DeviceType.CASH_DRAWER, connection_type=ConnectionType.USB,
+            name="Visor", device_type=DeviceType.CUSTOMER_DISPLAY, connection_type=ConnectionType.USB,
         )
-        assert profile.device_type is DeviceType.CASH_DRAWER
+        assert profile.device_type is DeviceType.CUSTOMER_DISPLAY
 
     def test_registers_a_printer_profile_with_paper_and_protocol(self, conn):
         # SET-8 follow-up: paper_profile/protocol are validated via
@@ -175,36 +176,13 @@ class TestRegisterDeviceProfileUseCase:
         profile = use_case.execute(name="Otro", device_type="OTHER", connection_type="USB")
         assert profile.capabilities == ()
 
-    def test_registers_a_cash_drawer_profile_with_auto_drawer_pulse_capability(self, conn):
-        # SET-10 follow-up: same "capabilities was always empty" gap as
-        # SET-9 — no cash drawer profile could ever pass
-        # assert_valid_cash_drawer_profile() (requires DRAWER_PULSE)
-        # before this. Deterministic from device_type, never asked of
-        # the caller.
-        use_case = RegisterDeviceProfileUseCase(conn)
-        profile = use_case.execute(name="Cajon APG", device_type="CASH_DRAWER", connection_type="USB")
-        assert profile.has_capability(DeviceCapabilityCode.DRAWER_PULSE)
-
-    def test_registers_a_payment_terminal_profile_with_selected_capabilities(self, conn):
-        # Unlike scales/readers/drawers, a payment terminal's capabilities
-        # are a genuine choice (which payment methods it supports), so
-        # the use case accepts them from the caller instead of deriving
-        # them.
-        use_case = RegisterDeviceProfileUseCase(conn)
-        profile = use_case.execute(
-            name="Terminal Clip", device_type="PAYMENT_TERMINAL", connection_type="NETWORK",
-            host="192.168.1.60", port=8080, payment_capabilities=("CARD_CHIP", "CARD_CONTACTLESS"),
-        )
-        assert profile.has_capability(DeviceCapabilityCode.CARD_CHIP)
-        assert profile.has_capability(DeviceCapabilityCode.CARD_CONTACTLESS)
-        assert not profile.has_capability(DeviceCapabilityCode.CARD_SWIPE)
-
-    def test_rejects_a_payment_terminal_profile_with_no_capabilities(self, conn):
-        # §20: a terminal that can neither read a card nor accept/dispense
-        # cash isn't a payment terminal.
-        use_case = RegisterDeviceProfileUseCase(conn)
-        with pytest.raises(InvalidPaymentTerminalProfileError):
-            use_case.execute(name="Terminal vacía", device_type="PAYMENT_TERMINAL", connection_type="USB")
+    @pytest.mark.parametrize("device_type", ["CASH_DRAWER", "PAYMENT_TERMINAL"])
+    def test_cash_drawers_and_payment_terminals_belong_to_caja(self, conn, device_type):
+        """Decisión del usuario (2026-10-04): Caja los administra (CASH-18);
+        un segundo registro en Configuración se contradiría con el de Caja."""
+        with pytest.raises(DeviceInvalidValueError, match="Caja"):
+            RegisterDeviceProfileUseCase(conn).execute(
+                name="Aparato de caja", device_type=device_type, connection_type="USB")
 
 
 class TestRegisterDeviceUseCase:

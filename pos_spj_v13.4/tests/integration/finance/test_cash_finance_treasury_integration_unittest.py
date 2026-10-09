@@ -35,7 +35,8 @@ class CashFinanceTreasuryIntegrationTest(unittest.TestCase):
     def test_z_cut_posts_counted_cash_and_difference_once(self):
         shift = new_uuid()
         source = event("CASH_Z_CUT_GENERATED", shift_id=shift,
-                       expected_cash="5000.00", counted_cash="4950.00")
+                       expected_cash="5000.00", counted_cash="4950.00",
+                       sales_cash="4000.00")
         self.router.handle(source); self.router.handle(source)
         with FinanceUnitOfWork(self.db) as uow:
             entry = uow.journal_entries.find_by_posting_reference(

@@ -45,7 +45,11 @@ class CashLedgerUiWiringArchitectureTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("CashAuthorizationRequiredError", source)
         self.assertIn('title="Autorizar movimiento"', source)
-        self.assertIn("authorized_by=authorization.authorizer_user", source)
+        # El autorizador se prueba con SU clave; nunca el nombre tecleado (§45).
+        self.assertIn("resolve_authorizer(", source)
+        self.assertIn("password=authorization.password", source)
+        self.assertNotIn("authorized_by=authorization.authorizer_user", source)
+        self.assertNotIn("authorized_by=result.authorizer_user", source)
         self.assertGreaterEqual(source.count("register_cash_movement("), 2)
 
     def test_cash_safe_drop_uses_catalog_reason_code(self):
@@ -58,7 +62,8 @@ class CashLedgerUiWiringArchitectureTests(unittest.TestCase):
         factory = (
             ROOT / "backend/infrastructure/desktop/cash_register_factory.py"
         ).read_text(encoding="utf-8")
-        self.assertIn('movement_reason_options("SAFE_DROP")', page)
+        # Todo movimiento manual (ingreso, retiro y bóveda) usa el catálogo §14/§15.
+        self.assertIn("movement_reason_options(movement_type)", page)
         self.assertIn("reason_code=result.reason_code", page)
         self.assertIn("def movement_reason_options", presenter)
         self.assertIn("RegisterSafeDropUseCase", factory)

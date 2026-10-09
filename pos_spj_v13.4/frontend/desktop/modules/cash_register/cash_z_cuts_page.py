@@ -130,7 +130,7 @@ class CashZCutsPage(QWidget):
         if not cut_id:
             return
         try:
-            print_id = self._presenter.print_z_cut(
+            self._presenter.print_z_cut(
                 cut_id=cut_id,
                 reprint=reprint,
                 reprint_reason=reason,
@@ -138,7 +138,7 @@ class CashZCutsPage(QWidget):
         except (CashRegisterError, RuntimeError, ValueError) as exc:
             self._show_error(user_facing_error(exc))
             return
-        self._show_result("Corte Z enviado a impresion." if print_id else "Corte Z enviado a impresion.")
+        self._show_result("Corte Z impreso.")
 
     def _notify(self) -> None:
         cut_id = self._selected_cut_id()

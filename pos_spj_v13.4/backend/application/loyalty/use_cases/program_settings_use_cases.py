@@ -5,9 +5,10 @@ Acumulación (pesos por punto, si el crédito acumula, meses de vigencia) y canj
 decidió el usuario: todo configurable desde Fidelidad; antes ni los ajustes de
 canje tenían pantalla.
 
-Exige `GROWTH_ENGINE.configuracion.editar`. Valida antes de escribir (un valor
-inválido dejaría el cobro con los de fábrica sin avisar) y deja el antes/después
-en el outbox de Fidelidad.
+Exige `GROWTH_ENGINE.configuracion.editar`. Valida antes de escribir y guarda
+por `GovernedSettingsWriter`: cada valor que cambia es una versión nueva del
+parámetro gobernado, auditada, en la misma transacción que el evento del outbox
+de Fidelidad.
 """
 
 from __future__ import annotations
@@ -25,9 +26,11 @@ from backend.application.loyalty.queries.program_settings_query import (
     LoyaltyProgramSettingsQuery,
 )
 from backend.application.loyalty.result import LoyaltyResult, fail_from_domain_error
+from backend.application.settings.governance import GovernedSettingsWriter
 from backend.application.loyalty.use_cases._base import _LoyaltyBaseUseCase
 from backend.domain.loyalty.events import SYSTEM_ACTOR_ID, LoyaltyEvents
 from backend.domain.loyalty.exceptions import LoyaltyDomainError
+from backend.domain.settings.exceptions import ConfigurationDomainError
 from backend.infrastructure.db.repositories.loyalty.unit_of_work import LoyaltyUnitOfWork
 from backend.shared.ids import new_uuid
 
@@ -68,24 +71,27 @@ class UpdateLoyaltyProgramSettingsUseCase(_LoyaltyBaseUseCase):
 
         antes = LoyaltyProgramSettingsQuery(connection).current()
         nuevos = {
-            PESOS_PER_POINT_KEY: str(pesos), CREDIT_EARNS_KEY: "1" if credit_earns else "0",
-            EXPIRATION_MONTHS_KEY: str(meses), POINT_VALUE_KEY: str(valor),
-            MIN_POINTS_KEY: str(minimo), MAX_PERCENT_KEY: str(tope),
+            PESOS_PER_POINT_KEY: pesos, CREDIT_EARNS_KEY: bool(credit_earns),
+            EXPIRATION_MONTHS_KEY: meses, POINT_VALUE_KEY: valor,
+            MIN_POINTS_KEY: minimo, MAX_PERCENT_KEY: tope,
         }
-        with LoyaltyUnitOfWork(connection) as uow:
-            for clave, valor_texto in nuevos.items():
-                connection.execute(
-                    "INSERT INTO configuraciones (clave, valor, grupo) VALUES (?,?,'fidelidad')"
-                    " ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor", (clave, valor_texto))
-            self._emit(uow, LoyaltyEvents.PROGRAM_SETTINGS_UPDATED, entity_id=new_uuid(),
-                       operation_id=operation_id, branch_id=branch_id or SYSTEM_ACTOR_ID,
-                       actor_user_id=actor_user_id,
-                       before={
-                           "pesos_per_point": str(antes.accrual.pesos_per_point),
-                           "credit_earns": antes.accrual.credit_earns,
-                           "expiration_months": antes.accrual.expiration_months,
-                           "point_value": str(antes.redemption.point_value),
-                           "min_points": antes.redemption.min_points,
-                           "max_percent": str(antes.redemption.max_percent)},
-                       after=nuevos)
+        writer = GovernedSettingsWriter(connection)
+        try:
+            with LoyaltyUnitOfWork(connection) as uow:
+                writer.stage(nuevos, actor_user_id=actor_user_id, operation_id=operation_id,
+                             reason="Fidelidad → Ajustes")
+                self._emit(uow, LoyaltyEvents.PROGRAM_SETTINGS_UPDATED, entity_id=new_uuid(),
+                           operation_id=operation_id, branch_id=branch_id or SYSTEM_ACTOR_ID,
+                           actor_user_id=actor_user_id,
+                           before={
+                               "pesos_per_point": str(antes.accrual.pesos_per_point),
+                               "credit_earns": antes.accrual.credit_earns,
+                               "expiration_months": antes.accrual.expiration_months,
+                               "point_value": str(antes.redemption.point_value),
+                               "min_points": antes.redemption.min_points,
+                               "max_percent": str(antes.redemption.max_percent)},
+                           after={clave: str(v) for clave, v in nuevos.items()})
+        except ConfigurationDomainError as exc:
+            return fail_from_domain_error(LoyaltyDomainError(str(exc)), operation_id=operation_id)
+        writer.publish()
         return LoyaltyResult.ok("Ajustes guardados", operation_id=operation_id)

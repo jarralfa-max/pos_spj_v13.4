@@ -1,19 +1,14 @@
 """Los ajustes del programa de puntos: acumulación, caducidad y canje.
 
-Viven en `configuraciones`, junto a los de canje que ya leía
-`LoyaltyRedemptionPreviewQuery` (mismas claves; renombrarlas dejaría una
-instalación en marcha con los valores de fábrica sin avisar). Las tres claves
-de acumulación son nuevas (2026-10-02); sus valores iniciales los decidió el
-usuario y los siembra la migración 289.
-
-Un valor ilegible cae al de omisión en vez de reventar el cobro: el respaldo
-es el mismo que siembra la migración.
+Son parámetros gobernados de Configuración (catálogo en
+`backend/application/settings/catalog.py`): se leen con `ConfigurationReader`
+y se cambian con `GovernedSettingsWriter`, que versiona y audita. Antes vivían
+como texto en `configuraciones`; la migración 303 los movió con su valor.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
 
 from backend.application.loyalty.queries.redemption_preview_query import (
     MAX_PERCENT_KEY,
@@ -21,12 +16,13 @@ from backend.application.loyalty.queries.redemption_preview_query import (
     POINT_VALUE_KEY,
     LoyaltyRedemptionPreviewQuery,
 )
+from backend.application.settings.configuration_reader import ConfigurationReader
 from backend.domain.loyalty.policies.accrual_policy import AccrualSettings
 from backend.domain.loyalty.policies.redemption_policy import RedemptionSettings
 
-PESOS_PER_POINT_KEY = "loyalty_pesos_por_punto"
-CREDIT_EARNS_KEY = "loyalty_credito_acumula"
-EXPIRATION_MONTHS_KEY = "loyalty_meses_caducidad"
+PESOS_PER_POINT_KEY = "loyalty.pesos_per_point"
+CREDIT_EARNS_KEY = "loyalty.credit_earns"
+EXPIRATION_MONTHS_KEY = "loyalty.points_expiration_months"
 
 
 @dataclass(frozen=True)
@@ -40,46 +36,16 @@ class LoyaltyProgramSettingsQuery:
         self._conn = connection
 
     def accrual(self) -> AccrualSettings:
-        defaults = AccrualSettings()
-        pesos = self._decimal(PESOS_PER_POINT_KEY, defaults.pesos_per_point)
-        meses = self._decimal(EXPIRATION_MONTHS_KEY, Decimal(defaults.expiration_months))
-        try:
-            return AccrualSettings(
-                pesos_per_point=pesos if pesos > 0 else defaults.pesos_per_point,
-                credit_earns=self._flag(CREDIT_EARNS_KEY, defaults.credit_earns),
-                expiration_months=max(int(meses), 0))
-        except ValueError:
-            return defaults
+        reader = ConfigurationReader(self._conn)
+        return AccrualSettings(
+            pesos_per_point=reader.get(PESOS_PER_POINT_KEY),
+            credit_earns=reader.get(CREDIT_EARNS_KEY),
+            expiration_months=reader.get(EXPIRATION_MONTHS_KEY))
 
     def current(self) -> LoyaltyProgramSettings:
         return LoyaltyProgramSettings(
             accrual=self.accrual(),
             redemption=LoyaltyRedemptionPreviewQuery(self._conn).settings())
-
-    def _raw(self, key: str) -> str | None:
-        try:
-            row = self._conn.execute(
-                "SELECT valor FROM configuraciones WHERE clave=? LIMIT 1", (key,)).fetchone()
-        except Exception:
-            return None
-        if row is None or str(row[0] or "").strip() == "":
-            return None
-        return str(row[0]).strip()
-
-    def _decimal(self, key: str, default: Decimal) -> Decimal:
-        raw = self._raw(key)
-        if raw is None:
-            return default
-        try:
-            return Decimal(raw)
-        except (InvalidOperation, ValueError):
-            return default
-
-    def _flag(self, key: str, default: bool) -> bool:
-        raw = self._raw(key)
-        if raw is None:
-            return default
-        return raw.lower() in ("1", "true", "si", "sí", "yes")
 
 
 __all__ = [

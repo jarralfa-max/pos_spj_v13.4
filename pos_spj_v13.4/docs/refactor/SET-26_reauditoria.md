@@ -37,8 +37,97 @@ prueba `gerente`, `solo_lectura` y `cajero` creados sólo en la copia.
 Verificado en la copia real: dueño 11/11 secciones; `solo_lectura` 1/11
 («General»); `gerente` 11/11 tras la 302.
 
-## 3. Pendiente
+## 3. Gobierno de configuración (hallazgo 6) — commit 2
 
-- Hallazgo 6 — siguiente bloque (decisión del usuario).
+**Regla del usuario (2026-10-04): Configuración no controla nada que ya exista
+en otro módulo** — dos pantallas para lo mismo se contradicen. Se construyó una
+página «Parámetros» en Configuración y se retiró antes del commit por esa regla.
+
+Lo que quedó:
+
+- **Backend compartido, sin pantalla en Configuración** (`backend/application/settings/`):
+  `catalog.py` (18 parámetros tipados con su valor de omisión, ámbitos y
+  criticidad), `ConfigurationReader` (herencia con la regla única del dominio;
+  devuelve valor, ámbito de origen y versión; sin caché), `GovernedSettingsWriter`
+  (versiona, expira la versión anterior, audita en `configuracion_audit_log` en
+  la transacción del módulo y publica `CONFIGURATION_*` después del commit; un
+  parámetro crítico no se puede cambiar por aquí).
+- **Contextos cortados** — cada uno sigue editándose en SU pantalla:
+  Fidelidad (6 parámetros, Fidelidad → Ajustes), Tarjetas (2, privacidad),
+  Cárnico (3 tolerancias; el resolvedor propio de 9 niveles pasa a la regla
+  única con los ámbitos SPECIES/WORK_CENTER/PRODUCTION_AREA/PLANT agregados al
+  dominio, misma precedencia de §17), Costeo (política de costo desde Precios →
+  Configuración; método y factores de reparto), Compras (tolerancias de factura
+  afinables por proveedor, ámbito SUPPLIER; el nivel «naturaleza» se retiró:
+  ningún llamador lo pedía).
+- **Migración 303**.
+- **Eliminado sin consumidores**: `TicketSettingsQueryService`,
+  `HardwareSettingsQueryService`, `SaveHardwareConfigUseCase` (+ su comando).
+- **Sin pantalla en ningún módulo** (igual que antes del corte): tolerancias de
+  factura de Compras, método/factores de reparto de Costeo y las tolerancias de
+  Cárnico por especie/producto/etc. Su editor pertenece a SU módulo.
+
+## 4. Duplicados de Configuración frente a otros módulos (decisiones del usuario)
+
+| Sección | Contraparte | Decisión | Hecho |
+|---|---|---|---|
+| Dispositivos: cajones y terminales de pago | Caja (CASH-18: `cash_drawers`, `pos_terminals`, su página) | Los administra Caja | Configuración ya no los ofrece; los casos de uso de perfil y asignación los rechazan |
+| Documentos/rutas: tarjeta de fidelidad, boleto de sorteo | Fidelidad (diseñador versionado, impresión de boletos) | Los administra Fidelidad | Fuera de las listas de plantillas y rutas; los casos de uso los rechazan |
+| Notificaciones (0 consumidores) | Caja tiene la suya | Se concentrarán en un solo módulo en el futuro | Sin cambios por ahora |
+
+## 5. Resto del bloque (2026-10-04, decisión del usuario)
+
+Happy Hour y cierre mensual se omiten: los controlan Fidelidad y Finanzas.
+
+- **Permisos por rol** (Usuarios y Roles → Roles → «Permisos»). `SaveRolePermissionsUseCase`
+  envolvía un servicio borrado con `core/` y nunca se pudo ejecutar; reescrito
+  en el mismo archivo como la única ruta. Matriz con los 35 módulos y 1081
+  acciones del catálogo canónico, por módulo, con búsqueda y marcar/quitar todo.
+  El caso de uso revalida: permiso `CONFIGURACION.rol.permisos` (migración 304),
+  sólo códigos del catálogo, sin escalamiento (nadie otorga lo que no tiene,
+  salvo dueño y administradores), roles administradores no se editan, al dueño
+  no se le quita nada, nadie se quita en su propio rol lo que necesita para
+  volver a la pantalla. Auditoría con antes/después. Rige en el siguiente
+  inicio de sesión.
+- **Probar conexión** (Integraciones → Salud). La salud sólo se capturaba a
+  mano; ahora llama a Mercado Pago con el token guardado en el almacén de
+  secretos y registra el resultado real. El token no sale a la pantalla ni al
+  mensaje. Otros proveedores: registro manual, como antes.
+- **Módulos por sucursal** (migración 305): un flag `modulo.<id>` por módulo,
+  encendido; una regla de sucursal en Feature Flags lo apaga y la barra global
+  lo oculta y el enrutador no lo abre. Configuración no se puede apagar. Se
+  retiró `SaveModuleToggleUseCase` (duplicaba esto sobre un servicio borrado).
+- **Prueba de SMTP**: queda para el módulo único de notificaciones.
+
+## 6. Tres pedidos del usuario (2026-10-08)
+
+- **Permisos por usuario** (Usuarios → «Permisos»). `usuario_permisos` y su
+  evaluación existían; no había forma de escribirlas. Por acción: «Como su
+  rol», «Conceder» o «Negar». `SaveUserPermissionsUseCase` revalida: permiso
+  `CONFIGURACION.usuario.permisos`, nadie edita los suyos, sólo catálogo, sin
+  escalamiento (salvo dueño/admin), administradores no llevan excepciones, al
+  dueño no se le niega nada. Auditado; rige al siguiente inicio de sesión.
+- **Probar un dispositivo** (Dispositivos → «Pruebas del dispositivo»).
+  `DeviceTestResult` y su tabla no tenían escritor. «Probar conexión» no
+  imprime (abre la conexión o consulta la cola de Windows y su estado);
+  «Imprimir página de prueba» pide confirmación. Misma vía que tickets y
+  cortes (`routed_printer`). **Hallazgo en la base real**: PRN-01 («TL2X
+  Printer», USB) no indicaba la cola de Windows y todo USB iba a la
+  predeterminada, que en esa computadora es «Microsoft Print to PDF». Ahora el
+  perfil guarda la cola de Windows (elegida de las instaladas; acción «Elegir
+  impresora de Windows») y la prueba falla explicando qué predeterminada se
+  usaría. Las etiquetas tenían una copia propia de esa regla: unificada.
+- **Media en la pantalla del cliente**. IMAGE/VIDEO sólo aceptaban texto
+  escrito a mano y la pantalla mostraba un aviso. Ahora el archivo se adjunta
+  (selector de archivo), se copia a la carpeta de media de la aplicación, se
+  registra (`display_media`, migración 313; mismo archivo = un registro) y el
+  contenido guarda su id. La pantalla muestra la imagen escalada a pantalla
+  completa y reproduce el video en bucle y sin sonido (Qt Multimedia). HTML
+  sigue sin motor.
+
+## 7. Pendiente
+
+- Módulo único de notificaciones (decisión del usuario, futuro).
+- Editores en su módulo para los parámetros sin pantalla (sección 3).
 - Hallazgos 7 y 8 — no elegidos en esta ronda.
 - Preexistentes, no causados aquí: `test_sales_hardware.py::TestScanCodeRouter::test_auto_context_falls_back_to_customer_card_when_no_product_matches` (falta `loyalty_card_tokens` en el fixture desde LOY-29) y `tests/integration/shell/test_meat_processing_module_migration.py::test_the_remaining_routes_are_still_honest_placeholders` (cambios ajenos sin commitear en `meat_processing_view.py`).

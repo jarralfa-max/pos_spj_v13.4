@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
@@ -34,6 +35,10 @@ _MANUAL_MOVEMENTS = {
 }
 
 
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
 def _reconstruct_cash_balance(rows: list[dict]) -> Decimal:
     balance = Decimal("0")
     for row in rows:
@@ -53,28 +58,41 @@ class RegisterCashMovementUseCase:
     def execute(self, connection, *, shift_id: str, branch_id: str,
                 movement_type: CashMovementType, amount: Decimal, concept: str,
                 actor_user_id: str, operation_id: str,
-                authorized_by: str | None = None) -> LedgerCommandResult:
+                authorized_by: str | None = None,
+                reason_code: str | None = None) -> LedgerCommandResult:
         try:
             direction, permission = _MANUAL_MOVEMENTS[movement_type]
         except (KeyError, TypeError) as exc:
             raise CashInvalidStateError("Tipo de movimiento manual no permitido") from exc
+        if movement_type is CashMovementType.SAFE_DROP:
+            raise CashInvalidStateError("El retiro a bóveda se registra con su propio flujo")
         self._auth.require(user_id=actor_user_id, permission_code=permission,
                            branch_id=branch_id)
         if not concept.strip():
             raise CashInvalidStateError("El concepto del movimiento es obligatorio")
+        if not (reason_code or "").strip():
+            # §14: sólo motivos del catálogo. Pagos a proveedor, nómina, compras o
+            # gastos pertenecen a Tesorería/Finanzas, no a un retiro genérico.
+            raise CashInvalidStateError("Selecciona un motivo del catálogo de Caja")
         decision = self._limit.require_operable(amount)
-        if decision is CashLimitDecision.REQUIRES_AUTHORIZATION:
-            if not authorized_by:
-                raise CashAuthorizationRequiredError("El movimiento requiere autorización en caliente")
-            CashSegregationOfDutiesPolicy().reversal_requires_independent_authorizer(
-                actor_user_id, authorized_by)
-            self._auth.require(user_id=authorized_by,
-                               permission_code=CashPermissions.MOVEMENT_AUTHORIZE_OVER_LIMIT,
-                               branch_id=branch_id)
         with CashRegisterUnitOfWork(connection) as uow:
             prior = uow.ledger.get_by_operation(operation_id)
             if prior:
                 return LedgerCommandResult(prior["id"], "Movimiento ya registrado", True)
+            reason = uow.movement_reasons.get_active(
+                code=reason_code, movement_type=movement_type.value, occurred_at=_now())
+            if not reason:
+                raise CashInvalidStateError("Motivo inexistente, inactivo o no vigente")
+            if bool(reason["requires_authorization"]) or (
+                    decision is CashLimitDecision.REQUIRES_AUTHORIZATION):
+                if not authorized_by:
+                    raise CashAuthorizationRequiredError(
+                        "El movimiento requiere autorización en caliente")
+                CashSegregationOfDutiesPolicy().reversal_requires_independent_authorizer(
+                    actor_user_id, authorized_by)
+                self._auth.require(user_id=authorized_by,
+                                   permission_code=CashPermissions.MOVEMENT_AUTHORIZE_OVER_LIMIT,
+                                   branch_id=branch_id)
             shift = uow.shifts.get(shift_id)
             if not shift or shift["branch_id"] != branch_id:
                 raise CashInvalidStateError("El turno debe estar abierto en la sucursal")
@@ -96,7 +114,7 @@ class RegisterCashMovementUseCase:
                     actor_user_id=actor_user_id, reason=concept,
                     shift_id=shift_id, movement_type=movement_type.value,
                     direction=direction.value, amount=str(entry.amount),
-                    authorized_by=authorized_by)
+                    authorized_by=authorized_by, reason_code=reason["code"])
         return LedgerCommandResult(entry.id, "Movimiento registrado")
 
 

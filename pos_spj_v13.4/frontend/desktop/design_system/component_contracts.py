@@ -50,6 +50,8 @@ CONTRACTS: tuple[ComponentContract, ...] = (
                       "StandardWindow", "Marco dentro del área disponible, cambio de monitor, marca y estado."),
     ComponentContract("PageViewport", "frontend.desktop.components.page_viewport",
                       "PageViewport", "Desplazamiento y overflow bidireccional."),
+    ComponentContract("ModuleLayout", "frontend.desktop.components.module_layout",
+                      "ModuleLayout", "Título de módulo sobre sidebar y contenido, como Pricing."),
     ComponentContract("WorklistPage", "frontend.desktop.components.worklist_page",
                       "WorklistPage", "Listado con cabecera, filtros, tabla y paginación."),
     ComponentContract("ColumnSpec", "frontend.desktop.components.tables",

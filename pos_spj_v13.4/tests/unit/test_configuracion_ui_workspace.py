@@ -578,14 +578,18 @@ class TestDeviceDialogs:
         assert values["paper_profile"] == "" and values["protocol"] == ""  # placeholders → ""
 
     def test_profile_create_dialog_exposes_printer_fields(self, app):
-        dlg = DeviceProfileCreateDialog()
+        # La impresora de Windows (USB) se ELIGE de las instaladas; antes era
+        # un texto libre «Controlador» que nada usaba.
+        dlg = DeviceProfileCreateDialog(windows_printers=("TL2X Printer", "POS-58"))
         dlg.paper_profile.set_current_id("PAPER_80MM")
         dlg.protocol.set_current_id("ESC_POS")
-        dlg.driver_name.setText("epson_generic")
+        assert dlg.values()["driver_name"] == ""  # sin elegir: predeterminada de Windows
+        assert dlg.windows_printer.set_current_id("TL2X Printer")
+        assert dlg.windows_printer.set_current_id("Inventada") is False
         values = dlg.values()
         assert values["paper_profile"] == "PAPER_80MM"
         assert values["protocol"] == "ESC_POS"
-        assert values["driver_name"] == "epson_generic"
+        assert values["driver_name"] == "TL2X Printer"
 
     def test_profile_create_dialog_protocol_combo_offers_scale_protocols(self, app):
         # SET-9 follow-up: the shared `protocol` field must offer both
@@ -595,16 +599,12 @@ class TestDeviceDialogs:
         dlg.protocol.set_current_id("TOLEDO_STANDARD")
         assert dlg.values()["protocol"] == "TOLEDO_STANDARD"
 
-    def test_profile_create_dialog_payment_capability_checkboxes_default_unchecked(self, app):
-        # SET-10 follow-up: payment terminal capabilities are the one
-        # capability set this dialog actually asks for (genuine choice,
-        # not deterministic from device_type).
+    def test_profile_create_dialog_does_not_offer_caja_devices(self, app):
+        """Cajones y terminales de pago los administra Caja (2026-10-04)."""
         dlg = DeviceProfileCreateDialog()
-        assert dlg.values()["payment_capabilities"] == ()
-        dlg.payment_capability_checkboxes["CARD_CHIP"].setChecked(True)
-        dlg.payment_capability_checkboxes["CARD_CONTACTLESS"].setChecked(True)
-        values = dlg.values()
-        assert set(values["payment_capabilities"]) == {"CARD_CHIP", "CARD_CONTACTLESS"}
+        assert dlg.device_type.set_current_id("CASH_DRAWER") is False
+        assert dlg.device_type.set_current_id("PAYMENT_TERMINAL") is False
+        assert "payment_capabilities" not in dlg.values()
 
     def test_device_create_dialog_populates_branch_and_profile_options(self, app):
         branches = (BranchOptionViewModel("b1", "Principal"),)

@@ -113,7 +113,7 @@ class CashXCutsPage(QWidget):
         if not cut_id:
             return
         try:
-            print_id = self._presenter.print_x_cut(
+            self._presenter.print_x_cut(
                 cut_id=cut_id,
                 reprint=reprint,
                 reprint_reason=reason,
@@ -121,7 +121,7 @@ class CashXCutsPage(QWidget):
         except (CashRegisterError, RuntimeError, ValueError) as exc:
             self._show_error(user_facing_error(exc))
             return
-        self._show_result("Corte X enviado a impresion." if print_id else "Corte X enviado a impresion.")
+        self._show_result("Corte X impreso.")
 
     def _show_result(self, message: str) -> None:
         QMessageBox.information(self, "Caja", message)

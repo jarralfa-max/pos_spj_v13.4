@@ -54,7 +54,10 @@ class SqliteConfigurationValueRepository(SettingsRepositoryBase):
             " approved_by_user_id=excluded.approved_by_user_id,"
             " activated_by_user_id=excluded.activated_by_user_id, reason=excluded.reason,"
             " previous_version_id=excluded.previous_version_id,"
-            " operation_id=excluded.operation_id, updated_at=excluded.updated_at",
+            # La operación que CREÓ el valor no se pierde al guardar sus
+            # transiciones: es la llave de idempotencia de la propuesta (§62).
+            " operation_id=COALESCE(excluded.operation_id, configuration_values.operation_id),"
+            " updated_at=excluded.updated_at",
             self._params(value, value_type, operation_id),
         )
 
@@ -81,6 +84,43 @@ class SqliteConfigurationValueRepository(SettingsRepositoryBase):
         rows = self._query(
             f"SELECT {_SELECT_COLS} {_FROM} WHERE cv.scope_type=? AND cv.scope_id IS ? AND cv.status='ACTIVE'",
             (scope.scope_type.value, scope.scope_id),
+        )
+        return [self._hydrate(row) for row in rows]
+
+    def latest_in_lineage(
+        self, definition_id: str, scope: ConfigurationScope,
+    ) -> ConfigurationValue | None:
+        """La versión más alta de (definición, ámbito), en cualquier estado."""
+        row = self._query_one(
+            f"SELECT {_SELECT_COLS} {_FROM} WHERE cv.definition_id=? AND cv.scope_type=?"
+            " AND cv.scope_id IS ? ORDER BY cv.version DESC LIMIT 1",
+            (definition_id, scope.scope_type.value, scope.scope_id),
+        )
+        return self._hydrate(row) if row else None
+
+    def list_lineage(self, definition_id: str, scope: ConfigurationScope) -> list[ConfigurationValue]:
+        rows = self._query(
+            f"SELECT {_SELECT_COLS} {_FROM} WHERE cv.definition_id=? AND cv.scope_type=?"
+            " AND cv.scope_id IS ? ORDER BY cv.version DESC",
+            (definition_id, scope.scope_type.value, scope.scope_id),
+        )
+        return [self._hydrate(row) for row in rows]
+
+    def list_for_definition(self, definition_id: str) -> list[ConfigurationValue]:
+        rows = self._query(
+            f"SELECT {_SELECT_COLS} {_FROM} WHERE cv.definition_id=?"
+            " ORDER BY cv.scope_type, cv.scope_id, cv.version DESC",
+            (definition_id,),
+        )
+        return [self._hydrate(row) for row in rows]
+
+    def list_by_status(self, statuses: tuple[ConfigurationValueStatus, ...]) -> list[ConfigurationValue]:
+        if not statuses:
+            return []
+        marks = ",".join("?" for _ in statuses)
+        rows = self._query(
+            f"SELECT {_SELECT_COLS} {_FROM} WHERE cv.status IN ({marks}) ORDER BY cv.created_at",
+            tuple(status.value for status in statuses),
         )
         return [self._hydrate(row) for row in rows]
 

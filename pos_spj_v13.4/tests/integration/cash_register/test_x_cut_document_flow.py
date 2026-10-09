@@ -36,6 +36,9 @@ class XCutDocumentFlowTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
         importlib.import_module("migrations.standalone.175_cash_register_bounded_context_schema").run(self.db)
+        # Catálogos reales de producción (motivos §14): la 176 crea las tablas y la 307 las siembra.
+        importlib.import_module("migrations.standalone.176_cash_register_configuration_schema").run(self.db)
+        importlib.import_module("migrations.standalone.307_seed_cash_register_catalogs").run(self.db)
         self.auth = CashAuthorizationPolicy(_Permissions(), _Scopes())
         self.branch, self.cashier = new_uuid(), new_uuid()
         register, drawer, terminal = new_uuid(), new_uuid(), new_uuid()
@@ -59,12 +62,12 @@ class XCutDocumentFlowTests(unittest.TestCase):
             self.db, shift_id=self.shift_id, branch_id=self.branch,
             movement_type=CashMovementType.MANUAL_INCOME, amount=Decimal("100.25"),
             concept="Cambio adicional", actor_user_id=self.cashier,
-            operation_id=new_uuid())
+            operation_id=new_uuid(), reason_code="CHANGE_ADDITION")
         movements.execute(
             self.db, shift_id=self.shift_id, branch_id=self.branch,
             movement_type=CashMovementType.MANUAL_WITHDRAWAL, amount=Decimal("25.10"),
             concept="Gasto autorizado", actor_user_id=self.cashier,
-            operation_id=new_uuid())
+            operation_id=new_uuid(), reason_code="AUTHORIZED_OPERATION")
 
     def tearDown(self): self.db.close()
 

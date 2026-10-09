@@ -40,6 +40,7 @@ from backend.domain.inventory.entities.inventory_movement import (  # noqa: E402
 from backend.domain.inventory.enums import MovementType  # noqa: E402
 from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema  # noqa: E402
 from backend.infrastructure.db.schema.pricing_schema import create_pricing_schema  # noqa: E402
+from tests.integration._governed_settings import ensure_governance, set_setting
 
 
 @pytest.fixture
@@ -53,6 +54,7 @@ def conn():
               " tipo TEXT, grupo TEXT, descripcion TEXT)")
     c.execute("CREATE TABLE sucursales (id TEXT PRIMARY KEY, nombre TEXT)")
     c.executemany("INSERT INTO sucursales VALUES (?,?)", [("b1", "Centro"), ("b2", "Norte")])
+    ensure_governance(c)
     c.commit()
     yield c
     c.close()

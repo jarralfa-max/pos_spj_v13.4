@@ -1,0 +1,242 @@
+{
+  "date": "2026-10-05",
+  "started_on": "2026-10-04",
+  "scope": "8. StandardWindow",
+  "reports": {
+    "before": {
+      "tests": 45,
+      "passed": 44,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "failures": [
+        "tests.ui.test_standard_window_geometry::test_screen_change_rebinds_available_area_and_disconnects_previous"
+      ]
+    },
+    "crossing-before": {
+      "tests": 5,
+      "passed": 1,
+      "failed": 4,
+      "errors": 0,
+      "skipped": 0,
+      "failures": [
+        "tests.ui.test_standard_window_geometry::test_window_can_cross_connected_monitor_edge[neighbor0-position0]",
+        "tests.ui.test_standard_window_geometry::test_window_can_cross_connected_monitor_edge[neighbor1-position1]",
+        "tests.ui.test_standard_window_geometry::test_window_can_cross_connected_monitor_edge[neighbor2-position2]",
+        "tests.ui.test_standard_window_geometry::test_window_can_cross_connected_monitor_edge[neighbor3-position3]"
+      ]
+    },
+    "geometry": {
+      "tests": 13,
+      "passed": 13,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures": []
+    },
+    "after": {
+      "tests": 105,
+      "passed": 103,
+      "failed": 2,
+      "errors": 0,
+      "skipped": 0,
+      "failures": [
+        "tests.ui.test_standard_window_geometry::test_window_can_cross_connected_monitor_edge[neighbor1-position1]",
+        "tests.ui.test_standard_window_geometry::test_window_can_cross_connected_monitor_edge[neighbor3-position3]"
+      ]
+    },
+    "geometry-final": {
+      "tests": 18,
+      "passed": 18,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failures": []
+    }
+  },
+  "captures": [
+    {
+      "path": "captures/dark-comfortable-1280x720-window.png",
+      "sha256": "cec770081715d2c9d3f3908fe27f088d3343915835036d4f59cbea4d3d5edb40"
+    },
+    {
+      "path": "captures/dark-comfortable-1366x768-window.png",
+      "sha256": "62423aacc1ccb17bda687c3c86dff610e99a47835466cdbd416dbce63c66e6cf"
+    },
+    {
+      "path": "captures/dark-comfortable-1440x900-window.png",
+      "sha256": "52fbe278c1111272c6bde3a26cf69ab54479f2129036781c099ac3d35f46bc30"
+    },
+    {
+      "path": "captures/dark-comfortable-1600x900-window.png",
+      "sha256": "e2687b6730cda970137d4d81c0b08707f4eefa0c9139c73430f46f69179dff90"
+    },
+    {
+      "path": "captures/dark-comfortable-1920x1080-window.png",
+      "sha256": "98641904728d0f23527f14f22c544826423d61a5f3cdc0d3e8890fb485cafe9b"
+    },
+    {
+      "path": "captures/dark-compact-1280x720-window.png",
+      "sha256": "e83555207b17c9ed1ac6da2c7479853ac7a3db8f47cb5609c686089a4b1fc3d6"
+    },
+    {
+      "path": "captures/dark-compact-1366x768-window.png",
+      "sha256": "92c02248152b714e67fa9e1dad5cf6b69bd3591b99aaa206e642968d3ef4e0e5"
+    },
+    {
+      "path": "captures/dark-compact-1440x900-window.png",
+      "sha256": "ebfd0aa9ce1dd2b8ed32b23a301a63698403b1b8136716f784d241da63947a46"
+    },
+    {
+      "path": "captures/dark-compact-1600x900-window.png",
+      "sha256": "53986372747ed6b5086412d54ef9de338b756cb4a983898f44cd6d982b3cc1e7"
+    },
+    {
+      "path": "captures/dark-compact-1920x1080-window.png",
+      "sha256": "a5b811e8225ab88d494b105fd808c96fd7c4e583ba51ca9452579f9008c606c5"
+    },
+    {
+      "path": "captures/dark-touch-1280x720-window.png",
+      "sha256": "579f75322238dd473b35e5f9c116439614db4bc482cfd4ddc1a7cada2ed15a7c"
+    },
+    {
+      "path": "captures/dark-touch-1366x768-window.png",
+      "sha256": "6eb795ef922e2da36ca5fe688e9cd435e5ae50ab7f077eaaed6a9646c24fc7e2"
+    },
+    {
+      "path": "captures/dark-touch-1440x900-window.png",
+      "sha256": "a06442b8afcbc674408d2643c7e1db42b495aca2ccafd8f6a4c46e5017afb570"
+    },
+    {
+      "path": "captures/dark-touch-1600x900-window.png",
+      "sha256": "417b0cf81af09e405ba1bb9bf2fdab9ec7abd66b0d1872d67e23377495b77a87"
+    },
+    {
+      "path": "captures/dark-touch-1920x1080-window.png",
+      "sha256": "738fa029459828013842534150f5a6d1cf4ff6f868eddad11b4cb1356c1ed4a7"
+    },
+    {
+      "path": "captures/light-comfortable-1280x720-window.png",
+      "sha256": "d5a898337ed3c5c009b5215204ac7c43211bef2d0ddb7e3cf6a49bea7c428528"
+    },
+    {
+      "path": "captures/light-comfortable-1366x768-window.png",
+      "sha256": "365b60a4cb651694ab3cfffa73be0fd1012782ed4d666454e0a0f484d8ecd787"
+    },
+    {
+      "path": "captures/light-comfortable-1440x900-window.png",
+      "sha256": "60afa3161cd455b21c4e8039bfb60bf6af2861f53443f62d474391ac2b198517"
+    },
+    {
+      "path": "captures/light-comfortable-1600x900-window.png",
+      "sha256": "caae769bace69c5b544554e841fc746e77f142b83898b3e4388e2678f6ff2808"
+    },
+    {
+      "path": "captures/light-comfortable-1920x1080-window.png",
+      "sha256": "af713112a4feb29f93cd09ba23f62438dcea563e2a21720baf8bb3546b0924c0"
+    },
+    {
+      "path": "captures/light-compact-1280x720-window.png",
+      "sha256": "0fe43577099dc7d64e3163564a1f1737aa381d15dbc2371f44aecfa903b32b23"
+    },
+    {
+      "path": "captures/light-compact-1366x768-window.png",
+      "sha256": "4e26224c246d7e4624009ab4c4742697b06c7b0ce80b06a7969704cafd058bbf"
+    },
+    {
+      "path": "captures/light-compact-1440x900-window.png",
+      "sha256": "37d9951660906d5829051c197ae52bb869a69a958ae56adcbe95e637b7dab505"
+    },
+    {
+      "path": "captures/light-compact-1600x900-window.png",
+      "sha256": "771d912c0ac006437b83b58da0ac11fcfaeb7fa9ab75e4e77b4cdef3ff549f56"
+    },
+    {
+      "path": "captures/light-compact-1920x1080-window.png",
+      "sha256": "c477089bbf9a3ab2603513da69761493f4f11c284084ba11c90f82a5457b5149"
+    },
+    {
+      "path": "captures/light-touch-1280x720-window.png",
+      "sha256": "93da6c5f016e736a26f5bdb2856d25539667124a8547864057a04017ec078b4a"
+    },
+    {
+      "path": "captures/light-touch-1366x768-window.png",
+      "sha256": "1082ef097117a1f91d935bdc4a4491720fb216e973d1957152d2b976793f038d"
+    },
+    {
+      "path": "captures/light-touch-1440x900-window.png",
+      "sha256": "006ba875d3b7e13724cbd73b2610c13a061d502f059f076f7dbb1d156f9ca570"
+    },
+    {
+      "path": "captures/light-touch-1600x900-window.png",
+      "sha256": "6ff1c7dd4fa8172d46b9e8f729195c815cb9793c796957c930434f50ba11ce38"
+    },
+    {
+      "path": "captures/light-touch-1920x1080-window.png",
+      "sha256": "37aafac07d8923fdc3a16ddf76c9ded03a3f0d9dbce86b3853236f628c953a29"
+    }
+  ],
+  "final_distinct_results": {
+    "tests": 105,
+    "passed": 105,
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "capture_count": 30,
+  "new_violations_in_changed_window": [],
+  "repository_audit": {
+    "rules": {
+      "native_operational_table": {
+        "occurrences": 1,
+        "files": 1
+      },
+      "noncanonical_dialog": {
+        "occurrences": 36,
+        "files": 25
+      },
+      "screen_without_explicit_overflow": {
+        "occurrences": 91,
+        "files": 90
+      },
+      "unicode_icon_literal": {
+        "occurrences": 4,
+        "files": 3
+      }
+    },
+    "occurrences": 132,
+    "allowed_occurrences": 128,
+    "outside_baseline": [
+      {
+        "path": "frontend/desktop/modules/meat_processing/dialogs_plan.py",
+        "rule": "native_operational_table",
+        "fingerprint": "05dd7ab084b6bbef866f",
+        "count": 1
+      },
+      {
+        "path": "frontend/desktop/modules/meat_processing/pages/meat_processing_settings_page.py",
+        "rule": "screen_without_explicit_overflow",
+        "fingerprint": "ccda8fcb6a5694ec8cac",
+        "count": 1
+      },
+      {
+        "path": "frontend/desktop/modules/pricing/pages/settings_page.py",
+        "rule": "screen_without_explicit_overflow",
+        "fingerprint": "eecdb14c0a9c4a98cf33",
+        "count": 1
+      },
+      {
+        "path": "frontend/desktop/modules/products/dialogs/purchase_units_dialog.py",
+        "rule": "noncanonical_dialog",
+        "fingerprint": "42aeb29161df6209c740",
+        "count": 1
+      }
+    ],
+    "obsolete_baseline_occurrences": 22
+  },
+  "limitations": [
+    "Qt offscreen; simulated monitor areas, not physical monitor/DPI certification.",
+    "Captures are review evidence, not an approved pixel comparison.",
+    "Pre-existing work from other phases remains outside this validation scope."
+  ]
+}

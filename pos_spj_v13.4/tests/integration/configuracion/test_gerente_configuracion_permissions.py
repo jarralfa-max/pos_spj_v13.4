@@ -23,6 +23,7 @@ from tests.integration._born_clean_db import make_db
 _m302 = importlib.import_module("migrations.standalone.302_seed_gerente_configuracion_permissions")
 
 
+
 @pytest.fixture
 def conn():
     connection = make_db()

@@ -41,23 +41,15 @@ _FLOAT_CALL_RE = re.compile(r"\bfloat\(\s*([A-Za-z_][\w\.\[\]\"']*)", re.IGNOREC
 
 _SKIP_PARTS = {".venv", "venv", "site-packages", "node_modules", "__pycache__", ".git", "tests"}
 
-# Deuda tolerada por área, medida en 3a5698b0. NO puede crecer.
+# Deuda tolerada por área. NO puede crecer. Medida en 3a5698b0 y bajada el
+# 2026-10-07 (CASH-26): las carpetas legacy desaparecieron y Caja borró su capa
+# «FASE 7.7» con montos float; las áreas en cero salen de la tabla.
 _LEGACY_BASELINE = {
-    "core": 201,
-    "backend": 37,
-    "repositories": 31,
-    "modulos": 9,
-    "application": 8,
-    "integrations": 5,
+    "backend": 24,
     "scripts": 4,
     "utils": 3,
-    "services": 2,
-    "ui": 2,
     "frontend": 2,
-    "interfaz": 1,
-    "webapp": 1,
     "migrations": 1,
-    "api": 1,
 }
 
 

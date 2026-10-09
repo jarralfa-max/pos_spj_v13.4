@@ -18,6 +18,7 @@ disabled" — SHELL-12 doesn't introduce a new visible-but-disabled state.
 """
 from __future__ import annotations
 
+from backend.application.feature_flags.module_flags import module_disabled
 from backend.bootstrap.application_context import ApplicationContext
 from backend.bootstrap.health.health_status import HealthReport
 from backend.bootstrap.permission_evaluator import PermissionEvaluator
@@ -63,6 +64,8 @@ class SidebarResolver:
                 continue
             if item.feature_flag and not context.feature_context.is_enabled(item.feature_flag):
                 continue
+            if module_disabled(context.feature_context, item.module_id):
+                continue  # módulo apagado para esta sucursal (Feature Flags)
             resolved.append(SidebarItemViewModel(
                 item_id=item.item_id, route_id=item.route_id, label=item.label, icon=item.icon,
                 group=item.group, order=item.order,

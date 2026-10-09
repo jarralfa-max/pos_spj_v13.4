@@ -22,7 +22,6 @@ from PyQt5.QtWidgets import (
 from frontend.desktop.components import SideNav
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.module_layout import ModuleLayout
-from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV
 
 logger = logging.getLogger("spj.inventory.view")

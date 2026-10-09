@@ -121,18 +121,20 @@ class CashDifferenceWorkflowTests(unittest.TestCase):
         ReviewCashDifferenceUseCase(self.auth).execute(
             self.db, difference_id=self.difference_id, branch_id=self.branch,
             actor_user_id=self.reviewer, operation_id=new_uuid())
+        # Regla de DOS personas (decisión del usuario, 2026-10-07): el cajero
+        # responsable nunca resuelve su diferencia; quien revisó SÍ puede resolver.
         with self.assertRaises(CashSegregationOfDutiesError):
             ResolveCashDifferenceUseCase(self.auth).execute(
                 self.db, difference_id=self.difference_id, branch_id=self.branch,
-                actor_user_id=self.reviewer, operation_id=new_uuid(), resolution="No")
+                actor_user_id=self.cashier, operation_id=new_uuid(), resolution="No")
         ResolveCashDifferenceUseCase(self.auth).execute(
             self.db, difference_id=self.difference_id, branch_id=self.branch,
-            actor_user_id=self.resolver, operation_id=new_uuid(),
+            actor_user_id=self.reviewer, operation_id=new_uuid(),
             resolution="Capacitación y reposición documentada")
         row = self.db.execute(
             "SELECT status,explained_by,reviewed_by,resolved_by FROM cash_differences WHERE id=?",
             (self.difference_id,)).fetchone()
-        self.assertEqual(row, ("RESOLVED", self.cashier, self.reviewer, self.resolver))
+        self.assertEqual(row, ("RESOLVED", self.cashier, self.reviewer, self.reviewer))
         names = {item[0] for item in self.db.execute(
             "SELECT event_name FROM cash_domain_events WHERE entity_id=?", (self.difference_id,))}
         self.assertTrue({"CASH_DIFFERENCE_DETECTED", "CASH_DIFFERENCE_EXPLAINED",

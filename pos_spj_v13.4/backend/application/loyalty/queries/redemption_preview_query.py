@@ -1,7 +1,7 @@
 """Qué puede canjear un cliente en esta venta — sin efectos secundarios.
 
 Compone tres piezas que no se conocen entre sí: los ajustes del programa
-(`configuraciones`), el saldo de puntos (que abarca los dos libros que
+(parámetros gobernados de Configuración), el saldo de puntos (que abarca los dos libros que
 conviven) y la política de topes (pura, en el dominio).
 
 SIN EFECTOS SECUNDARIOS, y no es un detalle de estilo: la caja llama a esto
@@ -13,7 +13,9 @@ cobrar.
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
+
+from backend.application.settings.configuration_reader import ConfigurationReader
 
 from backend.domain.loyalty.policies.redemption_policy import (
     LoyaltyRedemptionPolicy,
@@ -24,12 +26,12 @@ from backend.infrastructure.db.repositories.loyalty.points_balance_repository im
     LoyaltyPointsBalanceRepository,
 )
 
-#: Claves en `configuraciones`. Los nombres son los que ya usa una instalación
-#: en marcha; renombrarlos dejaría el programa con los valores por omisión sin
-#: avisar de nada.
-POINT_VALUE_KEY = "loyalty_valor_estrella"
-MIN_POINTS_KEY = "loyalty_min_puntos_canje"
-MAX_PERCENT_KEY = "loyalty_max_pct_canje"
+#: Parámetros del catálogo de Configuración (`backend/application/settings/
+#: catalog.py`). Antes eran `loyalty_valor_estrella`, `loyalty_min_puntos_canje`
+#: y `loyalty_max_pct_canje` en `configuraciones`; la migración 303 los movió.
+POINT_VALUE_KEY = "loyalty.point_value"
+MIN_POINTS_KEY = "loyalty.min_points_to_redeem"
+MAX_PERCENT_KEY = "loyalty.max_redeem_fraction"
 
 
 class LoyaltyRedemptionPreviewQuery:
@@ -37,18 +39,14 @@ class LoyaltyRedemptionPreviewQuery:
         self._conn = connection
 
     def settings(self) -> RedemptionSettings:
-        """Ajustes del programa, con los del esquema base como respaldo.
-
-        Un valor ilegible (texto donde debía ir un número, fila borrada a
-        medias) cae al de omisión en lugar de propagar la excepción: dejar el
-        cobro tirado porque un ajuste está corrupto es peor que canjear con los
-        parámetros de fábrica, y el respaldo es conservador.
-        """
-        defaults = RedemptionSettings()
+        """Ajustes del programa, ya tipados y validados por el gobierno de
+        configuración: un valor ilegible no puede llegar a guardarse, y sin
+        valor guardado rige el de omisión del catálogo."""
+        reader = ConfigurationReader(self._conn)
         return RedemptionSettings(
-            point_value=self._decimal(POINT_VALUE_KEY, defaults.point_value),
-            min_points=int(self._decimal(MIN_POINTS_KEY, Decimal(defaults.min_points))),
-            max_percent=self._decimal(MAX_PERCENT_KEY, defaults.max_percent),
+            point_value=reader.get(POINT_VALUE_KEY),
+            min_points=reader.get(MIN_POINTS_KEY),
+            max_percent=reader.get(MAX_PERCENT_KEY),
         )
 
     def balance(self, customer_id: str) -> int:
@@ -69,16 +67,3 @@ class LoyaltyRedemptionPreviewQuery:
         return LoyaltyRedemptionPolicy.preview(
             balance=self.balance(customer_id), subtotal=subtotal,
             settings=self.settings(), requested_points=requested_points)
-
-    def _decimal(self, key: str, default: Decimal) -> Decimal:
-        try:
-            row = self._conn.execute(
-                "SELECT valor FROM configuraciones WHERE clave=? LIMIT 1", (key,)).fetchone()
-        except Exception:
-            return default
-        if row is None or str(row[0] or "").strip() == "":
-            return default
-        try:
-            return Decimal(str(row[0]).strip())
-        except (InvalidOperation, ValueError):
-            return default

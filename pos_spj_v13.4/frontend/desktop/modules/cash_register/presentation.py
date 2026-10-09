@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import re
 
+from backend.application.cash_register.notification_text import ALERTABLE_EVENTS
+
 
 UUID_RE = re.compile(
     r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
@@ -40,6 +42,9 @@ DIRECTION_LABELS = {
 }
 
 STATUS_LABELS = {
+    "AFFECTS_DRAWER": "Entra al cajon",
+    "NO_DRAWER": "No entra al cajon",
+    "FUTURE": "Proximamente",
     "OPENING": "Abriendo",
     "OPEN": "Abierto",
     "SUSPENDED": "Suspendido",
@@ -61,6 +66,9 @@ STATUS_LABELS = {
     "MEDIUM": "Media",
     "LOW": "Baja",
     "RESOLVED": "Resuelta",
+    "VIGENTE": "Vigente",
+    "VENCIDA": "Dada de baja",
+    "ACTIVA": "Activa",
     "PENDING": "Pendiente",
     "UNDER_REVIEW": "En revision",
     "PREPARED": "Preparada",
@@ -87,7 +95,54 @@ SCOPE_LABELS = {
     "BRANCH": "Sucursal",
     "REGISTER": "Caja",
     "USER": "Usuario",
+    "MXN": "Pesos mexicanos",
+    "MANUAL_INCOME": "Ingreso manual",
+    "MANUAL_WITHDRAWAL": "Retiro manual",
+    "SAFE_DROP": "Retiro a boveda",
 }
+
+
+LIMIT_OPERATION_LABELS = {
+    "OPENING_FLOAT": "Fondo inicial de turno",
+    "MANUAL_MOVEMENT": "Ingreso o retiro manual",
+    "SAFE_DROP": "Retiro a boveda",
+    "REFUND": "Reembolso en efectivo",
+}
+
+
+REFUND_METHOD_LABELS = {
+    "ORIGINAL_PAYMENT_METHOD": "Medio de pago original",
+    "CASH": "Efectivo",
+    "REFUND_VOUCHER": "Vale de devolucion",
+    "STORE_CREDIT": "Saldo a favor",
+    "BANK_TRANSFER": "Transferencia",
+    "NO_CASH_REFUND": "Sin salida de efectivo",
+}
+
+ALERT_SEVERITY_LABELS = {"INFO": "Informativa", "WARNING": "Advertencia", "CRITICAL": "Critica"}
+ALERT_CHANNEL_LABELS = {"IN_APP": "En el sistema", "WHATSAPP": "WhatsApp", "EMAIL": "Correo"}
+
+
+def catalog_row_text(section: str, name: object, value: object) -> tuple[str, str]:
+    """Nombre y valor legibles de una fila de catálogo de Caja."""
+    name, value = str(name or ""), str(value or "")
+    if section == "alerts":
+        import json
+
+        severity, _, channels = value.partition(" ")
+        try:
+            canales = ", ".join(ALERT_CHANNEL_LABELS.get(c, c) for c in json.loads(channels))
+        except ValueError:
+            canales = channels
+        return (ALERTABLE_EVENTS.get(name, name),
+                f"{ALERT_SEVERITY_LABELS.get(severity, severity)} · {canales}")
+    if section == "limits":
+        threshold, _, cap = value.partition("/")
+        label = LIMIT_OPERATION_LABELS.get(name.strip().upper(), name)
+        if cap:
+            return label, f"Autoriza arriba de ${threshold.strip()} · tope ${cap.strip()}"
+        return label, value
+    return name, value
 
 
 def mask_technical_ids(text: object, *, replacement: str = "referencia tecnica") -> str:
@@ -119,6 +174,8 @@ def status_label(value: object) -> str:
 
 def scope_label(value: object) -> str:
     key = str(value or "").strip().upper()
+    if key in ALERTABLE_EVENTS:
+        return ALERTABLE_EVENTS[key]
     return SCOPE_LABELS.get(key, key.replace("_", " ").title() if key else "")
 
 

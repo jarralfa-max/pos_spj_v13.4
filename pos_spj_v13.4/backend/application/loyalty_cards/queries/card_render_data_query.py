@@ -13,6 +13,7 @@ destinatarios de un lote, §43-44).
 
 from __future__ import annotations
 
+from backend.application.settings.configuration_reader import ConfigurationReader
 from backend.domain.loyalty.policies.balance_policy import LoyaltyBalancePolicy
 from backend.domain.loyalty_cards.policies.privacy_policy import (
     CardNameMode,
@@ -25,8 +26,10 @@ from backend.infrastructure.db.repositories.loyalty.transaction_repository impor
 from backend.infrastructure.db.repositories.loyalty_cards.unit_of_work import LoyaltyCardsUnitOfWork
 from backend.infrastructure.loyalty_cards.token_codec import card_token_codec_for
 
-NAME_MODE_KEY = "loyalty_tarjeta_nombre_impreso"
-PRINT_POINTS_KEY = "loyalty_tarjeta_imprime_puntos"
+#: Parámetros gobernados de Configuración (antes `loyalty_tarjeta_*` en
+#: `configuraciones`; migración 303).
+NAME_MODE_KEY = "loyalty_cards.printed_name_mode"
+PRINT_POINTS_KEY = "loyalty_cards.print_points_balance"
 
 #: Estados en los que una tarjeta "vigente" impide emitir otra en un lote.
 _VIGENTES = ("ISSUED", "ACTIVE", "BLOCKED")
@@ -38,15 +41,10 @@ class LoyaltyCardRenderDataQuery:
 
     # ── configuración de privacidad ─────────────────────────────────────────
     def privacy_settings(self) -> LoyaltyCardPrivacySettings:
-        modo = self._config(NAME_MODE_KEY)
-        puntos = self._config(PRINT_POINTS_KEY)
-        try:
-            name_mode = CardNameMode(modo) if modo else CardNameMode.FULL_NAME
-        except ValueError:
-            name_mode = CardNameMode.FULL_NAME
+        reader = ConfigurationReader(self._conn)
         return LoyaltyCardPrivacySettings(
-            name_mode=name_mode,
-            print_points_balance=str(puntos or "").strip().lower() in ("1", "true", "si", "sí"))
+            name_mode=CardNameMode(reader.get(NAME_MODE_KEY)),
+            print_points_balance=reader.get(PRINT_POINTS_KEY))
 
     # ── destinatarios ───────────────────────────────────────────────────────
     def customer_for_membership(self, membership_id: str) -> str | None:
@@ -149,11 +147,6 @@ class LoyaltyCardRenderDataQuery:
             LoyaltyTransactionRepository(self._conn).list_for_account(cuenta)))
         return {"display_name": nombre, "program_name": programa, "tier_name": nivel,
                 "points": max(puntos, 0)}
-
-    def _config(self, key: str) -> str | None:
-        fila = self._conn.execute(
-            "SELECT valor FROM configuraciones WHERE clave = ? LIMIT 1", (key,)).fetchone()
-        return None if fila is None else str(fila[0] or "").strip() or None
 
 
 __all__ = ["LoyaltyCardRenderDataQuery", "NAME_MODE_KEY", "PRINT_POINTS_KEY"]

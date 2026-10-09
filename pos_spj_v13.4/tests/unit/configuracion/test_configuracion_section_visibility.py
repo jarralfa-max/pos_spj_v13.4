@@ -29,6 +29,9 @@ from backend.application.configuracion.permissions import ConfiguracionPermissio
 from backend.domain.settings.exceptions import ConfigurationPermissionDeniedError  # noqa: E402
 from backend.shared.ids import new_uuid  # noqa: E402
 from frontend.desktop.components import ViewState  # noqa: E402
+from frontend.desktop.modules.configuracion.navigation.configuracion_sidebar import (  # noqa: E402
+    CONFIGURACION_NAV,
+)
 from frontend.desktop.modules.configuracion.shell_registration import (  # noqa: E402
     CONFIGURACION_VIEW_FACTORY_ID,
     ConfiguracionModuleActivator,
@@ -122,4 +125,4 @@ def test_full_grant_sees_every_section(app, conn):
     every = {p for p in vars(ConfiguracionPermissions).values() if isinstance(p, str)}
     view = _live_view(conn, every)
 
-    assert len(_sidebar_ids(view)) == 11
+    assert len(_sidebar_ids(view)) == len(CONFIGURACION_NAV)

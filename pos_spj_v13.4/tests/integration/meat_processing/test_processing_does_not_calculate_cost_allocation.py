@@ -15,6 +15,7 @@ from backend.infrastructure.db.repositories.inventory.support_repositories impor
     InventorySettingsRepository,
 )
 from tests.integration.meat_processing._generic_plant import Planta, build_db
+from tests.integration._governed_settings import ensure_governance, set_setting
 
 
 @pytest.fixture()
@@ -49,9 +50,7 @@ def test_processing_results_hold_no_cost(lomo):
 def test_changing_the_costing_method_changes_the_cost_without_touching_processing(lomo):
     """El método es configuración de Costos. Procesamiento ejecuta igual."""
     p, entero, chuleta, recorte = lomo
-    p.conn.execute("INSERT OR REPLACE INTO configuraciones (clave, valor) VALUES (?,?)",
-                   ("costing.processing.allocation_method", "WEIGHT_BASED"))
-    p.conn.commit()
+    set_setting(p.conn, "costing.processing.allocation_method", "WEIGHT_BASED")
     oid = p.lista(ProcessType.CUTTING, entero, "10")
     assert p.ejecutar(oid, {chuleta: "7", recorte: "3"}).success
     lineas = {l.product_id: l for l in ProcessingCostRepository(p.conn).get_by_order(oid).lines

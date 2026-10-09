@@ -7,7 +7,6 @@ from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.losses.losses_routes import build_page
 from frontend.desktop.modules.losses.widgets import LossesSidebarWidget
-from frontend.desktop.themes.tokens import ResponsiveBreakpoints
 
 
 class LossesView(QWidget):
@@ -32,14 +31,6 @@ class LossesView(QWidget):
         self.sidebar.route_requested.connect(self.show_route)
         if self.sidebar.count():
             self.show_route(str(self.sidebar.item(0).data(Qt.UserRole)))
-
-    def resizeEvent(self, event):  # noqa: N802 - Qt override
-        super().resizeEvent(event)
-        self.apply_responsive_layout()
-
-    def apply_responsive_layout(self) -> None:
-        """Keep navigation usable at supported compact desktop widths."""
-        self.sidebar.set_collapsed(self.width() < ResponsiveBreakpoints.COMPACT)
 
     @property
     def active_route(self):

@@ -18,19 +18,26 @@ from backend.domain.settings.exceptions import ConfigurationScopeNotAllowedError
 # this to their own `allowed_scopes`; scopes absent from the caller's
 # `ScopeContext` are simply skipped by the resolution service.
 DEFAULT_SPECIFICITY_ORDER: tuple[ScopeType, ...] = (
+    # Producto → proceso → especie → categoría es la precedencia que fijó
+    # Procesamiento cárnico (§17) para la tolerancia de rendimiento.
     ScopeType.PRODUCT,
+    ScopeType.PROCESS,
+    ScopeType.SPECIES,
     ScopeType.PRODUCT_CATEGORY,
     ScopeType.CUSTOMER_SEGMENT,
+    ScopeType.SUPPLIER,
     ScopeType.DELIVERY_ZONE,
     ScopeType.DEVICE,
     ScopeType.USER,
     ScopeType.ROLE,
     ScopeType.WORKSTATION,
+    ScopeType.WORK_CENTER,
+    ScopeType.PRODUCTION_AREA,
     ScopeType.LOCATION,
     ScopeType.WAREHOUSE,
+    ScopeType.PLANT,
     ScopeType.CHANNEL,
     ScopeType.MODULE,
-    ScopeType.PROCESS,
     ScopeType.BRANCH,
     ScopeType.COMPANY,
     ScopeType.GLOBAL,

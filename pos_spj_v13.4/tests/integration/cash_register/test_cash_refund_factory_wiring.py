@@ -5,6 +5,7 @@ import unittest
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.permissions import ALL_CASH_PERMISSIONS
+from backend.application.cash_register.refund_integration import CashRefundIntegrationService
 from backend.application.cash_register.sales_integration import CashSalesIntegrationService
 from backend.application.cash_register.shift_use_cases import OpenCashShiftUseCase
 from backend.domain.cash_register.policies.security_policies import CashMonetaryLimitPolicy
@@ -79,39 +80,33 @@ class CashRefundFactoryWiringTests(unittest.TestCase):
     def tearDown(self):
         self.db.close()
 
-    def test_non_cash_refund_emits_event_without_physical_outflow(self):
-        presenter = build_cash_register_presenter(self.root)
-        refund_id = new_uuid()
-        sale_id = new_uuid()
+    def _refund(self, *, sale_id, original, refund, reason="Devolucion autorizada"):
+        """La vía real: la devolución del POS llama al servicio de Caja
+        (`_cash_refund_service` en sales_pos/composition.py). La ejecución
+        manual desde Caja se retiró en CASH-26 (pedía UUIDs a mano)."""
+        return CashRefundIntegrationService(
+            self.auth,
+            CashMonetaryLimitPolicy(approval_threshold=Decimal("500"), hard_cap=Decimal("2000")),
+        ).process(
+            self.db, refund_id=new_uuid(), sale_id=sale_id, branch_id=self.branch,
+            cashier_user_id=self.cashier, authorized_by=self.supervisor,
+            operation_id=new_uuid(), original_payment_lines=original,
+            refund_lines=refund, reason=reason)
 
-        result = presenter.execute_cash_refund(
-            refund_id=refund_id,
-            sale_id=sale_id,
-            authorized_by=self.supervisor,
-            original_payment_lines={"CARD": Decimal("100")},
-            refund_lines={"CARD": Decimal("100")},
-            reason="Devolucion autorizada",
-        )
+    def test_non_cash_refund_is_listed_without_physical_outflow(self):
+        result = self._refund(sale_id=new_uuid(), original={"CARD": Decimal("100")},
+                              refund={"CARD": Decimal("100")})
 
         self.assertIsNone(result.ledger_entry_id)
-        self.assertEqual(result.cash_amount, Decimal("0"))
         self.assertEqual(
             self.db.execute("SELECT COUNT(*) FROM cash_ledger_entries WHERE movement_type='CASH_REFUND'").fetchone()[0],
             0,
         )
-        self.assertEqual(
-            self.db.execute("SELECT COUNT(*) FROM cash_domain_events WHERE event_name='CASH_REFUND_PROCESSED'").fetchone()[0],
-            1,
-        )
-        self.assertEqual(
-            self.db.execute(
-                "SELECT method,amount,ledger_entry_id FROM cash_refund_executions WHERE refund_id=?",
-                (refund_id,),
-            ).fetchone(),
-            ("ORIGINAL_PAYMENT_METHOD", "100", None),
-        )
+        rows = build_cash_register_presenter(self.root).cash_refunds()
+        self.assertEqual([(r.method, r.amount) for r in rows],
+                         [("ORIGINAL_PAYMENT_METHOD", "100")])
 
-    def test_cash_refund_creates_physical_outflow_ledger_entry(self):
+    def test_cash_refund_creates_outflow_and_is_listed(self):
         sale_id = new_uuid()
         CashSalesIntegrationService().record_completed_sale(
             self.db,
@@ -121,30 +116,21 @@ class CashRefundFactoryWiringTests(unittest.TestCase):
             operation_id=new_uuid(),
             payment_lines={"CASH": Decimal("200")},
         )
-        presenter = build_cash_register_presenter(self.root)
+        result = self._refund(sale_id=sale_id, original={"CASH": Decimal("200")},
+                              refund={"CASH": Decimal("50")},
+                              reason="Devolucion parcial autorizada")
 
-        result = presenter.execute_cash_refund(
-            refund_id=new_uuid(),
-            sale_id=sale_id,
-            authorized_by=self.supervisor,
-            original_payment_lines={"CASH": Decimal("200")},
-            refund_lines={"CASH": Decimal("50")},
-            reason="Devolucion parcial autorizada",
-        )
-
-        self.assertIsNotNone(result.ledger_entry_id)
         row = self.db.execute(
             "SELECT movement_type,direction,amount,related_sale_id FROM cash_ledger_entries WHERE id=?",
             (result.ledger_entry_id,),
         ).fetchone()
         self.assertEqual(row, ("CASH_REFUND", "OUTFLOW", "50", sale_id))
-        self.assertEqual(
-            self.db.execute(
-                "SELECT method,amount,ledger_entry_id FROM cash_refund_executions WHERE ledger_entry_id=?",
-                (result.ledger_entry_id,),
-            ).fetchone(),
-            ("CASH", "50", result.ledger_entry_id),
-        )
+        rows = build_cash_register_presenter(self.root).cash_refunds()
+        self.assertEqual([(r.method, r.amount) for r in rows], [("CASH", "50")])
+
+    def test_caja_no_longer_offers_a_manual_refund_command(self):
+        presenter = build_cash_register_presenter(self.root)
+        self.assertFalse(hasattr(presenter, "execute_cash_refund"))
 
 
 if __name__ == "__main__":

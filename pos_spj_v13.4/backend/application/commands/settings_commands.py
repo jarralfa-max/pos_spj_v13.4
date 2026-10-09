@@ -137,28 +137,6 @@ class SetHappyHourRuleActiveCommand(BaseCommand):
 
 
 @dataclass(frozen=True)
-class SaveHardwareConfigCommand(BaseCommand):
-    device_type: str = ""
-    config: Mapping[str, Any] = field(default_factory=dict)
-
-    def validate_context(self) -> None:
-        super().validate_context()
-        if not str(self.device_type or "").strip():
-            raise ValueError("device_type is required")
-
-
-@dataclass(frozen=True)
-class SaveModuleToggleCommand(BaseCommand):
-    key: str = ""
-    enabled: bool = True
-
-    def validate_context(self) -> None:
-        super().validate_context()
-        if not str(self.key or "").strip():
-            raise ValueError("key is required")
-
-
-@dataclass(frozen=True)
 class SaveRolePermissionsCommand(BaseCommand):
     role_id: str = ""
     permissions: tuple[Mapping[str, Any], ...] = field(default_factory=tuple)
@@ -167,6 +145,20 @@ class SaveRolePermissionsCommand(BaseCommand):
         super().validate_context()
         if not str(self.role_id or "").strip():
             raise ValueError("role_id is required")
+
+
+@dataclass(frozen=True)
+class SaveUserPermissionsCommand(BaseCommand):
+    """`permissions`: `{"module", "action", "state"}` con state INHERIT, GRANT o
+    DENY. `target_user_id` es el usuario editado; `user_id` es quien actúa."""
+
+    target_user_id: str = ""
+    permissions: tuple[Mapping[str, Any], ...] = field(default_factory=tuple)
+
+    def validate_context(self) -> None:
+        super().validate_context()
+        if not str(self.target_user_id or "").strip():
+            raise ValueError("target_user_id is required")
 
 
 @dataclass(frozen=True)

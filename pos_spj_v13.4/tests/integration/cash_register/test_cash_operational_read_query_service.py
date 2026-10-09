@@ -102,7 +102,14 @@ class CashOperationalReadQueryServiceTests(unittest.TestCase):
                     requester_user_id=self.user,
                 )
                 self.assertEqual(section.key, section_key)
-                self.assertEqual(len(section.rows), 1)
+                if section_key == "payment_methods":
+                    # CASH-26: la clasificación del dominio, no `cash_payment_methods`.
+                    status = {row.id: row.status for row in section.rows}
+                    self.assertEqual(status["CASH"], "AFFECTS_DRAWER")
+                    self.assertEqual(status["BANK_CARD"], "NO_DRAWER")
+                    self.assertEqual(status["GIFT_CARD"], "FUTURE")
+                else:
+                    self.assertEqual(len(section.rows), 1)
                 self.assertEqual(auth.calls[-1]["permission_code"], permission)
                 if section_key != "payment_methods":
                     self.assertEqual(auth.calls[-1]["branch_id"], self.branch)

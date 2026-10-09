@@ -2,10 +2,8 @@
 
 Indicator cards and the alerts strip are the dashboard page's job now
 (ProcurementDashboardPage) — this shell only carries sidebar navigation, the
-branch/warehouse/period context strip (genuinely global, not duplicated
-elsewhere), and the routed page stack. See MIGRATION_LOG.md for the
-chrome-deduplication pass that removed the shell-level title header and its
-duplicated indicator/alerts widgets.
+branch/warehouse/period context strip and the routed page stack. ModuleLayout
+provides the same module title and sidebar composition as Pricing.
 """
 
 from __future__ import annotations
@@ -19,6 +17,7 @@ from frontend.desktop.components import (
     ViewState, create_primary_button, create_state_widget,
 )
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.purchasing.navigation import (
     PURCHASING_GROUP_ICONS, PurchasingRoutes, visible_routes,
 )
@@ -30,7 +29,7 @@ from frontend.desktop.modules.purchasing.pages.procurement_dashboard_page import
 )
 from frontend.desktop.modules.purchasing.pages.purchase_history_page import PurchaseHistoryPage
 from frontend.desktop.modules.purchasing.pages.logistics_related_page import LogisticsRelatedPage
-from frontend.desktop.themes.tokens import SidebarMetrics, Spacing
+from frontend.desktop.themes.tokens import Spacing
 
 
 class ContextFilters(QFrame):
@@ -39,7 +38,7 @@ class ContextFilters(QFrame):
     This is the shell's only remaining piece of global chrome: a genuine
     cross-page need (branch/warehouse/period scope — no other screen in the
     app offers a warehouse switcher). It carries the manual refresh action
-    too now that the shell no longer has its own PageHeader.
+    alongside the shared module header.
     """
 
     def __init__(self, session: dict[str, str | bool], warehouses, parent=None) -> None:
@@ -78,16 +77,12 @@ class PurchasingModuleShell(QWidget):
         self._route_badges: dict[str, str] = {}
         self._pages: list[QWidget] = []
 
-        root = QHBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
         self.sidebar = SideNav(self)
-        self.sidebar.setMinimumWidth(SidebarMetrics.WIDTH)
-        root.addWidget(self.sidebar)
+        self.sidebar.setAccessibleName("Navegación de Compras")
 
         body = QWidget(self)
         body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(Spacing.LG, Spacing.MD, Spacing.LG, Spacing.MD)
+        body_layout.setContentsMargins(0, 0, 0, 0)
         body_layout.setSpacing(Spacing.MD)
         session = presenter.session_summary()
         self.filters = ContextFilters(session, presenter.warehouse_options(), self)
@@ -107,7 +102,11 @@ class PurchasingModuleShell(QWidget):
         body_layout.addWidget(self._warehouse_notice)
         self.content = QStackedWidget(self)
         body_layout.addWidget(self.content, stretch=1)
-        root.addWidget(body, stretch=1)
+        self.module_layout = ModuleLayout(
+            self, title="Compras",
+            subtitle="Solicitudes, órdenes, compras, recepciones y facturación.",
+            icon=Icons.PURCHASES, sidebar=self.sidebar, content=body,
+        )
 
         self._build_navigation(self._direct_purchase_views)
         self.sidebar.currentRowChanged.connect(self._navigate_row)

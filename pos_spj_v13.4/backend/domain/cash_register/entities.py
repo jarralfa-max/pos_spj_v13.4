@@ -268,6 +268,12 @@ class BlindCashCount:
         self.status, self.confirmed_at = BlindCountStatus.CONFIRMED, _now()
 
 
+def _fallback_number(kind: str, cut_id: str) -> str:
+    """Sin folio consecutivo, el UUID COMPLETO: los primeros 8 hex de un UUIDv7
+    son marca de tiempo y repetían número entre cortes del mismo minuto."""
+    return f"{kind}-{cut_id.replace('-', '').upper()}"
+
+
 @dataclass(frozen=True, slots=True)
 class XCut:
     id: str
@@ -284,10 +290,11 @@ class XCut:
     @classmethod
     def generate(cls, *, shift_id: str, branch_id: str, generated_by: str,
                  expected_cash: Decimal, operation_id: str,
-                 snapshot: dict[str, str] | None = None) -> "XCut":
+                 snapshot: dict[str, str] | None = None,
+                 document_number: str | None = None) -> "XCut":
         _ids(shift_id, branch_id, generated_by, operation_id)
         cut_id = new_uuid()
-        number = f"X-{cut_id[:8].upper()}"
+        number = (document_number or "").strip() or _fallback_number("X", cut_id)
         return cls(cut_id, shift_id, branch_id, generated_by,
                    money(expected_cash), operation_id, number, dict(snapshot or {}))
 
@@ -312,13 +319,15 @@ class ZCut:
     def generate(cls, *, shift_id: str, branch_id: str, generated_by: str,
                  expected_cash: Decimal, counted_cash: Decimal,
                  blind_count_id: str, operation_id: str,
-                 snapshot: dict[str, str] | None = None) -> "ZCut":
+                 snapshot: dict[str, str] | None = None,
+                 document_number: str | None = None) -> "ZCut":
         _ids(shift_id, branch_id, generated_by, blind_count_id, operation_id)
         expected, counted = money(expected_cash), money(counted_cash)
         cut_id = new_uuid()
+        number = (document_number or "").strip() or _fallback_number("Z", cut_id)
         return cls(cut_id, shift_id, branch_id, generated_by, expected,
                    counted, counted - expected, blind_count_id, operation_id,
-                   f"Z-{cut_id[:8].upper()}", dict(snapshot or {}))
+                   number, dict(snapshot or {}))
 
 
 @dataclass(slots=True)
@@ -371,18 +380,28 @@ class CashDifference:
         self.explanation, self.explained_by = explanation.strip(), actor_user_id
         self.status = CashDifferenceStatus.EXPLAINED
 
+    @staticmethod
+    def require_independent(actor_user_id: str, *, responsible_user_id: str | None,
+                            explained_by: str | None, action: str) -> None:
+        """Two-person rule (user decision 2026-10-07): the shift's cashier explains;
+        someone else reviews AND resolves. The reviewer may resolve; nobody acts on
+        a difference they are responsible for or explained."""
+        if actor_user_id in {responsible_user_id, explained_by}:
+            raise CashSegregationOfDutiesError(
+                f"La {action} requiere un usuario distinto del responsable de la diferencia")
+
     def review(self, reviewer_user_id: str) -> None:
         _ids(reviewer_user_id)
-        if reviewer_user_id in {self.detected_by, self.explained_by}:
-            raise CashSegregationOfDutiesError("Difference review requires an independent user")
+        self.require_independent(reviewer_user_id, responsible_user_id=self.responsible_user_id,
+                                 explained_by=self.explained_by, action="revisión")
         if self.status is not CashDifferenceStatus.EXPLAINED:
             raise CashInvalidStateError("Only an explained difference can be reviewed")
         self.reviewed_by, self.status = reviewer_user_id, CashDifferenceStatus.UNDER_REVIEW
 
     def resolve(self, resolution: str, resolver_user_id: str) -> None:
         _ids(resolver_user_id)
-        if resolver_user_id in {self.detected_by, self.explained_by, self.reviewed_by}:
-            raise CashSegregationOfDutiesError("Difference resolution requires an independent user")
+        self.require_independent(resolver_user_id, responsible_user_id=self.responsible_user_id,
+                                 explained_by=self.explained_by, action="resolución")
         if self.status is not CashDifferenceStatus.UNDER_REVIEW or not resolution.strip():
             raise CashInvalidStateError("Reviewed difference requires a resolution")
         self.resolution, self.resolved_by = resolution.strip(), resolver_user_id

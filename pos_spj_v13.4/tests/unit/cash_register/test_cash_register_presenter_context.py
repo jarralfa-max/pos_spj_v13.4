@@ -247,28 +247,20 @@ class CashRegisterPresenterContextTests(unittest.TestCase):
         self.assertEqual(calls[1][1]["actor_user_id"], "user-1")
         self.assertEqual(calls[2][1]["reason"], "Diferencia")
 
-    def test_presenter_executes_cash_refund_with_injected_handler(self):
+    def test_presenter_lists_cash_refunds_from_the_read_model(self):
         calls = []
-        presenter = CashRegisterPresenter(
-            session_context=_Session(),
-            command_handlers={"execute_cash_refund": lambda **kwargs: calls.append(kwargs) or "refund"},
-        )
 
-        self.assertEqual(
-            presenter.execute_cash_refund(
-                refund_id="refund-1",
-                sale_id="sale-1",
-                authorized_by="supervisor-1",
-                original_payment_lines={"CASH": Decimal("100.00")},
-                refund_lines={"CASH": Decimal("40.00")},
-                reason="Devolucion autorizada",
-            ),
-            "refund",
-        )
+        class _Read:
+            def refunds(self, **kwargs):
+                calls.append(kwargs)
+                return ("refund",)
+
+        presenter = CashRegisterPresenter(
+            session_context=_Session(), query_services={"operational_read": _Read()})
+
+        self.assertEqual(presenter.cash_refunds(), ("refund",))
         self.assertEqual(calls[0]["branch_id"], "branch-1")
-        self.assertEqual(calls[0]["cashier_user_id"], "user-1")
-        self.assertEqual(calls[0]["authorized_by"], "supervisor-1")
-        self.assertEqual(calls[0]["refund_lines"], {"CASH": Decimal("40.00")})
+        self.assertEqual(calls[0]["requester_user_id"], "user-1")
 
     def test_presenter_difference_workflow_commands(self):
         calls = []

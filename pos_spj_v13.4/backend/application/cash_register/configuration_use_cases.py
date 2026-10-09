@@ -10,11 +10,14 @@ from backend.application.cash_register.permissions import CashPermissions
 from backend.domain.cash_register.configuration import (
     CashAlertRule,
     CashDenomination,
+    CashMovementReason,
     CashOperationLimit,
     CashPaymentMethod,
     CashScopedSetting,
+    CashWhatsAppRecipient,
     ConfigurationScope,
 )
+from backend.domain.cash_register.difference_policy import CashDifferencePolicy
 from backend.domain.cash_register.events import cash_event_payload
 from backend.infrastructure.db.repositories.cash_register.unit_of_work import CashRegisterUnitOfWork
 from backend.shared.ids import new_uuid, validate_uuidv7
@@ -102,13 +105,48 @@ class ConfigureCashAlertRuleCommand:
     window: CashConfigurationWindow = CashConfigurationWindow()
 
 
+@dataclass(frozen=True, slots=True)
+class ConfigureCashMovementReasonCommand:
+    """§14/§15: el motivo de un ingreso, retiro o retiro a bóveda."""
+    code: str
+    display_name: str
+    movement_type: str
+    requires_authorization: bool = False
+    window: CashConfigurationWindow = CashConfigurationWindow()
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigureCashDifferencePolicyCommand:
+    """§21: tolerancias de diferencias. Sin una vigente el Corte Z no procede
+    si hay faltante o sobrante."""
+    tolerance: Decimal
+    critical_threshold: Decimal
+    recurrence_window_days: int
+    recurrence_threshold: int
+    channels: tuple[str, ...]
+    scope: CashConfigurationScope
+    window: CashConfigurationWindow = CashConfigurationWindow()
+
+
 CashConfigurationCommand = (
     ConfigureCashSettingCommand
     | ConfigureCashDenominationCommand
     | ConfigureCashPaymentMethodCommand
     | ConfigureCashOperationLimitCommand
     | ConfigureCashAlertRuleCommand
+    | ConfigureCashMovementReasonCommand
+    | ConfigureCashDifferencePolicyCommand
 )
+
+#: Secciones cuyas filas se pueden dar de baja (cerrar su vigencia).
+DEACTIVATABLE_SECTIONS = {
+    "denominations": "cash_denominations",
+    "payment_methods": "cash_payment_methods",
+    "limits": "cash_operation_limits",
+    "alerts": "cash_alert_rules",
+    "reasons": "cash_movement_reasons",
+    "tolerances": "cash_difference_policies",
+}
 
 
 class ConfigureCashRegisterUseCase:
@@ -116,38 +154,6 @@ class ConfigureCashRegisterUseCase:
 
     def __init__(self, authorization: CashAuthorizationPolicy) -> None:
         self._authorization = authorization
-
-    def execute(
-        self,
-        connection,
-        *,
-        section: str,
-        name: str,
-        value: str,
-        scope_type: str,
-        scope_id: str | None,
-        actor_user_id: str,
-        branch_id: str,
-        operation_id: str,
-        effective_from: str | None = None,
-        effective_to: str | None = None,
-    ) -> CashConfigurationResult:
-        command = self._legacy_payload_to_command(
-            section=section,
-            name=name,
-            value=value,
-            scope_type=scope_type,
-            scope_id=scope_id,
-            effective_from=effective_from,
-            effective_to=effective_to,
-        )
-        return self.execute_typed(
-            connection,
-            command=command,
-            actor_user_id=actor_user_id,
-            branch_id=branch_id,
-            operation_id=operation_id,
-        )
 
     def execute_typed(
         self,
@@ -203,61 +209,6 @@ class ConfigureCashRegisterUseCase:
             uow.outbox.enqueue(event)
         return CashConfigurationResult(entity_id, "Configuracion de Caja guardada")
 
-    def _legacy_payload_to_command(
-        self,
-        *,
-        section: str,
-        name: str,
-        value: str,
-        scope_type: str,
-        scope_id: str | None,
-        effective_from: str | None,
-        effective_to: str | None,
-    ) -> CashConfigurationCommand:
-        section = section.strip().lower()
-        name = name.strip().upper()
-        value = value.strip()
-        if not name or not value:
-            raise ValueError("Nombre y valor de configuracion son requeridos")
-        scope = CashConfigurationScope.from_values(scope_type, scope_id)
-        window = CashConfigurationWindow(effective_from, effective_to)
-        if section in {"hierarchy", "validity"}:
-            return ConfigureCashSettingCommand(section, name, value, scope, window)
-        if section == "denominations":
-            currency_code = name if len(name) == 3 else "MXN"
-            amount = Decimal(value)
-            return ConfigureCashDenominationCommand(
-                currency_code=currency_code,
-                value=amount,
-                display_name=f"{currency_code} {amount}",
-                window=window,
-            )
-        if section == "payment_methods":
-            return ConfigureCashPaymentMethodCommand(
-                code=name,
-                display_name=value,
-                affects_physical_cash=name == "CASH",
-                window=window,
-            )
-        if section == "limits":
-            threshold, _, cap = value.partition("/")
-            return ConfigureCashOperationLimitCommand(
-                operation_type=name,
-                approval_threshold=Decimal(threshold.strip()),
-                hard_cap=Decimal((cap or threshold).strip()),
-                scope=scope,
-                window=window,
-            )
-        if section == "alerts":
-            return ConfigureCashAlertRuleCommand(
-                event_name=name,
-                severity=value.upper(),
-                channels=("IN_APP",),
-                scope=scope,
-                window=window,
-            )
-        raise ValueError(f"Seccion de configuracion no mutable en este flujo: {section}")
-
     def _describe(
         self,
         command: CashConfigurationCommand,
@@ -272,6 +223,10 @@ class ConfigureCashRegisterUseCase:
             return "limits", command.operation_type.strip().upper(), command.scope, command.window
         if isinstance(command, ConfigureCashAlertRuleCommand):
             return "alerts", command.event_name.strip().upper(), command.scope, command.window
+        if isinstance(command, ConfigureCashMovementReasonCommand):
+            return "reasons", command.code.strip().upper(), None, command.window
+        if isinstance(command, ConfigureCashDifferencePolicyCommand):
+            return "tolerances", "DIFFERENCE_POLICY", command.scope, command.window
         raise TypeError("Comando de configuracion de Caja no soportado")
 
     def _insert_typed(self, uow, *, command: CashConfigurationCommand,
@@ -309,6 +264,9 @@ class ConfigureCashRegisterUseCase:
                 command.display_name,
                 command.sort_order,
             )
+            uow.configuration.close_previous_denomination(
+                currency_code=denomination.currency_code, value=str(denomination.value),
+                effective_from=effective_from)
             uow.configuration.add_denomination(
                 row_id=entity_id,
                 currency_code=denomination.currency_code,
@@ -340,6 +298,10 @@ class ConfigureCashRegisterUseCase:
                 command.approval_threshold,
                 command.hard_cap,
             )
+            uow.configuration.close_previous_limit(
+                operation_type=limit.operation_type,
+                scope_type=command.scope.scope_type.value, scope_id=command.scope.scope_id,
+                effective_from=effective_from)
             uow.configuration.add_operation_limit(
                 row_id=entity_id,
                 operation_type=limit.operation_type,
@@ -368,8 +330,77 @@ class ConfigureCashRegisterUseCase:
                 effective_from=effective_from,
                 effective_to=effective_to,
             )
+            uow.configuration.supersede_alert_rule(
+                new_rule_id=entity_id, event_name=alert.event_name,
+                scope_type=command.scope.scope_type.value, scope_id=command.scope.scope_id,
+                effective_from=effective_from)
+            return
+        if isinstance(command, ConfigureCashMovementReasonCommand):
+            reason = CashMovementReason.create(
+                command.code, command.display_name, command.movement_type,
+                requires_authorization=command.requires_authorization)
+            uow.configuration.close_previous_reason(
+                code=reason.code, effective_from=effective_from)
+            uow.configuration.add_movement_reason(
+                row_id=entity_id, code=reason.code, display_name=reason.display_name,
+                movement_type=reason.movement_type,
+                requires_authorization=reason.requires_authorization,
+                effective_from=effective_from, effective_to=effective_to)
+            return
+        if isinstance(command, ConfigureCashDifferencePolicyCommand):
+            if int(command.recurrence_window_days) < 1:
+                raise ValueError("La ventana de reincidencia debe ser de al menos un dia")
+            policy = CashDifferencePolicy(
+                tolerance=Decimal(command.tolerance),
+                critical_threshold=Decimal(command.critical_threshold),
+                recurrence_threshold=int(command.recurrence_threshold),
+                channels=tuple(command.channels))
+            uow.configuration.close_previous_difference_policy(
+                scope_type=command.scope.scope_type.value, scope_id=command.scope.scope_id,
+                effective_from=effective_from)
+            uow.configuration.add_difference_policy(
+                row_id=entity_id, tolerance=str(policy.tolerance),
+                critical_threshold=str(policy.critical_threshold),
+                recurrence_window_days=int(command.recurrence_window_days),
+                recurrence_threshold=policy.recurrence_threshold, channels=policy.channels,
+                scope_type=command.scope.scope_type.value, scope_id=command.scope.scope_id,
+                effective_from=effective_from, effective_to=effective_to)
             return
         raise TypeError("Comando de configuracion de Caja no soportado")
+
+
+class DeactivateCashConfigurationUseCase:
+    """Da de baja una fila de catálogo cerrando su vigencia (nunca la borra:
+    cortes y conteos pasados siguen apuntando a ella)."""
+
+    def __init__(self, authorization: CashAuthorizationPolicy) -> None:
+        self._authorization = authorization
+
+    def execute(self, connection, *, section: str, row_id: str, actor_user_id: str,
+                branch_id: str, operation_id: str) -> CashConfigurationResult:
+        self._authorization.require(
+            user_id=actor_user_id, permission_code=CashPermissions.SETTINGS_MANAGE,
+            branch_id=branch_id)
+        table = DEACTIVATABLE_SECTIONS.get(section)
+        if table is None:
+            raise ValueError("Esta seccion no admite baja de registros")
+        validate_uuidv7(row_id)
+        now = _now()
+        with CashRegisterUnitOfWork(connection) as uow:
+            if not uow.configuration.end_validity(table=table, row_id=row_id, at=now):
+                raise ValueError("El registro ya no esta vigente o no existe")
+            event = cash_event_payload(
+                "CASH_CONFIGURATION_CHANGED", operation_id=operation_id, entity_id=row_id,
+                branch_id=branch_id, user_id=actor_user_id, section=section,
+                name="DEACTIVATED", scope_type="SYSTEM", scope_id=None)
+            uow.audit.record(
+                audit_id=new_uuid(), action="CASH_CONFIGURATION_DEACTIVATED",
+                actor_user_id=actor_user_id, entity_id=row_id, branch_id=branch_id,
+                operation_id=operation_id, reason=f"{section}:baja",
+                occurred_at=event["timestamp"])
+            uow.events.add(event)
+            uow.outbox.enqueue(event)
+        return CashConfigurationResult(row_id, "Registro dado de baja")
 
 
 def _parse_effective(value: str) -> datetime:
@@ -377,3 +408,113 @@ def _parse_effective(value: str) -> datetime:
     if parsed.tzinfo is None:
         raise ValueError("Las vigencias de configuracion requieren zona horaria")
     return parsed
+
+
+def build_cash_catalog_command(section: str, fields: dict) -> CashConfigurationCommand:
+    """Comando tipado a partir de los campos de la pantalla (ya `Decimal`/`int`).
+
+    Alcance SYSTEM: los catálogos de Caja aplican a toda la instalación; un
+    alcance por sucursal o caja se agregará cuando exista quien lo lea.
+    """
+    system = CashConfigurationScope(ConfigurationScope.SYSTEM)
+    if section == "denominations":
+        return ConfigureCashDenominationCommand(
+            currency_code=str(fields["currency_code"]), value=Decimal(fields["value"]),
+            display_name=str(fields["display_name"]), sort_order=int(fields["sort_order"]))
+    if section == "reasons":
+        return ConfigureCashMovementReasonCommand(
+            code=str(fields["code"]), display_name=str(fields["display_name"]),
+            movement_type=str(fields["movement_type"]),
+            requires_authorization=bool(fields.get("requires_authorization")))
+    if section == "limits":
+        return ConfigureCashOperationLimitCommand(
+            operation_type=str(fields["operation_type"]),
+            approval_threshold=Decimal(fields["approval_threshold"]),
+            hard_cap=Decimal(fields["hard_cap"]), scope=system)
+    if section == "tolerances":
+        return ConfigureCashDifferencePolicyCommand(
+            tolerance=Decimal(fields["tolerance"]),
+            critical_threshold=Decimal(fields["critical_threshold"]),
+            recurrence_window_days=int(fields["recurrence_window_days"]),
+            recurrence_threshold=int(fields["recurrence_threshold"]),
+            channels=tuple(fields["channels"]), scope=system)
+    if section == "alerts":
+        return ConfigureCashAlertRuleCommand(
+            event_name=str(fields["event_name"]), severity=str(fields["severity"]),
+            channels=tuple(fields["channels"]), scope=system)
+    raise ValueError(f"Seccion de configuracion sin alta tipada: {section}")
+
+
+class ManageCashAlertRecipientUseCase:
+    """Destinatarios de los avisos de Caja (CASH-26 bloque 2, 2026-10-07).
+
+    Las reglas de aviso tenían escritor y sus destinatarios NO: ningún aviso
+    llegaba a nadie. Un destinatario es un usuario activo (aviso en el
+    sistema) o un teléfono E.164 (WhatsApp); sólo en un canal que la regla use.
+    """
+
+    def __init__(self, authorization: CashAuthorizationPolicy) -> None:
+        self._authorization = authorization
+
+    def add(self, connection, *, alert_rule_id: str, channel: str, address: str,
+            display_name: str, actor_user_id: str, branch_id: str,
+            operation_id: str) -> CashConfigurationResult:
+        self._authorization.require(
+            user_id=actor_user_id, permission_code=CashPermissions.SETTINGS_MANAGE,
+            branch_id=branch_id)
+        validate_uuidv7(alert_rule_id)
+        channel = channel.upper()
+        address = address.strip()
+        with CashRegisterUnitOfWork(connection) as uow:
+            rule = uow.configuration.active_alert_rule(alert_rule_id, at=_now())
+            if rule is None:
+                raise ValueError("El aviso seleccionado ya no esta vigente")
+            if channel not in rule["channels"]:
+                raise ValueError("Ese aviso no se envia por el canal elegido")
+            if channel == "IN_APP":
+                validate_uuidv7(address)
+                name = uow.configuration.user_display_name(address)
+                if name is None:
+                    raise ValueError("El usuario no existe o esta inactivo")
+                display_name = display_name.strip() or name
+            elif channel == "WHATSAPP":
+                CashWhatsAppRecipient.create(rule["event_name"], address)
+                if not display_name.strip():
+                    raise ValueError("Escribe el nombre de quien recibe el WhatsApp")
+            else:
+                raise ValueError("Canal de aviso no soportado")
+            row_id = uow.configuration.add_alert_recipient(
+                row_id=new_uuid(), alert_rule_id=alert_rule_id, channel=channel,
+                address=address, display_name=display_name.strip())
+            self._record(uow, row_id=row_id, action="CASH_ALERT_RECIPIENT_ADDED",
+                         actor_user_id=actor_user_id, branch_id=branch_id,
+                         operation_id=operation_id, detail=f"{channel}:{rule['event_name']}")
+        return CashConfigurationResult(row_id, "Destinatario agregado")
+
+    def deactivate(self, connection, *, row_id: str, actor_user_id: str, branch_id: str,
+                   operation_id: str) -> CashConfigurationResult:
+        self._authorization.require(
+            user_id=actor_user_id, permission_code=CashPermissions.SETTINGS_MANAGE,
+            branch_id=branch_id)
+        validate_uuidv7(row_id)
+        with CashRegisterUnitOfWork(connection) as uow:
+            if not uow.configuration.deactivate_alert_recipient(row_id):
+                raise ValueError("El destinatario ya estaba dado de baja o no existe")
+            self._record(uow, row_id=row_id, action="CASH_ALERT_RECIPIENT_REMOVED",
+                         actor_user_id=actor_user_id, branch_id=branch_id,
+                         operation_id=operation_id, detail="baja")
+        return CashConfigurationResult(row_id, "Destinatario dado de baja")
+
+    @staticmethod
+    def _record(uow, *, row_id: str, action: str, actor_user_id: str, branch_id: str,
+                operation_id: str, detail: str) -> None:
+        event = cash_event_payload(
+            "CASH_CONFIGURATION_CHANGED", operation_id=operation_id, entity_id=row_id,
+            branch_id=branch_id, user_id=actor_user_id, section="recipients",
+            name=action, scope_type="SYSTEM", scope_id=None)
+        uow.audit.record(
+            audit_id=new_uuid(), action=action, actor_user_id=actor_user_id,
+            entity_id=row_id, branch_id=branch_id, operation_id=operation_id,
+            reason=detail, occurred_at=event["timestamp"])
+        uow.events.add(event)
+        uow.outbox.enqueue(event)

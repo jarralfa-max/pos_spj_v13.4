@@ -42,7 +42,8 @@ class SetCostPolicyUseCase:
             return PricingResult.ok("La política de costo ya era ésa", operation_id=operation_id,
                                     policy=new_policy.value, changed=False)
         try:
-            settings.store(new_policy)
+            writer = settings.store(new_policy, actor_user_id=actor_user_id,
+                                    operation_id=operation_id)
             payload = build_pricing_event_payload(
                 PricingEvents.COST_POLICY_CHANGED, operation_id=operation_id,
                 entity_id="costing.cost_policy", user_id=actor_user_id,
@@ -58,6 +59,7 @@ class SetCostPolicyUseCase:
                 rollback()
             logger.exception("No se pudo cambiar la política de costo")
             raise
+        writer.publish()
         return PricingResult.ok(f"Política de costo: {COST_POLICY_LABELS[new_policy]}",
                                 operation_id=operation_id, policy=new_policy.value,
                                 changed=True)

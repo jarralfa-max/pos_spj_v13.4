@@ -12,10 +12,11 @@ section the layout disabled/omitted.
 
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont, QGuiApplication
+from PyQt5.QtCore import QSize, Qt
+from PyQt5.QtGui import QFont, QGuiApplication, QPixmap
 from PyQt5.QtWidgets import (
     QLabel,
+    QSizePolicy,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -104,8 +105,15 @@ class CustomerDisplayWindow(QWidget):
         self._ad_label.setAlignment(Qt.AlignCenter)
         self._ad_label.setFont(_font(Typography.SIZE_TITLE_LG))
         self._ad_label.setWordWrap(True)
+        # La imagen se adapta al espacio; nunca al revés. Sin esto, un QLabel con
+        # imagen pide el tamaño de la imagen, la ventana crece, y como la imagen
+        # se reescala al redimensionar, crecería sin fin.
+        self._ad_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         self._ad_label.setVisible(False)
         root.addWidget(self._ad_label, stretch=1)
+        self._video_widget = None
+        self._video_player = None
+        self._ad_pixmap = None
 
         close_button = QPushButton("Cerrar", self)
         close_button.clicked.connect(self.close)
@@ -124,6 +132,9 @@ class CustomerDisplayWindow(QWidget):
 
     def render_content(self, mode: str, content: dict) -> None:
         self._ad_label.setVisible(False)
+        self._ad_pixmap = None
+        self._stop_video()
+        self._set_sale_widgets_visible(True)
         self._clear_items()
         if CustomerDisplaySectionCode.CUSTOMER_NAME.value in content:
             self._customer_name_label.setText(str(content[CustomerDisplaySectionCode.CUSTOMER_NAME.value] or ""))
@@ -148,18 +159,85 @@ class CustomerDisplayWindow(QWidget):
 
         self._message_label.setText(str(content.get(CustomerDisplaySectionCode.MESSAGE.value, "") or ""))
 
-    def render_idle_ad(self, content_type: str, title: str, body: str) -> None:
-        """Renders one resolved advertising placement while the register
-        is idle. `TEXT` content renders `body` for real; `IMAGE`/`VIDEO`/
-        `HTML` render an honest placeholder — no real image/video/HTML
-        rendering infrastructure exists anywhere in this repo (confirmed
-        repeatedly across this track), so pretending to paint one would
-        be fabricated, not real."""
+    def render_idle_ad(self, content_type: str, title: str, body: str,
+                       media_path: str | None = None) -> None:
+        """Una pieza de publicidad mientras la caja está en reposo.
+
+        TEXT muestra el texto; IMAGE la imagen escalada a la pantalla; VIDEO lo
+        reproduce en silencio y en bucle. Un archivo que ya no está o un video
+        sin reproductor disponible se dicen en pantalla, no se inventan.
+        HTML sigue sin renderizarse (no hay motor para HTML aquí).
+        """
+        self._stop_video()
+        self._ad_label.clear()
+        self._ad_pixmap = None
+        # En reposo no hay venta: la publicidad ocupa la pantalla completa.
+        self._set_sale_widgets_visible(False)
         if content_type == "TEXT":
             self._ad_label.setText(body)
+        elif content_type == "IMAGE" and media_path:
+            pixmap = QPixmap(media_path)
+            if pixmap.isNull():
+                self._ad_label.setText(f"{title} (no se pudo abrir la imagen)")
+            else:
+                self._ad_pixmap = pixmap
+                self._fit_ad_pixmap()
+        elif content_type == "VIDEO" and media_path and self._play_video(media_path):
+            self._ad_label.setVisible(False)
+            return
+        elif content_type in ("IMAGE", "VIDEO"):
+            self._ad_label.setText(f"{title} (el archivo ya no está disponible)")
         else:
             self._ad_label.setText(f"{title} ({content_type})")
         self._ad_label.setVisible(True)
+
+    def _set_sale_widgets_visible(self, visible: bool) -> None:
+        for widget in (self._customer_name_label, self._items_area, self._message_label):
+            widget.setVisible(visible)
+
+    def _fit_ad_pixmap(self) -> None:
+        """Escala la imagen al área disponible de la ventana (no al tamaño
+        momentáneo de la etiqueta, que oculta mide 0×0) y conserva proporción."""
+        if self._ad_pixmap is None:
+            return
+        destino = self._ad_label.contentsRect().size()
+        if destino.width() < 16 or destino.height() < 16:  # aún sin acomodar
+            margen = Spacing.XXL * 2
+            destino = QSize(max(self.width() - margen, 1), max(int(self.height() * 0.6), 1))
+        self._ad_label.setPixmap(self._ad_pixmap.scaled(
+            destino, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self._ad_label.setVisible(True)
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._fit_ad_pixmap()
+
+    def _play_video(self, media_path: str) -> bool:
+        try:
+            from PyQt5.QtCore import QUrl
+            from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QMediaPlaylist
+            from PyQt5.QtMultimediaWidgets import QVideoWidget
+        except ImportError:
+            return False
+        if self._video_widget is None:
+            self._video_widget = QVideoWidget(self)
+            self._video_player = QMediaPlayer(self, QMediaPlayer.VideoSurface)
+            self._video_player.setVideoOutput(self._video_widget)
+            self._video_player.setMuted(True)
+            self.layout().insertWidget(self.layout().indexOf(self._ad_label), self._video_widget, 1)
+        playlist = QMediaPlaylist(self._video_player)
+        playlist.addMedia(QMediaContent(QUrl.fromLocalFile(media_path)))
+        playlist.setPlaybackMode(QMediaPlaylist.Loop)
+        self._video_player.setPlaylist(playlist)
+        self._video_widget.setVisible(True)
+        self._video_player.play()
+        return True
+
+    def _stop_video(self) -> None:
+        if self._video_player is not None:
+            self._video_player.stop()
+        if self._video_widget is not None:
+            self._video_widget.setVisible(False)
 
     def _clear_items(self) -> None:
         while self._items_layout.count():

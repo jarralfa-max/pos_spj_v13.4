@@ -7,6 +7,7 @@ and active-context callbacks already wired.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -20,7 +21,12 @@ from backend.application.cash_register.blind_count_use_cases import (
     StartBlindCountUseCase,
 )
 from backend.application.cash_register.configuration_query_service import CashConfigurationQueryService
-from backend.application.cash_register.configuration_use_cases import ConfigureCashRegisterUseCase
+from backend.application.cash_register.configuration_use_cases import (
+    ConfigureCashRegisterUseCase,
+    DeactivateCashConfigurationUseCase,
+    ManageCashAlertRecipientUseCase,
+    build_cash_catalog_command,
+)
 from backend.application.cash_register.device_query_service import CashDeviceQueryService
 from backend.application.cash_register.device_use_cases import (
     AssignCashDeviceUseCase,
@@ -28,7 +34,6 @@ from backend.application.cash_register.device_use_cases import (
     DiagnoseCashHardwareUseCase,
     SetCashDeviceStatusUseCase,
 )
-from backend.application.cash_register.hardware import StubCashHardwareGateway
 from backend.application.cash_register.hardware_use_cases import OpenCashDrawerUseCase
 from backend.application.cash_register.denomination_query_service import CashDenominationQueryService
 from backend.application.cash_register.difference_query_service import CashDifferenceQueryService
@@ -73,6 +78,7 @@ from backend.application.cash_register.printing import (
     CashPrintDocument,
     CashPrintDocumentType,
     CashPrintFormat,
+    DispatchCashPrintQueueUseCase,
     PrintCashDocumentCommand,
     PrintCashDocumentUseCase,
 )
@@ -82,6 +88,27 @@ from backend.application.cash_register.session_authorization import (
     CashSessionPermissionChecker,
 )
 from backend.application.cash_register.shift_query_service import CashShiftQueryService
+from backend.application.security.authorizer_permission_checker import AuthorizerPermissionChecker
+from backend.application.security.session_or_authorizer_checker import (
+    SessionOrAuthorizerBranchScopeChecker,
+    SessionOrAuthorizerPermissionChecker,
+)
+from backend.domain.cash_register.exceptions import (
+    CashAuthorizationRequiredError,
+    CashConfigurationError,
+    CashInvalidStateError,
+)
+from backend.domain.document_output.enums import DocumentType
+from backend.infrastructure.hardware.cash_drawer_gateway import PrinterKickCashDrawerGateway
+from backend.infrastructure.hardware.cash_document_printer import (
+    CashDocumentPrinter,
+    resolve_cash_printer,
+)
+from backend.infrastructure.printing.routed_printer import PrintTargetUnavailable
+from backend.security.authentication.errors import AuthenticationFailedError
+from backend.security.authentication.verify_authorizer_credentials_use_case import (
+    build_authorizer_credentials_verifier,
+)
 from backend.application.cash_register.shift_use_cases import (
     BeginCashShiftClosingUseCase,
     OpenCashShiftUseCase,
@@ -95,11 +122,13 @@ from backend.application.cash_register.z_cut_use_cases import (
     GenerateZCutUseCase,
     NotifyZCutUseCase,
 )
-from backend.domain.cash_register.policies.security_policies import CashMonetaryLimitPolicy
 from backend.domain.cash_register.enums import CashMovementType
 from backend.shared.ids import new_uuid
 from backend.infrastructure.desktop.cash_operational_context import (
     DesktopCashOperationalContextResolver,
+)
+from backend.infrastructure.db.repositories.cash_register.operation_limits import (
+    EffectiveCashLimitPolicy,
 )
 from backend.infrastructure.db.repositories.cash_register.printing_repository import CashPrintRepository
 from backend.infrastructure.db.repositories.cash_register.configuration_repository import (
@@ -114,9 +143,10 @@ from backend.infrastructure.db.repositories.cash_register.repositories import (
 )
 from backend.infrastructure.integrations.cash_notification_senders import (
     EmailNotificationSender,
+    ErpWhatsAppTextClient,
     WhatsAppNotificationSender,
 )
-from backend.infrastructure.printing.cash_register_renderers import CashDocumentHtmlRenderer
+from backend.infrastructure.printing.cash_register_renderers import CashDocumentEscPosRenderer
 from frontend.desktop.modules.cash_register import CashRegisterPresenter, CashRegisterWorkspace
 
 
@@ -202,11 +232,8 @@ def _session(composition_root):
     return getattr(composition_root, "session", _AnonymousSession())
 
 
-def _cash_limit_policy(connection, operation_type: str) -> CashMonetaryLimitPolicy:
-    from backend.infrastructure.db.repositories.cash_register.operation_limits import (
-        cash_limit_policy,
-    )
-    return cash_limit_policy(connection, operation_type)
+def _cash_limit_policy(connection, operation_type: str) -> EffectiveCashLimitPolicy:
+    return EffectiveCashLimitPolicy(connection, operation_type)
 
 
 def _ensure_cash_sync_device(connection, *, device_id: str | None,
@@ -226,14 +253,50 @@ def _ensure_cash_sync_device(connection, *, device_id: str | None,
     return str(device_id)
 
 
+def _after_cash_command(connection, handler, deliver_notifications):
+    """Tras una operación de Caja ya confirmada (CASH-26 bloque 2):
+
+    1. entrega a Finanzas lo pendiente del `cash_outbox`;
+    2. envía los avisos listos (en el sistema y WhatsApp). Antes sólo salían
+       si alguien pulsaba «Enviar» en la página de Notificaciones.
+
+    Un fallo aquí no deshace la operación: el evento o el aviso quedan
+    pendientes con su error y salen en el siguiente intento.
+    """
+    def run(*args, **kwargs):
+        result = handler(*args, **kwargs)
+        log = logging.getLogger("spj.cash_register.factory")
+        try:
+            from backend.application.cash_register.finance_wiring import dispatch_cash_outbox
+            from backend.shared.events.application_bus import get_bus
+            dispatch_cash_outbox(connection, get_bus())
+        except Exception:  # noqa: BLE001 - nunca propaga a la pantalla
+            log.exception("despacho de cash_outbox fallido")
+        try:
+            deliver_notifications()
+        except Exception:  # noqa: BLE001 - nunca propaga a la pantalla
+            log.exception("envío de avisos de Caja fallido")
+        return result
+    return run
+
+
 def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
     connection = _connection(composition_root)
     session = _session(composition_root)
     authorization = getattr(composition_root, "cash_authorization_policy", None)
     if authorization is None:
+        # Quien opera se valida contra su sesión; el AUTORIZADOR de una excepción
+        # (otro usuario, ya probado con su clave) contra `rol_permisos`. Con sólo
+        # el verificador de sesión, toda autorización en caliente se denegaba.
         authorization = CashAuthorizationPolicy(
-            permissions=CashSessionPermissionChecker(session),
-            scopes=CashSessionBranchScopeChecker(session),
+            permissions=SessionOrAuthorizerPermissionChecker(
+                session=session,
+                session_checker=CashSessionPermissionChecker(session),
+                authorizer_checker=AuthorizerPermissionChecker(
+                    connection, branch_id=getattr(session, "active_branch_id", None) or None),
+            ),
+            scopes=SessionOrAuthorizerBranchScopeChecker(
+                session=session, session_scopes=CashSessionBranchScopeChecker(session)),
         )
 
     def resolve_attr(name: str, factory):
@@ -309,12 +372,19 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
     print_repository = resolve_attr(
         "cash_print_repository", lambda: CashPrintRepository(connection)
     )
+    print_gateway = resolve_attr(
+        "cash_print_gateway", lambda: CashDocumentPrinter(connection)
+    )
     hardware_gateway = resolve_attr(
-        "cash_hardware_gateway", lambda: StubCashHardwareGateway()
+        "cash_hardware_gateway",
+        lambda: PrinterKickCashDrawerGateway(
+            connection,
+            workstation_id=str(getattr(session, "workstation_id", "") or "") or None),
     )
     whatsapp_client = (
         getattr(composition_root, "cash_whatsapp_client", None)
         or getattr(composition_root, "whatsapp_message_service", None)
+        or ErpWhatsAppTextClient(connection)
     )
     email_client = (
         getattr(composition_root, "cash_email_client", None)
@@ -377,11 +447,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         ),
         "cash_safe_drop_uc": resolve_attr(
             "cash_safe_drop_uc",
-            lambda: RegisterSafeDropUseCase(
-                authorization,
-                safe_drop_limit,
-                alert_threshold=safe_drop_limit.approval_threshold,
-            ),
+            lambda: RegisterSafeDropUseCase(authorization, safe_drop_limit),
         ),
         "cash_prepare_handover_uc": resolve_attr(
             "cash_prepare_handover_uc", lambda: PrepareTreasuryHandoverUseCase(authorization)
@@ -415,15 +481,6 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         ),
         "cash_generate_z_cut_uc": resolve_attr(
             "cash_generate_z_cut_uc", lambda: GenerateZCutUseCase(authorization)
-        ),
-        "cash_print_document_uc": resolve_attr(
-            "cash_print_document_uc",
-            lambda: PrintCashDocumentUseCase(
-                authorization=authorization,
-                renderers={CashPrintFormat.HTML: CashDocumentHtmlRenderer()},
-                queue=print_repository,
-                audit=print_repository,
-            ),
         ),
         "cash_notify_z_cut_uc": resolve_attr(
             "cash_notify_z_cut_uc",
@@ -466,6 +523,17 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         )
         row = cursor.fetchone()
         if row is not None:
+            use_cases["cash_prepare_notifications_uc"].execute(connection, event_id=str(row[0]))
+
+    def prepare_notifications_for_entity(entity_id: str | None) -> None:
+        """Eventos con su PROPIA operación dentro de otro caso de uso (la
+        diferencia que detecta el Corte Z): antes sólo se preparaba el último
+        evento de la operación del corte y la alerta de diferencia se perdía."""
+        if not entity_id:
+            return
+        for row in connection.execute(
+                "SELECT id FROM cash_domain_events WHERE entity_id=? ORDER BY occurred_at,id",
+                (entity_id,)).fetchall():
             use_cases["cash_prepare_notifications_uc"].execute(connection, event_id=str(row[0]))
 
     def open_cash_shift_handler(
@@ -585,6 +653,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             actor_user_id=actor_user_id,
             operation_id=new_uuid(),
             authorized_by=authorized_by,
+            reason_code=reason_code,
         )
 
     def start_blind_count_handler(
@@ -626,34 +695,34 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         prepare_notifications_for_operation(operation_id)
         return result
 
-    def configure_cash_register_handler(
-        *,
-        section: str,
-        name: str,
-        value: str,
-        scope_type: str = "SYSTEM",
-        scope_id: str | None = None,
-        effective_from: str | None = None,
-        effective_to: str | None = None,
-        branch_id: str,
-        actor_user_id: str,
-    ):
+    def configure_cash_catalog_handler(*, section: str, fields: dict, branch_id: str,
+                                       actor_user_id: str):
         operation_id = new_uuid()
-        result = use_cases["cash_configure_uc"].execute(
-            connection,
-            section=section,
-            name=name,
-            value=value,
-            scope_type=scope_type,
-            scope_id=scope_id,
-            actor_user_id=actor_user_id,
-            branch_id=branch_id,
-            operation_id=operation_id,
-            effective_from=effective_from,
-            effective_to=effective_to,
-        )
+        result = use_cases["cash_configure_uc"].execute_typed(
+            connection, command=build_cash_catalog_command(section, fields),
+            actor_user_id=actor_user_id, branch_id=branch_id, operation_id=operation_id)
         prepare_notifications_for_operation(operation_id)
         return result
+
+    def deactivate_cash_configuration_handler(*, section: str, row_id: str, branch_id: str,
+                                              actor_user_id: str):
+        return DeactivateCashConfigurationUseCase(authorization).execute(
+            connection, section=section, row_id=row_id, actor_user_id=actor_user_id,
+            branch_id=branch_id, operation_id=new_uuid())
+
+    def add_cash_alert_recipient_handler(*, alert_rule_id: str, channel: str, address: str,
+                                         display_name: str, branch_id: str,
+                                         actor_user_id: str):
+        return ManageCashAlertRecipientUseCase(authorization).add(
+            connection, alert_rule_id=alert_rule_id, channel=channel, address=address,
+            display_name=display_name, actor_user_id=actor_user_id, branch_id=branch_id,
+            operation_id=new_uuid())
+
+    def deactivate_cash_alert_recipient_handler(*, row_id: str, branch_id: str,
+                                                actor_user_id: str):
+        return ManageCashAlertRecipientUseCase(authorization).deactivate(
+            connection, row_id=row_id, actor_user_id=actor_user_id, branch_id=branch_id,
+            operation_id=new_uuid())
 
     def set_cash_device_status_handler(
         *,
@@ -849,33 +918,6 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         prepare_notifications_for_operation(operation_id)
         return result
 
-    def execute_cash_refund_handler(
-        *,
-        refund_id: str,
-        sale_id: str,
-        branch_id: str,
-        cashier_user_id: str,
-        authorized_by: str,
-        original_payment_lines: dict[str, Decimal],
-        refund_lines: dict[str, Decimal],
-        reason: str,
-    ):
-        operation_id = new_uuid()
-        result = use_cases["cash_refund_integration_service"].process(
-            connection,
-            refund_id=refund_id,
-            sale_id=sale_id,
-            branch_id=branch_id,
-            cashier_user_id=cashier_user_id,
-            authorized_by=authorized_by,
-            operation_id=operation_id,
-            original_payment_lines=original_payment_lines,
-            refund_lines=refund_lines,
-            reason=reason,
-        )
-        prepare_notifications_for_operation(operation_id)
-        return result
-
     def explain_cash_difference_handler(
         *,
         difference_id: str,
@@ -981,6 +1023,47 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             final=False,
         )
 
+    def _print_cash_cut(*, document, document_type, route_document: str, label: str,
+                        cut_id: str, branch_id: str, actor_user_id: str, reprint: bool,
+                        original_print_id: str | None, reprint_reason: str | None) -> str:
+        """Imprime de verdad (CASH-26 bloque 2): impresora de Document Output,
+        ESC/POS al ancho del papel, cola confirmada y despacho inmediato. Sólo
+        devuelve si salió papel; si no, el trabajo queda FALLIDO con su motivo
+        y se puede reimprimir."""
+        resolved_original_print_id = original_print_id
+        if reprint and not resolved_original_print_id:
+            resolved_original_print_id = print_repository.latest_print_id_for_document(
+                entity_id=cut_id, document_type=document_type)
+        if reprint and not resolved_original_print_id:
+            raise ValueError(f"No existe una impresion original para reimprimir este {label}")
+        try:
+            printer_id, paper_width = resolve_cash_printer(
+                connection, route_document, branch_id=branch_id,
+                workstation_id=str(getattr(session, "workstation_id", "") or "") or None)
+        except PrintTargetUnavailable as exc:
+            raise CashConfigurationError(str(exc)) from exc
+        print_id = PrintCashDocumentUseCase(
+            authorization=authorization,
+            renderers={CashPrintFormat.ESC_POS: CashDocumentEscPosRenderer(
+                paper_width_mm=paper_width)},
+            queue=print_repository, audit=print_repository,
+        ).execute(PrintCashDocumentCommand(
+            operation_id=new_uuid(), actor_user_id=actor_user_id, document=document,
+            printer_id=printer_id, output_format=CashPrintFormat.ESC_POS,
+            original_print_id=resolved_original_print_id if reprint else None,
+            reprint_reason=reprint_reason if reprint else None,
+        ))
+        connection.commit()
+        DispatchCashPrintQueueUseCase(
+            authorization=authorization, store=print_repository, gateway=print_gateway,
+        ).execute(branch_id=branch_id, actor_user_id=actor_user_id)
+        connection.commit()
+        status, error = print_repository.delivery_status(print_id)
+        if status != "PRINTED":
+            raise CashInvalidStateError(
+                f"El {label} quedó registrado pero no se imprimió: {error or status}")
+        return print_id
+
     def print_x_cut_handler(
         *,
         cut_id: str,
@@ -1000,30 +1083,12 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             branch_id=branch_id,
             actor_user_id=actor_user_id,
         )
-        resolved_original_print_id = original_print_id
-        if reprint and not resolved_original_print_id and hasattr(
-                print_repository, "latest_print_id_for_document"):
-            resolved_original_print_id = print_repository.latest_print_id_for_document(
-                entity_id=cut_id,
-                document_type=CashPrintDocumentType.X_CUT,
-            )
-        if reprint and not resolved_original_print_id:
-            raise ValueError("No existe una impresion original para reimprimir este Corte X")
-        return use_cases["cash_print_document_uc"].execute(
-            PrintCashDocumentCommand(
-                operation_id=new_uuid(),
-                actor_user_id=actor_user_id,
-                document=document,
-                printer_id=str(
-                    getattr(composition_root, "cash_printer_id", None)
-                    or getattr(composition_root, "default_printer_id", None)
-                    or "default-cash-printer"
-                ),
-                output_format=CashPrintFormat.HTML,
-                original_print_id=resolved_original_print_id if reprint else None,
-                reprint_reason=reprint_reason if reprint else None,
-            )
-        )
+        return _print_cash_cut(
+            document=document, document_type=CashPrintDocumentType.X_CUT,
+            route_document=DocumentType.X_REPORT.value, label="Corte X",
+            cut_id=cut_id, branch_id=branch_id, actor_user_id=actor_user_id,
+            reprint=reprint, original_print_id=original_print_id,
+            reprint_reason=reprint_reason)
 
     def generate_z_cut_handler(
         *,
@@ -1040,6 +1105,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             operation_id=operation_id,
         )
         prepare_notifications_for_operation(operation_id)
+        prepare_notifications_for_entity(getattr(result, "difference_id", None))
         return result
 
     def _z_cut_document(*, cut_id: str, branch_id: str,
@@ -1093,30 +1159,12 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             branch_id=branch_id,
             actor_user_id=actor_user_id,
         )
-        resolved_original_print_id = original_print_id
-        if reprint and not resolved_original_print_id and hasattr(
-                print_repository, "latest_print_id_for_document"):
-            resolved_original_print_id = print_repository.latest_print_id_for_document(
-                entity_id=cut_id,
-                document_type=CashPrintDocumentType.Z_CUT,
-            )
-        if reprint and not resolved_original_print_id:
-            raise ValueError("No existe una impresion original para reimprimir este Corte Z")
-        return use_cases["cash_print_document_uc"].execute(
-            PrintCashDocumentCommand(
-                operation_id=new_uuid(),
-                actor_user_id=actor_user_id,
-                document=document,
-                printer_id=str(
-                    getattr(composition_root, "cash_printer_id", None)
-                    or getattr(composition_root, "default_printer_id", None)
-                    or "default-cash-printer"
-                ),
-                output_format=CashPrintFormat.HTML,
-                original_print_id=resolved_original_print_id if reprint else None,
-                reprint_reason=reprint_reason if reprint else None,
-            )
-        )
+        return _print_cash_cut(
+            document=document, document_type=CashPrintDocumentType.Z_CUT,
+            route_document=DocumentType.Z_REPORT.value, label="Corte Z",
+            cut_id=cut_id, branch_id=branch_id, actor_user_id=actor_user_id,
+            reprint=reprint, original_print_id=original_print_id,
+            reprint_reason=reprint_reason)
 
     def notify_z_cut_handler(
         *,
@@ -1202,12 +1250,26 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         )
         return use_cases["cash_dispatch_notifications_uc"].execute(connection)
 
+    def verify_authorizer_handler(*, username: str, password: str) -> str:
+        """El autorizador se prueba con SU clave (mismas reglas y bloqueo que el
+        login); devuelve su id. El permiso lo revalida cada caso de uso."""
+        try:
+            return build_authorizer_credentials_verifier(connection).execute(
+                username=username, password=password,
+                workstation_id=str(getattr(session, "workstation_id", "") or ""))
+        except AuthenticationFailedError as exc:
+            raise CashAuthorizationRequiredError(str(exc)) from exc
+
     command_handlers = {
+        "verify_authorizer": verify_authorizer_handler,
         "open_cash_shift": open_cash_shift_handler,
         "suspend_cash_shift": suspend_cash_shift_handler,
         "resume_cash_shift": resume_cash_shift_handler,
         "begin_cash_shift_closing": begin_cash_shift_closing_handler,
-        "configure_cash_register": configure_cash_register_handler,
+        "configure_cash_catalog": configure_cash_catalog_handler,
+        "deactivate_cash_configuration": deactivate_cash_configuration_handler,
+        "add_cash_alert_recipient": add_cash_alert_recipient_handler,
+        "deactivate_cash_alert_recipient": deactivate_cash_alert_recipient_handler,
         "create_cash_device": create_cash_device_handler,
         "set_cash_device_status": set_cash_device_status_handler,
         "diagnose_cash_hardware": diagnose_cash_hardware_handler,
@@ -1221,7 +1283,6 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         "deliver_cash_handover": deliver_cash_handover_handler,
         "receive_cash_handover": receive_cash_handover_handler,
         "dispute_cash_handover": dispute_cash_handover_handler,
-        "execute_cash_refund": execute_cash_refund_handler,
         "explain_cash_difference": explain_cash_difference_handler,
         "review_cash_difference": review_cash_difference_handler,
         "resolve_cash_difference": resolve_cash_difference_handler,
@@ -1234,6 +1295,15 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         "resolve_cash_sync_conflict": resolve_cash_sync_conflict_handler,
         "run_cash_sync_cycle": run_cash_sync_cycle_handler,
         "dispatch_cash_notifications": dispatch_cash_notifications_handler,
+    }
+    def deliver_notifications() -> None:
+        use_cases["cash_dispatch_notifications_uc"].execute(connection)
+        connection.commit()
+
+    command_handlers = {
+        name: (handler if name == "verify_authorizer"
+               else _after_cash_command(connection, handler, deliver_notifications))
+        for name, handler in command_handlers.items()
     }
 
     operational_context = DesktopCashOperationalContextResolver(

@@ -47,11 +47,34 @@ NETWORK_TIMEOUT_SECONDS = 5
 DEFAULT_NETWORK_PORT = 9100
 
 
+#: Banderas de `PRINTER_INFO_2.Status` de Windows que impiden imprimir.
+_WIN32_STATUS = (
+    (0x00000002, "con error"), (0x00000008, "atasco de papel"),
+    (0x00000010, "sin papel"), (0x00000080, "fuera de línea"),
+    (0x00000040, "requiere intervención"), (0x00000001, "en pausa"),
+    (0x00400000, "puerta abierta"),
+)
+
+
 class TransportType(str, Enum):
     NETWORK = "network"
     SERIAL = "serial"
     USB_WIN32 = "usb_win32"
     FILE = "file"
+
+
+def installed_windows_printers() -> tuple[str, ...]:
+    """Nombres de las impresoras instaladas en Windows (locales y conectadas)."""
+    try:
+        import win32print
+    except ImportError:
+        return ()
+    banderas = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+    try:
+        return tuple(sorted({str(p[2]) for p in win32print.EnumPrinters(banderas)}))
+    except Exception as exc:  # noqa: BLE001 - sin cola de impresión: lista vacía, con aviso
+        logger.warning("No se pudieron listar las impresoras de Windows: %s", exc)
+        return ()
 
 
 class PrintTransport:
@@ -81,6 +104,67 @@ class PrintTransport:
         if entrega is cls._send_serial:
             return entrega(data, destination, baud=baud)
         return entrega(data, destination)
+
+    # ── sonda sin imprimir ───────────────────────────────────────────────
+    @classmethod
+    def probe(
+        cls, transport: TransportType, destination: str, *, baud: int = 9600,
+    ) -> tuple[bool, str]:
+        """¿Responde la impresora? NO envía ni un byte que se imprima.
+
+        Red: abre y cierra la conexión. Serie: abre y cierra el puerto. USB en
+        Windows: abre la impresora instalada y lee su estado en la cola. Es la
+        prueba no invasiva (§21); imprimir de verdad es `send`.
+        """
+        transport = TransportType(transport)
+        if transport is TransportType.NETWORK:
+            host, _, puerto = destination.partition(":")
+            try:
+                with socket.create_connection(
+                        (host, int(puerto or DEFAULT_NETWORK_PORT)),
+                        timeout=NETWORK_TIMEOUT_SECONDS):
+                    pass
+                return True, f"{destination} acepta conexiones."
+            except OSError as exc:
+                return False, f"{destination} no responde: {exc}"
+        if transport is TransportType.SERIAL:
+            try:
+                import serial
+            except ImportError:
+                return False, "pyserial no está instalado: no se puede abrir el puerto serie."
+            try:
+                with serial.Serial(destination, baudrate=baud, timeout=NETWORK_TIMEOUT_SECONDS):
+                    pass
+                return True, f"Puerto {destination} abierto a {baud} baudios."
+            except Exception as exc:  # noqa: BLE001 - un puerto ocupado o inexistente es un resultado
+                return False, f"No se pudo abrir {destination}: {exc}"
+        if transport is TransportType.USB_WIN32:
+            return cls._probe_win32(destination)
+        return False, f"El transporte {transport.value} no tiene prueba de conexión."
+
+    @staticmethod
+    def _probe_win32(destination: str) -> tuple[bool, str]:
+        try:
+            import win32print
+        except ImportError:
+            return False, "win32print no está disponible: no se puede consultar la impresora USB."
+        try:
+            nombre = destination.strip() or win32print.GetDefaultPrinter()
+            handle = win32print.OpenPrinter(nombre)
+            try:
+                estado = int(win32print.GetPrinter(handle, 2).get("Status", 0))
+            finally:
+                win32print.ClosePrinter(handle)
+        except Exception as exc:  # noqa: BLE001 - impresora no instalada es un resultado
+            return False, f"La impresora «{destination or 'predeterminada'}» no está disponible: {exc}"
+        if not destination.strip():
+            return False, (
+                f"El perfil no indica la impresora de Windows: se enviaría a la predeterminada, "
+                f"«{nombre}». Elige la impresora de Windows del dispositivo.")
+        if estado == 0:
+            return True, f"Impresora «{nombre}» instalada y lista."
+        problemas = [texto for bandera, texto in _WIN32_STATUS if estado & bandera]
+        return False, f"Impresora «{nombre}»: {', '.join(problemas) or f'estado {estado}'}."
 
     # ── red ──────────────────────────────────────────────────────────────
     @staticmethod

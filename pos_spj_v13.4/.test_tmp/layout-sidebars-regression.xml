@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="26" time="20.509" timestamp="2026-10-02T19:42:14.970444+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.unit.business_intelligence.test_business_intelligence_sidebar_widget" name="test_sidebar_lists_only_permitted_entries" time="0.171" /><testcase classname="tests.unit.business_intelligence.test_business_intelligence_sidebar_widget" name="test_sidebar_selecting_first_row_by_default" time="0.032" /><testcase classname="tests.unit.business_intelligence.test_business_intelligence_sidebar_widget" name="test_sidebar_emits_route_requested_on_selection_change" time="0.009" /><testcase classname="tests.unit.business_intelligence.test_business_intelligence_sidebar_widget" name="test_sidebar_collapse_shows_section_icon" time="0.005" /><testcase classname="tests.unit.business_intelligence.test_business_intelligence_sidebar_widget" name="test_sidebar_respects_permission_filtering" time="0.006" /><testcase classname="tests.integration.orders_delivery.test_orders_delivery_sidebar_badges" name="test_the_sidebar_shows_the_delivery_counts" time="0.769" /><testcase classname="tests.integration.orders_delivery.test_orders_delivery_sidebar_badges" name="test_without_an_active_branch_there_are_no_counts" time="0.022" /><testcase classname="tests.integration.orders_delivery.test_orders_delivery_sidebar_badges" name="test_the_alerts_count_is_my_unread_alerts_not_one_per_recipient" time="1.573" /><testcase classname="tests.integration.orders_delivery.test_orders_delivery_sidebar_badges" name="test_the_sidebar_alerts_count_is_the_session_users" time="1.948" /><testcase classname="tests.integration.meat_processing.test_meat_processing_sidebar_badges" name="test_the_sidebar_shows_the_open_incidents_count" time="1.519" /><testcase classname="tests.integration.meat_processing.test_meat_processing_sidebar_badges" name="test_without_an_active_branch_there_are_no_counts" time="0.075" /><testcase classname="tests.architecture.test_transfers_sidebar_is_canonical" name="test_transfers_sidebar_has_no_database_or_legacy_ui_dependencies" time="0.005" /><testcase classname="tests.architecture.test_meat_processing_sidebar_navigation" name="test_meat_processing_view_uses_sidebar_and_stack_not_horizontal_tabs" time="0.002" /><testcase classname="tests.architecture.test_meat_processing_sidebar_navigation" name="test_meat_processing_pages_do_not_access_database_or_repositories" time="0.032" /><testcase classname="tests.architecture.test_meat_processing_sidebar_navigation" name="test_meat_processing_module_does_not_use_emoji_icons" time="0.047" /><testcase classname="tests.architecture.test_meat_processing_sidebar_navigation" name="test_legacy_produccion_menu_entry_and_module_are_not_touched_yet" time="0.001"><failure message="FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\menu_lateral.py'">def test_legacy_produccion_menu_entry_and_module_are_not_touched_yet():
+        """PROC-4 builds the new shell standalone; cutover is a later phase."""
+&gt;       menu_source = (ROOT / "interfaz/menu_lateral.py").read_text(encoding="utf-8")
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\architecture\test_meat_processing_sidebar_navigation.py:54: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\..\AppData\Local\Programs\Python\Python313\Lib\pathlib\_local.py:546: in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Programs\Python\Python313\Lib\pathlib\_abc.py:632: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/interfaz/menu_lateral.py')
+mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+&gt;       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\interfaz\\menu_lateral.py'
+
+..\..\..\AppData\Local\Programs\Python\Python313\Lib\pathlib\_local.py:537: FileNotFoundError</failure></testcase><testcase classname="tests.architecture.test_meat_processing_sidebar_navigation" name="test_navigation_contract_has_no_pyqt_import" time="0.002" /><testcase classname="tests.architecture.test_losses_sidebar_navigation" name="test_losses_view_uses_sidebar_and_stack_not_horizontal_tabs" time="0.001" /><testcase classname="tests.architecture.test_losses_sidebar_navigation" name="test_the_shell_hosts_losses_through_the_canonical_factory_only" time="6.602" /><testcase classname="tests.architecture.test_losses_sidebar_navigation" name="test_the_sidebar_has_exactly_one_losses_entry_without_emoji" time="0.003" /><testcase classname="tests.architecture.test_losses_sidebar_navigation" name="test_losses_pages_do_not_access_database_or_repositories" time="0.019" /><testcase classname="tests.architecture.test_losses_ui_ux_boundary" name="test_losses_ui_uses_canonical_theme_tooltips_and_view_states" time="0.004"><failure message="assert 'ResponsiveBreakpoints' in '&quot;&quot;&quot;Enterprise Mermas workspace with persistent permission-aware sidebar.&quot;&quot;&quot;\n\nfrom PyQt5.QtCore import Qt\nfrom PyQt...sure_loaded = getattr(page, &quot;ensure_loaded&quot;, None)\n        if callable(ensure_loaded):\n            ensure_loaded()\n'">def test_losses_ui_uses_canonical_theme_tooltips_and_view_states():
+        sidebar = (LOSS_UI / "widgets/losses_sidebar_widget.py").read_text(encoding="utf-8")
+        placeholder = (LOSS_UI / "pages/placeholder_page.py").read_text(encoding="utf-8")
+        view = (LOSS_UI / "losses_view.py").read_text(encoding="utf-8")
+        assert 'setProperty("role", "nav")' in sidebar
+        assert "apply_tooltip" in placeholder
+        assert "ViewState.EMPTY" in placeholder
+&gt;       assert "ResponsiveBreakpoints" in view
+E       assert 'ResponsiveBreakpoints' in '"""Enterprise Mermas workspace with persistent permission-aware sidebar."""\n\nfrom PyQt5.QtCore import Qt\nfrom PyQt...sure_loaded = getattr(page, "ensure_loaded", None)\n        if callable(ensure_loaded):\n            ensure_loaded()\n'
+
+tests\architecture\test_losses_ui_ux_boundary.py:17: AssertionError</failure></testcase><testcase classname="tests.architecture.test_losses_ui_ux_boundary" name="test_losses_ui_has_no_inline_styles_or_data_access" time="0.005" /><testcase classname="tests.architecture.test_business_intelligence_responsive_touch_accessibility" name="test_every_real_page_declares_an_accessible_name_and_description" time="0.879" /><testcase classname="tests.architecture.test_business_intelligence_responsive_touch_accessibility" name="test_no_raw_qpushbutton_construction_outside_the_canonical_factories" time="0.041" /><testcase classname="tests.architecture.test_business_intelligence_responsive_touch_accessibility" name="test_no_fixed_size_widgets_outside_the_documented_collapsed_sidebar_rail" time="0.017" /></testsuite></testsuites>

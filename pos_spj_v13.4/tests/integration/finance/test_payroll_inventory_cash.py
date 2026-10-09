@@ -67,7 +67,7 @@ class TestCashShift:
         handler.handle({
             "event_id": new_uuid(), "operation_id": new_uuid(),
             "shift_id": shift_id, "occurred_at": OCCURRED,
-            "expected_cash": "5000.00", "counted_cash": "4950.00",
+            "expected_cash": "5000.00", "counted_cash": "4950.00", "sales_cash": "4000.00",
         })
         with FinanceUnitOfWork(bootstrapped_conn) as uow:
             entry = uow.journal_entries.find_by_posting_reference(
@@ -86,13 +86,15 @@ class TestCashShift:
         handler.handle({
             "event_id": new_uuid(), "operation_id": new_uuid(),
             "shift_id": shift_id, "occurred_at": OCCURRED,
-            "expected_cash": "5000.00", "counted_cash": "5020.00",
+            "expected_cash": "5000.00", "counted_cash": "5020.00", "sales_cash": "4000.00",
         })
         with FinanceUnitOfWork(bootstrapped_conn) as uow:
             entry = uow.journal_entries.find_by_posting_reference(
                 "cash", shift_id, PostingPurpose.CASH_SHIFT_CLOSE)
         assert entry.is_balanced()
-        assert entry.total_debits().to_string() == "5020.00"
+        # Fondo y custodia (1000) no pasan por la cuenta de la caja: sólo las
+        # ventas (4000) más el sobrante (20) llegan al efectivo general.
+        assert entry.total_debits().to_string() == "4020.00"
 
 
 class TestInventoryEvents:

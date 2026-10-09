@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from frontend.desktop.components import FormDialog, SearchableComboBox
 
+# El cajón y la terminal de pago de una caja se asignan en Caja.
 _ASSIGNMENT_ROLES = (
     ("PRIMARY_RECEIPT_PRINTER", "Impresora de recibo (principal)"),
     ("SECONDARY_RECEIPT_PRINTER", "Impresora de recibo (secundaria)"),
@@ -16,8 +17,6 @@ _ASSIGNMENT_ROLES = (
     ("TRANSFER_PRINTER", "Impresora de transferencias"),
     ("SCALE", "Báscula"),
     ("SCANNER", "Lector de código de barras/QR"),
-    ("CASH_DRAWER", "Cajón de dinero"),
-    ("PAYMENT_TERMINAL", "Terminal de pago"),
     ("CUSTOMER_DISPLAY", "Pantalla del cliente"),
 )
 

@@ -21,7 +21,6 @@ ni `operation_id` se deriva concatenando: todos son UUIDv7 y se guardan.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -31,6 +30,7 @@ from backend.application.security.system_integration_authorization import (
     DelegatedIntegrationPermissionChecker,
     IntegrationGrant,
 )
+from backend.application.settings.configuration_reader import ConfigurationReader
 from backend.domain.costing.services.joint_cost_allocation import (
     AllocationInput,
     AllocationMethod,
@@ -43,6 +43,7 @@ from backend.infrastructure.db.repositories.costing.processing_cost_repository i
     StoredAllocationLine,
 )
 from backend.shared.ids import new_uuid
+
 
 logger = logging.getLogger("spj.costing.processing")
 
@@ -126,31 +127,16 @@ def _dec(value) -> Decimal | None:
 
 
 class ProcessingCostSettingsQueryService:
-    """Método de reparto y sus parámetros, desde `configuraciones`."""
+    """Método de reparto y sus parámetros: parámetros gobernados de Configuración."""
 
     def __init__(self, connection) -> None:
-        self._conn = connection
-
-    def _get(self, key: str) -> str | None:
-        try:
-            fila = self._conn.execute("SELECT valor FROM configuraciones WHERE clave=?",
-                                      (key,)).fetchone()
-        except Exception:  # noqa: BLE001 — sin tabla de configuración: valores por omisión
-            return None
-        return None if fila is None else fila[0]
+        self._reader = ConfigurationReader(connection)
 
     def method(self) -> AllocationMethod:
-        valor = self._get(METHOD_KEY)
-        try:
-            return AllocationMethod(valor) if valor else DEFAULT_METHOD
-        except ValueError:
-            raise CostAllocationError(f"Método de reparto desconocido en configuración: {valor}")
+        return AllocationMethod(self._reader.get(METHOD_KEY))
 
     def _map(self, key: str) -> dict[str, Decimal]:
-        crudo = self._get(key)
-        if not crudo:
-            return {}
-        datos = json.loads(crudo)
+        datos = self._reader.get(key) or {}
         return {pid: d for pid, v in datos.items() if (d := _dec(v)) is not None}
 
     def factors(self) -> dict[str, Decimal]:

@@ -121,7 +121,11 @@ class CashRegisterFactoryAlertTests(unittest.TestCase):
         job = self.db.execute(
             "SELECT channel,status FROM cash_notification_jobs"
         ).fetchone()
-        self.assertEqual(job, ("IN_APP", "PENDING"))
+        # CASH-26 bloque 2: el aviso se entrega al terminar la operación; antes
+        # quedaba PENDIENTE hasta que alguien pulsaba «Enviar».
+        self.assertEqual(job, ("IN_APP", "DELIVERED"))
+        self.assertEqual(
+            self.db.execute("SELECT COUNT(*) FROM cash_in_app_alerts").fetchone()[0], 1)
 
     def test_handover_prepared_alert_jobs_are_prepared_post_commit_from_factory(self):
         self._alert_rule(CashEvents.HANDOVER_PREPARED)

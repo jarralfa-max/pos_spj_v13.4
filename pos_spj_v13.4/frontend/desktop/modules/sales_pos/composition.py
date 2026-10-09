@@ -134,6 +134,48 @@ def _cash_shift_problem(connection):
     return check
 
 
+def _open_drawer_after_cash_sale(handler, connection, session_context):
+    """«Cajón con venta» (CASH-26, 2026-10-07): un cobro con efectivo abre el
+    cajón del turno por el pulso de la impresora del ticket. Hasta hoy el POS
+    nunca abría el cajón. Un cajón que no responde no deshace la venta: Caja
+    registra la falla (`CASH_HARDWARE_OPERATION_FAILED`) y alerta."""
+    def run(**kwargs):
+        result = handler(**kwargs)
+        if not getattr(result, "success", False):
+            return result
+        try:
+            from backend.application.cash_register.authorization import CashAuthorizationPolicy
+            from backend.application.cash_register.session_authorization import (
+                CashSessionBranchScopeChecker,
+                CashSessionPermissionChecker,
+            )
+            from backend.infrastructure.hardware.cash_drawer_gateway import (
+                PrinterKickCashDrawerGateway,
+            )
+            from backend.infrastructure.integrations.sales_cash_drawer_client import (
+                SalesCashDrawerGateway,
+            )
+            from backend.shared.ids import new_uuid
+
+            policy = CashAuthorizationPolicy(
+                permissions=CashSessionPermissionChecker(session_context),
+                scopes=CashSessionBranchScopeChecker(session_context))
+            gateway = PrinterKickCashDrawerGateway(
+                connection,
+                workstation_id=getattr(session_context, "workstation_id", None) or None)
+            SalesCashDrawerGateway(policy, gateway).open_for_cash_sale(
+                connection, sale_id=kwargs["sale_id"],
+                branch_id=getattr(session_context, "active_branch_id", None),
+                actor_user_id=kwargs["actor_user_id"], operation_id=new_uuid())
+            connection.commit()
+        except Exception:  # noqa: BLE001 - la venta ya está cobrada
+            import logging
+            logging.getLogger("spj.sales_pos.composition").exception(
+                "no se pudo abrir el cajón tras el cobro")
+        return result
+    return run
+
+
 def _cash_refund_service(connection, session_context):
     """Reembolso de devoluciones en Caja (decisión del usuario 2026-10-02).
 
@@ -350,9 +392,9 @@ def build_sales_pos_presenter(
             minimum_prices=pricing_client).execute),
         "record_payment": _payment_handler(connection, auth, customer_auth),
         "begin_checkout": _h(BeginSaleCheckoutUseCase(auth).execute),
-        "checkout_sale": _after_commit(_h(CheckoutSaleUseCase(
+        "checkout_sale": _open_drawer_after_cash_sale(_after_commit(_h(CheckoutSaleUseCase(
             auth, inventory_auth, authorizer_authorization=authorizer_auth,
-            costs=pricing_client).execute), connection),
+            costs=pricing_client).execute), connection), connection, session_context),
         "suspend_sale": _h(SuspendSaleUseCase(auth, inventory_auth).execute),
         "resume_sale": _h(ResumeSaleUseCase(auth).execute),
         "cancel_sale": _after_commit(

@@ -49,12 +49,17 @@ from backend.application.use_cases.configuracion.offline_management_use_cases im
 )
 from backend.application.commands.settings_commands import (
     SaveRoleCommand,
+    SaveRolePermissionsCommand,
+    SaveUserPermissionsCommand,
     SaveUserCommand,
     SetInstallationBranchCommand,
     SetUserActiveCommand,
 )
 from backend.domain.appearance.exceptions import AppearanceDomainError
-from backend.domain.customer_display.exceptions import CustomerDisplayDomainError
+from backend.domain.customer_display.exceptions import (
+    CustomerDisplayDomainError,
+    CustomerDisplayInvalidValueError,
+)
 from backend.domain.device_management.exceptions import DeviceManagementDomainError
 from backend.domain.integrations.exceptions import IntegrationsDomainError
 from backend.domain.notifications.exceptions import NotificationsDomainError
@@ -189,6 +194,10 @@ class ConfiguracionPresenter:
         user_security_service=None,
         save_user_uc=None, set_user_active_uc=None, save_role_uc=None,
         company_profile_service=None, set_installation_branch_uc=None,
+        role_permission_matrix_query=None, save_role_permissions_uc=None,
+        test_integration_connection_uc=None, test_device_uc=None,
+        user_permission_matrix_query=None, save_user_permissions_uc=None,
+        import_display_media_uc=None, set_device_windows_printer_uc=None,
         authorization=None, audit_log_repository=None,
         address_search_factory=None,
     ) -> None:
@@ -279,6 +288,14 @@ class ConfiguracionPresenter:
         self._save_role_uc = save_role_uc
         self._company_profile_service = company_profile_service
         self._set_installation_branch_uc = set_installation_branch_uc
+        self._role_permission_matrix_query = role_permission_matrix_query
+        self._save_role_permissions_uc = save_role_permissions_uc
+        self._test_integration_connection_uc = test_integration_connection_uc
+        self._test_device_uc = test_device_uc
+        self._user_permission_matrix_query = user_permission_matrix_query
+        self._save_user_permissions_uc = save_user_permissions_uc
+        self._import_display_media_uc = import_display_media_uc
+        self._set_device_windows_printer_uc = set_device_windows_printer_uc
         # SET-1: optional — a presenter built without `authorization` skips
         # enforcement entirely (existing tests / isolated call sites keep
         # working unchanged). The live app (configuracion_routes.py) always
@@ -976,6 +993,65 @@ class ConfiguracionPresenter:
             logger.exception("ConfiguracionPresenter.save_role failed")
             return False, "Error inesperado; revise el log."
 
+    def role_permission_matrix(self, role_id: str):
+        """Lo otorgable y lo concedido a un rol, ya resuelto."""
+        self._require_read(ConfiguracionPermissions.ROLES_VIEW)
+        if self._role_permission_matrix_query is None:
+            return None
+        return self._role_permission_matrix_query.matrix(role_id)
+
+    def save_role_permissions(self, *, role_id: str, changes: dict) -> tuple[bool, str]:
+        """`changes`: `código → otorgado`. El caso de uso revalida permiso,
+        escalamiento, dueño y autobloqueo; aquí sólo se arma el comando."""
+        if self._save_role_permissions_uc is None:
+            return False, "Permisos no disponibles."
+        if not changes:
+            return True, "Sin cambios."
+        try:
+            command = SaveRolePermissionsCommand(
+                operation_id=new_uuid(), branch_id=self._session_branch_id(),
+                user_id=self._actor(), role_id=role_id,
+                permissions=tuple({"module": code.split(".", 1)[0],
+                                   "action": code.split(".", 1)[1], "allowed": bool(allowed)}
+                                  for code, allowed in changes.items()))
+            result = self._save_role_permissions_uc.execute(command)
+            return True, (f"{result.message} Rigen la próxima vez que cada usuario del rol "
+                          "inicie sesión.")
+        except (ConfigurationDomainError, ValueError) as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.save_role_permissions failed")
+            return False, "Error inesperado; revise el log."
+
+    def user_permission_matrix(self, user_id: str):
+        """Lo de su rol y sus excepciones, ya resuelto."""
+        self._require_read(ConfiguracionPermissions.USUARIOS_VIEW)
+        if self._user_permission_matrix_query is None:
+            return None
+        return self._user_permission_matrix_query.matrix(user_id)
+
+    def save_user_permissions(self, *, user_id: str, changes: dict) -> tuple[bool, str]:
+        """`changes`: `código → INHERIT | GRANT | DENY`. El caso de uso revalida
+        permiso, autoedición, escalamiento, dueño y administradores."""
+        if self._save_user_permissions_uc is None:
+            return False, "Permisos por usuario no disponibles."
+        if not changes:
+            return True, "Sin cambios."
+        try:
+            command = SaveUserPermissionsCommand(
+                operation_id=new_uuid(), branch_id=self._session_branch_id(),
+                user_id=self._actor(), target_user_id=user_id,
+                permissions=tuple({"module": code.split(".", 1)[0],
+                                   "action": code.split(".", 1)[1], "state": state}
+                                  for code, state in changes.items()))
+            result = self._save_user_permissions_uc.execute(command)
+            return True, f"{result.message} Rigen la próxima vez que inicie sesión."
+        except (ConfigurationDomainError, ValueError) as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.save_user_permissions failed")
+            return False, "Error inesperado; revise el log."
+
     def set_installation_branch(self, branch_id: str) -> tuple[bool, str]:
         if self._set_installation_branch_uc is None:
             return False, "Anclaje de sucursal no disponible."
@@ -1028,6 +1104,55 @@ class ConfiguracionPresenter:
             return False, str(exc)
         except Exception:
             logger.exception("ConfiguracionPresenter.register_device failed")
+            return False, "Error inesperado; revise el log."
+
+    def list_windows_printers(self):
+        self._require_read(ConfiguracionPermissions.DISPOSITIVOS_VIEW)
+        return self._query_service.list_windows_printers()
+
+    def get_device_windows_printer(self, device_id: str) -> str:
+        self._require_read(ConfiguracionPermissions.DISPOSITIVOS_VIEW)
+        return self._query_service.get_device_windows_printer(device_id)
+
+    def set_device_windows_printer(self, *, device_id: str, printer_name: str) -> tuple[bool, str]:
+        if self._set_device_windows_printer_uc is None:
+            return False, "No disponible."
+        denial = self._authorize(ConfiguracionPermissions.DISPOSITIVOS_EDITAR)
+        if denial:
+            return False, denial
+        try:
+            self._set_device_windows_printer_uc.execute(device_id=device_id, printer_name=printer_name)
+            self._record_audit(entity_type="device", entity_id=device_id, action="IMPRESORA_WINDOWS",
+                               after={"windows_printer": printer_name or "(predeterminada)"})
+            return True, (f"Se enviará a «{printer_name}». Usa «Probar conexión» para comprobarlo."
+                          if printer_name else "Se enviará a la impresora predeterminada de Windows.")
+        except DeviceManagementDomainError as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.set_device_windows_printer failed")
+            return False, "Error inesperado; revise el log."
+
+    def list_device_tests(self, device_id: str):
+        self._require_read(ConfiguracionPermissions.DISPOSITIVOS_VIEW)
+        return self._query_service.list_device_tests(device_id)
+
+    def test_device(self, *, device_id: str, test_type: str) -> tuple[bool, str]:
+        """Prueba real del dispositivo; el resultado queda en su historial."""
+        if self._test_device_uc is None:
+            return False, "Pruebas de dispositivo no disponibles."
+        denial = self._authorize(ConfiguracionPermissions.DISPOSITIVOS_PROBAR)
+        if denial:
+            return False, denial
+        try:
+            result = self._test_device_uc.execute(
+                device_id=device_id, test_type=test_type, actor_user_id=self._actor())
+            self._record_audit(entity_type="device", entity_id=device_id, action="PROBAR",
+                               after={"test_type": result.test_type, "success": result.success})
+            return result.success, result.message
+        except DeviceManagementDomainError as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.test_device failed")
             return False, "Error inesperado; revise el log."
 
     def update_device(self, *, device_id: str, name: str, notes: str) -> tuple[bool, str]:
@@ -1458,6 +1583,20 @@ class ConfiguracionPresenter:
 
     # ── Pantalla del cliente: Contenido/Campañas/Slots/Asignaciones (SET-18) ──
 
+    def _with_attached_media(self, kwargs: dict, content_type) -> dict:
+        """Si el diálogo adjuntó un archivo, se importa a la carpeta de media y
+        el contenido guarda su id en `body` (nunca la ruta del archivo)."""
+        kwargs = dict(kwargs)
+        media_path = kwargs.pop("media_path", None)
+        if media_path:
+            if self._import_display_media_uc is None:
+                raise CustomerDisplayInvalidValueError("Adjuntar archivos no está disponible.")
+            media = self._import_display_media_uc.execute(
+                source_path=media_path, media_type=str(content_type or ""),
+                actor_user_id=self._actor() or None)
+            kwargs["body"] = media.id
+        return kwargs
+
     def create_display_content(self, **kwargs) -> tuple[bool, str]:
         if self._create_content_uc is None:
             return False, "Contenido no disponible."
@@ -1465,6 +1604,7 @@ class ConfiguracionPresenter:
         if denial:
             return False, denial
         try:
+            kwargs = self._with_attached_media(kwargs, kwargs.get("content_type"))
             content = self._create_content_uc.execute(**kwargs)
             return True, f"Contenido «{content.title}» creado."
         except CustomerDisplayDomainError as exc:
@@ -1480,6 +1620,7 @@ class ConfiguracionPresenter:
         if denial:
             return False, denial
         try:
+            kwargs = self._with_attached_media(kwargs, kwargs.pop("content_type", None))
             content = self._update_content_uc.execute(**kwargs)
             return True, f"Contenido «{content.title}» actualizado."
         except CustomerDisplayDomainError as exc:
@@ -1832,6 +1973,25 @@ class ConfiguracionPresenter:
             return False, str(exc)
         except Exception:
             logger.exception("ConfiguracionPresenter.record_integration_health_check failed")
+            return False, "Error inesperado; revise el log."
+
+    def test_integration_connection(self, instance_id: str) -> tuple[bool, str]:
+        """Prueba real con la credencial guardada; el resultado queda como
+        chequeo de salud."""
+        if self._test_integration_connection_uc is None:
+            return False, "Prueba de conexión no disponible."
+        denial = self._authorize(ConfiguracionPermissions.INTEGRACIONES_PROBAR)
+        if denial:
+            return False, denial
+        try:
+            check = self._test_integration_connection_uc.execute(instance_id=instance_id)
+            self._record_audit(entity_type="integration_instance", entity_id=instance_id,
+                               action="PROBAR_CONEXION", after={"success": check.success})
+            return check.success, check.message
+        except IntegrationsDomainError as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.test_integration_connection failed")
             return False, "Error inesperado; revise el log."
 
     # ── Notificaciones: Accounts/Templates/Channels/Routing (SET-20) ────────

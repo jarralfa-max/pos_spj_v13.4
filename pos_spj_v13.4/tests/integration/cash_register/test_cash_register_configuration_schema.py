@@ -6,6 +6,7 @@ from decimal import Decimal
 from backend.application.cash_register.permissions import CashPermissions
 from backend.application.cash_register.configuration_use_cases import (
     CashConfigurationScope,
+    CashConfigurationWindow,
     ConfigureCashAlertRuleCommand,
     ConfigureCashDenominationCommand,
     ConfigureCashOperationLimitCommand,
@@ -73,17 +74,18 @@ class CashConfigurationSchemaTests(unittest.TestCase):
     def test_configuration_use_case_writes_catalog_audit_event_and_outbox_atomically(self):
         auth = AllowSettingsAuth()
         branch_id, actor_id = new_uuid(), new_uuid()
-        result = ConfigureCashRegisterUseCase(auth).execute(
+        result = ConfigureCashRegisterUseCase(auth).execute_typed(
             self.db,
-            section="limits",
-            name="SAFE_DROP",
-            value="100.00 / 500.00",
-            scope_type="SYSTEM",
-            scope_id=None,
+            command=ConfigureCashOperationLimitCommand(
+                operation_type="SAFE_DROP",
+                approval_threshold=Decimal("100.00"),
+                hard_cap=Decimal("500.00"),
+                scope=CashConfigurationScope.from_values("SYSTEM"),
+                window=CashConfigurationWindow("2026-08-01T00:00:00+00:00"),
+            ),
             actor_user_id=actor_id,
             branch_id=branch_id,
             operation_id=new_uuid(),
-            effective_from="2026-08-01T00:00:00+00:00",
         )
         self.assertTrue(result.entity_id)
         self.assertEqual(
@@ -174,28 +176,6 @@ class CashConfigurationSchemaTests(unittest.TestCase):
                 operation_id=new_uuid(),
             )
         self.assertEqual(self.db.execute("SELECT COUNT(*) FROM cash_operation_limits").fetchone()[0], 0)
-
-    def test_legacy_payload_wrapper_delegates_to_typed_configuration(self):
-        auth = AllowSettingsAuth()
-        branch_id, actor_id = new_uuid(), new_uuid()
-        ConfigureCashRegisterUseCase(auth).execute(
-            self.db,
-            section="payment_methods",
-            name="CASH",
-            value="Efectivo",
-            scope_type="SYSTEM",
-            scope_id=None,
-            actor_user_id=actor_id,
-            branch_id=branch_id,
-            operation_id=new_uuid(),
-            effective_from="2026-08-01T00:00:00+00:00",
-        )
-        self.assertEqual(
-            self.db.execute(
-                "SELECT code,display_name,affects_physical_cash,effective_from FROM cash_payment_methods"
-            ).fetchone(),
-            ("CASH", "Efectivo", 1, "2026-08-01T00:00:00+00:00"),
-        )
 
 
 if __name__ == "__main__": unittest.main()

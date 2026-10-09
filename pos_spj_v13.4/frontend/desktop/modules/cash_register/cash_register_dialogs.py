@@ -14,9 +14,15 @@ from PyQt5.QtWidgets import QLabel, QComboBox, QDialogButtonBox
 from frontend.desktop.components.dialogs import FormDialog, StandardDialog
 from frontend.desktop.components.integer_input import IntegerInput
 from frontend.desktop.components.money_input import MoneyInput
+from frontend.desktop.components.selection_controls import StandardCheckBox, StandardComboBox
 from frontend.desktop.components.text_inputs import PasswordInput, StandardLineEdit, StandardTextArea
 from frontend.desktop.components.tooltip import apply_tooltip
-from frontend.desktop.modules.cash_register.presentation import display_code, scope_label, status_label
+from backend.application.cash_register.notification_text import ALERTABLE_EVENTS
+from frontend.desktop.modules.cash_register.presentation import (
+    LIMIT_OPERATION_LABELS,
+    display_code,
+    status_label,
+)
 from frontend.desktop.themes.tokens import DialogMetrics
 
 
@@ -63,26 +69,6 @@ class CashDeviceDialogResult:
 @dataclass(frozen=True)
 class CashShiftOpeningResult:
     opening_amount: Decimal
-
-
-@dataclass(frozen=True)
-class CashConfigurationDialogResult:
-    name: str
-    value: str
-    scope_type: str
-    scope_id: str | None
-    effective_from: str | None
-    effective_to: str | None
-
-
-@dataclass(frozen=True)
-class CashRefundDialogResult:
-    refund_id: str
-    sale_id: str
-    authorized_by: str
-    reason: str
-    original_payment_lines: dict[str, Decimal]
-    refund_lines: dict[str, Decimal]
 
 
 class CashReasonDialog(FormDialog):
@@ -668,170 +654,278 @@ class CashShiftOpeningDialog(FormDialog):
         return CashShiftOpeningResult(opening_amount=self.opening_amount.decimal_value())
 
 
-class CashConfigurationDialog(FormDialog):
-    """Capture a canonical, effective Caja configuration entry."""
+class CashCatalogDialog(FormDialog):
+    """Alta tipada de un catálogo de Caja: cada sección pide SUS campos.
 
-    def __init__(self, parent=None, *, section: str,
-                 title: str = "Nueva configuracion de Caja") -> None:
-        super().__init__(parent, title=title, width=DialogMetrics.WIDTH_MD)
+    Reemplaza al diálogo de texto libre «nombre / valor» (medido el 2026-10-07):
+    para que un límite aplicara había que saber teclear ``MANUAL_MOVEMENT`` y
+    ``1000 / 5000``; motivos y tolerancias ni siquiera tenían escritor. Aquí las
+    opciones son listas cerradas, los importes `MoneyInput` y los conteos
+    `IntegerInput`; el backend vuelve a validar todo.
+    """
+
+    TITLES = {
+        "denominations": "Nueva denominacion",
+        "reasons": "Nuevo motivo de movimiento",
+        "limits": "Nuevo limite de operacion",
+        "tolerances": "Nueva politica de diferencias",
+        "alerts": "Nuevo aviso",
+    }
+    LIMIT_OPERATIONS = tuple(LIMIT_OPERATION_LABELS.items())
+    REASON_TYPES = (
+        ("MANUAL_INCOME", "Ingreso manual"),
+        ("MANUAL_WITHDRAWAL", "Retiro manual"),
+        ("SAFE_DROP", "Retiro a boveda"),
+    )
+    CHANNELS = (("IN_APP", "Aviso en el sistema"), ("WHATSAPP", "WhatsApp"))
+    SEVERITIES = (("WARNING", "Advertencia"), ("CRITICAL", "Critica"), ("INFO", "Informativa"))
+
+    def __init__(self, parent=None, *, section: str) -> None:
+        if section not in self.TITLES:
+            raise ValueError(f"Seccion sin alta tipada: {section}")
+        super().__init__(parent, title=self.TITLES[section], width=DialogMetrics.WIDTH_MD)
         self._section = section
-        self.name = StandardLineEdit(
-            self,
-            placeholder="Clave, codigo o evento canonico",
-            max_length=120,
-            required=True,
-        )
-        self.value = StandardLineEdit(
-            self,
-            placeholder="Valor. En limites usa: umbral / maximo",
-            max_length=180,
-            required=True,
-        )
-        self.scope_type = QComboBox(self)
-        self.scope_type.setObjectName("standardComboBox")
-        for value in ("SYSTEM", "COMPANY", "BRANCH", "REGISTER", "USER"):
-            self.scope_type.addItem(scope_label(value), value)
-        self.scope_id = StandardLineEdit(
-            self,
-            placeholder="Buscar o seleccionar entidad del alcance",
-            max_length=80,
-        )
-        self.effective_from = StandardLineEdit(
-            self,
-            placeholder="Vigente desde; vacio = ahora",
-            max_length=40,
-        )
-        self.effective_to = StandardLineEdit(
-            self,
-            placeholder="Vigente hasta opcional",
-            max_length=40,
-        )
-        apply_tooltip(self.name, "Clave canonica del ajuste, denominacion, medio, limite o alerta.")
-        apply_tooltip(self.value, "Valor persistido por Caja; el backend valida formato y alcance.")
-        apply_tooltip(self.scope_type, "Jerarquia efectiva de configuracion.")
-        apply_tooltip(self.scope_id, "Requerido para alcances especificos como sucursal, caja o usuario.")
-        self.form.addRow("Seccion", QLabel(section, self))
-        self.form.addRow("Nombre", self.name)
-        self.form.addRow("Valor", self.value)
-        self.form.addRow("Aplicar en", self.scope_type)
-        self.form.addRow("Entidad", self.scope_id)
-        self.form.addRow("Vigente desde", self.effective_from)
-        self.form.addRow("Vigente hasta", self.effective_to)
-        self.scope_type.currentIndexChanged.connect(self._sync_scope_controls)
-        self._sync_scope_controls()
+        self._error = ""
+        getattr(self, f"_build_{section}")()
+        self.error_label = QLabel("", self)
+        self.error_label.setObjectName("formErrorLabel")
+        self.error_label.setWordWrap(True)
+        self.error_label.setVisible(False)
+        self.form.addRow(self.error_label)
         self.add_button_box(ok_text="Guardar", cancel_text="Cancelar")
 
-    def _sync_scope_controls(self) -> None:
-        specific = self.scope_type.currentData() != "SYSTEM"
-        self.scope_id.setEnabled(specific)
-        if not specific:
-            self.scope_id.clear()
-            self.scope_id.setPlaceholderText("No aplica para todo el sistema")
-        else:
-            self.scope_id.setPlaceholderText(
-                f"Buscar {scope_label(self.scope_type.currentData()).lower()}"
-            )
+    # ── secciones ────────────────────────────────────────────────────────
+    def _build_denominations(self) -> None:
+        self.currency = StandardLineEdit(self, placeholder="MXN", max_length=3, required=True)
+        self.currency.setText("MXN")
+        self.value = MoneyInput(self)
+        self.label = StandardLineEdit(self, placeholder="Ej. Billete $500", max_length=60,
+                                      required=True)
+        self.sort_order = IntegerInput(self, minimum=0, maximum=999)
+        apply_tooltip(self.value, "Valor facial; el conteo ciego suma cantidad x valor.")
+        apply_tooltip(self.sort_order, "Posicion en el conteo (0 = primero).")
+        self.form.addRow("Moneda", self.currency)
+        self.form.addRow("Valor", self.value)
+        self.form.addRow("Nombre visible", self.label)
+        self.form.addRow("Orden", self.sort_order)
 
-    def _validate(self) -> bool:
-        if not self.name.value():
-            self.name.setFocus()
-            return False
-        if not self.value.value():
-            self.value.setFocus()
-            return False
-        if self.scope_type.currentData() != "SYSTEM" and not self.scope_id.value():
-            self.scope_id.setFocus()
-            return False
-        return True
+    def _build_reasons(self) -> None:
+        self.movement_type = StandardComboBox(self, accessible_name="Tipo de movimiento")
+        for value, label in self.REASON_TYPES:
+            self.movement_type.addItem(label, value)
+        self.code = StandardLineEdit(self, placeholder="Ej. DOTACION_CAMBIO", max_length=40,
+                                     required=True)
+        self.label = StandardLineEdit(self, placeholder="Ej. Dotacion de cambio", max_length=80,
+                                      required=True)
+        self.requires_authorization = StandardCheckBox(
+            "Siempre requiere autorizacion de otra persona", self)
+        apply_tooltip(self.code, "Codigo unico del motivo; aparece en auditoria.")
+        apply_tooltip(self.requires_authorization,
+                      "Aunque el monto este dentro del limite, pedira autorizador con clave.")
+        self.form.addRow("Movimiento", self.movement_type)
+        self.form.addRow("Codigo", self.code)
+        self.form.addRow("Nombre visible", self.label)
+        self.form.addRow("", self.requires_authorization)
+
+    def _build_limits(self) -> None:
+        self.operation = StandardComboBox(self, accessible_name="Operacion")
+        for value, label in self.LIMIT_OPERATIONS:
+            self.operation.addItem(label, value)
+        self.approval_threshold = MoneyInput(self)
+        self.hard_cap = MoneyInput(self)
+        apply_tooltip(self.approval_threshold,
+                      "Arriba de este monto se pide autorizacion de otra persona.")
+        apply_tooltip(self.hard_cap, "Ningun movimiento puede superar este monto.")
+        self.form.addRow("Operacion", self.operation)
+        self.form.addRow("Autorizacion arriba de", self.approval_threshold)
+        self.form.addRow("Tope maximo", self.hard_cap)
+
+    def _build_tolerances(self) -> None:
+        self.tolerance = MoneyInput(self)
+        self.critical = MoneyInput(self)
+        self.window_days = IntegerInput(self, minimum=0, maximum=365)
+        self.recurrence = IntegerInput(self, minimum=0, maximum=99)
+        self.channels = {}
+        apply_tooltip(self.tolerance,
+                      "Hasta este monto la diferencia se registra pero no pide revision.")
+        apply_tooltip(self.critical, "Desde este monto la diferencia es critica y alerta.")
+        apply_tooltip(self.recurrence,
+                      "Cuantas diferencias del mismo cajero en la ventana la vuelven critica.")
+        self.form.addRow("Tolerancia", self.tolerance)
+        self.form.addRow("Critica desde", self.critical)
+        self.form.addRow("Ventana de reincidencia (dias)", self.window_days)
+        self.form.addRow("Diferencias para reincidencia", self.recurrence)
+        for value, label in self.CHANNELS:
+            box = StandardCheckBox(label, self)
+            box.setChecked(True)
+            self.channels[value] = box
+            self.form.addRow("Avisar por" if value == "IN_APP" else "", box)
+
+    def _build_alerts(self) -> None:
+        self.event = StandardComboBox(self, accessible_name="Evento")
+        for value, label in ALERTABLE_EVENTS.items():
+            self.event.addItem(label, value)
+        self.severity = StandardComboBox(self, accessible_name="Severidad")
+        for value, label in self.SEVERITIES:
+            self.severity.addItem(label, value)
+        self.channels = {}
+        apply_tooltip(self.event,
+                      "Si ya hay un aviso para este evento, este lo reemplaza y conserva "
+                      "a sus destinatarios.")
+        self.form.addRow("Avisar cuando", self.event)
+        self.form.addRow("Severidad", self.severity)
+        for value, label in self.CHANNELS:
+            box = StandardCheckBox(label, self)
+            box.setChecked(True)
+            self.channels[value] = box
+            self.form.addRow("Avisar por" if value == "IN_APP" else "", box)
+
+    # ── validación y resultado ───────────────────────────────────────────
+    def _problem(self) -> str:
+        if self._section == "denominations":
+            if len(self.currency.value().strip()) != 3:
+                return "La moneda es un codigo de 3 letras (MXN)."
+            if self.value.decimal_value() <= 0:
+                return "Captura el valor de la denominacion."
+            if not self.label.value().strip():
+                return "Captura el nombre visible."
+        elif self._section == "reasons":
+            if not self.code.value().strip() or not self.label.value().strip():
+                return "Captura codigo y nombre del motivo."
+        elif self._section == "limits":
+            if self.hard_cap.decimal_value() <= 0:
+                return "Captura el tope maximo."
+            if self.hard_cap.decimal_value() < self.approval_threshold.decimal_value():
+                return "El tope no puede ser menor que el monto que pide autorizacion."
+        elif self._section == "tolerances":
+            if self.critical.decimal_value() < self.tolerance.decimal_value():
+                return "El monto critico no puede ser menor que la tolerancia."
+            if self.window_days.value() < 1 or self.recurrence.value() < 1:
+                return "La ventana y el numero de reincidencias deben ser al menos 1."
+            if not any(box.isChecked() for box in self.channels.values()):
+                return "Elige al menos un canal de aviso."
+        elif self._section == "alerts":
+            if not any(box.isChecked() for box in self.channels.values()):
+                return "Elige al menos un canal de aviso."
+        return ""
+
+    def problem(self) -> str:
+        return self._problem()
 
     def accept(self) -> None:
-        if self._validate():
-            super().accept()
+        self._error = self._problem()
+        self.error_label.setText(self._error)
+        self.error_label.setVisible(bool(self._error))
+        if self._error:
+            return
+        super().accept()
 
-    def result_value(self) -> CashConfigurationDialogResult:
-        scope_id = self.scope_id.value() or None
-        return CashConfigurationDialogResult(
-            name=self.name.value(),
-            value=self.value.value(),
-            scope_type=str(self.scope_type.currentData() or "SYSTEM"),
-            scope_id=scope_id,
-            effective_from=self.effective_from.value() or None,
-            effective_to=self.effective_to.value() or None,
-        )
+    def result_fields(self) -> dict[str, object]:
+        if self._section == "denominations":
+            return {"currency_code": self.currency.value().strip().upper(),
+                    "value": self.value.decimal_value(),
+                    "display_name": self.label.value().strip(),
+                    "sort_order": int(self.sort_order.value())}
+        if self._section == "reasons":
+            return {"movement_type": str(self.movement_type.currentData()),
+                    "code": self.code.value().strip().upper(),
+                    "display_name": self.label.value().strip(),
+                    "requires_authorization": self.requires_authorization.isChecked()}
+        if self._section == "limits":
+            return {"operation_type": str(self.operation.currentData()),
+                    "approval_threshold": self.approval_threshold.decimal_value(),
+                    "hard_cap": self.hard_cap.decimal_value()}
+        if self._section == "alerts":
+            return {"event_name": str(self.event.currentData()),
+                    "severity": str(self.severity.currentData()),
+                    "channels": tuple(v for v, box in self.channels.items() if box.isChecked())}
+        return {"tolerance": self.tolerance.decimal_value(),
+                "critical_threshold": self.critical.decimal_value(),
+                "recurrence_window_days": int(self.window_days.value()),
+                "recurrence_threshold": int(self.recurrence.value()),
+                "channels": tuple(v for v, box in self.channels.items() if box.isChecked())}
 
 
-class CashRefundDialog(FormDialog):
-    """Capture the Cash-side execution data for an already authorized sale refund."""
+class CashAlertRecipientDialog(FormDialog):
+    """Quién recibe un aviso de Caja: un usuario (aviso en el sistema) o un
+    teléfono (WhatsApp). Sólo ofrece los canales que el aviso elegido usa."""
 
-    _SETTLEMENTS = (
-        ("CASH", "Efectivo"),
-        ("CARD", "Tarjeta"),
-        ("BANK_TRANSFER", "Transferencia"),
-        ("LOYALTY_POINTS", "Puntos"),
-        ("VOUCHER", "Vale"),
-        ("STORE_CREDIT", "Saldo a favor"),
-    )
+    def __init__(self, parent=None, *, alerts, users) -> None:
+        super().__init__(parent, title="Nuevo destinatario", width=DialogMetrics.WIDTH_MD)
+        self._alerts = {alert.id: alert for alert in alerts}
+        self._error = ""
+        self.alert = StandardComboBox(self, accessible_name="Aviso")
+        for alert in alerts:
+            self.alert.addItem(ALERTABLE_EVENTS.get(alert.event_name, alert.event_name), alert.id)
+        self.channel = StandardComboBox(self, accessible_name="Canal")
+        self.user = StandardComboBox(self, accessible_name="Usuario")
+        for user in users:
+            self.user.addItem(user.name, user.id)
+        self.phone = StandardLineEdit(self, placeholder="+52 y 10 digitos, ej. +525512345678",
+                                      max_length=16)
+        self.name = StandardLineEdit(self, placeholder="Nombre de quien recibe", max_length=80)
+        apply_tooltip(self.phone, "Numero con lada internacional; sin espacios ni guiones.")
+        self.form.addRow("Aviso", self.alert)
+        self.form.addRow("Canal", self.channel)
+        self.form.addRow("Usuario", self.user)
+        self.form.addRow("WhatsApp", self.phone)
+        self.form.addRow("Nombre", self.name)
+        self.error_label = QLabel("", self)
+        self.error_label.setObjectName("formErrorLabel")
+        self.error_label.setWordWrap(True)
+        self.error_label.setVisible(False)
+        self.form.addRow(self.error_label)
+        self.alert.currentIndexChanged.connect(self._sync_channels)
+        self.channel.currentIndexChanged.connect(self._sync_fields)
+        self._sync_channels()
+        self.add_button_box(ok_text="Agregar", cancel_text="Cancelar")
 
-    def __init__(self, parent=None, *, title: str = "Ejecutar reembolso") -> None:
-        super().__init__(parent, title=title, width=DialogMetrics.WIDTH_MD)
-        self.refund_id = StandardLineEdit(
-            self, placeholder="Buscar autorizacion, folio o ticket", max_length=80, required=True)
-        self.sale_id = StandardLineEdit(
-            self, placeholder="Venta, folio o ticket seleccionado", max_length=80, required=True)
-        self.authorized_by = StandardLineEdit(
-            self, placeholder="Nombre del autorizador", max_length=80, required=True)
-        self.reason = StandardTextArea(
-            self, placeholder="Motivo autorizado por Ventas", max_length=500)
-        self._original_inputs: dict[str, MoneyInput] = {}
-        self._refund_inputs: dict[str, MoneyInput] = {}
-        self.form.addRow("Autorizacion", self.refund_id)
-        self.form.addRow("Venta / folio", self.sale_id)
-        self.form.addRow("Autorizado por", self.authorized_by)
-        self.form.addRow("Motivo", self.reason)
-        for code, label in self._SETTLEMENTS:
-            original = MoneyInput(self)
-            refund = MoneyInput(self)
-            self._original_inputs[code] = original
-            self._refund_inputs[code] = refund
-            self.form.addRow(f"Original {label}", original)
-            self.form.addRow(f"Reembolso {label}", refund)
-        self.add_button_box(ok_text="Ejecutar", cancel_text="Cancelar")
+    def _sync_channels(self, _index: int = 0) -> None:
+        alert = self._alerts.get(self.alert.currentData())
+        self.channel.clear()
+        for value, label in CashCatalogDialog.CHANNELS:
+            if alert is not None and value in alert.channels:
+                self.channel.addItem(label, value)
+        self._sync_fields()
 
-    def _validate(self) -> bool:
-        widgets = (self.refund_id, self.sale_id, self.authorized_by)
-        for widget in widgets:
-            if not widget.value():
-                widget.setFocus()
-                return False
-        if not self.reason.value():
-            self.reason.setFocus()
-            return False
-        if not any(field.decimal_value() > 0 for field in self._refund_inputs.values()):
-            next(iter(self._refund_inputs.values())).setFocus()
-            return False
-        return True
+    def _sync_fields(self, _index: int = 0) -> None:
+        whatsapp = self.channel.currentData() == "WHATSAPP"
+        self.user.setEnabled(not whatsapp)
+        self.phone.setEnabled(whatsapp)
+        self.name.setEnabled(whatsapp)
+
+    def problem(self) -> str:
+        if not self._alerts:
+            return "Primero crea un aviso en la pestana Avisos."
+        if self.channel.currentData() is None:
+            return "Ese aviso no tiene canales."
+        if self.channel.currentData() == "WHATSAPP":
+            phone = self.phone.value().strip().replace(" ", "")
+            if not phone.startswith("+") or not phone[1:].isdigit() or not 8 <= len(phone[1:]) <= 15:
+                return "Escribe el WhatsApp con lada internacional, ej. +525512345678."
+            if not self.name.value().strip():
+                return "Escribe el nombre de quien recibe el WhatsApp."
+        elif self.user.currentData() is None:
+            return "No hay usuarios activos para elegir."
+        return ""
 
     def accept(self) -> None:
-        if self._validate():
-            super().accept()
+        self._error = self.problem()
+        self.error_label.setText(self._error)
+        self.error_label.setVisible(bool(self._error))
+        if self._error:
+            return
+        super().accept()
 
-    def result_value(self) -> CashRefundDialogResult:
-        return CashRefundDialogResult(
-            refund_id=self.refund_id.value(),
-            sale_id=self.sale_id.value(),
-            authorized_by=self.authorized_by.value(),
-            reason=self.reason.value(),
-            original_payment_lines={
-                code: field.decimal_value()
-                for code, field in self._original_inputs.items()
-                if field.decimal_value() > 0
-            },
-            refund_lines={
-                code: field.decimal_value()
-                for code, field in self._refund_inputs.items()
-                if field.decimal_value() > 0
-            },
-        )
+    def result_fields(self) -> dict[str, str]:
+        whatsapp = self.channel.currentData() == "WHATSAPP"
+        return {
+            "alert_rule_id": str(self.alert.currentData()),
+            "channel": str(self.channel.currentData()),
+            "address": (self.phone.value().strip().replace(" ", "") if whatsapp
+                        else str(self.user.currentData())),
+            "display_name": self.name.value().strip() if whatsapp else "",
+        }
 
 
 class CashPrintPreviewDialog(StandardDialog):

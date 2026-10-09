@@ -27,3 +27,34 @@ def cash_limit_policy(connection, operation_type: str) -> CashMonetaryLimitPolic
     threshold = Decimal(str(row[0])) if row else Decimal("0")
     hard_cap = Decimal(str(row[1])) if row else Decimal("0")
     return CashMonetaryLimitPolicy(approval_threshold=threshold, hard_cap=hard_cap)
+
+
+class EffectiveCashLimitPolicy:
+    """El tope VIGENTE al momento de cada operación, no el del día que se abrió Caja.
+
+    Los casos de uso se construyen una vez al abrir la pantalla; antes recibían el
+    tope ya leído, así que un límite capturado en Caja → Configuración no aplicaba
+    hasta reabrir el módulo (medido el 2026-10-07). Misma interfaz que
+    `CashMonetaryLimitPolicy`, resuelta en cada consulta.
+    """
+
+    def __init__(self, connection, operation_type: str) -> None:
+        self._connection = connection
+        self.operation_type = operation_type
+
+    def _current(self) -> CashMonetaryLimitPolicy:
+        return cash_limit_policy(self._connection, self.operation_type)
+
+    @property
+    def approval_threshold(self) -> Decimal:
+        return self._current().approval_threshold
+
+    @property
+    def hard_cap(self) -> Decimal:
+        return self._current().hard_cap
+
+    def evaluate(self, amount: Decimal):
+        return self._current().evaluate(amount)
+
+    def require_operable(self, amount: Decimal):
+        return self._current().require_operable(amount)

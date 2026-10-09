@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from backend.bootstrap.application_context import ApplicationContext
+from backend.application.feature_flags.module_flags import module_disabled
 from backend.bootstrap.permission_evaluator import PermissionEvaluator
 from frontend.desktop.shell.router.errors import (
     NavigationFeatureDisabledError,
@@ -141,6 +142,10 @@ class DesktopRouter:
                 raise NavigationPermissionDeniedError(
                     f"No tiene permiso '{route.required_permission}' para acceder a '{route.route_id}'."
                 )
+        if module_disabled(self._context.feature_context, route.module_id):
+            self._publish(NAVIGATION_DENIED, {"route_id": route.route_id, "reason": "MODULE_DISABLED"})
+            raise NavigationFeatureDisabledError(
+                f"El módulo '{route.module_id}' está apagado para esta sucursal.")
         if route.feature_flag and not self._context.feature_context.is_enabled(route.feature_flag):
             self._publish(NAVIGATION_DENIED, {"route_id": route.route_id, "reason": "FEATURE_DISABLED"})
             raise NavigationFeatureDisabledError(

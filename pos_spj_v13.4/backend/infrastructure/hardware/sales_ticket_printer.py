@@ -78,87 +78,39 @@ class SalesTicketPrinter:
 
     # ── interno ──────────────────────────────────────────────────────────
     def _deliver(self, ticket_data: dict[str, Any]) -> None:
+        from backend.infrastructure.printing.routed_printer import PrintTargetUnavailable, send
         from backend.infrastructure.printing.sale_ticket_escpos_renderer import render_sale_ticket
-        from backend.infrastructure.printing.transport import PrintTransport
 
         device, profile = self._resolve_device()
-        transport, destination, baud = self._target(device, profile)
         data = render_sale_ticket(ticket_data, header=self._header(),
                                   paper_width_mm=self._paper_width(profile))
         try:
-            ok = PrintTransport.send(data, transport, destination, baud=baud)
-        except Exception as exc:  # noqa: BLE001 - un transporte roto es un ticket no impreso
-            raise TicketPrintError(f"No se pudo enviar el ticket a {device.code}: {exc}") from exc
-        if not ok:
-            raise TicketPrintError(
-                f"La impresora {device.code} no recibió el ticket (¿apagada o sin papel?).")
+            send(device, profile, data, what="el ticket")
+        except PrintTargetUnavailable as exc:
+            raise TicketPrintError(str(exc)) from exc
 
     def _resolve_device(self):
-        from backend.domain.device_management.exceptions import (
-            NoAvailablePrinterError,
-            PrintRouteNotFoundError,
-        )
+        """Resolución compartida con Caja (`routed_printer`, 2026-10-07)."""
         from backend.domain.device_management.enums import PrintRouteModule
         from backend.domain.document_output.enums import DocumentType
-        from backend.infrastructure.db.repositories.device_management.device_profile_repository import (  # noqa: E501
-            SqliteDeviceProfileRepository,
-        )
-        from backend.infrastructure.db.repositories.device_management.device_repository import (
-            SqliteDeviceRepository,
-        )
-        from backend.infrastructure.db.repositories.device_management.print_route_repository import (  # noqa: E501
-            SqlitePrintRouteRepository,
-        )
-        from backend.infrastructure.integrations.document_output_print_routing_client import (
-            DocumentOutputPrintRoutingClient,
+        from backend.infrastructure.printing.routed_printer import (
+            PrintTargetUnavailable,
+            resolve_routed_device,
         )
 
-        devices = SqliteDeviceRepository(self._conn)
         try:
-            resolution = DocumentOutputPrintRoutingClient(
-                SqlitePrintRouteRepository(self._conn), devices).resolve(
-                DocumentType.SALE_TICKET.value, branch_id=self._branch_id,
-                workstation_id=self._workstation_id, module=PrintRouteModule.SALES.value)
-        except (PrintRouteNotFoundError, NoAvailablePrinterError, sqlite3.OperationalError) as exc:
-            raise TicketPrintError(NO_PRINTER_MESSAGE) from exc
-        device = devices.get(resolution.printer_device_id)
-        if device is None:
-            raise TicketPrintError(NO_PRINTER_MESSAGE)
-        profile = SqliteDeviceProfileRepository(self._conn).get(device.profile_id)
-        if profile is None:
-            raise TicketPrintError(
-                f"La impresora {device.code} no tiene perfil de conexión en Dispositivos.")
-        return device, profile
-
-    @staticmethod
-    def _target(device, profile):
-        from backend.domain.device_management.enums import ConnectionType
-        from backend.infrastructure.printing.transport import TransportType
-
-        conexion = profile.connection_profile
-        tipo = conexion.connection_type
-        if tipo in (ConnectionType.NETWORK, ConnectionType.HTTP):
-            endpoint = conexion.network_endpoint
-            if endpoint is None:
-                raise TicketPrintError(f"La impresora {device.code} no tiene dirección de red.")
-            return TransportType.NETWORK, f"{endpoint.host}:{endpoint.port}", 9600
-        if tipo is ConnectionType.SERIAL:
-            serie = conexion.serial_port
-            if serie is None:
-                raise TicketPrintError(f"La impresora {device.code} no tiene puerto serie.")
-            return TransportType.SERIAL, serie.port, serie.baud_rate
-        if tipo in (ConnectionType.USB, ConnectionType.SYSTEM):
-            return TransportType.USB_WIN32, "", 9600
-        raise TicketPrintError(
-            f"Tipo de conexión no soportado para tickets: {tipo.value}")
+            return resolve_routed_device(
+                self._conn, DocumentType.SALE_TICKET.value, branch_id=self._branch_id,
+                workstation_id=self._workstation_id, module=PrintRouteModule.SALES.value,
+                no_printer_message=NO_PRINTER_MESSAGE)
+        except PrintTargetUnavailable as exc:
+            raise TicketPrintError(str(exc)) from exc
 
     @staticmethod
     def _paper_width(profile) -> int:
-        """`paper_profile` del perfil ("58mm", "80 mm"...); sin él, 80 mm."""
-        import re
+        from backend.infrastructure.printing.routed_printer import paper_width_mm
 
-        encontrado = re.search(r"(58|80)", str(getattr(profile, "paper_profile", "") or ""))
-        return int(encontrado.group(1)) if encontrado else 80
+        return paper_width_mm(profile)
 
     def _header(self) -> dict[str, Any]:
         """Empresa y sucursal de Configuración → Empresa y sucursales. Lo que no

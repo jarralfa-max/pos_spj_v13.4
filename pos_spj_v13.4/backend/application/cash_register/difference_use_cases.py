@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.permissions import CashPermissions
 from backend.application.cash_register.shift_use_cases import _record
+from backend.domain.cash_register.entities import CashDifference
 from backend.domain.cash_register.events import CashEvents
 from backend.domain.cash_register.exceptions import (
     CashInvalidStateError, CashSegregationOfDutiesError,
@@ -99,8 +100,10 @@ class ReviewCashDifferenceUseCase(_DifferenceTransition):
     def execute(self, connection, *, difference_id: str, branch_id: str,
                 actor_user_id: str, operation_id: str) -> DifferenceResult:
         difference = CashRegisterUnitOfWork(connection).differences.get(difference_id)
-        if difference and actor_user_id in {difference["detected_by"], difference["explained_by"]}:
-            raise CashSegregationOfDutiesError("La revisión requiere un usuario independiente")
+        if difference:
+            CashDifference.require_independent(
+                actor_user_id, responsible_user_id=difference["responsible_user_id"],
+                explained_by=difference["explained_by"], action="revisión")
         return self._execute(
             connection, difference_id=difference_id, branch_id=branch_id,
             actor_user_id=actor_user_id, operation_id=operation_id,
@@ -118,10 +121,10 @@ class ResolveCashDifferenceUseCase(_DifferenceTransition):
         if not resolution.strip():
             raise CashInvalidStateError("La resolución es obligatoria")
         difference = CashRegisterUnitOfWork(connection).differences.get(difference_id)
-        if difference and actor_user_id in {
-            difference["detected_by"], difference["explained_by"], difference["reviewed_by"]
-        }:
-            raise CashSegregationOfDutiesError("La resolución requiere un usuario independiente")
+        if difference:
+            CashDifference.require_independent(
+                actor_user_id, responsible_user_id=difference["responsible_user_id"],
+                explained_by=difference["explained_by"], action="resolución")
         return self._execute(
             connection, difference_id=difference_id, branch_id=branch_id,
             actor_user_id=actor_user_id, operation_id=operation_id,

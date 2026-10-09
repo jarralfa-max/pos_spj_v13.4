@@ -15,9 +15,42 @@ from datetime import datetime
 
 from PyQt5.QtWidgets import QCheckBox
 
-from frontend.desktop.components import DateTimeInput, FormDialog, SearchableComboBox, StandardLineEdit
+from frontend.desktop.components import (
+    DateTimeInput,
+    FilePathInput,
+    FormDialog,
+    SearchableComboBox,
+    StandardLineEdit,
+)
 
 _CONTENT_TYPES = (("TEXT", "Texto"), ("IMAGE", "Imagen"), ("VIDEO", "Video"), ("HTML", "HTML"))
+_MEDIA_TYPES = ("IMAGE", "VIDEO")
+_MEDIA_FILTER = {
+    "IMAGE": "Imágenes (*.png *.jpg *.jpeg *.bmp *.gif *.webp)",
+    "VIDEO": "Videos (*.mp4 *.avi *.wmv *.mov *.mkv)",
+}
+
+
+class _MediaField:
+    """Imagen y video se ADJUNTAN (el archivo se copia a la carpeta de media de
+    la aplicación); el texto y el HTML se escriben. Se muestra uno u otro."""
+
+    def _build_media_field(self, *, optional: bool = False) -> None:
+        self.media_file = FilePathInput(self, caption="Adjuntar archivo")
+        self.media_file.setAccessibleName("Archivo de imagen o video")
+        self.form.addRow("Reemplazar archivo:" if optional else "Archivo:", self.media_file)
+
+    def _sync_media(self, content_type: str | None) -> None:
+        es_media = content_type in _MEDIA_TYPES
+        for widget, visible in ((self.media_file, es_media), (self.body, not es_media)):
+            widget.setVisible(visible)
+            label = self.form.labelForField(widget)
+            if label is not None:
+                label.setVisible(visible)
+        if es_media:
+            self.media_file.set_file_filter(_MEDIA_FILTER[content_type])
+
+
 _MODES = (
     ("IDLE", "Inactiva"), ("CART", "Carrito"), ("PAYMENT_PENDING", "Pago pendiente"),
     ("THANK_YOU", "Agradecimiento"),
@@ -50,7 +83,7 @@ class _ScheduleField:
         return {"starts_at": _iso(self.starts_at.datetime_value()), "ends_at": _iso(self.ends_at.datetime_value())}
 
 
-class ContentCreateDialog(FormDialog):
+class ContentCreateDialog(FormDialog, _MediaField):
     def __init__(self, parent=None) -> None:
         super().__init__(parent, title="Nuevo contenido")
         self.title_field = StandardLineEdit(self)
@@ -65,6 +98,10 @@ class ContentCreateDialog(FormDialog):
         self.body = StandardLineEdit(self)
         self.body.setAccessibleName("Contenido")
         self.form.addRow("Contenido:", self.body)
+        self._build_media_field()
+        self.content_type.currentIndexChanged.connect(
+            lambda _i: self._sync_media(self.content_type.current_id()))
+        self._sync_media(None)
 
         self.duration_seconds = StandardLineEdit(self)
         self.duration_seconds.setText("10")
@@ -78,14 +115,19 @@ class ContentCreateDialog(FormDialog):
             duration = int(self.duration_seconds.text().strip() or "10")
         except ValueError:
             duration = 10
+        tipo = self.content_type.current_id()
+        if tipo in _MEDIA_TYPES:
+            return {"title": self.title_field.text().strip(), "content_type": tipo,
+                    "body": "", "media_path": self.media_file.path(), "duration_seconds": duration}
         return {
-            "title": self.title_field.text().strip(), "content_type": self.content_type.current_id(),
+            "title": self.title_field.text().strip(), "content_type": tipo,
             "body": self.body.text().strip(), "duration_seconds": duration,
         }
 
 
-class ContentEditDialog(FormDialog):
-    def __init__(self, parent=None, *, title: str = "", body: str = "", duration_seconds: int = 10) -> None:
+class ContentEditDialog(FormDialog, _MediaField):
+    def __init__(self, parent=None, *, title: str = "", body: str = "", duration_seconds: int = 10,
+                 content_type: str = "TEXT") -> None:
         super().__init__(parent, title="Editar contenido")
         self.title_field = StandardLineEdit(self)
         self.title_field.setText(title)
@@ -96,6 +138,9 @@ class ContentEditDialog(FormDialog):
         self.body.setText(body)
         self.body.setAccessibleName("Contenido")
         self.form.addRow("Contenido:", self.body)
+        self._content_type = content_type
+        self._build_media_field(optional=True)
+        self._sync_media(content_type)
 
         self.duration_seconds = StandardLineEdit(self)
         self.duration_seconds.setText(str(duration_seconds))
@@ -109,10 +154,13 @@ class ContentEditDialog(FormDialog):
             duration = int(self.duration_seconds.text().strip() or "10")
         except ValueError:
             duration = 10
-        return {
+        valores = {
             "title": self.title_field.text().strip(), "body": self.body.text().strip(),
             "duration_seconds": duration,
         }
+        if self._content_type in _MEDIA_TYPES and self.media_file.path():
+            valores.update(media_path=self.media_file.path(), content_type=self._content_type)
+        return valores
 
 
 class ContentCampaignCreateDialog(FormDialog, _ScheduleField):

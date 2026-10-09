@@ -20,58 +20,26 @@ propio prefijo.
 
 from __future__ import annotations
 
-import logging
-import sqlite3
+from backend.infrastructure.db.repositories.document_output.branch_document_folio import (
+    DIGITS,
+    branch_folio_prefix,
+    next_branch_folio,
+)
 
-logger = logging.getLogger("spj.sales.folio")
+__all__ = ["DIGITS", "PREFIX", "SalesFolioClient"]
 
-DIGITS = 6
 PREFIX = "V"
 
 
 class SalesFolioClient:
+    """Folio ``V-<código>-000001``; la mecánica vive en `branch_document_folio`
+    (compartida con los Cortes X/Z de Caja)."""
+
     def __init__(self, connection) -> None:
         self._conn = connection
 
     def prefix_for(self, branch_id: str) -> str:
-        try:
-            fila = self._conn.execute(
-                "SELECT code FROM branch_profiles WHERE branch_id=?", (branch_id,)).fetchone()
-        except sqlite3.OperationalError:
-            fila = None                         # sin perfiles de sucursal: sin código
-        codigo = str(fila[0]).strip().upper() if fila and fila[0] else ""
-        return f"{PREFIX}-{codigo}" if codigo else PREFIX
+        return branch_folio_prefix(self._conn, PREFIX, branch_id)
 
     def next_folio(self, branch_id: str) -> str | None:
-        """El siguiente folio, o None si esta base no tiene el contador de
-        documentos (una base de pruebas reducida; en la de la app lo crea la
-        cadena de migraciones). Se registra en el log: nunca se inventa un
-        número con `MAX()+1`."""
-        try:
-            return self._next_folio(branch_id)
-        except sqlite3.OperationalError as exc:
-            if "document_number_sequences" not in str(exc):
-                raise
-            logger.warning("Venta sin folio: no existe el contador de documentos (%s)", exc)
-            return None
-
-    def _next_folio(self, branch_id: str) -> str:
-        from backend.domain.document_output.entities.document_number_sequence import (
-            DocumentNumberSequence,
-        )
-        from backend.infrastructure.db.repositories.document_output.document_number_sequence_repository import (  # noqa: E501
-            SqliteDocumentNumberSequenceRepository,
-        )
-
-        prefijo = self.prefix_for(branch_id)
-        repo = SqliteDocumentNumberSequenceRepository(self._conn)
-        secuencia = repo.get_by_prefix(prefijo)
-        if secuencia is None:
-            secuencia = DocumentNumberSequence.create(prefix=prefijo)
-            try:
-                repo.save(secuencia)
-            except sqlite3.IntegrityError:
-                # Otra caja creó la secuencia al mismo tiempo: se usa la suya.
-                secuencia = repo.get_by_prefix(prefijo)
-        numero = repo.reserve_and_get(secuencia.id, period_key="")
-        return f"{prefijo}-{numero:0{DIGITS}d}"
+        return next_branch_folio(self._conn, PREFIX, branch_id)

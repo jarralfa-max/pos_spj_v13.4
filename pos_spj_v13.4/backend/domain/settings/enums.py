@@ -58,6 +58,14 @@ class ScopeType(str, Enum):
     PRODUCT = "PRODUCT"
     PROCESS = "PROCESS"
     DELIVERY_ZONE = "DELIVERY_ZONE"
+    # Niveles de planta de Procesamiento cárnico (SET-26): la tolerancia de
+    # rendimiento se afina por especie, centro de trabajo, área y planta.
+    SPECIES = "SPECIES"
+    WORK_CENTER = "WORK_CENTER"
+    PRODUCTION_AREA = "PRODUCTION_AREA"
+    PLANT = "PLANT"
+    # Compras afina las tolerancias de factura por proveedor.
+    SUPPLIER = "SUPPLIER"
 
 
 # Scopes identified by a logical code (a module name, a channel key, a

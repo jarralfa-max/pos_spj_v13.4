@@ -160,3 +160,22 @@ def create_content_and_advertising_schema(conn) -> None:
     conn.execute(_CONTENT_IMPRESSIONS_DDL)
     for statement in _CONTENT_AND_PLACEMENT_INDEXES:
         conn.execute(statement)
+
+
+_DISPLAY_MEDIA_DDL = f"""
+    CREATE TABLE IF NOT EXISTS display_media (
+        id                  TEXT NOT NULL PRIMARY KEY CHECK({_uuid('id')}),
+        media_type          TEXT NOT NULL CHECK(media_type IN ('IMAGE','VIDEO')),
+        original_name       TEXT NOT NULL,
+        stored_name         TEXT NOT NULL UNIQUE CHECK(trim(stored_name)<>''),
+        size_bytes          INTEGER NOT NULL CHECK(size_bytes > 0),
+        sha256              TEXT NOT NULL UNIQUE CHECK(length(sha256)=64),
+        created_by_user_id  TEXT,
+        created_at          TEXT NOT NULL
+    )
+"""
+
+
+def create_display_media_schema(conn) -> None:
+    """Archivos de imagen/video de la pantalla del cliente (migración 313)."""
+    conn.execute(_DISPLAY_MEDIA_DDL)
