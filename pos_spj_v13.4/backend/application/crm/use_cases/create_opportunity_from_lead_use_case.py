@@ -40,15 +40,19 @@ class CreateOpportunityFromLeadUseCase:
         self._auth = authorization or CRMAuthorizationPolicy()
 
     def execute(
-        self, connection, *, actor_user_id: str, lead_id: str, customer_id: str,
-        operation_id: str, stage_id: str | None = None, amount=None,
+        self, connection, *, actor_user_id: str, lead_id: str, operation_id: str,
+        customer_id: str | None = None, stage_id: str | None = None, amount=None,
         expected_close_date=None, account_id: str | None = None,
+        owns_transaction: bool = True,
     ) -> CRMResult:
+        """Auditoría CRM F16: el cliente es el de la conversión
+        (``lead.converted_customer_id``); uno distinto se rechaza. Si el prospecto ya
+        tiene oportunidad, se devuelve ésa (reintento sin duplicar)."""
         try:
             self._auth.require(actor_user_id, CRMPermissions.OPPORTUNITIES_CREATE)
         except CRMDomainError as exc:
             return CRMResult.fail(str(exc), "PERMISSION_DENIED", operation_id=operation_id)
-        with CRMUnitOfWork(connection) as uow:
+        with CRMUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
             existing = uow.opportunities.get_by_operation_id(operation_id)
             if existing is not None:
                 return CRMResult.ok("Oportunidad ya registrada", entity_id=existing.id,
@@ -60,14 +64,32 @@ class CreateOpportunityFromLeadUseCase:
                 return CRMResult.fail(
                     f"El lead debe estar convertido (está {lead.status.value})", "VALIDATION",
                     operation_id=operation_id)
-            resolved_stage_id = stage_id
-            if resolved_stage_id is None:
-                default_stage = uow.stage_definitions.get_default_initial_stage()
-                if default_stage is None:
+            if lead.converted_opportunity_id:
+                return CRMResult.ok("El prospecto ya tiene oportunidad",
+                                    entity_id=lead.converted_opportunity_id,
+                                    operation_id=operation_id)
+            if lead.converted_customer_id:
+                if customer_id and customer_id != lead.converted_customer_id:
+                    return CRMResult.fail(
+                        "Ese no es el cliente al que se convirtió el prospecto", "VALIDATION",
+                        operation_id=operation_id)
+                customer_id = lead.converted_customer_id
+            if not customer_id:
+                return CRMResult.fail("No se sabe a qué cliente se convirtió el prospecto",
+                                      "VALIDATION", operation_id=operation_id)
+            if stage_id is None:
+                stage = uow.stage_definitions.get_default_initial_stage()
+                if stage is None:
                     return CRMResult.fail(
                         "No hay una etapa inicial configurada en el pipeline", "VALIDATION",
                         operation_id=operation_id)
-                resolved_stage_id = default_stage.id
+            else:
+                stage = uow.stage_definitions.get(stage_id)
+                if stage is None or not stage.active or stage.is_won_stage \
+                        or stage.is_lost_stage:
+                    return CRMResult.fail("La etapa no existe, está retirada o es de cierre",
+                                          "VALIDATION", operation_id=operation_id)
+            resolved_stage_id = stage.id
             try:
                 opportunity = Opportunity.create(
                     uow.opportunities.next_code(), customer_id,
@@ -78,10 +100,13 @@ class CreateOpportunityFromLeadUseCase:
                     expected_close_date=(expected_close_date if expected_close_date is not None
                                          else lead.expected_purchase_date),
                     territory_id=lead.territory_id, origin_branch_id=lead.origin_branch_id,
+                    probability=stage.probability_default,
                     created_by_user_id=actor_user_id, operation_id=operation_id)
             except (CRMDomainError, ValueError) as exc:
                 return CRMResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
             uow.opportunities.save(opportunity, operation_id=operation_id)
+            lead.link_opportunity(opportunity.id)
+            uow.leads.update(lead)
             history = OpportunityStageHistory.create(
                 opportunity.id, resolved_stage_id, actor_user_id,
                 reason=f"oportunidad creada desde lead {lead.code}",

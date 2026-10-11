@@ -55,53 +55,11 @@ def _current_consumers() -> set[str]:
 
 # Allowlist congelada (PROD-19 paso 9). SÓLO puede reducirse: repuntar un archivo al
 # maestro canónico y borrarlo de aquí. Objetivo del paso 10: conjunto vacío.
-_ALLOWLIST: frozenset[str] = frozenset({
-    "backend/application/queries/inventory_balance_service.py",
-    "backend/application/queries/inventory_query_service.py",
-    "backend/application/queries/product_query_service.py",
-    "backend/application/services/product_catalog_service.py",
-    "backend/infrastructure/db/repositories/branch_product_repository.py",
-    "backend/infrastructure/db/repositories/product_repository.py",
-    "backend/infrastructure/db/repositories/qr_containers_read_repository.py",
-    "core/delivery/application/query_service.py",
-    "core/forecast/replenishment_engine.py",
-    "core/migration_validator.py",
-    "core/production/cost_allocator.py",
-    "core/production/production_engine.py",
-    "core/services/actionable_forecast.py",
-    "core/services/alert_engine.py",
-    "core/services/analytics/analytics_engine.py",
-    # Repoint batch 2: cfdi_service (core) lee el nombre de línea de products.
-    "core/services/decision_engine.py",
-    "core/services/delivery_service.py",
-    # PROD-19 repunte batch 1: discount_guard → ProductCostQueryService (Pricing).
-    "core/services/enterprise/demand_forecasting.py",
-    "core/services/enterprise/finance_service.py",
-    "core/services/enterprise/report_engine.py",
-    "core/services/enterprise/report_engine_v2.py",
-    "core/services/erp_application_service.py",
-    "core/services/export_service.py",
-    "core/services/finance/production_cost_service.py",
-    "core/services/finance/treasury_service.py",
-    "core/services/forecast_engine.py",
-    "core/services/franchise_manager.py",
-    "core/services/inventory/unified_inventory_service.py",
-    "core/services/inventory_balance_service.py",
-    "core/services/lote_service.py",
-    "core/services/printer_service.py",
-    "core/services/product_catalog_query_service.py",
-    "core/services/production_query_service.py",
-    "core/services/recipe_engine.py",
-    "core/services/recipes/recipe_resolver.py",
-    "core/services/sales_fulfillment_service.py",
-    "core/services/sales_service.py",
-    "integrations/pos_adapter.py",
-    "repositories/productos.py",
-    "repositories/recetas.py",
-    # Repoint batch 1: sales-line name reads → JOIN products (p.name).
-    "services/bot_pedidos.py",
-    "services/qr_service.py",
-})
+# PROD-22 (2026-10-09): VACÍA. El borrado de `core/`/`modulos/` se llevó 35 de
+# las 42 entradas; las 7 restantes eran código sin llamadores (borrado) o un
+# docstring. La migración 325 retira la tabla `productos`: cualquier lectura
+# nueva fallaría en producción, y este test la detiene antes.
+_ALLOWLIST: frozenset[str] = frozenset()
 
 
 def test_no_new_legacy_productos_consumers():

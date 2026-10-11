@@ -79,18 +79,43 @@ class CustomerDashboardQueryService:
         self._crm_scope_resolver = crm_scope_resolver
         self._crm_auth = crm_authorization or CRMAuthorizationPolicy()
 
+    def _breached_in_scope(self, context, as_of):
+        """Casos con SLA vencido DENTRO del alcance del usuario (antes se contaban
+        los de toda la empresa aunque la bandeja mostrara sólo los propios)."""
+        from backend.application.crm.permissions import CASE_VIEW_SCOPE_PERMISSIONS
+        from backend.infrastructure.db.repositories.customer_service.unit_of_work import (
+            CustomerServiceUnitOfWork,
+        )
+        breached = SLAQueryService(self._connection, self._crm_auth).list_breached(
+            actor_user_id=context.user_id, as_of=as_of)
+        if not breached:
+            return []
+        scope = self._crm_scope_resolver.resolve_view_scope(context, CASE_VIEW_SCOPE_PERMISSIONS)
+        cases = CustomerServiceUnitOfWork(self._connection).cases
+        visible = []
+        for sla in breached:
+            case = cases.get(sla.case_id)
+            if case is not None and scope.includes(
+                    responsible_user_id=case.assigned_user_id,
+                    created_by_user_id=case.created_by_user_id,
+                    branch_id=case.origin_branch_id):
+                visible.append(sla)
+        return visible
+
     def get_dashboard(
         self, *, actor_user_id: str, team_member_ids: tuple[str, ...] = (),
-        recent_limit: int = 5, as_of: str | None = None,
+        recent_limit: int = 5, as_of: str | None = None, branch_ids: tuple[str, ...] = (),
     ) -> CustomerDashboardView:
-        context = CRMScopeContext(user_id=actor_user_id, team_member_ids=team_member_ids)
+        # Auditoría CRM F21/F22: el tablero usa el MISMO alcance que las bandejas
+        # (con la sucursal activa) y cuenta en la base, no sobre listas truncadas.
+        context = CRMScopeContext(user_id=actor_user_id, team_member_ids=team_member_ids,
+                                  branch_ids=tuple(b for b in branch_ids if b))
         members = team_member_ids or (actor_user_id,)
 
         lead_service = LeadDirectoryQueryService(
             self._connection, self._crm_scope_resolver, self._crm_auth)
-        leads = self._safe(
-            lambda: lead_service.list_directory(context, limit=500), default=[])
-        leads_pending = sum(1 for lead in leads if lead.status in _PENDING_LEAD_STATUSES)
+        leads_pending = self._safe(lambda: lead_service.count_in_scope(
+            context, tuple(getattr(s, "value", s) for s in _PENDING_LEAD_STATUSES)), default=0)
         leads_new = self._safe(
             lambda: lead_service.count_new(actor_user_id=actor_user_id), default=0)
 
@@ -105,9 +130,8 @@ class CustomerDashboardQueryService:
         overdue_tasks = self._safe(lambda: self._collect_overdue_tasks(
             members, actor_user_id=actor_user_id, as_of=as_of), default=[])
 
-        breached_cases = self._safe(
-            lambda: SLAQueryService(self._connection, self._crm_auth)
-            .list_breached(actor_user_id=actor_user_id, as_of=as_of), default=[])
+        breached_cases = self._safe(lambda: self._breached_in_scope(context, as_of),
+                                    default=[])
 
         return CustomerDashboardView(
             leads_new_count=leads_new,

@@ -94,6 +94,7 @@ class UpdateLeadUseCase(_BaseUseCase):
         self, connection, *, actor_user_id: str, lead_id: str, operation_id: str,
         display_name: str | None = None, company_name: str | None = None,
         contact_name: str | None = None, next_action_at: str | None = None,
+        priority: str | None = None,
     ) -> CRMResult:
         try:
             self._auth.require(actor_user_id, CRMPermissions.LEADS_EDIT)
@@ -114,6 +115,11 @@ class UpdateLeadUseCase(_BaseUseCase):
                 lead.contact_name = contact_name
             if next_action_at is not None:
                 lead.next_action_at = next_action_at
+            if priority is not None and priority != lead.priority.value:
+                try:
+                    lead.change_priority(LeadPriority(priority))
+                except (CRMDomainError, ValueError) as exc:
+                    return CRMResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
             lead.record_edit()
             uow.leads.update(lead)
             uow.audit.record(action=CRMEvents.LEAD_UPDATED, actor_user_id=actor_user_id,

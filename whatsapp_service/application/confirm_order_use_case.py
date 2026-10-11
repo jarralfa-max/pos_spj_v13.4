@@ -152,7 +152,9 @@ class ConfirmWhatsAppOrderUseCase:
             if not row.get("categoria") and row.get("producto_id"):
                 try:
                     prod = self.erp.db.execute(
-                        "SELECT COALESCE(categoria, '') FROM productos WHERE id=?",
+                        "SELECT COALESCE(pc.name, '') FROM products p "
+                        "LEFT JOIN product_categories pc ON pc.id = p.category_id "
+                        "WHERE p.id=?",
                         (row.get("producto_id"),),
                     ).fetchone()
                     if prod:

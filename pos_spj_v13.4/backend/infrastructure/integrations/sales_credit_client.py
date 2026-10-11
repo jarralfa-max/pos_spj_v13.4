@@ -38,7 +38,7 @@ exactamente igual de abierto, sólo que más difícil de ver.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from backend.application.customer_credit.use_cases.check_credit_sale_eligibility_use_case import (
@@ -79,6 +79,20 @@ class SalesCreditClient:
         violaciones = result.data.get("violations") or []
         return False, "; ".join(str(v) for v in violaciones) or result.message
 
+    def _due_date(self, customer_id: str, issued: date) -> date | None:
+        from backend.infrastructure.db.repositories.customer_credit.unit_of_work import (
+            CustomerCreditUnitOfWork,
+        )
+        if not self._connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table'"
+                " AND name='customer_credit_profiles'").fetchone():
+            return None  # sin perfiles de crédito no hay plazo pactado que fijar
+        profile = CustomerCreditUnitOfWork(self._connection).profiles.get_by_customer_id(
+            customer_id)
+        if profile is None:
+            return None
+        return issued + timedelta(days=int(profile.payment_terms_days or 0))
+
     def register(
         self, *, customer_id: str, sale_id: str, folio: str, amount: Decimal,
         branch_id: str,
@@ -89,15 +103,19 @@ class SalesCreditClient:
         el cobro no duplica la cuenta por cobrar. Es la misma garantía que daba
         el `INSERT OR IGNORE` del servicio anterior, pero explícita.
 
-        No se fija `due_date`: el plazo depende de las condiciones pactadas con
-        el cliente, que viven en su perfil de crédito. Inventarlo aquí —treinta
-        días, pongamos— haría que la consulta de vencidos marcara como morosos a
-        clientes que no lo son. Queda pendiente de que el cobro lea el plazo del
-        perfil.
+        `due_date` (auditoría CRM F23): el plazo pactado VIGENTE del perfil de
+        crédito del cliente al momento de la venta, fijo en el documento. Si
+        después cambian las condiciones del cliente, esta deuda conserva su
+        vencimiento. Nunca un plazo inventado: sin perfil, no se fija.
         """
+        today = date.today()
         CreateReceivableUseCase().execute(
             self._connection, customer_id=customer_id, amount=str(amount),
-            document_number=folio or sale_id, issue_date=date.today(),
+            document_number=folio or sale_id, issue_date=today,
+            due_date=self._due_date(customer_id, today),
             branch_id=branch_id, source_module="sales", source_document_id=sale_id,
             operation_id=f"{sale_id}:receivable",
+            # Se llama dentro de la transacción del cobro (SalesUnitOfWork): la
+            # deuda vive o muere con la venta (auditoría CRM F01).
+            owns_transaction=False,
         )

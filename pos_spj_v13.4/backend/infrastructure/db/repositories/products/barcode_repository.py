@@ -52,6 +52,13 @@ class BarcodeRepository:
              barcode.barcode.barcode_type.value, int(barcode.is_primary),
              int(barcode.active)))
 
+    def make_primary(self, product_id: str, barcode_value: str) -> None:
+        """Exactamente un código principal por producto: el POS une por
+        `is_primary=1` y con dos principales el producto salía dos veces."""
+        self._conn.execute(
+            "UPDATE product_barcodes SET is_primary = CASE WHEN barcode_value=? AND active=1 "
+            "THEN 1 ELSE 0 END WHERE product_id=?", (barcode_value, product_id))
+
     def get(self, barcode_id: str) -> ProductBarcode | None:
         row = self._conn.execute(
             "SELECT * FROM product_barcodes WHERE id=?", (barcode_id,)).fetchone()

@@ -1,7 +1,10 @@
-"""EvaluateTimeBasedAutomationTriggersUseCase — LEAD_IDLE reference sweep
-(CRM-26, §56). This is a callable entry point, not wired to any scheduler
-(none exists in this repo) — these tests call it directly, the same way a
-future scheduler/manual admin action would."""
+"""EvaluateTimeBasedAutomationTriggersUseCase — LEAD_IDLE (CRM-26, §56).
+
+Desde CRM-43 el barrido lo corre el ciclo de fondo de la aplicación
+(``run_crm_background_cycle``) y cubre los siete disparadores por tiempo; esas
+pruebas, con la base completa, están en
+tests/integration/crm43/test_crm43_automation_background.py. Aquí queda el
+caso base sobre el esquema CRM solo, más la garantía de no repetir."""
 
 from __future__ import annotations
 
@@ -69,3 +72,27 @@ class TestLeadIdleSweep:
         executions = EvaluateTimeBasedAutomationTriggersUseCase().execute(
             crm_conn, operation_id="op-sweep-3")
         assert executions == []
+
+
+    def test_second_sweep_does_not_fire_the_same_lead_again(self, crm_conn):
+        CreateAutomationRuleUseCase(_admin_policy()).execute(
+            crm_conn, actor_user_id=_ACTOR, name="Leads inactivos",
+            trigger_type=CRMAutomationTrigger.LEAD_IDLE.value, action_type="CREATE_TASK",
+            trigger_config={"days": 3}, operation_id="op-idle-rule-4")
+        lead_id = CreateLeadUseCase(_admin_policy()).execute(
+            crm_conn, actor_user_id=_ACTOR, display_name="Lead Viejo",
+            operation_id="op-idle-lead-4").entity_id
+        stale = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat(timespec="seconds")
+        crm_conn.execute("UPDATE leads SET updated_at=?, created_at=? WHERE id=?",
+                         (stale, stale, lead_id))
+        crm_conn.commit()
+        sweep = EvaluateTimeBasedAutomationTriggersUseCase()
+
+        first = sweep.execute(crm_conn, operation_id="op-sweep-4a")
+        second = sweep.execute(crm_conn, operation_id="op-sweep-4b")
+
+        assert [e.target_entity_id for e in first] == [lead_id]
+        assert second == []
+        with CRMUnitOfWork(crm_conn) as uow:
+            tasks = uow.tasks.list_for_related_entity("LEAD", lead_id)
+        assert len(tasks) == 1

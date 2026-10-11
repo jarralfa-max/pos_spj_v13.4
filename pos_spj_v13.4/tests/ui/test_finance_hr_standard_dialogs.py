@@ -1,5 +1,7 @@
 """Finance/HR forms retain validation while adopting the shared dialog shell."""
 from decimal import Decimal
+import os
+from pathlib import Path
 
 import pytest
 from PyQt5 import sip
@@ -45,6 +47,16 @@ def _dispose(dialog, app):
     sip.delete(dialog)
     app.sendPostedEvents(None, QEvent.DeferredDelete)
     _settle(app)
+
+
+def _capture(dialog, kind, theme, density, position):
+    artifact_path = os.environ.get("SPJ_DIALOG_VISUAL_ARTIFACTS")
+    if artifact_path:
+        directory = Path(artifact_path)
+        directory.mkdir(parents=True, exist_ok=True)
+        assert dialog.grab().save(str(
+            directory / f"{kind}-{theme}-{density}-640x480-{position}.png"
+        ))
 
 
 @pytest.mark.parametrize("kind", ["finance", "hr"])
@@ -131,15 +143,20 @@ def test_real_form_keeps_footer_visible_and_capture_intact(
         assert box.button(QDialogButtonBox.Ok).text() == "Aceptar"
         assert box.button(QDialogButtonBox.Cancel).text() == "Cancelar"
         for button in box.buttons():
+            assert button.isVisible()
+            assert not button.visibleRegion().isEmpty()
+            assert dialog.rect().contains(QRect(button.mapTo(dialog, QPoint()), button.size()))
             assert button.height() >= density_metrics(density).button_height
             assert button.accessibleName() == button.text()
         scrollbar = dialog.viewport.verticalScrollBar()
         assert scrollbar.maximum() > 0
         footer_geometry = box.geometry()
+        _capture(dialog, kind, theme, density, "top")
         scrollbar.setValue(scrollbar.maximum())
         _settle(app)
         assert box.geometry() == footer_geometry
         assert (dialog.data() if kind == "finance" else dialog.values()) == expected
         assert field.text()
+        _capture(dialog, kind, theme, density, "bottom")
     finally:
         _dispose(dialog, app)

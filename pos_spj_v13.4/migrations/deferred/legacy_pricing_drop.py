@@ -13,7 +13,8 @@ Run it manually ONLY after:
 Note: this drops ONLY the legacy price-*list* tables and the price-history trigger.
 The legacy ``productos.precio`` / ``precio_compra`` / ``costo`` COLUMNS live on the
 ``productos`` master and are removed by the Products cutover
-(``legacy_products_drop.py``, PROD-19) when it drops ``productos`` itself.
+(migration ``325_drop_legacy_products_schema``, PROD-22) when it drops
+``productos`` itself.
 
 Because it destroys data with (historically) live readers, it refuses to run unless
 ``PRICING_ALLOW_LEGACY_DROP=1`` is set. Uses DROP IF EXISTS so a partial legacy

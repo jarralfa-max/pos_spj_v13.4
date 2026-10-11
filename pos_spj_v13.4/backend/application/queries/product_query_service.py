@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from backend.domain.services.product_type_policy import ProductTypePolicy
 from backend.application.queries.base_query_service import BaseQueryService, KpiMetric, QueryFilters, SearchResult, TableRow
 from backend.domain.services.product_type_policy import ProductTypePolicy
 
@@ -61,30 +60,37 @@ class SQLiteProductQueryDataSource:
         ]
 
     def list_rows(self, scope: str, filters: QueryFilters | None = None) -> Sequence[TableRow]:
+        """Filas del maestro canónico `products`.
+
+        PROD-22: antes leía la tabla legacy `productos` (con precio y
+        existencia dentro del producto). Productos no es dueño de precio ni de
+        existencia: esos datos son de Pricing e Inventario.
+        """
         if scope != "products":
             return []
         filters = filters or {}
         params: list[Any] = []
         query = (
-            "SELECT id, codigo, COALESCE(codigo_barras,'') AS codigo_barras, nombre, categoria, "
-            "precio, COALESCE(existencia,0) AS existencia, COALESCE(activo,1) AS activo, tipo_producto "
-            "FROM productos WHERE 1=1"
+            "SELECT p.id, p.code AS codigo, p.name AS nombre, "
+            "COALESCE(pc.name, '') AS categoria, p.lifecycle_status, p.product_type "
+            "FROM products p LEFT JOIN product_categories pc ON pc.id = p.category_id "
+            "WHERE 1=1"
         )
         state = filters.get("state", "active")
         if state == "active":
-            query += " AND COALESCE(activo,1)=1"
+            query += " AND p.lifecycle_status='ACTIVE'"
         elif state == "deleted":
-            query += " AND COALESCE(activo,1)=0"
+            query += " AND p.lifecycle_status<>'ACTIVE'"
         category = str(filters.get("category") or "")
         if category:
-            query += " AND categoria=?"
+            query += " AND pc.name=?"
             params.append(category)
         text = str(filters.get("query") or "").strip()
         if text:
-            query += " AND (nombre LIKE ? OR COALESCE(codigo,'') LIKE ? OR COALESCE(codigo_barras,'') LIKE ?)"
+            query += " AND (p.name LIKE ? OR p.code LIKE ?)"
             like = f"%{text}%"
-            params.extend([like, like, like])
-        query += " ORDER BY activo DESC, nombre ASC LIMIT 1000"
+            params.extend([like, like])
+        query += " ORDER BY p.name ASC LIMIT 1000"
         rows = self._connection.execute(query, params).fetchall()
         return [TableRow(id=str(self._value(row, "id", 0)), values=self._row_dict(row)) for row in rows]
 
@@ -104,10 +110,6 @@ class SQLiteProductQueryDataSource:
             "WHERE COALESCE(active,1)=1 ORDER BY name"
         ).fetchall()
         return [str(self._value(row, "categoria", 0)) for row in rows]
-
-    def get_product(self, product_id: str) -> dict[str, Any] | None:
-        row = self._connection.execute("SELECT * FROM productos WHERE id=?", (product_id,)).fetchone()
-        return self._row_dict(row) if row is not None else None
 
     def find_duplicate_name(self, name: str, *, exclude_product_id: str | None = None) -> dict[str, Any] | None:
         params: list[Any] = [name]
@@ -134,10 +136,6 @@ class SQLiteProductQueryDataSource:
 
 logger = logging.getLogger("spj.products.query")
 
-logger = logging.getLogger("spj.products.query")
-
-logger = logging.getLogger("spj.products.query")
-
 
 class ProductQueryService(BaseQueryService):
     scope = "products"
@@ -159,45 +157,6 @@ class ProductQueryService(BaseQueryService):
 
     def get_kpis(self, filters: QueryFilters | None = None) -> list[KpiMetric]:
         return list(self.metrics(filters))
-
-    def list_catalog_rows(self, search: str = "", category: str = "", status_filter: str = "active", limit: int = 1000) -> list[dict]:
-        """Return product catalog rows for the desktop table without SQL in UI.
-
-        status_filter accepts the semantic values: ``active``, ``deleted`` or ``all``.
-        """
-        if self._db is None:
-            return []
-        has_barcode = self._has_column("productos", "codigo_barras")
-        barcode_expr = "COALESCE(codigo_barras,'')" if has_barcode else "''"
-        query = (
-            "SELECT id, codigo, "
-            f"{barcode_expr} as codigo_barras, "
-            "nombre, categoria, precio, existencia, COALESCE(activo,1) as activo "
-            "FROM productos WHERE 1=1"
-        )
-        params: list[Any] = []
-        normalized_status = (status_filter or "active").strip().lower()
-        allowed_statuses = {"active", "deleted", "all"}
-        if normalized_status not in allowed_statuses:
-            raise ValueError("status_filter must be one of: active, deleted, all")
-        if normalized_status == "active":
-            query += " AND COALESCE(activo,1)=1"
-        elif normalized_status == "deleted":
-            query += " AND COALESCE(activo,1)=0"
-        if category:
-            query += " AND categoria=?"
-            params.append(category)
-        if search:
-            query += f" AND (nombre LIKE ? OR codigo LIKE ? OR {barcode_expr} LIKE ?)"
-            params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
-        query += " ORDER BY activo DESC, nombre ASC LIMIT ?"
-        params.append(int(limit))
-        try:
-            rows = self._db.execute(query, params).fetchall()
-        except Exception:
-            logger.exception("Error listing product catalog rows")
-            return []
-        return [self._row_to_dict(row) for row in rows]
 
     def get_names(self, product_ids: list[str]) -> dict[str, str]:
         """Batch id→name lookup (§P0-D): callers displaying a table keyed by
@@ -305,27 +264,8 @@ class ProductQueryService(BaseQueryService):
             return []
         return [str(row[0] if not hasattr(row, "keys") else row["categoria"]) for row in rows if (row[0] if not hasattr(row, "keys") else row["categoria"])]
 
-    def get_product(self, product_id: str) -> dict | None:
-        if self._db is None:
-            return None
-        try:
-            row = self._db.execute("SELECT * FROM productos WHERE id = ?", (product_id,)).fetchone()
-        except Exception:
-            logger.exception("Error loading product_id=%s", product_id)
-            return None
-        return None if row is None else self._row_to_dict(row)
-
-    def _has_column(self, table_name: str, column_name: str) -> bool:
-        try:
-            return any(str(row[1]) == column_name for row in self._db.execute(f"PRAGMA table_info({table_name})").fetchall())
-        except Exception:
-            logger.exception("Error checking %s.%s", table_name, column_name)
-            return False
-
     @staticmethod
     def _row_to_dict(row: Any) -> dict:
         if hasattr(row, "keys"):
             return {key: row[key] for key in row.keys()}
-        # Fallback for catalog query order.
-        keys = ["id", "codigo", "codigo_barras", "nombre", "categoria", "precio", "existencia", "activo"]
-        return {key: row[idx] if idx < len(row) else None for idx, key in enumerate(keys)}
+        return dict(row)

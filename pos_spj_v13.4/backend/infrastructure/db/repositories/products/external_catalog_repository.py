@@ -53,15 +53,28 @@ class ExternalCatalogRepository:
             """INSERT INTO external_product_records
                (id, source_id, external_id, name, barcode, brand, category,
                 net_weight, unit, raw_payload, status, matched_product_id,
-                data_quality_score, batch_id)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                data_quality_score, batch_id, staged_by)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                ON CONFLICT(source_id, external_id) DO UPDATE SET
-                 name=excluded.name, barcode=excluded.barcode, status=excluded.status,
-                 matched_product_id=excluded.matched_product_id,
+                 name=excluded.name, barcode=excluded.barcode,
+                 status=CASE
+                   WHEN external_product_records.status IN ('APPROVED','REJECTED','IMPORTED')
+                        AND excluded.status IN ('PENDING_REVIEW','MATCHED')
+                   THEN external_product_records.status ELSE excluded.status END,
+                 matched_product_id=COALESCE(excluded.matched_product_id,
+                                             external_product_records.matched_product_id),
                  data_quality_score=excluded.data_quality_score""",
+            # PROD-22: volver a buscar no regresa a «pendiente» un registro ya
+            # revisado, ni cambia quién lo trajo.
             (r.id, r.source_id, r.external_id, r.name, r.barcode, r.brand, r.category,
              r.net_weight, r.unit, r.raw_payload, r.status.value, r.matched_product_id,
-             score, batch_id))
+             score, batch_id, r.staged_by))
+
+    def record_id_for(self, source_id: str, external_id: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT id FROM external_product_records WHERE source_id=? AND external_id=?",
+            (source_id, external_id)).fetchone()
+        return None if row is None else row["id"]
 
     def get_record(self, record_id: str) -> ExternalProductRecord | None:
         row = self._conn.execute(
@@ -75,7 +88,8 @@ class ExternalCatalogRepository:
             raw_payload=row["raw_payload"],
             status=ExternalRecordStatus(row["status"]),
             matched_product_id=row["matched_product_id"],
-            data_quality_score=DataQualityScore(int(row["data_quality_score"])))
+            data_quality_score=DataQualityScore(int(row["data_quality_score"])),
+            staged_by=row["staged_by"] if "staged_by" in row.keys() else None)
 
     def records_for_source(self, source_id: str, *, status: ExternalRecordStatus | None = None):
         if status is not None:

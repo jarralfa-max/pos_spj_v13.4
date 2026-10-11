@@ -1,0 +1,496 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="33" skipped="0" tests="64" time="17.459" timestamp="2026-10-10T05:34:19.741341+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[click-form]" time="0.441" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[click-contact]" time="0.134" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[click-bank]" time="0.183" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[click-terms]" time="0.369" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[click-block]" time="0.068" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[click-reason]" time="0.058" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[click-address]" time="0.115" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[click-evaluation]" time="0.074" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[enter-form]" time="0.080" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[enter-contact]" time="0.108" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[enter-bank]" time="0.560" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[enter-terms]" time="0.156" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[enter-block]" time="0.052" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[enter-reason]" time="0.045" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[enter-address]" time="0.464" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_capture_validates_then_accepts_once[enter-evaluation]" time="0.231" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_dialog_escape_preserves_data_and_rejects[form]" time="0.087" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_dialog_escape_preserves_data_and_rejects[contact]" time="0.120" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_dialog_escape_preserves_data_and_rejects[bank]" time="0.086" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_dialog_escape_preserves_data_and_rejects[terms]" time="0.315" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_dialog_escape_preserves_data_and_rejects[block]" time="0.052" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_dialog_escape_preserves_data_and_rejects[reason]" time="0.046" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_dialog_escape_preserves_data_and_rejects[address]" time="0.110" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_dialog_escape_preserves_data_and_rejects[evaluation]" time="0.113" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_dialog_escape_preserves_data_and_rejects[profile]" time="0.103" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_dialog_escape_preserves_data_and_rejects[journal]" time="0.071" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_dialog_escape_preserves_data_and_rejects[detail]" time="0.364" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_read_only_close_keeps_existing_result[profile]" time="0.063" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_read_only_close_keeps_existing_result[journal]" time="0.035" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_read_only_close_keeps_existing_result[detail]" time="0.164" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_supplier_detail_keeps_lazy_tabs_and_uuid_selection" time="0.092" /><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-form]" time="0.108"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierFormDialog object at 0x000001F77042D2E0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F77042E330&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001FE00&gt;
+kind = 'form', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierFormDialog object at 0x000001F77042D2E0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-contact]" time="0.100"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierContactDialog object at 0x000001F7704A49E0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A4950&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001E660&gt;
+kind = 'contact', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierContactDialog object at 0x000001F7704A49E0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-bank]" time="0.169"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBankAccountDialog object at 0x000001F7704A64E0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A6690&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001D390&gt;
+kind = 'bank', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBankAccountDialog object at 0x000001F7704A64E0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-terms]" time="0.098"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierTermsDialog object at 0x000001F7704A7650&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A7800&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001E120&gt;
+kind = 'terms', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierTermsDialog object at 0x000001F7704A7650&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-block]" time="0.061"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBlockDialog object at 0x000001F7704A7DA0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A7BF0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001D010&gt;
+kind = 'block', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBlockDialog object at 0x000001F7704A7DA0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-reason]" time="0.070"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierReasonDialog object at 0x000001F7704A7AD0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A7F50&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CCEC0&gt;
+kind = 'reason', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierReasonDialog object at 0x000001F7704A7AD0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-address]" time="0.226"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierAddressDialog object at 0x000001F7704B9130&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704B8F80&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CC130&gt;
+kind = 'address', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierAddressDialog object at 0x000001F7704B9130&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-evaluation]" time="0.165"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierEvaluationDialog object at 0x000001F7704A7A40&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A7AD0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001FA10&gt;
+kind = 'evaluation', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierEvaluationDialog object at 0x000001F7704A7A40&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-profile]" time="0.101"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.commercial_posting_profile_dialog.CommercialPostingProfileDialog object at 0x000001F7704A4C20&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A4D40&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001C750&gt;
+kind = 'profile', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.commercial_posting_profile_dialog.CommercialPostingProfileDialog object at 0x000001F7704A4C20&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-journal]" time="0.071"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.journal_entry_dialog.JournalEntryDialog object at 0x000001F7704A6B10&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A64E0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001E270&gt;
+kind = 'journal', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.journal_entry_dialog.JournalEntryDialog object at 0x000001F7704A6B10&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-detail]" time="0.471"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.pages.supplier_detail_dialog.SupplierDetailDialog object at 0x000001F7704A5B50&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A7260&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001C600&gt;
+kind = 'detail', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.pages.supplier_detail_dialog.SupplierDetailDialog object at 0x000001F7704A5B50&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-form]" time="0.133"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierFormDialog object at 0x000001F7704A5370&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A6840&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001FF50&gt;
+kind = 'form', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierFormDialog object at 0x000001F7704A5370&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-contact]" time="0.071"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierContactDialog object at 0x000001F7704A7770&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A4E60&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001C4B0&gt;
+kind = 'contact', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierContactDialog object at 0x000001F7704A7770&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-bank]" time="0.269"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBankAccountDialog object at 0x000001F77042C4D0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F77042C200&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001C830&gt;
+kind = 'bank', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBankAccountDialog object at 0x000001F77042C4D0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-terms]" time="0.198"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierTermsDialog object at 0x000001F77041A8D0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F77041B140&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001D010&gt;
+kind = 'terms', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierTermsDialog object at 0x000001F77041A8D0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-block]" time="0.059"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBlockDialog object at 0x000001F76FF422A0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F77042C9E0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CDA90&gt;
+kind = 'block', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBlockDialog object at 0x000001F76FF422A0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-reason]" time="0.089"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierReasonDialog object at 0x000001F76FF427B0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F76FF42570&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CD080&gt;
+kind = 'reason', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierReasonDialog object at 0x000001F76FF427B0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-address]" time="0.450"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierAddressDialog object at 0x000001F76FF42840&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F76FF41F40&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CDBE0&gt;
+kind = 'address', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierAddressDialog object at 0x000001F76FF42840&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-evaluation]" time="0.117"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierEvaluationDialog object at 0x000001F7704BBBF0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704BBDA0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CD6A0&gt;
+kind = 'evaluation', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierEvaluationDialog object at 0x000001F7704BBBF0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-profile]" time="0.091"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.commercial_posting_profile_dialog.CommercialPostingProfileDialog object at 0x000001F7704BB920&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704B8560&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001E660&gt;
+kind = 'profile', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.commercial_posting_profile_dialog.CommercialPostingProfileDialog object at 0x000001F7704BB920&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-journal]" time="0.735"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.journal_entry_dialog.JournalEntryDialog object at 0x000001F7704BA450&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704B84D0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001D010&gt;
+kind = 'journal', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.journal_entry_dialog.JournalEntryDialog object at 0x000001F7704BA450&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-detail]" time="0.979"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.pages.supplier_detail_dialog.SupplierDetailDialog object at 0x000001F76FF42D50&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F76FF42BA0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001D860&gt;
+kind = 'detail', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.pages.supplier_detail_dialog.SupplierDetailDialog object at 0x000001F76FF42D50&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-form]" time="0.118"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierFormDialog object at 0x000001F77041A3C0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F77041B0B0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001C830&gt;
+kind = 'form', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierFormDialog object at 0x000001F77041A3C0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-contact]" time="0.193"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierContactDialog object at 0x000001F77041BC80&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F76FF41F40&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001CF30&gt;
+kind = 'contact', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierContactDialog object at 0x000001F77041BC80&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-bank]" time="0.238"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBankAccountDialog object at 0x000001F77042F6E0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F77042DD00&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CE7B0&gt;
+kind = 'bank', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBankAccountDialog object at 0x000001F77042F6E0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-terms]" time="0.074"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierTermsDialog object at 0x000001F7704A7C80&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7704A70B0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CDFD0&gt;
+kind = 'terms', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierTermsDialog object at 0x000001F7704A7C80&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-block]" time="0.349"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBlockDialog object at 0x000001F771523770&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F771521250&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CE740&gt;
+kind = 'block', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierBlockDialog object at 0x000001F771523770&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-reason]" time="0.107"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierReasonDialog object at 0x000001F771522D50&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F771523800&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CC050&gt;
+kind = 'reason', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierReasonDialog object at 0x000001F771522D50&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-address]" time="0.367"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierAddressDialog object at 0x000001F771521E20&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F771522960&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CD860&gt;
+kind = 'address', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierAddressDialog object at 0x000001F771521E20&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-evaluation]" time="0.230"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierEvaluationDialog object at 0x000001F771523C80&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F771523E30&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CEA50&gt;
+kind = 'evaluation', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs.SupplierEvaluationDialog object at 0x000001F771523C80&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-profile]" time="0.124"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.commercial_posting_profile_dialog.CommercialPostingProfileDialog object at 0x000001F77155F2F0&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F77155EE70&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F7704CF3F0&gt;
+kind = 'profile', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.commercial_posting_profile_dialog.CommercialPostingProfileDialog object at 0x000001F77155F2F0&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-journal]" time="0.381"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.journal_entry_dialog.JournalEntryDialog object at 0x000001F771523E30&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F771521F40&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001FBD0&gt;
+kind = 'journal', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.journal_entry_dialog.JournalEntryDialog object at 0x000001F771523E30&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_remaining_standard_dialogs" name="test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-detail]" time="0.811"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.pages.supplier_detail_dialog.SupplierDetailDialog object at 0x000001F771521C70&gt;, StandardDialog)">desktop = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001F76FF41C70&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001F7715227B0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F77001FB60&gt;
+kind = 'detail', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ALL_KINDS)
+    @pytest.mark.parametrize("theme,density", [("light", "compact"), ("light", "comfortable"), ("dark", "touch")])
+    def test_finance_shell_keeps_actions_reachable_on_small_screen(desktop, monkeypatch, kind, theme, density):
+        app, manager = desktop
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.suppliers.pages.supplier_detail_dialog.SupplierDetailDialog object at 0x000001F771521C70&gt;, StandardDialog)
+
+tests\ui\test_finance_remaining_standard_dialogs.py:213: AssertionError</failure></testcase></testsuite></testsuites>

@@ -33,6 +33,7 @@ class ExternalProductRecord:
     status: ExternalRecordStatus = ExternalRecordStatus.PENDING_REVIEW
     matched_product_id: str | None = None
     data_quality_score: DataQualityScore | None = None
+    staged_by: str | None = None   # PROD-22: quien lo trajo (segregación §39)
 
     def __post_init__(self) -> None:
         if not self.source_id:

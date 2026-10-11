@@ -28,7 +28,6 @@ _LEGACY_TABLES = (
 # Lectores legacy tolerados hoy (se eliminan en PROD-19 / corte final).
 # Rutas relativas a la raíz del proyecto. La lista SÓLO puede reducirse.
 _ALLOWLIST = {
-    "backend/infrastructure/db/repositories/branch_product_repository.py",
 }
 
 

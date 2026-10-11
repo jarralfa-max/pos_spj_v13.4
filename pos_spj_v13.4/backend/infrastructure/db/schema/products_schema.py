@@ -38,6 +38,7 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "units_of_measure",
     "product_unit_conversions",
     "product_catch_weight_config",
+    "product_meat_classifications",
     "product_barcodes",
     "product_alternate_codes",
     "product_shelf_life_profiles",
@@ -63,6 +64,7 @@ PRODUCT_TABLES: tuple[str, ...] = (
     "external_product_records",
     "product_import_batches",
     "product_notification_log",
+    "product_whatsapp_outbox",
     "products",
     "product_authorization_log",
     "product_audit_log",
@@ -154,6 +156,8 @@ _DDL = (
         alt_text TEXT,
         is_primary INTEGER NOT NULL DEFAULT 0 CHECK(is_primary IN (0,1)),
         sort_order INTEGER NOT NULL DEFAULT 0,
+        source_uri TEXT,
+        background_removed INTEGER NOT NULL DEFAULT 0 CHECK(background_removed IN (0,1)),
         created_by TEXT,
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
@@ -280,6 +284,43 @@ _DDL = (
         FOREIGN KEY (product_id) REFERENCES products(id),
         FOREIGN KEY (nominal_unit_id) REFERENCES units_of_measure(id),
         FOREIGN KEY (weight_unit_id) REFERENCES units_of_measure(id)
+    )
+    """,
+    # ── cola de salida de alertas por WhatsApp (PROD-22, migración 331) ────
+    # El notificador encola y un servicio de fondo envía con reintentos: antes
+    # una alerta disparada sin conexión se perdía.
+    """
+    CREATE TABLE IF NOT EXISTS product_whatsapp_outbox (
+        id TEXT NOT NULL PRIMARY KEY,
+        phone TEXT NOT NULL,
+        message TEXT NOT NULL,
+        alert_type TEXT,
+        entity_id TEXT,
+        status TEXT NOT NULL DEFAULT 'PENDING'
+            CHECK(status IN ('PENDING','SENT','FAILED')),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        last_error TEXT,
+        next_attempt_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        sent_at TEXT
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_product_whatsapp_outbox_due "
+    "ON product_whatsapp_outbox(status, next_attempt_at)",
+    # ── clasificación cárnica del producto (PROD-22, migración 326) ────────
+    # La especie vive en `products.species_id`; aquí, la categoría cárnica, la
+    # región anatómica y el corte. Una fila por producto cárnico clasificado.
+    """
+    CREATE TABLE IF NOT EXISTS product_meat_classifications (
+        product_id TEXT NOT NULL PRIMARY KEY,
+        meat_category TEXT,
+        anatomical_region_id TEXT,
+        cut_classification_id TEXT,
+        classified_by TEXT,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (product_id) REFERENCES products(id),
+        FOREIGN KEY (anatomical_region_id) REFERENCES anatomical_regions(id),
+        FOREIGN KEY (cut_classification_id) REFERENCES cut_classifications(id)
     )
     """,
     # ── códigos / barcodes (PROD-7) ───────────────────────────────────────
@@ -853,6 +894,22 @@ def create_products_schema(conn) -> None:
         conn.execute(
             "ALTER TABLE recipes ADD COLUMN reverse_reconstruction_allowed "
             "INTEGER NOT NULL DEFAULT 0")
+    # product_images.source_uri / background_removed (PROD-21, migración 323):
+    # quitar el fondo conserva el original para poder restaurarlo.
+    # cutting_scheme_versions / bundle_versions.created_by (PROD-22, migr. 327):
+    # sin creador no había segregación entre quien captura y quien aprueba.
+    for table in ("cutting_scheme_versions", "bundle_versions"):
+        if not _column_exists(conn, table, "created_by"):
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN created_by TEXT")
+    # external_product_records.staged_by (PROD-22, migr. 328).
+    if not _column_exists(conn, "external_product_records", "staged_by"):
+        conn.execute("ALTER TABLE external_product_records ADD COLUMN staged_by TEXT")
+    if not _column_exists(conn, "product_images", "source_uri"):
+        conn.execute("ALTER TABLE product_images ADD COLUMN source_uri TEXT")
+    if not _column_exists(conn, "product_images", "background_removed"):
+        conn.execute(
+            "ALTER TABLE product_images ADD COLUMN background_removed "
+            "INTEGER NOT NULL DEFAULT 0 CHECK(background_removed IN (0,1))")
 
 
 def drop_products_schema(conn) -> list[str]:

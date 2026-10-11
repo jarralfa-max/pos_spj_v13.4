@@ -21,15 +21,7 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[2]
 # sólo cubre la capa canónica backend (que sí sobrevive).
 UI_FILES: list[str] = []
 BACKEND_FILES = [
-    "backend/application/commands/product_commands.py",
     "backend/application/queries/product_query_service.py",
-    "backend/application/services/product_catalog_service.py",
-    "backend/application/services/product_image_service.py",
-    "backend/application/use_cases/create_product_use_case.py",
-    "backend/application/use_cases/update_product_use_case.py",
-    "backend/application/use_cases/deactivate_product_use_case.py",
-    "backend/application/use_cases/restore_product_use_case.py",
-    "backend/infrastructure/db/repositories/product_repository.py",
 ]
 SCOPE_FILES = UI_FILES + BACKEND_FILES
 
@@ -58,30 +50,10 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 
 # Documented FASE 0 baseline (measured 2026-06). Drive every number DOWN.
 BASELINE: dict[str, dict[str, int]] = {
-    "backend/application/commands/product_commands.py": {},
     "backend/application/queries/product_query_service.py": {
-        # Grew 10 -> 13 in 77f8dc11 (nombres resueltos + resolución de barras);
-        # baseline update was missed in that commit, ratcheted here now.
-        "sql_select": 13,
-    },
-    "backend/application/services/product_catalog_service.py": {
-        # Transaction boundary moved to ConnectionUnitOfWork (F3): no explicit
-        # commit/rollback in the service. SQL still here pending repo extraction.
-        "sql_insert": 1,
-        "sql_update": 4,
-    },
-    "backend/application/services/product_image_service.py": {},
-    "backend/application/use_cases/create_product_use_case.py": {},
-    "backend/application/use_cases/update_product_use_case.py": {},
-    "backend/application/use_cases/deactivate_product_use_case.py": {},
-    "backend/application/use_cases/restore_product_use_case.py": {},
-    "backend/infrastructure/db/repositories/product_repository.py": {
-        # SQL legitimately lives here; counts rose as it moved out of the UI (F5).
-        "commit": 1,
-        "rollback": 1,
-        "sql_select": 8,
-        "sql_insert": 2,
-        "sql_update": 2,
+        # 13 -> 7 (PROD-22): retiradas las lecturas de la tabla legacy
+        # `productos` (list_catalog_rows/get_product, sin llamadores).
+        "sql_select": 7,
     },
 }
 

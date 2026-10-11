@@ -2,8 +2,6 @@
 
 from backend.application.commands.base_command import BaseCommand
 from backend.application.commands.delivery_commands import CreateDeliveryOrderCommand
-from backend.application.commands.product_commands import CreateProductCommand
-from backend.application.commands.product_commands import UpdateProductCommand
 from backend.application.commands.production_commands import ExecuteMeatProductionCommand
 from backend.application.commands.purchase_planning_commands import GeneratePurchasePlanCommand
 from backend.application.commands.quote_commands import ConvertQuoteToSaleCommand
@@ -12,8 +10,6 @@ from backend.application.commands.sales_commands import CreateSaleCommand
 __all__ = [
     "BaseCommand",
     "CreateDeliveryOrderCommand",
-    "CreateProductCommand",
-    "UpdateProductCommand",
     "ExecuteMeatProductionCommand",
     "GeneratePurchasePlanCommand",
     "ConvertQuoteToSaleCommand",

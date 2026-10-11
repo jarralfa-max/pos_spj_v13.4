@@ -138,3 +138,26 @@ def test_navigating_to_purchasing_builds_the_real_purchasing_view(app, conn):
     )
     result = window.navigate(PURCHASING_ROUTE_ID)
     assert isinstance(result.view, EnterprisePurchasingView)
+
+
+def test_background_services_are_wired_and_running(app, conn):
+    """CRM-43: el supervisor de servicios de fondo (SHELL-14) existía sin usarse.
+    Ahora la ventana viva corre el ciclo del CRM y el refresco de la campana; una
+    base sin esas tablas no tumba nada (cada pasada falla por su cuenta)."""
+    from frontend.desktop.shell.background.background_service_state import (
+        BackgroundServiceState,
+    )
+
+    context = _context(permissions={"*"})
+    window = build_application_window(
+        context=context, connection=conn, session_context=LegacySessionAdapter(context),
+        health_report=_healthy_report(),
+    )
+    supervisor = window.service_supervisor
+    assert supervisor is not None
+    for service_id in ("crm.background_cycle", "notifications.inbox",
+                       "products.whatsapp_outbox"):
+        assert supervisor.state_of(service_id) is BackgroundServiceState.RUNNING
+    app.processEvents()
+    supervisor.stop_all()
+    assert supervisor.state_of("crm.background_cycle") is BackgroundServiceState.STOPPED

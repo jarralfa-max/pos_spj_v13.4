@@ -28,6 +28,7 @@ from frontend.desktop.components.icons import Icons
 
 from backend.application.crm.permissions import CRMPermissions
 from backend.application.customers.permissions import CustomerPermissions
+from backend.application.quotes.permissions import QuotePermissions
 from frontend.desktop.modules.customers_crm.view_models import CustomerCrmCapabilities
 
 
@@ -47,9 +48,9 @@ GROUP_ICONS: dict[str, str] = {
     "Clientes": Icons.CUSTOMERS,
     "Prospectos": Icons.SEARCH,
     "Oportunidades": Icons.SCENARIO,
+    "Cotizaciones": Icons.PRICE,
     "Actividades": Icons.CALENDAR,
     "Atención al cliente": Icons.PHONE,
-    "Relación comercial": Icons.SALES,
     "Crédito": Icons.FINANCE,
     "Segmentación": Icons.CATEGORY,
     "Comunicaciones": Icons.NOTIFICATIONS,
@@ -90,22 +91,6 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
         route_id="customers.edit", icon=Icons.EDIT, label="Editar cliente", group="Clientes",
         tooltip="Edición de los datos de identidad de un cliente.",
         required_permission=CustomerPermissions.EDIT, capability="clientes"),
-    CustomerCrmRoute(
-        route_id="customers.accounts", icon=Icons.COMPANY, label="Cuentas comerciales", group="Clientes",
-        tooltip="Cuentas y jerarquía comercial.",
-        required_permission=CustomerPermissions.VIEW, capability="clientes"),
-    CustomerCrmRoute(
-        route_id="customers.contacts", icon=Icons.PHONE, label="Contactos", group="Clientes",
-        tooltip="Personas de contacto del cliente.",
-        required_permission=CustomerPermissions.CONTACT_VIEW, capability="clientes"),
-    CustomerCrmRoute(
-        route_id="customers.addresses", icon=Icons.ADDRESS, label="Direcciones", group="Clientes",
-        tooltip="Direcciones fiscales y de entrega.",
-        required_permission=CustomerPermissions.ADDRESS_VIEW, capability="clientes"),
-    CustomerCrmRoute(
-        route_id="customers.tax_profiles", icon=Icons.FINANCE, label="Datos fiscales", group="Clientes",
-        tooltip="Perfil fiscal (RFC, régimen, CFDI).",
-        required_permission=CustomerPermissions.TAX_PROFILE_VIEW, capability="clientes"),
     CustomerCrmRoute(
         route_id="customers.duplicates", icon=Icons.BUNDLE, label="Duplicados", group="Clientes",
         tooltip="Candidatos a duplicado y fusión.",
@@ -154,6 +139,20 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
         route_id="crm.lost_opportunities", icon=Icons.FAILED, label="Oportunidades perdidas", group="Oportunidades",
         tooltip="Oportunidades cerradas como perdidas.",
         required_permission=CRMPermissions.OPPORTUNITIES_VIEW, capability="oportunidades"),
+
+    # -- Cotizaciones (contexto propio, §50; CRM-43) ---------------------------
+    CustomerCrmRoute(
+        route_id="crm.quotes", icon=Icons.PRICE, label="Cotizaciones", group="Cotizaciones",
+        tooltip="Cotizaciones a clientes: precios, aprobación y conversión en pedido.",
+        required_permission=QuotePermissions.VIEW, capability="cotizaciones"),
+    CustomerCrmRoute(
+        route_id="crm.quote_approvals", icon=Icons.APPROVAL, label="Por aprobar",
+        group="Cotizaciones", tooltip="Cotizaciones con precios por debajo de lista.",
+        required_permission=QuotePermissions.APPROVE, capability="cotizaciones"),
+    CustomerCrmRoute(
+        route_id="crm.quote_detail", icon=Icons.DOCUMENT, label="Detalle de cotización",
+        group="Cotizaciones", tooltip="Partidas, importes, historial y acciones.",
+        required_permission=QuotePermissions.VIEW, capability="cotizaciones"),
 
     # -- Actividades -----------------------------------------------------------
     CustomerCrmRoute(
@@ -216,26 +215,8 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
         required_permission=CRMPermissions.CASES_VIEW, capability="atencion"),
 
     # -- Relación comercial ----------------------------------------------------
-    CustomerCrmRoute(
-        route_id="customers.purchase_history", icon=Icons.PURCHASES, label="Compras", group="Relación comercial",
-        tooltip="Historial de compras del cliente.",
-        required_permission=CustomerPermissions.ORDERS_VIEW, capability="comercial"),
-    CustomerCrmRoute(
-        route_id="customers.order_history", icon=Icons.ORDERS, label="Pedidos", group="Relación comercial",
-        tooltip="Historial de pedidos.",
-        required_permission=CustomerPermissions.ORDERS_VIEW, capability="comercial"),
-    CustomerCrmRoute(
-        route_id="customers.quote_history", icon=Icons.PRICE, label="Cotizaciones", group="Relación comercial",
-        tooltip="Historial de cotizaciones.",
-        required_permission=CustomerPermissions.ORDERS_VIEW, capability="comercial"),
-    CustomerCrmRoute(
-        route_id="customers.return_history", icon=Icons.RETURN, label="Devoluciones", group="Relación comercial",
-        tooltip="Historial de devoluciones.",
-        required_permission=CustomerPermissions.ORDERS_VIEW, capability="comercial"),
-    CustomerCrmRoute(
-        route_id="customers.product_affinity", icon=Icons.PRODUCTS, label="Productos frecuentes", group="Relación comercial",
-        tooltip="Productos de mayor afinidad.",
-        required_permission=CustomerPermissions.ORDERS_VIEW, capability="comercial"),
+    # (2026-10-09) Compras, Pedidos, Devoluciones y Productos frecuentes se
+    # retiraron del menú: son pestañas del expediente («Relación comercial»).
 
     # -- Crédito ---------------------------------------------------------------
     CustomerCrmRoute(
@@ -287,21 +268,9 @@ CUSTOMER_CRM_ROUTES: tuple[CustomerCrmRoute, ...] = (
 
     # -- Comunicaciones ----------------------------------------------------------
     CustomerCrmRoute(
-        route_id="customers.communication_preferences", icon=Icons.SETTINGS, label="Preferencias", group="Comunicaciones",
-        tooltip="Preferencias de comunicación.",
-        required_permission=CustomerPermissions.COMMUNICATION_PREFERENCE_VIEW, capability="comunicaciones"),
-    CustomerCrmRoute(
-        route_id="customers.consents", icon=Icons.APPROVAL, label="Consentimientos", group="Comunicaciones",
-        tooltip="Evidencia de consentimiento.",
-        required_permission=CustomerPermissions.CONSENT_VIEW, capability="comunicaciones"),
-    CustomerCrmRoute(
         route_id="customers.whatsapp_summary", icon=Icons.PHONE, label="WhatsApp", group="Comunicaciones",
         tooltip="Resumen de la integración con WhatsApp.",
         required_permission=CustomerPermissions.WHATSAPP_VIEW, capability="comunicaciones"),
-    CustomerCrmRoute(
-        route_id="customers.notification_history", icon=Icons.NOTIFICATIONS, label="Notificaciones", group="Comunicaciones",
-        tooltip="Historial de notificaciones enviadas.",
-        required_permission=CustomerPermissions.CONSENT_VIEW, capability="comunicaciones"),
 
     # -- Privacidad --------------------------------------------------------------
     CustomerCrmRoute(

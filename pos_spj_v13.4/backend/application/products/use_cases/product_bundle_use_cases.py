@@ -100,7 +100,8 @@ class CreateProductBundleUseCase(_BaseBundleUseCase):
             version = BundleVersion(
                 bundle_id=bundle.id, version_number=1,
                 status=RecipeVersionStatus.DRAFT,
-                components=_components(command.components))
+                components=_components(command.components),
+                created_by=command.user_id)
             self._validator.validate(bundle, version,
                                      resolver=self._repo.component_resolver())
         except ProductsDomainError as exc:
@@ -185,6 +186,10 @@ class ApproveBundleVersionUseCase(_BaseBundleUseCase):
         version = self._repo.get_version(command.version_id)
         if version is None:
             return BundleResult(False, None, None, "La versión no existe")
+        # §39 (PROD-22): quien capturó la versión no puede aprobarla.
+        self._auth.ensure_segregation(
+            actor_user_id=command.user_id or "", creator_user_id=version.created_by,
+            approval_permission=ProductPermissions.BUNDLES_MANAGE)
         try:
             version.approve(approved_by_user_id=command.user_id or "",
                             reason=command.reason)
@@ -203,6 +208,9 @@ class ActivateBundleVersionUseCase(_BaseBundleUseCase):
         version = self._repo.get_version(command.version_id)
         if version is None:
             return BundleResult(False, None, None, "La versión no existe")
+        self._auth.ensure_segregation(
+            actor_user_id=command.user_id or "", creator_user_id=version.created_by,
+            approval_permission=ProductPermissions.BUNDLES_MANAGE)
         current = self._repo.active_version_for_bundle(version.bundle_id)
         try:
             version.activate()

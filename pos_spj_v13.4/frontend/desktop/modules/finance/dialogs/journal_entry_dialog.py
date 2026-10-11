@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout
+from PyQt5.QtWidgets import QDialogButtonBox
 
+from frontend.desktop.components.dialogs import StandardDialog
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 
 
-class JournalEntryDialog(QDialog):
+class JournalEntryDialog(StandardDialog):
     """Solo lectura: muestra las líneas debe/haber de un asiento."""
 
     def __init__(self, parent, lines_model) -> None:
-        super().__init__(parent)
-        self.setObjectName("standardDialog")
-        self.setWindowTitle("Detalle del asiento")
+        super().__init__(parent, title="Detalle del asiento", width=640)
         self.setMinimumSize(640, 360)
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         table = StandardTable([
             ColumnSpec("Cuenta", "date"),
             ColumnSpec("Nombre"),
@@ -26,6 +25,7 @@ class JournalEntryDialog(QDialog):
         table.load_rows(lines_model.rows)
         layout.addWidget(table)
         buttons = QDialogButtonBox(QDialogButtonBox.Close, self)
+        buttons.button(QDialogButtonBox.Close).setText("Cerrar")
         buttons.rejected.connect(self.reject)
         buttons.clicked.connect(lambda _b: self.accept())
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)

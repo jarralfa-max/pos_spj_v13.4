@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="6" skipped="0" tests="6" time="3.415" timestamp="2026-10-09T05:08:39.531146+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.unit.test_pos_checkout_dialogs" name="test_reintentar_el_cobro_no_duplica_pagos" time="0.562"><failure message="AttributeError: '_Presentador' object has no attribute 'payment_methods'">app = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F4E2E387A0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F4E2DC1220&gt;
+
+    def test_reintentar_el_cobro_no_duplica_pagos(app, monkeypatch):
+        monkeypatch.setattr(QtWidgets.QMessageBox, "warning", lambda *a, **k: None)
+        p = _Presentador([_fail("NO_OPEN_CASH_SHIFT"), _ok()])
+&gt;       d = _pago(p)
+            ^^^^^^^^
+
+tests\unit\test_pos_checkout_dialogs.py:72: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_pos_checkout_dialogs.py:60: in _pago
+    d = PaymentDialog(presentador, sale_id="v1", total_due=Decimal("100"))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;frontend.desktop.modules.sales_pos.dialogs.payment_dialog.PaymentDialog object at 0x000001F4E2E38320&gt;
+presenter = &lt;tests.unit.test_pos_checkout_dialogs._Presentador object at 0x000001F4E2DF7380&gt;
+sale_id = 'v1', total_due = Decimal('100'), has_customer = False, parent = None
+
+    def __init__(self, presenter, *, sale_id: str, total_due: Decimal,
+                 has_customer: bool = False, parent=None) -&gt; None:
+        super().__init__(parent)
+        self.setObjectName("posPaymentDialog")
+        self.setWindowTitle("Cobrar")
+        self.setModal(True)
+        self._presenter = presenter
+        self._sale_id = sale_id
+        self._total_due = Decimal(str(total_due))
+        self._lines: list[tuple[str, Decimal, str | None]] = []
+        self.completed = False
+        self.change = Decimal("0")
+        #: Avance ya aplicado al backend (ver docstring del módulo).
+        self._checkout_started = False
+        self._recorded = 0
+    
+        root = QVBoxLayout(self)
+    
+        self._lbl_total = QLabel(f"Total a pagar: ${self._total_due:,.2f}")
+        self._lbl_total.setObjectName("posPaymentTotal")
+        self._lbl_total.setProperty("role", "amount")
+        root.addWidget(self._lbl_total)
+    
+        self._lbl_remaining = QLabel(self)
+        self._lbl_remaining.setObjectName("posPaymentRemaining")
+        root.addWidget(self._lbl_remaining)
+        self._lbl_change = QLabel(self)
+        self._lbl_change.setObjectName("posPaymentChange")
+        self._lbl_change.setProperty("role", "amount")
+        root.addWidget(self._lbl_change)
+    
+        add_row = QHBoxLayout()
+        self._method = QComboBox(self)
+        self._method.setObjectName("posPaymentMethod")
+&gt;       for code in presenter.payment_methods(has_customer=has_customer):
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: '_Presentador' object has no attribute 'payment_methods'
+
+frontend\desktop\modules\sales_pos\dialogs\payment_dialog.py:86: AttributeError</failure></testcase><testcase classname="tests.unit.test_pos_checkout_dialogs" name="test_sin_existencia_ofrece_autorizar_y_reintenta_con_el_autorizador" time="0.005"><failure message="AttributeError: '_Presentador' object has no attribute 'payment_methods'">app = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F4E2E387A0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F4E2DC10F0&gt;
+
+    def test_sin_existencia_ofrece_autorizar_y_reintenta_con_el_autorizador(app, monkeypatch):
+        import frontend.desktop.modules.sales_pos.dialogs.stock_authorization_dialog as modulo
+    
+        class _Autoriza:
+            def __init__(self, presenter, *, message, parent=None):
+                self.authorizer_user_id, self.reason = "gerente-id", "llega mercancía"
+    
+            def exec_(self):
+                return 1
+    
+        monkeypatch.setattr(modulo, "StockAuthorizationDialog", _Autoriza)
+        p = _Presentador([_fail("STOCK_AUTHORIZATION_REQUIRED", "disponible 8"), _ok()])
+&gt;       d = _pago(p)
+            ^^^^^^^^
+
+tests\unit\test_pos_checkout_dialogs.py:95: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\unit\test_pos_checkout_dialogs.py:60: in _pago
+    d = PaymentDialog(presentador, sale_id="v1", total_due=Decimal("100"))
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = &lt;frontend.desktop.modules.sales_pos.dialogs.payment_dialog.PaymentDialog object at 0x000001F4E2E385F0&gt;
+presenter = &lt;tests.unit.test_pos_checkout_dialogs._Presentador object at 0x000001F4E31B9BD0&gt;
+sale_id = 'v1', total_due = Decimal('100'), has_customer = False, parent = None
+
+    def __init__(self, presenter, *, sale_id: str, total_due: Decimal,
+                 has_customer: bool = False, parent=None) -&gt; None:
+        super().__init__(parent)
+        self.setObjectName("posPaymentDialog")
+        self.setWindowTitle("Cobrar")
+        self.setModal(True)
+        self._presenter = presenter
+        self._sale_id = sale_id
+        self._total_due = Decimal(str(total_due))
+        self._lines: list[tuple[str, Decimal, str | None]] = []
+        self.completed = False
+        self.change = Decimal("0")
+        #: Avance ya aplicado al backend (ver docstring del módulo).
+        self._checkout_started = False
+        self._recorded = 0
+    
+        root = QVBoxLayout(self)
+    
+        self._lbl_total = QLabel(f"Total a pagar: ${self._total_due:,.2f}")
+        self._lbl_total.setObjectName("posPaymentTotal")
+        self._lbl_total.setProperty("role", "amount")
+        root.addWidget(self._lbl_total)
+    
+        self._lbl_remaining = QLabel(self)
+        self._lbl_remaining.setObjectName("posPaymentRemaining")
+        root.addWidget(self._lbl_remaining)
+        self._lbl_change = QLabel(self)
+        self._lbl_change.setObjectName("posPaymentChange")
+        self._lbl_change.setProperty("role", "amount")
+        root.addWidget(self._lbl_change)
+    
+        add_row = QHBoxLayout()
+        self._method = QComboBox(self)
+        self._method.setObjectName("posPaymentMethod")
+&gt;       for code in presenter.payment_methods(has_customer=has_customer):
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: '_Presentador' object has no attribute 'payment_methods'
+
+frontend\desktop\modules\sales_pos\dialogs\payment_dialog.py:86: AttributeError</failure></testcase><testcase classname="tests.unit.test_pos_checkout_dialogs" name="test_sin_turno_el_cobro_ni_siquiera_se_abre" time="0.392"><failure message="AssertionError: assert [] == ['No tienes u...aja abierto.']&#10;  &#10;  Right contains one more item: 'No tienes un turno de caja abierto.'&#10;  Use -v to get more diff">app = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F4E2E387A0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F4E32197F0&gt;
+
+    def test_sin_turno_el_cobro_ni_siquiera_se_abre(app, monkeypatch):
+        from backend.application.sales.permissions import SalesPermissions
+        from frontend.desktop.modules.sales_pos import sales_pos_workspace as ws_mod
+        from frontend.desktop.modules.sales_pos.sales_pos_presenter import SalesPosPresenter
+    
+        class _Sesion:
+            user_id, active_branch_id, is_active = "cajero", "sucursal", True
+    
+            def tiene_permiso(self, code):
+                return code in {p for p in vars(SalesPermissions).values() if isinstance(p, str)}
+    
+        avisos, abiertos = [], []
+        monkeypatch.setattr(ws_mod.QMessageBox, "warning", lambda *a, **k: avisos.append(a[2]))
+        monkeypatch.setattr(ws_mod, "PaymentDialog", lambda *a, **k: abiertos.append(1))
+        presenter = SalesPosPresenter(
+            session_context=_Sesion(),
+            query_services={"sale_query": SimpleNamespace(
+                                get=lambda sale_id, requester_user_id: SimpleNamespace(
+                                    total=Decimal("100"), lines=[1])),
+                            "cash_shift": lambda **kw: "No tienes un turno de caja abierto."})
+        ws = ws_mod.SalesPosWorkspace(presenter)
+        ws._sale_id = "v1"
+    
+        ws._on_checkout_requested()
+    
+        assert abiertos == []
+&gt;       assert avisos == ["No tienes un turno de caja abierto."]
+E       AssertionError: assert [] == ['No tienes u...aja abierto.']
+E         
+E         Right contains one more item: 'No tienes un turno de caja abierto.'
+E         Use -v to get more diff
+
+tests\unit\test_pos_checkout_dialogs.py:171: AssertionError</failure></testcase><testcase classname="tests.unit.test_phase3_ui_components" name="test_search_selector_click_handler_can_clear_results_without_duplicate_emit" time="0.006"><failure message="TypeError: itemActivated(self, item: Optional[QListWidgetItem]).emit(): argument 1 has unexpected type 'QListWidgetItem'">def test_search_selector_click_handler_can_clear_results_without_duplicate_emit() -&gt; None:
+        _qt_core, components, _application = _qt_components()
+        selector = components.SearchSelector(
+            provider=lambda query: [components.SearchOption(id="p1", label=f"Producto {query}")]
+        )
+        selector.refresh("res")
+        item = selector._results.item(0)
+    
+        emitted = []
+    
+        def _on_selected(option):
+            emitted.append(option)
+            selector.set_selected_label(option.label)
+    
+        selector.selected.connect(_on_selected)
+    
+        selector._results.itemClicked.emit(item)
+&gt;       selector._results.itemActivated.emit(item)
+E       TypeError: itemActivated(self, item: Optional[QListWidgetItem]).emit(): argument 1 has unexpected type 'QListWidgetItem'
+
+tests\unit\test_phase3_ui_components.py:120: TypeError</failure></testcase><testcase classname="tests.unit.test_phase3_ui_components" name="test_merma_uses_search_selector_public_selected_signal_only" time="0.002"><failure message="FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\merma.py'">def test_merma_uses_search_selector_public_selected_signal_only() -&gt; None:
+&gt;       source = (REPO_ROOT / "pos_spj_v13.4" / "modulos" / "merma.py").read_text(encoding="utf-8")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\unit\test_phase3_ui_components.py:171: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\..\AppData\Local\Programs\Python\Python313\Lib\pathlib\_local.py:546: in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Programs\Python\Python313\Lib\pathlib\_abc.py:632: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/modulos/merma.py')
+mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+&gt;       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\merma.py'
+
+..\..\..\AppData\Local\Programs\Python\Python313\Lib\pathlib\_local.py:537: FileNotFoundError</failure></testcase><testcase classname="tests.unit.test_phase3_ui_components" name="test_status_badge_and_date_range_filter_expose_standard_values" time="0.045"><failure message="AssertionError: assert None == 'success'&#10; +  where None = &lt;built-in method property of StatusBadge object at 0x000001F4E3791BE0&gt;('status')&#10; +    where &lt;built-in method property of StatusBadge object at 0x000001F4E3791BE0&gt; = &lt;frontend.desktop.components.status_badge.StatusBadge object at 0x000001F4E3791BE0&gt;.property">def test_status_badge_and_date_range_filter_expose_standard_values() -&gt; None:
+        qt_core, components, _application = _qt_components()
+        badge = components.StatusBadge("Activo", status="success")
+        date_filter = components.DateRangeFilter()
+        expected_range = components.DateRange(start=qt_core.QDate(2026, 1, 1), end=qt_core.QDate(2026, 1, 31))
+    
+        date_filter.set_range(expected_range)
+    
+&gt;       assert badge.property("status") == "success"
+E       AssertionError: assert None == 'success'
+E        +  where None = &lt;built-in method property of StatusBadge object at 0x000001F4E3791BE0&gt;('status')
+E        +    where &lt;built-in method property of StatusBadge object at 0x000001F4E3791BE0&gt; = &lt;frontend.desktop.components.status_badge.StatusBadge object at 0x000001F4E3791BE0&gt;.property
+
+tests\unit\test_phase3_ui_components.py:220: AssertionError</failure></testcase></testsuite></testsuites>

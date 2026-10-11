@@ -114,8 +114,19 @@ class TestEvaluateEventTriggerCreateTask:
         assert not [e for e in executions if e.target_entity_id == result.entity_id]
 
     def test_unsupported_target_entity_type_is_skipped_not_failed(self, crm_conn):
-        rule_id = _create_rule(crm_conn, trigger=CRMAutomationTrigger.CUSTOMER_INACTIVE.value,
-                               action="CREATE_TASK", op_suffix="badtarget")
+        """Desde CRM-43 una combinación imposible ya no se puede GUARDAR (ver
+        test_automation_rule_entity.py); una regla anterior a esa validación que
+        siga en la base se omite al ejecutarse, nunca truena."""
+        from backend.domain.crm.entities.crm_automation_rule import CRMAutomationRule
+        from backend.domain.crm.enums import CRMAutomationAction
+        from backend.shared.ids import new_uuid
+        legacy = CRMAutomationRule(
+            id=new_uuid(), name="Regla previa", trigger_type=CRMAutomationTrigger.CUSTOMER_INACTIVE,
+            action_type=CRMAutomationAction.ESCALATE_CASE, trigger_config={"days": 30},
+            action_config={"escalated_to_user_id": "user-supervisor-1"})
+        with CRMUnitOfWork(crm_conn) as uow:
+            uow.automation_rules.save(legacy)
+        rule_id = legacy.id
         executions = EvaluateEventTriggerUseCase().execute(
             crm_conn, trigger=CRMAutomationTrigger.CUSTOMER_INACTIVE, target_entity_type="CUSTOMER",
             target_entity_id="cust-1", operation_id="op-skip")

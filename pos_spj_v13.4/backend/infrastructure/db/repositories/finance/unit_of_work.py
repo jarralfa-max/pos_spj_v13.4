@@ -48,10 +48,18 @@ from backend.infrastructure.db.repositories.finance.treasury_repository import T
 
 
 class FinanceUnitOfWork:
-    """Context manager: commits on clean exit, rolls back on exception."""
+    """Context manager: commits on clean exit, rolls back on exception.
 
-    def __init__(self, connection: Any) -> None:
+    ``owns_transaction=False`` (auditoría CRM F01, 2026-10-09): la unidad de
+    trabajo participa en una transacción que abrió OTRO flujo (p. ej. el cobro a
+    crédito de una venta) y no confirma ni revierte la conexión — lo decide ese
+    flujo. Antes confirmaba siempre: si la venta fallaba después, la cuenta por
+    cobrar quedaba registrada. Mismo contrato que ``InventoryUnitOfWork`` y
+    ``SalesUnitOfWork``."""
+
+    def __init__(self, connection: Any, *, owns_transaction: bool = True) -> None:
         self.connection = connection
+        self._owns_transaction = owns_transaction
         self.accounts = AccountRepository(connection)
         self.journals = JournalRepository(connection)
         self.journal_entries = JournalEntryRepository(connection)
@@ -83,11 +91,13 @@ class FinanceUnitOfWork:
         return False
 
     def commit(self) -> None:
-        self.connection.commit()
+        if self._owns_transaction:
+            self.connection.commit()
         self._completed = True
 
     def rollback(self) -> None:
-        rollback = getattr(self.connection, "rollback", None)
-        if rollback is not None:
-            rollback()
+        if self._owns_transaction:
+            rollback = getattr(self.connection, "rollback", None)
+            if rollback is not None:
+                rollback()
         self._completed = True

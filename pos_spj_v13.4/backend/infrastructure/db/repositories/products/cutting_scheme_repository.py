@@ -49,15 +49,15 @@ class CuttingSchemeRepository:
         self._conn.execute(
             """INSERT INTO cutting_scheme_versions
                (id, cutting_scheme_id, version_number, status, effective_from,
-                effective_to, approved_by_user_id, reason)
-               VALUES (?,?,?,?,?,?,?,?)
+                effective_to, approved_by_user_id, reason, created_by)
+               VALUES (?,?,?,?,?,?,?,?,?)
                ON CONFLICT(id) DO UPDATE SET
                  status=excluded.status, effective_from=excluded.effective_from,
                  effective_to=excluded.effective_to,
                  approved_by_user_id=excluded.approved_by_user_id, reason=excluded.reason""",
             (version.id, version.cutting_scheme_id, version.version_number,
              version.status.value, version.effective_from, version.effective_to,
-             version.approved_by_user_id, version.reason))
+             version.approved_by_user_id, version.reason, version.created_by))
         self._conn.execute("DELETE FROM cutting_outputs WHERE version_id=?", (version.id,))
         for o in version.outputs:
             self._conn.execute(
@@ -81,7 +81,8 @@ class CuttingSchemeRepository:
             version_number=row["version_number"],
             status=RecipeVersionStatus(row["status"]),
             effective_from=row["effective_from"], effective_to=row["effective_to"],
-            approved_by_user_id=row["approved_by_user_id"], reason=row["reason"])
+            approved_by_user_id=row["approved_by_user_id"], reason=row["reason"],
+            created_by=row["created_by"] if "created_by" in row.keys() else None)
         version.outputs = [
             CuttingOutput(id=r["id"], version_id=r["version_id"], product_id=r["product_id"],
                           output_type=OutputType(r["output_type"]),

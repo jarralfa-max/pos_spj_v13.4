@@ -60,7 +60,8 @@ class _Session:
         return str(value) if value else self._branch_fallback
 
 
-def build_products_presenter(connection, session_context=None, *, live_session=None):
+def build_products_presenter(connection, session_context=None, *, live_session=None,
+                             external_registry=None):
     from backend.application.products.queries.integration_query_services import (
         PurchaseProductConfigQueryService,
     )
@@ -140,8 +141,16 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
     )
     from backend.application.products.use_cases.product_image_use_cases import (
         AddProductImageUseCase,
+        RemoveImageBackgroundUseCase,
         RemoveProductImageUseCase,
+        RestoreImageBackgroundUseCase,
         SetPrimaryImageUseCase,
+    )
+    from backend.infrastructure.media.background_removal import (
+        EdgeConnectedBackgroundRemover,
+    )
+    from backend.infrastructure.media.local_product_image_storage import (
+        LocalProductImageStorage,
     )
     from backend.application.products.queries.product_recipe_query_service import (
         ProductRecipeQueryService,
@@ -216,10 +225,15 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
         SessionPermissionChecker(live_session))
         if live_session is not None
         else ProductsAuthorizationPolicy.permissive_for_tests())
+    # PROD-21: las imágenes se copian a la carpeta de la aplicación.
+    image_storage = LocalProductImageStorage()
 
     def write_factory():
-        return (CreateProductMasterUseCase(conn, authorization),
-                UpdateProductMasterUseCase(conn, authorization),
+        # PROD-22: las alertas del §35 se leen de Productos → Configuración en
+        # cada alta/edición (apagadas por omisión, como hasta ahora).
+        alerts = _alert_wiring(conn)
+        return (CreateProductMasterUseCase(conn, authorization, **alerts),
+                UpdateProductMasterUseCase(conn, authorization, **alerts),
                 ProductMasterRepository(conn))
 
     def lifecycle_factory():
@@ -255,7 +269,7 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
 
     checker = (make_permission_checker(live_session)
                if live_session is not None else None)
-    return ProductsPresenter(
+    presenter = ProductsPresenter(
         read_service_factory=lambda: ProductCatalogReadService(conn),
         # El SELECTOR de productos va por el contrato compartido; el listado
         # del catálogo sigue en `ProductCatalogReadService`.
@@ -282,9 +296,13 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
             conn, authorization),
         images_read_factory=lambda: ProductImageQueryService(conn),
         images_write_factory=lambda: {
-            "add": AddProductImageUseCase(conn, authorization),
+            "add": AddProductImageUseCase(conn, authorization, image_storage),
             "set_primary": SetPrimaryImageUseCase(conn, authorization),
-            "remove": RemoveProductImageUseCase(conn, authorization),
+            "remove": RemoveProductImageUseCase(conn, authorization, image_storage),
+            "remove_background": RemoveImageBackgroundUseCase(
+                conn, authorization, image_storage, EdgeConnectedBackgroundRemover()),
+            "restore_background": RestoreImageBackgroundUseCase(
+                conn, authorization, image_storage),
         },
         recipes_read_factory=lambda: ProductRecipeQueryService(conn),
         recipes_write_factory=lambda: {
@@ -335,6 +353,197 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
         },
         permission_checker=checker,
         session_context=session_context)
+    # PROD-22: clasificación cárnica (especies, regiones, cortes). El backend
+    # existía completo y ninguna pantalla lo alcanzaba.
+    presenter.meat = _build_meat_presenter(conn, authorization, checker, session_context)
+    # PROD-22: códigos de barras y perfiles (calidad/vida útil/logística) de UN
+    # producto — acciones del expediente, sin pantalla hasta ahora.
+    presenter.codes_profiles = _build_codes_profiles_presenter(
+        conn, authorization, checker, session_context)
+    # PROD-22 §40: la bitácora existía sin pantalla para consultarla.
+    from backend.application.products.queries.product_audit_query_service import (
+        ProductAuditQueryService,
+    )
+    from frontend.desktop.modules.products.audit_presenter import ProductAuditPresenter
+    presenter.audit = ProductAuditPresenter(
+        read_factory=lambda: ProductAuditQueryService(conn), has_permission=checker)
+    # PROD-22: bandeja transversal de versiones técnicas pendientes.
+    from backend.application.products.queries.product_approval_query_service import (
+        ProductApprovalQueryService,
+    )
+    presenter.approvals = ProductApprovalQueryService(conn)
+    # PROD-22 §35/§42: calidad de datos con las reglas de las alertas.
+    from backend.application.products.queries.product_data_quality_query_service import (
+        ProductDataQualityQueryService,
+    )
+    presenter.data_quality = ProductDataQualityQueryService(conn)
+    presenter.external = _build_external_presenter(conn, authorization, checker,
+                                                   session_context, external_registry)
+    presenter.settings = _build_settings_presenter(conn, authorization, checker,
+                                                   session_context)
+    return presenter
+
+
+def _build_external_presenter(conn, authorization, checker, session_context, registry):
+    """Catálogo externo (§15). El registro de proveedores se crea al usarse (la
+    búsqueda sale a internet); los tests inyectan uno falso."""
+    from backend.application.products.queries.external_catalog_query_service import (
+        ExternalCatalogQueryService,
+    )
+    from backend.application.products.use_cases.product_external_catalog_use_cases import (
+        ApproveExternalRecordUseCase,
+        ImportExternalRecordUseCase,
+        RejectExternalRecordUseCase,
+        SearchExternalCatalogUseCase,
+    )
+    from frontend.desktop.modules.products.external_catalog_presenter import (
+        ExternalCatalogPresenter,
+    )
+
+    def write_factory():
+        reg = registry
+        if reg is None:
+            from backend.infrastructure.product_catalogs.catalog_wiring import (
+                build_default_registry,
+            )
+            reg = build_default_registry()
+        return {"search": SearchExternalCatalogUseCase(conn, reg, authorization),
+                "approve": ApproveExternalRecordUseCase(conn, reg, authorization),
+                "reject": RejectExternalRecordUseCase(conn, reg, authorization),
+                "import": ImportExternalRecordUseCase(conn, reg, authorization)}
+
+    return ExternalCatalogPresenter(
+        read_factory=lambda: ExternalCatalogQueryService(conn), write_factory=write_factory,
+        has_permission=checker, session=session_context)
+
+
+def _alert_wiring(conn) -> dict:
+    """Servicio + destinatarios de las alertas, según la configuración vigente."""
+    from backend.application.products.notifications.notification_service import (
+        ProductNotificationService,
+    )
+    from backend.application.products.queries.product_settings_query import (
+        ProductSettingsQuery,
+    )
+    from backend.infrastructure.notifications.product_notification_gateway import (
+        FanOutProductNotificationGateway,
+    )
+    try:
+        query = ProductSettingsQuery(conn)
+        settings = query.current()
+    except Exception:  # sin catálogo de ajustes: sin alertas
+        return {}
+    if not settings.alerts_enabled:
+        return {}
+    phones = list(settings.whatsapp_phones) if settings.whatsapp_enabled else []
+    return {"notification_service": ProductNotificationService(
+                conn, gateway=FanOutProductNotificationGateway(conn)),
+            "notify_recipients": query.alert_user_ids(settings),
+            "whatsapp_recipients": phones}
+
+
+def _build_settings_presenter(conn, authorization, checker, session_context):
+    from backend.application.products.queries.product_notification_log_query import (
+        ProductNotificationLogQuery,
+    )
+    from backend.application.products.queries.product_settings_query import (
+        ProductSettingsQuery,
+    )
+    from backend.application.products.use_cases.product_settings_use_cases import (
+        UpdateProductSettingsUseCase,
+    )
+    from frontend.desktop.modules.products.settings_presenter import ProductSettingsPresenter
+    from backend.application.products.notifications.whatsapp_outbox import (
+        ProductWhatsAppOutboxQuery,
+        RetryProductWhatsAppMessageUseCase,
+    )
+    return ProductSettingsPresenter(
+        read_factory=lambda: ProductSettingsQuery(conn),
+        write_factory=lambda: UpdateProductSettingsUseCase(conn, authorization),
+        log_factory=lambda: ProductNotificationLogQuery(conn),
+        outbox_factory=lambda: ProductWhatsAppOutboxQuery(conn),
+        retry_factory=lambda: RetryProductWhatsAppMessageUseCase(conn, authorization),
+        has_permission=checker, session=session_context)
+
+
+def _build_codes_profiles_presenter(conn, authorization, checker, session_context):
+    from backend.application.products.queries.product_barcode_query_service import (
+        ProductBarcodeQueryService,
+    )
+    from backend.application.products.queries.product_profile_query_service import (
+        ProductProfileQueryService,
+    )
+    from backend.application.products.use_cases.product_barcode_use_cases import (
+        AddAlternateCodeUseCase,
+        AssignBarcodeUseCase,
+        SetBarcodeActiveUseCase,
+    )
+    from backend.application.products.use_cases.product_profile_use_cases import (
+        SetLogisticsProfileUseCase,
+        SetQualityProfileUseCase,
+        SetShelfLifeProfileUseCase,
+    )
+    from frontend.desktop.modules.products.product_codes_profiles_presenter import (
+        ProductCodesProfilesPresenter,
+    )
+    return ProductCodesProfilesPresenter(
+        read_factory=lambda: (ProductBarcodeQueryService(conn),
+                              ProductProfileQueryService(conn)),
+        write_factory=lambda: {
+            "assign_barcode": AssignBarcodeUseCase(conn, authorization),
+            "set_barcode_active": SetBarcodeActiveUseCase(conn, authorization),
+            "add_alternate_code": AddAlternateCodeUseCase(conn, authorization),
+            "shelf_life": SetShelfLifeProfileUseCase(conn, authorization),
+            "quality": SetQualityProfileUseCase(conn, authorization),
+            "logistics": SetLogisticsProfileUseCase(conn, authorization),
+        },
+        has_permission=checker, session=session_context)
+
+
+def _build_meat_presenter(conn, authorization, checker, session_context):
+    from backend.application.products.queries.meat_classification_query_service import (
+        MeatClassificationQueryService,
+    )
+    from backend.application.products.queries.species_catalog_query_service import (
+        SpeciesCatalogQueryService,
+    )
+    from backend.application.products.queries.product_profile_query_service import (
+        ProductProfileQueryService,
+    )
+    from backend.application.products.queries.unit_catalog_query_service import (
+        UnitCatalogQueryService,
+    )
+    from backend.application.products.use_cases.product_unit_use_cases import (
+        SetCatchWeightConfigUseCase,
+    )
+    from backend.application.products.use_cases.product_meat_classification_use_cases import (
+        ClassifyMeatProductUseCase,
+        CreateAnatomicalRegionUseCase,
+        CreateCutClassificationUseCase,
+        CreateSpeciesUseCase,
+        SetAnatomicalRegionActiveUseCase,
+        SetCutClassificationActiveUseCase,
+        SetSpeciesActiveUseCase,
+    )
+    from frontend.desktop.modules.products.meat_classification_presenter import (
+        MeatClassificationPresenter,
+    )
+    return MeatClassificationPresenter(
+        read_factory=lambda: (SpeciesCatalogQueryService(conn),
+                              MeatClassificationQueryService(conn)),
+        write_factory=lambda: {
+            "create_species": CreateSpeciesUseCase(conn, authorization),
+            "set_species_active": SetSpeciesActiveUseCase(conn, authorization),
+            "create_region": CreateAnatomicalRegionUseCase(conn, authorization),
+            "set_region_active": SetAnatomicalRegionActiveUseCase(conn, authorization),
+            "create_cut": CreateCutClassificationUseCase(conn, authorization),
+            "set_cut_active": SetCutClassificationActiveUseCase(conn, authorization),
+            "classify_product": ClassifyMeatProductUseCase(conn, authorization),
+            "catch_weight": SetCatchWeightConfigUseCase(conn, authorization),
+        },
+        product_read_factory=lambda: (ProductProfileQueryService(conn),
+                                      UnitCatalogQueryService(conn)),
+        has_permission=checker, session=session_context)
 
 
 def build_products_view(presenter, parent=None):
@@ -363,6 +572,19 @@ def build_products_view(presenter, parent=None):
     from frontend.desktop.modules.products.pages.branch_channel_page import (
         BranchChannelPage,
     )
+    from frontend.desktop.modules.products.pages.meat_classification_page import (
+        MeatClassificationPage,
+    )
+    from frontend.desktop.modules.products.pages.audit_page import ProductAuditPage
+    from frontend.desktop.modules.products.pages.notifications_page import (
+        ProductNotificationsPage,
+    )
+    from frontend.desktop.modules.products.pages.settings_page import ProductSettingsPage
+    from frontend.desktop.modules.products.pages.approvals_page import ApprovalsPage
+    from frontend.desktop.modules.products.pages.data_quality_page import DataQualityPage
+    from frontend.desktop.modules.products.pages.external_catalog_page import (
+        ExternalCatalogPage,
+    )
     from frontend.desktop.modules.products.products_view import ProductsView
     from frontend.desktop.components.icons import Icons
     from frontend.desktop.modules.products.navigation import PRODUCTS_NAV
@@ -370,21 +592,35 @@ def build_products_view(presenter, parent=None):
     specs = (
         (ProductsOverviewPage, "Resumen"),
         (ProductCatalogPage, "Catálogo"),
+        (ApprovalsPage, "Aprobaciones técnicas"),
+        (DataQualityPage, "Calidad de datos"),
         (ProductCategoriesPage, "Categorías"),
         (ProductBrandsPage, "Marcas"),
         (ProductAttributesPage, "Atributos"),
+        (MeatClassificationPage, "Clasificación cárnica"),
         (BranchChannelPage, "Sucursales y canales"),
         (ProductImportPage, "Importar"),
+        (ExternalCatalogPage, "Catálogo externo"),
+        (ProductNotificationsPage, "Notificaciones"),
+        (ProductAuditPage, "Auditoría"),
+        (ProductSettingsPage, "Configuración"),
     )
     navigation = {entry.page_id: entry for entry in PRODUCTS_NAV}
     section_icons = (
         navigation["products_overview"].icon,
         navigation["products_catalog"].icon,
+        Icons.APPROVAL,
+        Icons.QUALITY,
         navigation["products_categories"].icon,
         Icons.COMPANY,
         Icons.CHECKLIST,
+        Icons.SPECIES,
         navigation["products_branches"].icon,
         navigation["products_imports"].icon,
+        Icons.EXTERNAL,
+        Icons.BELL,
+        Icons.AUDIT,
+        Icons.SETTINGS,
     )
     return ProductsView(presenter, specs, parent, section_icons=section_icons)
 

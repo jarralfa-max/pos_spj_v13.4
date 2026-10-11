@@ -189,10 +189,11 @@ class TestReviewAndImport:
         assert not r.success
 
     def test_approve_then_import_creates_new_product(self, conn):
+        # PROD-22 §39: quien buscó (u1) no aprueba; aprueba u2.
         record_id = self._staged_record_id(conn)
         approved = ApproveExternalRecordUseCase(conn, None, _ALL).execute(
             ApproveExternalRecordCommand(operation_id="op2", record_id=record_id,
-                                         user_id="u1"))
+                                         user_id="u2"))
         assert approved.success
         imported = ImportExternalRecordUseCase(conn, None, _ALL).execute(
             ImportExternalRecordCommand(operation_id="op3", record_id=record_id,
@@ -248,3 +249,14 @@ class TestReviewAndImport:
         assert imported.success and imported.entity_id == existing.product_id
         after = conn.execute("SELECT COUNT(*) AS n FROM products").fetchone()["n"]
         assert after == before  # ningún producto nuevo creado
+
+
+def test_whoever_staged_the_record_cannot_approve_it(conn):
+    """PROD-22 §39: antes el registro no guardaba quién lo trajo."""
+    import pytest as _pytest
+    from backend.domain.products.exceptions import SegregationOfDutiesError
+    record_id = TestReviewAndImport()._staged_record_id(conn)
+    with _pytest.raises(SegregationOfDutiesError):
+        ApproveExternalRecordUseCase(conn, None, _ALL).execute(
+            ApproveExternalRecordCommand(operation_id="opx", record_id=record_id,
+                                         user_id="u1"))

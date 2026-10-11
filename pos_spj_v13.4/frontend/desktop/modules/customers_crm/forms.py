@@ -12,7 +12,7 @@ se cierra: muestra el mensaje y conserva lo capturado (el usuario corrige y
 reintenta; nunca pierde el formulario por un error de negocio).
 
 Tipos de campo: text, textarea, choice, money, integer, percent, date,
-datetime, phone, email, rfc, check, customer, user.
+datetime, phone, email, rfc, check, customer, product, user.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import QLabel, QWidget
 from frontend.desktop.components import (
     CustomerSearchBox,
     DateInput,
+    ProductSearchBox,
     DateTimeInput,
     EmailInput,
     FormField,
@@ -63,15 +64,21 @@ class FieldSpec:
 
 
 class _CustomerField(QWidget):
-    """``CustomerSearchBox`` que recuerda el cliente elegido."""
+    """``CustomerSearchBox`` (o ``ProductSearchBox``) que recuerda lo elegido."""
 
-    def __init__(self, provider, parent=None) -> None:
+    def __init__(self, provider, parent=None, *, box_class=CustomerSearchBox,
+                 empty_reason_provider=None) -> None:
         from PyQt5.QtWidgets import QVBoxLayout
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        self._box = CustomerSearchBox(self, provider=provider, collapse_when_empty=True)
+        extra = ({"empty_reason_provider": empty_reason_provider}
+                 if empty_reason_provider is not None else {})
+        self._box = box_class(self, provider=provider, collapse_when_empty=True, **extra)
         self._box.selected.connect(self._on_selected)
+        # Auditoría CRM F13: escribir o borrar invalida lo elegido; guardar
+        # exige volver a elegir (el campo obligatorio queda vacío).
+        self._box.text_edited.connect(self._on_edited)
         layout.addWidget(self._box)
         self._value: str | None = None
 
@@ -79,6 +86,9 @@ class _CustomerField(QWidget):
         if isinstance(option, SearchOption):
             self._value = option.id
             self._box.set_selected_label(option.label)
+
+    def _on_edited(self, _text: str) -> None:
+        self._value = None
 
     def set_value(self, customer_id: str | None, label: str = "") -> None:
         self._value = customer_id
@@ -89,7 +99,8 @@ class _CustomerField(QWidget):
         return self._value
 
 
-def build_input(spec: FieldSpec, parent, *, customer_provider=None, user_options=()):
+def build_input(spec: FieldSpec, parent, *, customer_provider=None, user_options=(),
+                product_provider=None, product_empty_reason=None):
     kind = spec.kind
     if kind == "textarea":
         widget = StandardTextArea(parent, placeholder=spec.placeholder)
@@ -145,6 +156,10 @@ def build_input(spec: FieldSpec, parent, *, customer_provider=None, user_options
         widget = StandardCheckBox(spec.label, parent)
         widget.setChecked(bool(spec.default))
         return widget
+    if kind == "product":
+        return _CustomerField(product_provider or (lambda _q: []), parent,
+                              box_class=ProductSearchBox,
+                              empty_reason_provider=product_empty_reason)
     if kind == "customer":
         widget = _CustomerField(customer_provider or (lambda _q: []), parent)
         if spec.default:
@@ -181,7 +196,7 @@ def read_input(spec: FieldSpec, widget):
         return widget.value() or None
     if kind == "check":
         return widget.isChecked()
-    if kind == "customer":
+    if kind in ("customer", "product"):
         return widget.value()
     return widget.text().strip()
 
@@ -194,7 +209,8 @@ class CrmFormDialog(StandardDialog):
     def __init__(self, parent=None, *, title: str, fields: tuple[FieldSpec, ...],
                  submit_text: str = "Guardar", intro: str = "",
                  on_submit: Callable[[dict], object] | None = None,
-                 customer_provider=None, user_options=(),
+                 customer_provider=None, user_options=(), product_provider=None,
+                 product_empty_reason=None,
                  width: int = DialogMetrics.WIDTH_MD) -> None:
         super().__init__(parent, title=title, width=width)
         self.setAccessibleName(title)
@@ -210,7 +226,8 @@ class CrmFormDialog(StandardDialog):
         self._inputs: dict[str, QWidget] = {}
         for spec in self._specs:
             widget = build_input(spec, self, customer_provider=customer_provider,
-                                 user_options=user_options)
+                                 user_options=user_options, product_provider=product_provider,
+                                 product_empty_reason=product_empty_reason)
             self._inputs[spec.key] = widget
             label = "" if spec.kind == "check" else spec.label
             self._form.add_field(spec.key, FormField(
@@ -275,10 +292,13 @@ class CrmFormDialog(StandardDialog):
 
 
 def ask(parent, *, title: str, fields: tuple[FieldSpec, ...], submit_text: str = "Guardar",
-        intro: str = "", on_submit=None, customer_provider=None, user_options=()):
+        intro: str = "", on_submit=None, customer_provider=None, user_options=(),
+        product_provider=None, product_empty_reason=None):
     """Abre el formulario modal. Devuelve el resultado de ``on_submit`` (o los
     valores si no hay ``on_submit``) cuando se confirmó; ``None`` si se canceló."""
     dialog = CrmFormDialog(parent, title=title, fields=fields, submit_text=submit_text,
                            intro=intro, on_submit=on_submit,
-                           customer_provider=customer_provider, user_options=user_options)
+                           customer_provider=customer_provider, user_options=user_options,
+                           product_provider=product_provider,
+                           product_empty_reason=product_empty_reason)
     return dialog.result_value if dialog.exec_() else None

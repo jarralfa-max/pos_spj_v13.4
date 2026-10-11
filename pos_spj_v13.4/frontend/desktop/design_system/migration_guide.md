@@ -69,6 +69,48 @@ clase base lo sustituya. Cambiar de monitor o restaurar una ventana conserva
 contenido y estado. La geometría de sesión no se persiste en esta fase.
 Consultar pruebas y límites en el [punto 8](../../../docs/refactor/standard_window_phase_8.md).
 
+### Diálogos y formularios
+
+Heredar de `StandardDialog` para contenido libre y de `FormDialog` para campos
+etiquetados. Añadir contenido con `content_layout()` o filas a `self.form`.
+El componente mantiene la cabecera y el pie fuera del scroll, aplica el icono
+oficial y ajusta el marco al monitor del diálogo. `setWindowTitle()` actualiza
+también la cabecera visible. No volver a instalar un layout sobre el diálogo.
+
+```python
+from frontend.desktop.components import FormDialog, StandardLineEdit
+
+
+class ReferenceDialog(FormDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent, title="Capturar referencia")
+        self.reference = StandardLineEdit()
+        self.form.addRow("Referencia", self.reference)
+        self.add_button_box(ok_text="Guardar", on_accept=self._accept_if_valid)
+
+    def _accept_if_valid(self):
+        if self.reference.text().strip():
+            self.accept()
+        else:
+            self.reference.setFocus()
+```
+
+`on_accept` recibe la acción de aceptación por clic o Enter. Cuando se pasa,
+el callback decide cuándo llamar a `accept()`; no añadir una segunda conexión
+que cierre el diálogo antes de validar. Sin callback, el botón acepta
+directamente. Conservar los contratos de captura y validación del módulo.
+Las bases de Finanzas y RR. HH. ya usan esta ruta.
+
+Usar `ConfirmationDialog` y `DestructiveConfirmationDialog` para confirmaciones.
+La variante destructiva coloca foco y acción predeterminada en Cancelar.
+Escape conserva la ruta `reject()` de Qt; si un flujo requiere impedir el
+cierre, debe hacerlo explícitamente en su contrato existente.
+
+La reapertura de la misma instancia conserva tamaño y captura. Al cambiar de
+monitor, el marco se ajusta al área disponible y recupera el mínimo solicitado
+si vuelve a caber. Los botones siguen la densidad global sin reconstruir campos.
+Consultar las pruebas, adopción y límites del [punto 9](../../../docs/refactor/standard_dialog_phase_9.md).
+
 ### Perfiles de densidad
 
 Usar `density_metrics()` para las medidas del perfil global y los componentes

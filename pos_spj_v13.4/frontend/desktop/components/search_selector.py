@@ -35,6 +35,10 @@ class SearchSelector(QWidget):
     #: Emitida SOLO cuando el provider lanza (no cuando simplemente no hay
     #: coincidencias). El mensaje es apto para mostrar al usuario.
     search_failed = pyqtSignal(str)
+    #: El usuario escribió o borró en la caja (no se emite al fijar la etiqueta
+    #: de lo elegido). Quien guarda una selección debe invalidarla aquí
+    #: (auditoría CRM F13: el id anterior seguía elegido con otro texto escrito).
+    text_edited = pyqtSignal(str)
 
     def __init__(self, parent=None, *, provider: SearchProvider | None = None,
                  placeholder: str = "Buscar...",
@@ -62,6 +66,7 @@ class SearchSelector(QWidget):
         layout.addWidget(self._results)
 
         self._search_box.textChanged.connect(self.refresh)
+        self._search_box.textChanged.connect(self.text_edited.emit)
         self._search_box.returnPressed.connect(self._emit_current_selected)
         self._results.itemClicked.connect(self._emit_selected)
         self._sync_results_visibility()
@@ -87,7 +92,7 @@ class SearchSelector(QWidget):
         try:
             reason = self._empty_reason_provider(query)
         except Exception:
-            logger.exception("empty-reason provider failed query=%r", query)
+            logger.exception("empty-reason provider failed (len=%s)", len(query))
             return NO_RESULTS_MESSAGE
         return reason or NO_RESULTS_MESSAGE
 
@@ -97,7 +102,7 @@ class SearchSelector(QWidget):
             self._options = list(self._provider(query_text.strip()))
             self._search_failed = False
         except Exception:
-            logger.exception("SearchSelector provider failed query=%r", query_text)
+            logger.exception("SearchSelector provider failed (len=%s)", len(query_text))
             self._options = []
             self._search_failed = True
         self._results.clear()

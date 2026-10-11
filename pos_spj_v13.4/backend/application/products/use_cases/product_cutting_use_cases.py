@@ -102,7 +102,8 @@ class CreateCuttingSchemeUseCase(_BaseCuttingUseCase):
                                    cut_level=command.cut_level)
             version = CuttingSchemeVersion(
                 cutting_scheme_id=scheme.id, version_number=1,
-                status=RecipeVersionStatus.DRAFT, outputs=_outputs(command.outputs))
+                status=RecipeVersionStatus.DRAFT, outputs=_outputs(command.outputs),
+                created_by=command.user_id)
             self._validator.validate(scheme, version)
         except ProductsDomainError as exc:
             return CuttingResult(False, None, None, str(exc))
@@ -188,9 +189,10 @@ class ApproveCuttingVersionUseCase(_BaseCuttingUseCase):
         version = self._repo.get_version(command.version_id)
         if version is None:
             return CuttingResult(False, None, None, "La versión no existe")
-        # NOTA (§39): a diferencia de Recipe/YieldProfileVersion, CuttingSchemeVersion
-        # no registra `created_by` — no hay identidad de creador que segregar contra
-        # el aprobador todavía. Ver docs/refactor memory products_enterprise_transformation.
+        # §39 (PROD-22): quien capturó la versión no puede aprobarla.
+        self._auth.ensure_segregation(
+            actor_user_id=command.user_id or "", creator_user_id=version.created_by,
+            approval_permission=ProductPermissions.CUTTING_SCHEME_MANAGE)
         try:
             version.approve(approved_by_user_id=command.user_id or "",
                             reason=command.reason)
@@ -209,6 +211,9 @@ class ActivateCuttingVersionUseCase(_BaseCuttingUseCase):
         version = self._repo.get_version(command.version_id)
         if version is None:
             return CuttingResult(False, None, None, "La versión no existe")
+        self._auth.ensure_segregation(
+            actor_user_id=command.user_id or "", creator_user_id=version.created_by,
+            approval_permission=ProductPermissions.CUTTING_SCHEME_MANAGE)
         current = self._repo.active_version_for_scheme(version.cutting_scheme_id)
         try:
             version.activate()

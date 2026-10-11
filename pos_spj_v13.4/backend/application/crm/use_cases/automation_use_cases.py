@@ -25,6 +25,7 @@ target use case's own audit.record().
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 
 from backend.application.crm.authorization import CRMAuthorizationPolicy
@@ -32,8 +33,10 @@ from backend.application.crm.permissions import CRMPermissions
 from backend.application.crm.result import CRMResult
 from backend.domain.crm.entities.crm_automation_execution import CRMAutomationExecution
 from backend.domain.crm.entities.crm_automation_rule import CRMAutomationRule
+from backend.domain.crm.entities.crm_automation_rule import threshold_days
 from backend.domain.crm.enums import (
     TIME_BASED_TRIGGERS,
+    TRIGGER_TARGET_ENTITY,
     CRMAutomationAction,
     CRMAutomationExecutionStatus,
     CRMAutomationTrigger,
@@ -175,7 +178,7 @@ class DeactivateAutomationRuleUseCase(_BaseUseCase):
 # execution row, not a crash of whatever real operation triggered the rule.
 
 def _exec_create_task(connection, rule, target_entity_type, target_entity_id, operation_id):
-    if target_entity_type not in ("LEAD", "OPPORTUNITY", "CASE"):
+    if target_entity_type not in ("LEAD", "OPPORTUNITY", "CASE", "CUSTOMER"):
         return (CRMAutomationExecutionStatus.SKIPPED,
                 f"CREATE_TASK no soporta target_entity_type={target_entity_type}", None)
     from backend.application.crm.use_cases.task_use_cases import CreateCRMTaskUseCase
@@ -218,32 +221,46 @@ def _exec_assign_owner(connection, rule, target_entity_type, target_entity_id, o
     return status, result.message, result.entity_id
 
 
+_TARGET_LABEL = {"LEAD": "Prospecto", "OPPORTUNITY": "Oportunidad", "CASE": "Caso",
+                 "CUSTOMER": "Cliente"}
+
+
 def _exec_send_notification(connection, rule, target_entity_type, target_entity_id, operation_id):
-    """§25: "CRM define recordatorio/destinatario... no enviar directamente
-    desde widgets." A CRMReminder always attaches to a task or activity —
-    it has no independent target of its own (same reasoning CRM-6/CRM-12
-    already documented for reminders). Only fires when the rule's own
-    config supplies one to attach to (e.g. chained after a CREATE_TASK rule
-    via action_config.task_id); otherwise this is a documented gap, not a
-    silent no-op."""
+    """CRM-43: aviso en la bandeja personal (`notification_inbox`), la misma que
+    muestra la campana de la barra superior. Antes esta acción sólo creaba un
+    CRMReminder colgado de una tarea que la regla debía conocer de antemano —
+    imposible de configurar — y ningún recordatorio se entregaba jamás.
+
+    Destinatarios: una persona fija (``recipient_user_id``), el responsable del
+    registro (``notify_responsible``) o ambos."""
+    from backend.infrastructure.notifications.in_app_inbox_repository import (
+        InAppInboxRepository,
+    )
     cfg = rule.action_config
-    task_id = cfg.get("task_id")
-    recipient = cfg.get("recipient_user_id")
-    if not task_id or not recipient:
-        return (CRMAutomationExecutionStatus.SKIPPED,
-                "SEND_NOTIFICATION requiere action_config.task_id y recipient_user_id"
-                " (CRMReminder no tiene destino propio, siempre cuelga de una tarea/actividad)", None)
-    from backend.application.crm.use_cases.reminder_use_cases import CreateCRMReminderUseCase
-    from backend.domain.crm.enums import ReminderChannel
-    uc = CreateCRMReminderUseCase(_system_policy(CRMPermissions.REMINDERS_CREATE))
-    result = uc.execute(
-        connection, actor_user_id=SYSTEM_AUTOMATION_ACTOR,
-        channel=cfg.get("channel", ReminderChannel.IN_APP.value), remind_at=cfg.get(
-            "remind_at", datetime.now(timezone.utc).isoformat(timespec="seconds")),
-        recipient_user_id=recipient, operation_id=f"{operation_id}-reminder", task_id=task_id,
-        message=cfg.get("message", f"Automatización: {rule.name}"))
-    status = CRMAutomationExecutionStatus.SUCCEEDED if result.success else CRMAutomationExecutionStatus.FAILED
-    return status, result.message, result.entity_id
+    with CRMUnitOfWork(connection) as uow:
+        responsible, branch_id = uow.sweep.responsible_of(target_entity_type, target_entity_id)
+        subject = uow.sweep.describe(target_entity_type, target_entity_id)
+        recipients: list[str] = []
+        if cfg.get("recipient_user_id"):
+            recipients.append(cfg["recipient_user_id"])
+        if cfg.get("notify_responsible") and responsible and responsible not in recipients:
+            recipients.append(responsible)
+        if not recipients:
+            return (CRMAutomationExecutionStatus.SKIPPED,
+                    "El registro no tiene responsable a quien avisar", None)
+        inbox = InAppInboxRepository(connection)
+        label = _TARGET_LABEL.get(target_entity_type, target_entity_type)
+        extra = cfg.get("message") or ""
+        body = f"{label}: {subject}" + (f"\n{extra}" if extra else "")
+        for recipient in recipients:
+            inbox.deliver(
+                recipient_user_id=recipient, kind="CRM", title=rule.name, body=body,
+                data={"rule_id": rule.id, "target_entity_type": target_entity_type,
+                      "target_entity_id": target_entity_id},
+                branch_id=branch_id, severity=cfg.get("severity", "info"),
+                dedupe_key=f"crm-automation:{operation_id}:{recipient}")
+    return (CRMAutomationExecutionStatus.SUCCEEDED,
+            f"Aviso enviado a {len(recipients)} persona(s)", None)
 
 
 def _exec_escalate_case(connection, rule, target_entity_type, target_entity_id, operation_id):
@@ -302,14 +319,29 @@ def _exec_add_to_segment(connection, rule, target_entity_type, target_entity_id,
 
 
 def _exec_change_priority(connection, rule, target_entity_type, target_entity_id, operation_id):
-    # No CRM use case exposes a standalone "change priority" mutation for
-    # Lead or Opportunity today (Lead.priority is set at creation; no
-    # UpdatePriority-style use case exists) — a real, documented gap, not
-    # silently faked. §56 names the action; building the missing use case
-    # is future work, not invented here under an unrelated phase's cover.
-    return (CRMAutomationExecutionStatus.SKIPPED,
-            "CHANGE_PRIORITY: no existe un caso de uso de cambio de prioridad para"
-            f" {target_entity_type} todavía — acción declarada, no implementada", None)
+    """CRM-43: prospectos (``UpdateLeadUseCase``) y casos (``UpdateServiceCaseUseCase``),
+    cada uno con su propio permiso de edición."""
+    priority = rule.action_config.get("priority")
+    if not priority:
+        return (CRMAutomationExecutionStatus.SKIPPED,
+                "CHANGE_PRIORITY requiere action_config.priority", None)
+    if target_entity_type == "LEAD":
+        from backend.application.crm.use_cases.lead_use_cases import UpdateLeadUseCase
+        result = UpdateLeadUseCase(_system_policy(CRMPermissions.LEADS_EDIT)).execute(
+            connection, actor_user_id=SYSTEM_AUTOMATION_ACTOR, lead_id=target_entity_id,
+            operation_id=f"{operation_id}-priority", priority=priority)
+    elif target_entity_type == "CASE":
+        from backend.application.customer_service.use_cases.service_case_use_cases import (
+            UpdateServiceCaseUseCase,
+        )
+        result = UpdateServiceCaseUseCase(_system_policy(CRMPermissions.CASES_EDIT)).execute(
+            connection, actor_user_id=SYSTEM_AUTOMATION_ACTOR, case_id=target_entity_id,
+            operation_id=f"{operation_id}-priority", priority=priority)
+    else:
+        return (CRMAutomationExecutionStatus.SKIPPED,
+                f"CHANGE_PRIORITY no soporta target_entity_type={target_entity_type}", None)
+    status = CRMAutomationExecutionStatus.SUCCEEDED if result.success else CRMAutomationExecutionStatus.FAILED
+    return status, result.message, result.entity_id
 
 
 _ACTION_EXECUTORS = {
@@ -333,7 +365,8 @@ def _run_rule(connection, rule: CRMAutomationRule, target_entity_type: str,
     else:
         try:
             status, detail, created_id = executor(
-                connection, rule, target_entity_type, target_entity_id, operation_id)
+                connection, rule, target_entity_type, target_entity_id,
+                f"{operation_id}:{rule.id}")
         except Exception as exc:  # nunca bloquear la operación real que disparó la regla
             status, detail, created_id = CRMAutomationExecutionStatus.FAILED, str(exc), None
     execution = CRMAutomationExecution.record(
@@ -361,7 +394,9 @@ def fire_event_trigger(connection, trigger: CRMAutomationTrigger, target_entity_
             connection, trigger=trigger, target_entity_type=target_entity_type,
             target_entity_id=target_entity_id, operation_id=operation_id)
     except Exception as exc:
-        logging.getLogger("spj.crm.automation").debug(
+        # Auditoría CRM F17: antes en nivel debug (invisible). Un fallo de la
+        # evaluación no bloquea la operación real, pero sí debe verse.
+        logging.getLogger("spj.crm.automation").warning(
             "Automation evaluation failed for %s %s/%s: %s",
             trigger, target_entity_type, target_entity_id, exc)
 
@@ -382,56 +417,76 @@ class EvaluateEventTriggerUseCase:
                 for rule in rules]
 
 
-class EvaluateTimeBasedAutomationTriggersUseCase:
-    """Derived/computed triggers (LEAD_IDLE, OPPORTUNITY_IDLE,
-    OPPORTUNITY_OVERDUE, CUSTOMER_INACTIVE, SLA_AT_RISK, SLA_BREACHED,
-    CREDIT_REVIEW_DUE — backend/domain/crm/enums.py's TIME_BASED_TRIGGERS)
-    have no discrete event to react to; nothing "becomes idle," a query
-    just crosses a threshold. This repo has NO scheduler/cron/background-job
-    mechanism anywhere (confirmed by research before building this) — this
-    use case is a callable, explicit sweep entry point, not a fabricated
-    always-on scheduler. It is not wired to anything today; whoever adds
-    scheduling infrastructure to this desktop app (or a future server
-    component) is the intended caller. Documented as a real gap, same as
-    CRM-13 left WhatsApp-conversation-boundary/Cotizaciones gaps documented
-    rather than invented.
+#: Cuántos registros revisa cada regla por pasada (los más antiguos primero);
+#: lo que quede se toma en la pasada siguiente.
+SWEEP_BATCH_SIZE = 500
 
-    Only implements the LEAD_IDLE check today, as a working reference
-    implementation others can extend — the remaining six time-based
-    triggers each need a query this phase didn't have scope to build for
-    every one (SLA breach detection already has its own canonical logic in
-    SLAQueryService; duplicating a simplified version here would violate
-    the same "don't reimplement, call the real one" rule CRM-13's
-    sla_breach_count proxy already flagged as a simplification, not a
-    precedent to repeat blindly)."""
+_LOG = logging.getLogger("spj.crm.automation")
+
+
+class EvaluateTimeBasedAutomationTriggersUseCase:
+    """Los disparadores derivados de §56 (``TIME_BASED_TRIGGERS``): nada «se
+    vuelve» inactivo, una consulta cruza un umbral. CRM-43 completa los siete
+    (antes sólo LEAD_IDLE) y los ejecuta en segundo plano desde la aplicación de
+    escritorio (``run_crm_background_cycle``).
+
+    Una regla se dispara una vez por registro y por ancla (último movimiento,
+    última compra, fecha de cierre, revisión de crédito, SLA): pasadas repetidas
+    no duplican tareas ni avisos. El registro vuelve a ser elegible cuando su
+    ancla cambia. Una ejecución FALLIDA también cuenta: queda a la vista en el
+    historial de la regla en lugar de reintentarse cada pasada."""
 
     def execute(self, connection, *, operation_id: str,
-                idle_days_default: int = 3) -> list[CRMAutomationExecution]:
+                now: datetime | None = None) -> list[CRMAutomationExecution]:
+        now = now or datetime.now(timezone.utc)
         executions: list[CRMAutomationExecution] = []
         with CRMUnitOfWork(connection) as uow:
-            rules = uow.automation_rules.list_active_for_trigger(CRMAutomationTrigger.LEAD_IDLE)
-            if not rules:
-                return executions
-            # Lead.list_open() (built CRM-4, no dedicated "idle" query
-            # exists) — filtered here by last-touch age instead of adding a
-            # new repository method under this phase's time pressure; fine
-            # at this scale (open-leads volume), not a hot path.
-            open_leads = uow.leads.list_open(limit=500)
+            rules = [rule for trigger in sorted(TIME_BASED_TRIGGERS, key=lambda t: t.value)
+                     for rule in uow.automation_rules.list_active_for_trigger(trigger)]
         for rule in rules:
-            idle_days = int(rule.trigger_config.get("idle_days", idle_days_default))
-            for lead in open_leads:
-                if _lead_idle_days(lead) < idle_days:
+            target_type = TRIGGER_TARGET_ENTITY[rule.trigger_type]
+            try:
+                candidates = self._candidates(connection, rule, now)
+            except Exception as exc:  # una tabla ausente no detiene las demás reglas
+                _LOG.warning("Regla %s (%s) no evaluable: %s", rule.name,
+                             rule.trigger_type.value, exc)
+                continue
+            for target_id, anchor in candidates:
+                with CRMUnitOfWork(connection) as uow:
+                    last = uow.sweep.last_execution_at(rule.id, target_type, target_id)
+                if last and last >= anchor:
                     continue
-                executions.append(_run_rule(connection, rule, "LEAD", lead.id, operation_id))
+                executions.append(_run_rule(connection, rule, target_type, target_id,
+                                            f"{operation_id}:{target_id}"))
         return executions
 
-
-def _lead_idle_days(lead) -> int:
-    last_touch = lead.updated_at or lead.created_at
-    try:
-        last_dt = datetime.fromisoformat(last_touch)
-    except (TypeError, ValueError):
-        return 0
-    if last_dt.tzinfo is None:
-        last_dt = last_dt.replace(tzinfo=timezone.utc)
-    return (datetime.now(timezone.utc) - last_dt).days
+    @staticmethod
+    def _candidates(connection, rule: CRMAutomationRule, now: datetime) -> list[tuple[str, str]]:
+        trigger = rule.trigger_type
+        if trigger in (CRMAutomationTrigger.SLA_AT_RISK, CRMAutomationTrigger.SLA_BREACHED):
+            from backend.domain.customer_service.enums import SLABreachStatus
+            from backend.infrastructure.db.repositories.customer_service.unit_of_work import (
+                CustomerServiceUnitOfWork,
+            )
+            wanted = (SLABreachStatus.AT_RISK if trigger is CRMAutomationTrigger.SLA_AT_RISK
+                      else SLABreachStatus.BREACHED)
+            as_of = now.isoformat(timespec="seconds")
+            slas = CustomerServiceUnitOfWork(connection).sla_instances.list_open()
+            return [(sla.case_id, sla.created_at) for sla in slas
+                    if sla.effective_breach_status(as_of=as_of) is wanted][:SWEEP_BATCH_SIZE]
+        with CRMUnitOfWork(connection) as uow:
+            sweep = uow.sweep
+            if trigger is CRMAutomationTrigger.OPPORTUNITY_OVERDUE:
+                today = now.astimezone().date().isoformat()
+                return sweep.overdue_opportunities(today, limit=SWEEP_BATCH_SIZE)
+            days = threshold_days(rule.trigger_config)
+            if days is None:
+                raise InvalidCRMAutomationRuleError("la regla no dice cuántos días")
+            cutoff = (now - timedelta(days=days)).isoformat(timespec="seconds")
+            query = {
+                CRMAutomationTrigger.LEAD_IDLE: sweep.idle_leads,
+                CRMAutomationTrigger.OPPORTUNITY_IDLE: sweep.idle_opportunities,
+                CRMAutomationTrigger.CUSTOMER_INACTIVE: sweep.inactive_customers,
+                CRMAutomationTrigger.CREDIT_REVIEW_DUE: sweep.credit_reviews_due,
+            }[trigger]
+            return query(cutoff, limit=SWEEP_BATCH_SIZE)

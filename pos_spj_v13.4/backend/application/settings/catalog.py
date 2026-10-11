@@ -125,6 +125,62 @@ SETTINGS_CATALOG: tuple[SettingSpec, ...] = (
         "procurement.tolerance.tax", "procurement", "Tolerancias de factura",
         "Tolerancia de impuestos (%)", ValueType.PERCENT, Decimal("0"),
         allowed_scopes=_PROCUREMENT_SCOPES, validation_schema={"min": 0}),
+    # ── Productos (PROD-22, §45): sólo lo que el código lee ──────────────
+    SettingSpec(
+        "products.defaults.product_type", "products", "Valores por omisión",
+        "Tipo de producto al dar de alta", ValueType.ENUM, "RESALE_PRODUCT",
+        "Tipo con el que abre la ficha de un producto nuevo.",
+        allowed_values=(
+            "RESALE_PRODUCT", "RAW_MATERIAL", "LIVE_ANIMAL", "CARCASS", "HALF_CARCASS",
+            "QUARTER", "PRIMARY_CUT", "SECONDARY_CUT", "TRIM", "GROUND_MEAT", "OFFAL",
+            "BY_PRODUCT", "CO_PRODUCT", "WASTE", "SEMI_FINISHED_GOOD", "FINISHED_GOOD",
+            "PRODUCTION_COMPONENT", "PACKAGING_MATERIAL", "CONSUMABLE", "MRO_MATERIAL",
+            "SPARE_PART", "SERVICE", "VIRTUAL_BUNDLE", "STOCKED_KIT",
+            "RETURNABLE_CONTAINER")),
+    SettingSpec(
+        "products.defaults.base_unit_code", "products", "Valores por omisión",
+        "Unidad base al dar de alta (código)", ValueType.STRING, "",
+        "Código de la unidad (p. ej. KG). Vacío = sin unidad preseleccionada."),
+    # Exigencias ADICIONALES para activar (decisión del usuario, 2026-10-10:
+    # «sólo endurecer»). Las prohibiciones del §7 —especie en cárnicos, no
+    # autoaprobar, código activo único, revisión de datos externos— son fijas y
+    # NO están aquí. Apagadas por omisión: nada cambia hasta que se encienden.
+    SettingSpec(
+        "products.require.meat_classification", "products", "Exigencias para activar",
+        "Clasificación cárnica (categoría o corte) en productos cárnicos",
+        ValueType.BOOLEAN, False),
+    SettingSpec(
+        "products.require.shelf_life_for_perishables", "products", "Exigencias para activar",
+        "Vida útil en productos que controlan caducidad o son perecederos",
+        ValueType.BOOLEAN, False),
+    SettingSpec(
+        "products.require.quality_profile_for_meat", "products", "Exigencias para activar",
+        "Perfil de calidad en productos cárnicos", ValueType.BOOLEAN, False),
+    SettingSpec(
+        "products.require.catch_weight_range", "products", "Exigencias para activar",
+        "Rango de peso en productos de peso variable", ValueType.BOOLEAN, False),
+    SettingSpec(
+        "products.yield.default_tolerance_pct", "products", "Valores por omisión",
+        "Tolerancia de rendimiento por omisión (%)", ValueType.PERCENT, Decimal("0"),
+        "Con la que abre un perfil de rendimiento nuevo.",
+        validation_schema={"min": 0, "max": 100}),
+    SettingSpec(
+        "products.alerts.enabled", "products", "Alertas",
+        "Avisar datos faltantes al guardar un producto", ValueType.BOOLEAN, False,
+        "Las alertas del §35 (incompleto, cárnico sin especie, perecedero sin vida "
+        "útil…) llegan a la campana de los roles indicados."),
+    SettingSpec(
+        "products.alerts.recipient_roles", "products", "Alertas",
+        "Roles que reciben las alertas", ValueType.STRING, "system_owner,admin,gerente",
+        "Nombres de rol separados por coma."),
+    SettingSpec(
+        "products.alerts.whatsapp_enabled", "products", "Alertas",
+        "Enviar por WhatsApp las alertas de alto impacto", ValueType.BOOLEAN, False,
+        "Sólo las críticas (bloqueo de calidad, cárnico sin perfil sanitario…)."),
+    SettingSpec(
+        "products.alerts.whatsapp_phones", "products", "Alertas",
+        "Teléfonos para WhatsApp", ValueType.STRING, "",
+        "Números con lada, separados por coma.", sensitive=True),
 )
 
 CATALOG_BY_KEY: dict[str, SettingSpec] = {spec.key: spec for spec in SETTINGS_CATALOG}

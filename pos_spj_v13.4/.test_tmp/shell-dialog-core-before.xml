@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="9" skipped="0" tests="16" time="4.317" timestamp="2026-10-10T05:33:30.624480+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[compact-box]" time="0.793"><failure message="AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D9F87C09E0&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-WQgCKw')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D9F883C180&gt;
+kind = 'box', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ["box", "container", "button"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_existing_footer_preserves_wiring_and_stays_accessible(
+            qt_font_resources, ui_tmp_path, monkeypatch, kind, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "footer.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, "dark", density=density)
+        dialog = StandardDialog(title="Acciones del módulo")
+        monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, 640, 480))
+        for index in range(25):
+            field = StandardLineEdit(keyboard_enabled=False)
+            field.setText(str(index))
+            dialog.content_layout().addWidget(field)
+        attempts = []
+        if kind == "box":
+            footer = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            save = footer.button(QDialogButtonBox.Save)
+            footer.accepted.connect(lambda: attempts.append("validate"))
+            footer.rejected.connect(dialog.reject)
+        else:
+            save = QPushButton("Guardar")
+            save.clicked.connect(lambda: attempts.append("validate"))
+            footer = save
+            if kind == "container":
+                footer = QWidget()
+                layout = QHBoxLayout(footer)
+                layout.addWidget(save)
+        save.setAccessibleName("Guardar después de validar")
+        save.setAutoDefault(False)
+        save.setDefault(False)
+        try:
+&gt;           assert dialog.add_footer_widget(footer) is footer
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'
+
+tests\ui\test_standard_dialog_footer.py:47: AttributeError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[compact-container]" time="0.057"><failure message="AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D9F87C09E0&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-XPuMXZ')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D9F82A8FC0&gt;
+kind = 'container', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ["box", "container", "button"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_existing_footer_preserves_wiring_and_stays_accessible(
+            qt_font_resources, ui_tmp_path, monkeypatch, kind, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "footer.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, "dark", density=density)
+        dialog = StandardDialog(title="Acciones del módulo")
+        monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, 640, 480))
+        for index in range(25):
+            field = StandardLineEdit(keyboard_enabled=False)
+            field.setText(str(index))
+            dialog.content_layout().addWidget(field)
+        attempts = []
+        if kind == "box":
+            footer = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            save = footer.button(QDialogButtonBox.Save)
+            footer.accepted.connect(lambda: attempts.append("validate"))
+            footer.rejected.connect(dialog.reject)
+        else:
+            save = QPushButton("Guardar")
+            save.clicked.connect(lambda: attempts.append("validate"))
+            footer = save
+            if kind == "container":
+                footer = QWidget()
+                layout = QHBoxLayout(footer)
+                layout.addWidget(save)
+        save.setAccessibleName("Guardar después de validar")
+        save.setAutoDefault(False)
+        save.setDefault(False)
+        try:
+&gt;           assert dialog.add_footer_widget(footer) is footer
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'
+
+tests\ui\test_standard_dialog_footer.py:47: AttributeError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[compact-button]" time="0.115"><failure message="AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D9F87C09E0&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-iBzJjt')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D9F844DD90&gt;
+kind = 'button', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ["box", "container", "button"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_existing_footer_preserves_wiring_and_stays_accessible(
+            qt_font_resources, ui_tmp_path, monkeypatch, kind, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "footer.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, "dark", density=density)
+        dialog = StandardDialog(title="Acciones del módulo")
+        monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, 640, 480))
+        for index in range(25):
+            field = StandardLineEdit(keyboard_enabled=False)
+            field.setText(str(index))
+            dialog.content_layout().addWidget(field)
+        attempts = []
+        if kind == "box":
+            footer = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            save = footer.button(QDialogButtonBox.Save)
+            footer.accepted.connect(lambda: attempts.append("validate"))
+            footer.rejected.connect(dialog.reject)
+        else:
+            save = QPushButton("Guardar")
+            save.clicked.connect(lambda: attempts.append("validate"))
+            footer = save
+            if kind == "container":
+                footer = QWidget()
+                layout = QHBoxLayout(footer)
+                layout.addWidget(save)
+        save.setAccessibleName("Guardar después de validar")
+        save.setAutoDefault(False)
+        save.setDefault(False)
+        try:
+&gt;           assert dialog.add_footer_widget(footer) is footer
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'
+
+tests\ui\test_standard_dialog_footer.py:47: AttributeError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[comfortable-box]" time="0.174"><failure message="AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D9F87C09E0&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-bONgjR')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D9F874BAC0&gt;
+kind = 'box', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ["box", "container", "button"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_existing_footer_preserves_wiring_and_stays_accessible(
+            qt_font_resources, ui_tmp_path, monkeypatch, kind, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "footer.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, "dark", density=density)
+        dialog = StandardDialog(title="Acciones del módulo")
+        monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, 640, 480))
+        for index in range(25):
+            field = StandardLineEdit(keyboard_enabled=False)
+            field.setText(str(index))
+            dialog.content_layout().addWidget(field)
+        attempts = []
+        if kind == "box":
+            footer = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            save = footer.button(QDialogButtonBox.Save)
+            footer.accepted.connect(lambda: attempts.append("validate"))
+            footer.rejected.connect(dialog.reject)
+        else:
+            save = QPushButton("Guardar")
+            save.clicked.connect(lambda: attempts.append("validate"))
+            footer = save
+            if kind == "container":
+                footer = QWidget()
+                layout = QHBoxLayout(footer)
+                layout.addWidget(save)
+        save.setAccessibleName("Guardar después de validar")
+        save.setAutoDefault(False)
+        save.setDefault(False)
+        try:
+&gt;           assert dialog.add_footer_widget(footer) is footer
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'
+
+tests\ui\test_standard_dialog_footer.py:47: AttributeError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[comfortable-container]" time="0.083"><failure message="AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D9F87C09E0&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-QiRCBU')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D9F8408050&gt;
+kind = 'container', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ["box", "container", "button"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_existing_footer_preserves_wiring_and_stays_accessible(
+            qt_font_resources, ui_tmp_path, monkeypatch, kind, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "footer.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, "dark", density=density)
+        dialog = StandardDialog(title="Acciones del módulo")
+        monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, 640, 480))
+        for index in range(25):
+            field = StandardLineEdit(keyboard_enabled=False)
+            field.setText(str(index))
+            dialog.content_layout().addWidget(field)
+        attempts = []
+        if kind == "box":
+            footer = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            save = footer.button(QDialogButtonBox.Save)
+            footer.accepted.connect(lambda: attempts.append("validate"))
+            footer.rejected.connect(dialog.reject)
+        else:
+            save = QPushButton("Guardar")
+            save.clicked.connect(lambda: attempts.append("validate"))
+            footer = save
+            if kind == "container":
+                footer = QWidget()
+                layout = QHBoxLayout(footer)
+                layout.addWidget(save)
+        save.setAccessibleName("Guardar después de validar")
+        save.setAutoDefault(False)
+        save.setDefault(False)
+        try:
+&gt;           assert dialog.add_footer_widget(footer) is footer
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'
+
+tests\ui\test_standard_dialog_footer.py:47: AttributeError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[comfortable-button]" time="0.124"><failure message="AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D9F87C09E0&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-FekyeU')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D9F8C35150&gt;
+kind = 'button', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ["box", "container", "button"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_existing_footer_preserves_wiring_and_stays_accessible(
+            qt_font_resources, ui_tmp_path, monkeypatch, kind, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "footer.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, "dark", density=density)
+        dialog = StandardDialog(title="Acciones del módulo")
+        monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, 640, 480))
+        for index in range(25):
+            field = StandardLineEdit(keyboard_enabled=False)
+            field.setText(str(index))
+            dialog.content_layout().addWidget(field)
+        attempts = []
+        if kind == "box":
+            footer = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            save = footer.button(QDialogButtonBox.Save)
+            footer.accepted.connect(lambda: attempts.append("validate"))
+            footer.rejected.connect(dialog.reject)
+        else:
+            save = QPushButton("Guardar")
+            save.clicked.connect(lambda: attempts.append("validate"))
+            footer = save
+            if kind == "container":
+                footer = QWidget()
+                layout = QHBoxLayout(footer)
+                layout.addWidget(save)
+        save.setAccessibleName("Guardar después de validar")
+        save.setAutoDefault(False)
+        save.setDefault(False)
+        try:
+&gt;           assert dialog.add_footer_widget(footer) is footer
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'
+
+tests\ui\test_standard_dialog_footer.py:47: AttributeError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[touch-box]" time="0.059"><failure message="AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D9F87C09E0&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-xdkZkc')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D9F8C35450&gt;
+kind = 'box', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ["box", "container", "button"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_existing_footer_preserves_wiring_and_stays_accessible(
+            qt_font_resources, ui_tmp_path, monkeypatch, kind, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "footer.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, "dark", density=density)
+        dialog = StandardDialog(title="Acciones del módulo")
+        monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, 640, 480))
+        for index in range(25):
+            field = StandardLineEdit(keyboard_enabled=False)
+            field.setText(str(index))
+            dialog.content_layout().addWidget(field)
+        attempts = []
+        if kind == "box":
+            footer = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            save = footer.button(QDialogButtonBox.Save)
+            footer.accepted.connect(lambda: attempts.append("validate"))
+            footer.rejected.connect(dialog.reject)
+        else:
+            save = QPushButton("Guardar")
+            save.clicked.connect(lambda: attempts.append("validate"))
+            footer = save
+            if kind == "container":
+                footer = QWidget()
+                layout = QHBoxLayout(footer)
+                layout.addWidget(save)
+        save.setAccessibleName("Guardar después de validar")
+        save.setAutoDefault(False)
+        save.setDefault(False)
+        try:
+&gt;           assert dialog.add_footer_widget(footer) is footer
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'
+
+tests\ui\test_standard_dialog_footer.py:47: AttributeError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[touch-container]" time="0.121"><failure message="AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D9F87C09E0&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-dMIWOR')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D9F87736B0&gt;
+kind = 'container', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ["box", "container", "button"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_existing_footer_preserves_wiring_and_stays_accessible(
+            qt_font_resources, ui_tmp_path, monkeypatch, kind, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "footer.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, "dark", density=density)
+        dialog = StandardDialog(title="Acciones del módulo")
+        monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, 640, 480))
+        for index in range(25):
+            field = StandardLineEdit(keyboard_enabled=False)
+            field.setText(str(index))
+            dialog.content_layout().addWidget(field)
+        attempts = []
+        if kind == "box":
+            footer = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            save = footer.button(QDialogButtonBox.Save)
+            footer.accepted.connect(lambda: attempts.append("validate"))
+            footer.rejected.connect(dialog.reject)
+        else:
+            save = QPushButton("Guardar")
+            save.clicked.connect(lambda: attempts.append("validate"))
+            footer = save
+            if kind == "container":
+                footer = QWidget()
+                layout = QHBoxLayout(footer)
+                layout.addWidget(save)
+        save.setAccessibleName("Guardar después de validar")
+        save.setAutoDefault(False)
+        save.setDefault(False)
+        try:
+&gt;           assert dialog.add_footer_widget(footer) is footer
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'
+
+tests\ui\test_standard_dialog_footer.py:47: AttributeError</failure></testcase><testcase classname="tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[touch-button]" time="0.138"><failure message="AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001D9F87C09E0&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-CxuuNb')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001D9F8773020&gt;
+kind = 'button', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ["box", "container", "button"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_existing_footer_preserves_wiring_and_stays_accessible(
+            qt_font_resources, ui_tmp_path, monkeypatch, kind, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "footer.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, "dark", density=density)
+        dialog = StandardDialog(title="Acciones del módulo")
+        monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, 640, 480))
+        for index in range(25):
+            field = StandardLineEdit(keyboard_enabled=False)
+            field.setText(str(index))
+            dialog.content_layout().addWidget(field)
+        attempts = []
+        if kind == "box":
+            footer = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+            save = footer.button(QDialogButtonBox.Save)
+            footer.accepted.connect(lambda: attempts.append("validate"))
+            footer.rejected.connect(dialog.reject)
+        else:
+            save = QPushButton("Guardar")
+            save.clicked.connect(lambda: attempts.append("validate"))
+            footer = save
+            if kind == "container":
+                footer = QWidget()
+                layout = QHBoxLayout(footer)
+                layout.addWidget(save)
+        save.setAccessibleName("Guardar después de validar")
+        save.setAutoDefault(False)
+        save.setDefault(False)
+        try:
+&gt;           assert dialog.add_footer_widget(footer) is footer
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StandardDialog' object has no attribute 'add_footer_widget'
+
+tests\ui\test_standard_dialog_footer.py:47: AttributeError</failure></testcase><testcase classname="tests.test_numeric_keypad_dialog" name="test_por_defecto_exige_mayor_que_cero" time="0.025" /><testcase classname="tests.test_numeric_keypad_dialog" name="test_permitir_cero_habilita_confirmar_cero" time="0.006" /><testcase classname="tests.test_numeric_keypad_dialog" name="test_porcentaje_respeta_maximo_100" time="0.016" /><testcase classname="tests.test_numeric_keypad_dialog" name="test_valor_inicial_en_edicion" time="0.005" /><testcase classname="tests.test_numeric_keypad_dialog" name="test_quantity_input_dialog_es_subclase" time="0.026" /><testcase classname="tests.test_numeric_keypad_dialog" name="test_subclase_acepta_permitir_cero" time="0.005" /><testcase classname="tests.test_numeric_keypad_dialog" name="test_get_quantity_flujo_completo" time="0.031" /></testsuite></testsuites>

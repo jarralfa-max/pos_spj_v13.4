@@ -42,8 +42,7 @@ def request_credit_dialog(parent, presenter, *, customer_id: str | None = None,
         FieldSpec("customer_id", "Cliente", "customer", required=True, default=customer_id,
                   default_label=customer_label),
         FieldSpec("requested_limit", "Límite solicitado", "money", required=True),
-        FieldSpec("payment_terms_days", "Plazo de pago (días)", "integer", default=15,
-                  maximum=365),
+        FieldSpec("payment_terms_days", "Plazo de pago (días)", "integer", maximum=365),
     ), customer_provider=presenter.customer_search_options, on_submit=lambda v: presenter.run(
         "request_credit", customer_id=v["customer_id"], requested_limit=v["requested_limit"],
         payment_terms_days=v["payment_terms_days"]))

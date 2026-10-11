@@ -18,7 +18,8 @@ _LEAD_COLS = (
     " email, source, campaign_reference_id, origin_branch_id, assigned_user_id,"
     " territory_id, status, score, priority, estimated_value,"
     " expected_purchase_date, last_contact_at, next_action_at,"
-    " created_by_user_id, operation_id, created_at, updated_at"
+    " created_by_user_id, operation_id, created_at, updated_at,"
+    " converted_customer_id, converted_opportunity_id"
 )
 
 
@@ -33,7 +34,7 @@ class LeadRepository(CRMRepositoryBase):
     def save(self, lead: Lead, *, operation_id: str | None = None) -> None:
         self._execute(
             f"INSERT INTO leads ({_LEAD_COLS})"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             self._params(lead, operation_id or lead.operation_id))
 
     def update(self, lead: Lead) -> None:
@@ -42,14 +43,16 @@ class LeadRepository(CRMRepositoryBase):
             " phone_e164=?, email=?, source=?, campaign_reference_id=?,"
             " origin_branch_id=?, assigned_user_id=?, territory_id=?, status=?,"
             " score=?, priority=?, estimated_value=?, expected_purchase_date=?,"
-            " last_contact_at=?, next_action_at=?, updated_at=? WHERE id=?",
+            " last_contact_at=?, next_action_at=?, updated_at=?, converted_customer_id=?,"
+            " converted_opportunity_id=? WHERE id=?",
             (lead.display_name, lead.company_name, lead.contact_name, lead.phone_e164,
              lead.email, lead.source.value, lead.campaign_reference_id,
              lead.origin_branch_id, lead.assigned_user_id, lead.territory_id,
              lead.status.value, lead.score, lead.priority.value,
              str(lead.estimated_value) if lead.estimated_value is not None else None,
              lead.expected_purchase_date.isoformat() if lead.expected_purchase_date else None,
-             lead.last_contact_at, lead.next_action_at, lead.updated_at, lead.id))
+             lead.last_contact_at, lead.next_action_at, lead.updated_at,
+             lead.converted_customer_id, lead.converted_opportunity_id, lead.id))
 
     def get(self, lead_id: str) -> Lead | None:
         row = self._query_one(f"SELECT {_LEAD_COLS} FROM leads WHERE id=?", (lead_id,))
@@ -89,6 +92,17 @@ class LeadRepository(CRMRepositoryBase):
             " ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset))
         return [self._hydrate(r) for r in rows]
 
+    def count_in_scope(self, scope, statuses: tuple[str, ...]) -> int:
+        """Auditoría CRM F21: los totales del tablero cuentan en la base, no sobre
+        una lista truncada."""
+        where, params = scope_where(scope, responsible_col="assigned_user_id",
+                                    creator_col="created_by_user_id",
+                                    branch_col="origin_branch_id")
+        marks = ",".join("?" for _ in statuses)
+        return int(self._scalar(
+            f"SELECT COUNT(*) FROM leads WHERE {where} AND status IN ({marks})",
+            (*params, *statuses), default=0))
+
     def list_in_scope(self, scope, *, open_only: bool = False, limit: int = 200,
                       offset: int = 0) -> list[Lead]:
         """CRM-43: el directorio según el alcance resuelto (OWN/TEAM/BRANCH/
@@ -115,6 +129,7 @@ class LeadRepository(CRMRepositoryBase):
             lead.expected_purchase_date.isoformat() if lead.expected_purchase_date else None,
             lead.last_contact_at, lead.next_action_at, lead.created_by_user_id,
             operation_id, lead.created_at, lead.updated_at,
+            lead.converted_customer_id, lead.converted_opportunity_id,
         )
 
     @staticmethod
@@ -133,4 +148,6 @@ class LeadRepository(CRMRepositoryBase):
             last_contact_at=row["last_contact_at"], next_action_at=row["next_action_at"],
             created_by_user_id=row["created_by_user_id"], operation_id=row["operation_id"],
             created_at=row["created_at"], updated_at=row["updated_at"],
+            converted_customer_id=row.get("converted_customer_id"),
+            converted_opportunity_id=row.get("converted_opportunity_id"),
         )

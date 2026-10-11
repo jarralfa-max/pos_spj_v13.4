@@ -148,11 +148,10 @@ class CRMAutomationTrigger(str, Enum):
     other half are DERIVED/computed conditions (idle N days, overdue,
     SLA at-risk/breached) that no entity ever transitions "into" as a
     discrete state change — same reasoning CRMWorkItemStatus.OVERDUE and
-    SLAInstance's breach_status already document. Nothing in this repo
-    polls/schedules today (confirmed: no cron/background-job mechanism
-    exists anywhere), so TIME_BASED_TRIGGERS are evaluated by an explicit,
-    callable sweep (EvaluateTimeBasedAutomationTriggersUseCase) rather than
-    a fabricated always-on scheduler — see that use case's own docstring."""
+    SLAInstance's breach_status already document. TIME_BASED_TRIGGERS are
+    evaluated by a sweep (EvaluateTimeBasedAutomationTriggersUseCase) that,
+    since CRM-43, the desktop app runs in the background
+    (``run_crm_background_cycle``) — see that use case's own docstring."""
 
     LEAD_CREATED = "LEAD_CREATED"
     LEAD_IDLE = "LEAD_IDLE"
@@ -247,3 +246,40 @@ class SegmentMembershipSource(str, Enum):
     RULE_BASED = "RULE_BASED"
     IMPORTED = "IMPORTED"
     ANALYTICS_GENERATED = "ANALYTICS_GENERATED"
+
+
+# ── CRM-43: qué registro toca cada regla de automatización ──────────────────
+#: A qué tipo de registro apunta cada disparador. De ahí sale qué acciones
+#: tienen sentido: una regla «cliente inactivo → escalar caso» no puede hacer
+#: nada y antes se guardaba igual, para dejar ejecuciones OMITIDAS para siempre.
+TRIGGER_TARGET_ENTITY = {
+    CRMAutomationTrigger.LEAD_CREATED: "LEAD",
+    CRMAutomationTrigger.LEAD_IDLE: "LEAD",
+    CRMAutomationTrigger.OPPORTUNITY_STAGE_CHANGED: "OPPORTUNITY",
+    CRMAutomationTrigger.OPPORTUNITY_IDLE: "OPPORTUNITY",
+    CRMAutomationTrigger.OPPORTUNITY_OVERDUE: "OPPORTUNITY",
+    CRMAutomationTrigger.CASE_CREATED: "CASE",
+    CRMAutomationTrigger.SLA_AT_RISK: "CASE",
+    CRMAutomationTrigger.SLA_BREACHED: "CASE",
+    CRMAutomationTrigger.CUSTOMER_INACTIVE: "CUSTOMER",
+    CRMAutomationTrigger.CREDIT_REVIEW_DUE: "CUSTOMER",
+}
+
+#: Disparadores por umbral: la regla dice cuántos días (``trigger_config["days"]``).
+DAY_THRESHOLD_TRIGGERS = frozenset({
+    CRMAutomationTrigger.LEAD_IDLE,
+    CRMAutomationTrigger.OPPORTUNITY_IDLE,
+    CRMAutomationTrigger.CUSTOMER_INACTIVE,
+    CRMAutomationTrigger.CREDIT_REVIEW_DUE,
+})
+
+#: Sobre qué registros sabe actuar cada acción.
+ACTION_TARGET_ENTITIES = {
+    CRMAutomationAction.CREATE_TASK: frozenset({"LEAD", "OPPORTUNITY", "CASE", "CUSTOMER"}),
+    CRMAutomationAction.ASSIGN_OWNER: frozenset({"LEAD", "OPPORTUNITY"}),
+    CRMAutomationAction.SEND_NOTIFICATION: frozenset({"LEAD", "OPPORTUNITY", "CASE", "CUSTOMER"}),
+    CRMAutomationAction.CHANGE_PRIORITY: frozenset({"LEAD", "CASE"}),
+    CRMAutomationAction.ESCALATE_CASE: frozenset({"CASE"}),
+    CRMAutomationAction.ADD_TAG: frozenset({"CUSTOMER"}),
+    CRMAutomationAction.ADD_TO_SEGMENT: frozenset({"CUSTOMER"}),
+}

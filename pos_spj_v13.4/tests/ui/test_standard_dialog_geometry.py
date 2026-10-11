@@ -1,10 +1,11 @@
 """Dialog monitor selection, overflow limits and repeated show lifecycle."""
 import pytest
 from PyQt5 import sip
-from PyQt5.QtCore import QRect, QSettings, QSize
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget
+from PyQt5.QtCore import QRect, QSettings, QSize, Qt
+from PyQt5.QtTest import QTest
+from PyQt5.QtWidgets import QApplication, QDialog, QLabel, QWidget
 
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import ConfirmationDialog, DestructiveConfirmationDialog, StandardDialog
 from frontend.desktop.components.text_inputs import StandardLineEdit
 from frontend.desktop.themes.theme_manager import ThemeManager
 from tests.ui.test_standard_window_geometry import DesktopScreen, settle
@@ -129,3 +130,24 @@ def test_changing_window_title_updates_visible_heading(dialog_desktop):
     assert headings[0].isVisible()
     dialog.setWindowTitle("")
     assert not headings[0].isVisible()
+
+
+@pytest.mark.parametrize("dialog_type", [ConfirmationDialog, DestructiveConfirmationDialog])
+@pytest.mark.parametrize("key", [Qt.Key_Return, Qt.Key_Escape])
+def test_confirmation_keyboard_uses_safe_default_and_escape(dialog_desktop, dialog_type, key):
+    app, _, _, owner, _ = dialog_desktop
+    dialog = dialog_type(owner, title="Confirmar", message="Revisa los cambios.")
+    accepted, rejected = [], []
+    dialog.accepted.connect(lambda: accepted.append(True))
+    dialog.rejected.connect(lambda: rejected.append(True))
+    try:
+        dialog.show()
+        settle(app)
+        QTest.keyClick(dialog, key)
+        should_accept = key == Qt.Key_Return and dialog_type is ConfirmationDialog
+        assert not dialog.isVisible()
+        assert dialog.result() == (QDialog.Accepted if should_accept else QDialog.Rejected)
+        assert len(accepted) == int(should_accept)
+        assert len(rejected) == int(not should_accept)
+    finally:
+        sip.delete(dialog)

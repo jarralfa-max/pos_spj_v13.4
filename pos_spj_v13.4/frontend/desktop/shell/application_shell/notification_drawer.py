@@ -4,9 +4,9 @@ A slide-out panel of `NotificationItem`s the shell shows/hides via
 `TopBar`'s bell button. There's no shell-wide notification service yet to
 source these from — same "declare the shape, wire the backend later"
 deferral SHELL-8's empty `view_factories` and SHELL-9's routes-without-real-
-views use — so this class only manages an in-memory list handed to it one
-item at a time. Wiring it to a real event stream (EventBus priority-10
-"Notificaciones secundarias") is future work.
+views use — so this class only manages an in-memory list. CRM-43 wired the
+real source: `NotificationInboxFeed` refreshes it from the user's
+`notification_inbox` (see desktop_shell_window_composition.py).
 
 Tracks its own `is_open` flag rather than relying on `QWidget.isVisible()`
 — a widget that's never been shown by a real window manager reports
@@ -79,6 +79,12 @@ class NotificationDrawer(QWidget):
         self._items[item.notification_id] = item
         self._rebuild()
 
+    def replace_all(self, items: tuple[NotificationItem, ...]) -> None:
+        """CRM-43: la fuente real (`NotificationInboxFeed`) entrega la bandeja completa
+        en cada refresco; se reemplaza en bloque, más recientes primero."""
+        self._items = {item.notification_id: item for item in items}
+        self._rebuild()
+
     def mark_read(self, notification_id: str) -> None:
         item = self._items.get(notification_id)
         if item is not None and not item.read:
@@ -116,7 +122,10 @@ class NotificationDrawer(QWidget):
     def _rebuild(self) -> None:
         self._list.clear()
         for item in self._items.values():
-            list_item = QListWidgetItem(item.title)
+            first_line = item.message.splitlines()[0] if item.message else ""
+            stamp = item.created_at.strftime("%d/%m %H:%M")
+            text = f"{item.title} · {stamp}" + (f"\n{first_line}" if first_line else "")
+            list_item = QListWidgetItem(text)
             font = list_item.font()
             font.setWeight(QFont.Normal if item.read else QFont.Bold)
             list_item.setFont(font)

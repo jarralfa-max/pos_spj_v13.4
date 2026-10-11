@@ -10,6 +10,11 @@ unidad ni existencia, y una tarjeta no vendible simplemente no respondía al
 clic — "no pasa nada" es feedback invisible. Ahora toda tarjeta emite el clic
 y la pantalla explica por qué un producto no se puede agregar (sin precio, no
 vendible). El número de columnas se adapta al ancho del panel.
+
+PROD-21: la tarjeta muestra la imagen principal del producto
+(`ProductCatalogEntryDTO.image_reference`, que el catálogo ya traía y nadie
+dibujaba). Sin imagen, o con el archivo ausente, muestra las iniciales: todas
+las tarjetas conservan la misma altura.
 """
 
 from __future__ import annotations
@@ -19,8 +24,9 @@ from PyQt5.QtWidgets import QGridLayout, QLabel, QScrollArea, QWidget
 
 from frontend.desktop.components import StatusBadge, apply_tooltip
 from frontend.desktop.components.cards import SummaryCard
+from frontend.desktop.components.image_thumbnail import ImageThumbnail
 from frontend.desktop.modules.sales_pos.components.cart_table import format_quantity
-from frontend.desktop.themes.tokens import Spacing
+from frontend.desktop.themes.tokens import CardMetrics, Spacing
 
 STATE_LABELS = {
     "AVAILABLE": "Disponible",
@@ -38,6 +44,9 @@ _STATE_VARIANT = {
 CARD_WIDTH = 175
 CARD_SLOT_WIDTH = 185
 MIN_COLUMNS = 2
+#: Área de imagen del contrato visual (175×85) dentro del margen de la tarjeta.
+THUMBNAIL_WIDTH = CARD_WIDTH - 2 * CardMetrics.PADDING_MD
+THUMBNAIL_HEIGHT = 85
 
 
 class ProductGrid(QScrollArea):
@@ -94,6 +103,12 @@ class ProductGrid(QScrollArea):
         card.setProperty("sellable", product.sellable)
         card.setCursor(Qt.PointingHandCursor)
         card.setFixedWidth(CARD_WIDTH)
+
+        thumbnail = ImageThumbnail(card, width=THUMBNAIL_WIDTH, height=THUMBNAIL_HEIGHT)
+        thumbnail.setObjectName("posProductImage")
+        thumbnail.set_image(product.image_reference, placeholder=product.name,
+                            accessible_name=f"Imagen de {product.name}")
+        card.add(thumbnail)
 
         name = QLabel(product.name, card)
         name.setWordWrap(True)

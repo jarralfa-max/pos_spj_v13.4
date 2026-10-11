@@ -23,7 +23,7 @@ from frontend.desktop.modules.customers_crm.pages.customer_profile_page import (
 from frontend.desktop.modules.customers_crm.view_models import CustomerCrmCapabilities
 
 _ALL_TRUE = CustomerCrmCapabilities(
-    module_view=True, clientes=True, prospectos=True, oportunidades=True,
+    module_view=True, clientes=True, prospectos=True, oportunidades=True, cotizaciones=True,
     actividades=True, atencion=True, comercial=True, credito=True,
     segmentacion=True, comunicaciones=True, privacidad=True, control=True)
 

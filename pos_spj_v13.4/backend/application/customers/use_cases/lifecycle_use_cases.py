@@ -18,7 +18,10 @@ from backend.application.customers.result import CustomerResult
 from backend.domain.customers.entities.customer import Customer
 from backend.domain.customers.enums import CustomerType
 from backend.domain.customers.events import CustomerEvents, build_event_payload
-from backend.domain.customers.exceptions import CustomerDomainError
+from backend.domain.customers.exceptions import (
+    CustomerConcurrencyConflictError,
+    CustomerDomainError,
+)
 from backend.domain.customers.policies.duplicate_policy import CustomerDuplicatePolicy
 from backend.infrastructure.db.repositories.customers.base import normalize_name
 from backend.infrastructure.db.repositories.customers.unit_of_work import CustomerUnitOfWork
@@ -47,6 +50,27 @@ class _BaseUseCase:
 #: a writer regains the lock and retries, the conflicting row is already
 #: committed and visible to the next `next_code()` read.
 _MAX_CUSTOMER_NUMBER_ATTEMPTS = 5
+
+
+def attach_contact_and_tax(uow, customer, *, phone_e164: str | None = None,
+                           email: str | None = None, tax_identifier: str | None = None,
+                           legal_name: str = "", contact_name: str = "") -> None:
+    """Auditoría CRM F05: alta manual, alta rápida del POS e importación pedían
+    teléfono, correo y RFC, los usaban para buscar duplicados y NO los
+    guardaban. Aquí se guardan, en la misma transacción que el maestro: el
+    teléfono y el correo como contacto principal (validados igual que en
+    Contactos) y el RFC como perfil fiscal."""
+    from backend.domain.customers.entities.customer_contact import CustomerContactPerson
+    from backend.domain.customers.entities.customer_tax_profile import CustomerTaxProfile
+
+    if (phone_e164 or "").strip() or (email or "").strip():
+        uow.contacts.save(CustomerContactPerson.create(
+            customer.id, (contact_name or customer.display_name).strip(),
+            phone_e164=phone_e164, email=email, is_primary=True))
+    if (tax_identifier or "").strip():
+        uow.tax_profiles.save(CustomerTaxProfile.create(
+            customer.id, tax_identifier=tax_identifier.strip().upper(),
+            legal_name=(legal_name or "").strip()))
 
 
 class CreateCustomerUseCase(_BaseUseCase):
@@ -111,6 +135,14 @@ class CreateCustomerUseCase(_BaseUseCase):
                     if "customer_number" not in str(exc) or attempt == _MAX_CUSTOMER_NUMBER_ATTEMPTS:
                         raise
                     continue
+            try:
+                attach_contact_and_tax(
+                    uow, customer, phone_e164=phone_e164, email=email,
+                    tax_identifier=tax_identifier, legal_name=legal_name,
+                    contact_name=" ".join(x for x in (first_name, last_name) if x))
+            except (CustomerDomainError, ValueError) as exc:
+                uow.rollback()
+                return CustomerResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
             uow.audit.record(action=CustomerEvents.CREATED, actor_user_id=actor_user_id,
                              customer_id=customer.id,
                              after_json=json.dumps({"display_name": display_name}),
@@ -147,7 +179,10 @@ class UpdateCustomerUseCase(_BaseUseCase):
             if source is not None:
                 customer.source = source
             customer.record_edit()
-            uow.customers.update(customer)
+            try:
+                uow.customers.update(customer)
+            except CustomerConcurrencyConflictError as exc:
+                return CustomerResult.fail(str(exc), "CONFLICT", operation_id=operation_id)
             uow.audit.record(action=CustomerEvents.UPDATED, actor_user_id=actor_user_id,
                              customer_id=customer.id, reason="edición", operation_id=operation_id)
             self._emit(uow, CustomerEvents.UPDATED, customer.id, operation_id, actor_user_id)

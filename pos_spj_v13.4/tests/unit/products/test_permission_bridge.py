@@ -44,8 +44,9 @@ def test_checker_none_session_denies():
     assert not has(ProductPermissions.CREATE)
 
 
-def test_unmapped_permission_falls_back_to_view():
-    assert legacy_codes_for("PRODUCTS_UNKNOWN_XYZ") == ("PRODUCTOS.ver",)
+def test_unmapped_permission_is_denied():
+    """PROD-22: antes se concedía con la vista (cajero gestionaba surtidos)."""
+    assert legacy_codes_for("PRODUCTS_UNKNOWN_XYZ") == ()
 
 
 def test_mapping_covers_core_write_permissions():

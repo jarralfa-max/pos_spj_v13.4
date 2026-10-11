@@ -12,8 +12,6 @@ Una actividad vencida se muestra con su ESTADO («Vencida»), no sólo con color
 
 from __future__ import annotations
 
-from datetime import timedelta
-
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QStackedWidget, QVBoxLayout, QWidget
 
 from backend.application.crm.permissions import CRMPermissions
@@ -22,16 +20,12 @@ from frontend.desktop.components import (
     StandardTable,
     create_secondary_button,
 )
-from frontend.desktop.modules.customers_crm.formatting import fmt_datetime, local_now
+from frontend.desktop.modules.customers_crm.formatting import fmt_datetime
 from frontend.desktop.modules.customers_crm.forms import FieldSpec, ask
 from frontend.desktop.modules.customers_crm.labels import label, options
 from frontend.desktop.modules.customers_crm.pages._pill_tab_bar import PillTabBar
 from frontend.desktop.themes.tokens import Spacing
 
-
-def _default_when():
-    return (local_now() + timedelta(days=1)).replace(hour=10, minute=0, second=0,
-                                                     microsecond=0).replace(tzinfo=None)
 
 
 def new_activity(parent, presenter, entity_type: str, entity_id: str, *,
@@ -42,7 +36,7 @@ def new_activity(parent, presenter, entity_type: str, entity_id: str, *,
                   default=activity_type or "CALL"),
         FieldSpec("subject", "Asunto", required=True,
                   placeholder="Ej. Llamar para confirmar pedido semanal"),
-        FieldSpec("scheduled_at", "Fecha y hora", "datetime", default=_default_when()),
+        FieldSpec("scheduled_at", "Fecha y hora", "datetime"),
         FieldSpec("assigned_user_id", "Responsable", "user", default=presenter.current_user_id()),
         FieldSpec("description", "Detalle", "textarea"),
     ), user_options=presenter.users(), on_submit=lambda v: presenter.run(
@@ -55,7 +49,7 @@ def new_activity(parent, presenter, entity_type: str, entity_id: str, *,
 def new_task(parent, presenter, entity_type: str, entity_id: str):
     return ask(parent, title="Nueva tarea", submit_text="Crear tarea", fields=(
         FieldSpec("title", "Tarea", required=True, placeholder="Ej. Enviar lista de precios"),
-        FieldSpec("due_at", "Vence", "datetime", default=_default_when()),
+        FieldSpec("due_at", "Vence", "datetime"),
         FieldSpec("assigned_user_id", "Responsable", "user", default=presenter.current_user_id()),
         FieldSpec("description", "Detalle", "textarea"),
     ), user_options=presenter.users(), on_submit=lambda v: presenter.run(
@@ -81,7 +75,7 @@ def reschedule(parent, presenter, kind: str, item_id: str):
     key = "new_scheduled_at" if kind == "ACTIVITY" else "new_due_at"
     id_key = "activity_id" if kind == "ACTIVITY" else "task_id"
     return ask(parent, title="Reprogramar", submit_text="Reprogramar", fields=(
-        FieldSpec("when", "Nueva fecha y hora", "datetime", default=_default_when()),
+        FieldSpec("when", "Nueva fecha y hora", "datetime"),
     ), on_submit=lambda v: presenter.run(command, **{id_key: item_id, key: v["when"]}))
 
 

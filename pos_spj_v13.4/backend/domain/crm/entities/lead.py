@@ -87,6 +87,9 @@ class Lead:
     operation_id: str | None = None
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
+    #: Auditoría CRM F16: a qué cliente y oportunidad se convirtió.
+    converted_customer_id: str | None = None
+    converted_opportunity_id: str | None = None
 
     def __post_init__(self) -> None:
         self.estimated_value = _opt_decimal(self.estimated_value)
@@ -160,14 +163,21 @@ class Lead:
         self.status = LeadStatus.UNQUALIFIED
         self._touch()
 
-    def convert(self) -> None:
-        """Only flips this entity's status — the actual creation of
+    def convert(self, customer_id: str | None = None) -> None:
+        """Flips status and remembers the customer it became — the creation of
         Customer/Account/Contact/Opportunity is orchestrated by
         ConvertLeadUseCase, which calls this last."""
         if self.status is not LeadStatus.QUALIFIED:
             raise InvalidLeadStateError(
                 f"Solo se convierte un lead calificado (está {self.status.value})")
         self.status = LeadStatus.CONVERTED
+        self.converted_customer_id = customer_id
+        self._touch()
+
+    def link_opportunity(self, opportunity_id: str) -> None:
+        if self.status is not LeadStatus.CONVERTED:
+            raise InvalidLeadStateError("Sólo un prospecto convertido tiene oportunidad")
+        self.converted_opportunity_id = opportunity_id
         self._touch()
 
     def lose(self, reason: str) -> None:
@@ -186,6 +196,15 @@ class Lead:
 
     def record_edit(self) -> None:
         """Bump updated_at for a plain field edit (no status change)."""
+        self._touch()
+
+    def change_priority(self, priority: LeadPriority) -> None:
+        """CRM-43: la prioridad deja de ser sólo de alta (la usan la edición y la
+        acción CHANGE_PRIORITY de las automatizaciones)."""
+        if self.is_terminal():
+            raise InvalidLeadStateError(
+                f"No se cambia la prioridad de un prospecto {self.status.value}")
+        self.priority = LeadPriority(priority)
         self._touch()
 
     def set_next_action(self, when: str | None) -> None:

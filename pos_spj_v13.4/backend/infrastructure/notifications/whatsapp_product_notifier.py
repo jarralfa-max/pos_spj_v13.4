@@ -39,21 +39,27 @@ from __future__ import annotations
 class WhatsAppProductNotifier:
     """Implements `ProductNotificationGateway` for the WHATSAPP channel only —
     call `.send()` only when `channel == "WHATSAPP"` (the fan-out gateway
-    enforces this)."""
+    enforces this).
+
+    PROD-22 (decisión del usuario, 2026-10-10: «cola en el ERP»): ya no envía
+    directo. Encola en `product_whatsapp_outbox` dentro de la transacción del
+    caso de uso y `ProductWhatsAppOutboxDispatcher` lo entrega después, con
+    reintentos; así una alerta disparada sin conexión ya no se pierde y nada
+    sale a la red antes de que la operación se confirme.
+    """
 
     def __init__(self, connection) -> None:
-        from backend.infrastructure.integrations.whatsapp_client import WhatsAppClient
-
-        self._client = WhatsAppClient(connection=connection)
+        self._conn = connection
 
     def send(self, *, channel: str, recipient_ref: str, message: str,
              context: dict) -> None:
-        """Entrega la alerta. Nunca lanza.
+        from datetime import datetime, timezone
 
-        `context` ya no se usa: el endpoint del microservicio no recibe
-        sucursal — el número de teléfono es toda la dirección que necesita. Se
-        conserva el parámetro porque lo fija el `ProductNotificationGateway`
-        que esta clase implementa.
-        """
-        del context
-        self._client.enviar_mensaje(recipient_ref, message)
+        from backend.shared.ids import new_uuid
+        ctx = context or {}
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        self._conn.execute(
+            "INSERT INTO product_whatsapp_outbox (id, phone, message, alert_type, entity_id, "
+            "status, attempts, next_attempt_at, created_at) VALUES (?,?,?,?,?,'PENDING',0,?,?)",
+            (new_uuid(), recipient_ref, message, ctx.get("alert_type"), ctx.get("entity_id"),
+             now, now))

@@ -36,14 +36,6 @@ CREATE TABLE IF NOT EXISTS clientes (
     activo INTEGER DEFAULT 1,
     credit_limit REAL DEFAULT 0, credit_balance REAL DEFAULT 0
 );
-CREATE TABLE IF NOT EXISTS productos (
-    id INTEGER PRIMARY KEY, nombre TEXT, precio REAL DEFAULT 0,
-    existencia REAL DEFAULT 10, activo INTEGER DEFAULT 1, oculto INTEGER DEFAULT 0,
-    unidad TEXT DEFAULT 'kg', categoria TEXT DEFAULT 'Carne'
-);
-CREATE TABLE IF NOT EXISTS branch_inventory (
-    product_id INTEGER, branch_id INTEGER, quantity REAL
-);
 CREATE TABLE IF NOT EXISTS ventas (
     id INTEGER PRIMARY KEY AUTOINCREMENT, folio TEXT, cliente_id INTEGER,
     total REAL, estado TEXT DEFAULT 'pendiente_wa', sucursal_id INTEGER DEFAULT 1,
@@ -85,12 +77,6 @@ INSERT INTO sucursales VALUES (1,'Sucursal Central','Calle 1',1);
 INSERT INTO sucursales VALUES (2,'Sucursal Norte','Calle 2',1);
 INSERT INTO clientes VALUES (1,'María López','5551234567',1,2000.0,500.0);
 INSERT INTO clientes VALUES (2,'Pedro Martínez','5559876543',1,0,0);
-INSERT INTO productos VALUES (1,'Pechuga de Pollo',95.0,10.0,1,0,'kg','Carne');
-INSERT INTO productos VALUES (2,'Pierna de Pollo',75.0,8.0,1,0,'kg','Carne');
-INSERT INTO productos VALUES (3,'Chuleta de Cerdo',85.0,5.0,1,0,'kg','Cerdo');
-INSERT INTO productos VALUES (4,'Producto Oculto',50.0,10.0,1,1,'kg','Carne');
-INSERT INTO branch_inventory VALUES (1,1,12.5);
-INSERT INTO branch_inventory VALUES (2,1,7.0);
 """
 
 
@@ -102,7 +88,44 @@ def bridge(tmp_path):
     db_file = str(tmp_path / "test.db")
     b = ERPBridge(db_file)
     b.db.executescript(_SCHEMA + _SEED)
+    _seed_canonical_catalog(b.db)
     return b
+
+
+def _seed_canonical_catalog(db):
+    """PROD-22: el catálogo de WhatsApp lee el maestro canónico (`products` +
+    lista BASE activa + `inventory_balances`), ya no la tabla legacy `productos`.
+    Mismos productos que antes; "Producto Oculto" es ahora un producto interno."""
+    from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
+    from backend.infrastructure.db.schema.pricing_schema import create_pricing_schema
+    from backend.infrastructure.db.schema.products_schema import create_products_schema
+    create_products_schema(db)
+    create_pricing_schema(db)
+    create_inventory_schema(db)
+    db.execute("INSERT INTO units_of_measure (id, code, name, dimension) "
+               "VALUES ('u-kg','kg','Kilogramo','WEIGHT')")
+    for cid, name in (("c-carne", "Carne"), ("c-cerdo", "Cerdo")):
+        db.execute("INSERT INTO product_categories (id, code, name) VALUES (?,?,?)",
+                   (cid, name.upper(), name))
+    db.execute("INSERT INTO price_list (id, code, name, kind, status) "
+               "VALUES ('pl','BASE','Base','BASE','ACTIVE')")
+    for pid, name, cat, price, internal in (
+            ("1", "Pechuga de Pollo", "c-carne", "95", 0),
+            ("2", "Pierna de Pollo", "c-carne", "75", 0),
+            ("3", "Chuleta de Cerdo", "c-cerdo", "85", 0),
+            ("4", "Producto Oculto", "c-carne", "50", 1)):
+        db.execute("INSERT INTO products (id, code, name, product_type, base_unit_id, "
+                   "category_id, lifecycle_status, sellable, internal_only) "
+                   "VALUES (?,?,?,?,?,?,'ACTIVE',1,?)",
+                   (pid, f"P-{pid}", name, "RESALE_PRODUCT", "u-kg", cat, internal))
+        db.execute("INSERT INTO product_price (id, price_list_id, product_id, sale_price, "
+                   "branch_id) VALUES (?,?,?,?,'')", (f"pp-{pid}", "pl", pid, price))
+    for pid, qty in (("1", "12.5"), ("2", "7.0")):
+        db.execute("INSERT INTO inventory_balances (id, product_id, branch_id, warehouse_id, "
+                   "quantity, inventory_status, updated_at) "
+                   "VALUES (?,?,?,?,?,'AVAILABLE',datetime('now'))",
+                   (f"ib-{pid}", pid, "1", "w-1", qty))
+    db.commit()
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -165,6 +188,7 @@ class TestGetProductosByCategory:
         assert "Producto Oculto" not in names
 
     def test_uses_branch_inventory_quantity(self, bridge):
+        # Existencia disponible de `inventory_balances` en la sucursal.
         items = bridge.get_productos_by_category("Carne", 1)
         pechuga = next(i for i in items if i["nombre"] == "Pechuga de Pollo")
         assert pechuga["stock"] == 12.5

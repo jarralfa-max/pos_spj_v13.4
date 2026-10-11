@@ -17,7 +17,7 @@ from frontend.desktop.components import ColumnSpec
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.customers_crm.formatting import fmt_datetime, local_now, parse_instant
 from frontend.desktop.modules.customers_crm.forms import FieldSpec, ask
-from frontend.desktop.modules.customers_crm.labels import label, options
+from frontend.desktop.modules.customers_crm.labels import label
 from frontend.desktop.modules.customers_crm.pages._work_items import (
     cancel_item,
     complete_item,
@@ -121,19 +121,18 @@ class _WorkItemsWorkbench(CrmWorkbenchPage):
 
 
 def reminder_dialog(parent, presenter, kind: str, item_id: str):
-    channels = options("reminder_channel", exclude=("PUSH_FUTURE",))
+    # Sólo el canal que hoy se entrega de verdad: la bandeja de avisos (campana).
+    # Correo y WhatsApp interno no tienen remitente; ofrecerlos sería prometer
+    # avisos que nunca llegan.
     return ask(parent, title="Recordatorio", submit_text="Programar aviso", intro=(
-        "El aviso lo entrega el gestor de notificaciones; aquí sólo se define cuándo y a "
-        "quién."), fields=(
-        FieldSpec("remind_at", "Avisar el", "datetime",
-                  default=(local_now() + timedelta(hours=1)).replace(tzinfo=None, second=0,
-                                                                     microsecond=0)),
+        "A la hora indicada el aviso aparece en la campana de la barra superior del "
+        "destinatario."), fields=(
+        FieldSpec("remind_at", "Avisar el", "datetime", required=True),
         FieldSpec("recipient", "Destinatario", "user", required=True,
                   default=presenter.current_user_id()),
-        FieldSpec("channel", "Canal", "choice", options=tuple(channels), default="IN_APP"),
         FieldSpec("message", "Mensaje", "textarea"),
     ), user_options=presenter.users(), on_submit=lambda v: presenter.run(
-        "create_reminder", channel=v["channel"] or "IN_APP", remind_at=v["remind_at"],
+        "create_reminder", channel="IN_APP", remind_at=v["remind_at"],
         recipient_user_id=v["recipient"], message=v["message"],
         **({"activity_id": item_id} if kind == "ACTIVITY" else {"task_id": item_id})))
 

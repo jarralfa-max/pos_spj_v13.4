@@ -105,6 +105,9 @@ class ProductSearchQuery:
     warehouse_id: str | None = None
 
     product_type: str | None = None
+    #: PROD-22: familia de tipos (cárnicos, materiales…) — el catálogo filtra
+    #: por familia en vez de tener una pantalla por cada una.
+    product_types: tuple[str, ...] | None = None
     species_id: str | None = None
     category_id: str | None = None
 
@@ -114,6 +117,8 @@ class ProductSearchQuery:
     inventory_managed_only: bool = False
     producible_only: bool = False
     exclude_internal: bool = False
+    #: Sólo productos internos/de proceso (§13).
+    internal_only: bool = False
     with_stock_only: bool = False
 
     page: int = 1
@@ -382,6 +387,8 @@ class _BaseProductSearch:
                 where.append(f"p.{column}=1")
         if criteria.exclude_internal and "internal_only" in cols:
             where.append("p.internal_only=0")
+        if criteria.internal_only and "internal_only" in cols:
+            where.append("p.internal_only=1")
         if criteria.active_only and "lifecycle_status" in cols:
             where.append("p.lifecycle_status='ACTIVE'")
 
@@ -440,6 +447,10 @@ class _BaseProductSearch:
         if criteria.product_type and "product_type" in cols:
             where.append("p.product_type=?")
             where_params.append(str(criteria.product_type))
+        if criteria.product_types and "product_type" in cols:
+            types = [str(t) for t in criteria.product_types]
+            where.append(f"p.product_type IN ({','.join('?' for _ in types)})")
+            where_params.extend(types)
         if criteria.species_id and "species_id" in cols:
             where.append("p.species_id=?")
             where_params.append(str(criteria.species_id))

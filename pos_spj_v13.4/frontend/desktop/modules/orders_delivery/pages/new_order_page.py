@@ -152,7 +152,9 @@ class NewOrderPage(FormPage):
         if elegido is not None:
             if not self.contact_name.text().strip():
                 self.contact_name.setText(elegido.display_name or "")
-            if not self.contact_phone.value().strip() and elegido.phone_e164:
+            # Un teléfono enmascarado (sin permiso de ver contactos) no se propone.
+            if (not self.contact_phone.value().strip() and elegido.phone_e164
+                    and "•" not in elegido.phone_e164):
                 self.contact_phone.set_value(elegido.phone_e164)
 
     def clear_customer(self) -> None:

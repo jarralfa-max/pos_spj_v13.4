@@ -23,11 +23,13 @@ from importlib import import_module
 
 from backend.application.crm.authorization import CRMAuthorizationPolicy
 from backend.application.crm.data_scope import CRMDataScopeResolver
+from backend.application.crm.record_scope_guard import CRMRecordScopeGuard
 from backend.application.customers.authorization import CustomerAuthorizationPolicy
 from backend.application.customers.data_scope import CustomerDataScopeResolver
 from backend.application.customers.session_authorization import (
     CustomerSessionPermissionChecker,
 )
+from backend.application.quotes.authorization import QuotesAuthorizationPolicy
 
 #: comando → (módulo, clase, política: "customer" | "crm" | "both" | "owner")
 _COMMANDS: dict[str, tuple[str, str, str]] = {
@@ -173,6 +175,20 @@ _COMMANDS: dict[str, tuple[str, str, str]] = {
     "cancel_privacy_request": ("customer_privacy.use_cases.privacy_request_use_cases", "CancelPrivacyRequestUseCase", "customer"),
     "complete_privacy_request": ("customer_privacy.use_cases.privacy_request_use_cases", "CompletePrivacyRequestUseCase", "customer"),
     "anonymize_customer": ("customer_privacy.use_cases.anonymize_customer_use_case", "AnonymizeCustomerUseCase", "authorizer"),
+    # ── cotizaciones (contexto propio, §50) ───────────────────────────────────
+    "create_quote": ("quotes.use_cases.quote_use_cases", "CreateQuoteUseCase", "quote"),
+    "update_quote": ("quotes.use_cases.quote_use_cases", "UpdateQuoteUseCase", "quote"),
+    "add_quote_line": ("quotes.use_cases.quote_use_cases", "AddQuoteLineUseCase", "quote"),
+    "update_quote_line": ("quotes.use_cases.quote_use_cases", "UpdateQuoteLineUseCase", "quote"),
+    "remove_quote_line": ("quotes.use_cases.quote_use_cases", "RemoveQuoteLineUseCase", "quote"),
+    "submit_quote": ("quotes.use_cases.quote_use_cases", "SubmitQuoteUseCase", "quote"),
+    "approve_quote": ("quotes.use_cases.quote_use_cases", "ApproveQuoteUseCase", "quote"),
+    "return_quote_to_draft": ("quotes.use_cases.quote_use_cases", "ReturnQuoteToDraftUseCase", "quote"),
+    "send_quote": ("quotes.use_cases.quote_use_cases", "SendQuoteUseCase", "quote"),
+    "accept_quote": ("quotes.use_cases.quote_use_cases", "AcceptQuoteUseCase", "quote"),
+    "reject_quote": ("quotes.use_cases.quote_use_cases", "RejectQuoteUseCase", "quote"),
+    "cancel_quote": ("quotes.use_cases.quote_use_cases", "CancelQuoteUseCase", "quote"),
+    "revise_quote": ("quotes.use_cases.quote_use_cases", "ReviseQuoteUseCase", "quote"),
     "create_retention_policy": ("customer_privacy.use_cases.retention_policy_use_cases", "CreateDataRetentionPolicyUseCase", "customer"),
     "deactivate_retention_policy": ("customer_privacy.use_cases.retention_policy_use_cases", "DeactivateDataRetentionPolicyUseCase", "customer"),
 }
@@ -183,10 +199,26 @@ def _use_case_class(module: str, name: str):
 
 
 def build_command_handlers(connection, customer_auth, crm_auth,
-                           extra: dict[str, Callable] | None = None) -> dict[str, Callable]:
+                           extra: dict[str, Callable] | None = None, *,
+                           scope_guard=None, branch_id: Callable[[], str | None] | None = None,
+                           quote_auth=None) -> dict[str, Callable]:
+    """``scope_guard`` (``CRMRecordScopeGuard``): antes de ejecutar, el prospecto,
+    la oportunidad o el caso al que apunta el comando debe estar dentro del
+    alcance del actor — el mismo con el que lo vería en su bandeja."""
+    from backend.application.crm.data_scope import CRMScopeContext
+    from backend.application.crm.result import CRMResult
+
     handlers: dict[str, Callable] = {}
     for command, (module, class_name, policy) in _COMMANDS.items():
         def handler(*, _m=module, _c=class_name, _p=policy, **kwargs):
+            if scope_guard is not None and kwargs.get("actor_user_id"):
+                branch = branch_id() if branch_id else None
+                reason = scope_guard.denial(CRMScopeContext(
+                    user_id=kwargs["actor_user_id"], branch_ids=(branch,) if branch else ()),
+                    kwargs)
+                if reason:
+                    return CRMResult.fail(reason, "OUT_OF_SCOPE",
+                                          operation_id=kwargs.get("operation_id"))
             cls = _use_case_class(_m, _c)
             if _p == "both":
                 use_case = cls(crm_auth, customer_auth)
@@ -194,6 +226,8 @@ def build_command_handlers(connection, customer_auth, crm_auth,
                 use_case = cls(crm_authorization=crm_auth)
             elif _p == "crm":
                 use_case = cls(crm_auth)
+            elif _p == "quote":
+                use_case = cls(quote_auth)
             else:
                 use_case = cls(customer_auth)
             if _p == "authorizer":
@@ -209,9 +243,14 @@ def _q(module: str, name: str):
     return getattr(import_module(f"backend.application.{module}"), name)
 
 
-def build_readers(connection, *, customer_auth, crm_auth, customer_scope, crm_scope
-                  ) -> dict[str, Callable]:
-    """Lecturas para las pantallas. Cada lector recibe un ``CrmReadContext``."""
+def build_readers(connection, *, customer_auth, crm_auth, customer_scope, crm_scope,
+                  quote_auth=None, record_visible=None) -> dict[str, Callable]:
+    """Lecturas para las pantallas. Cada lector recibe un ``CrmReadContext``.
+
+    ``record_visible(actor, tipo, id)``: alcance por registro para actividades,
+    tareas y notas (auditoría CRM F03)."""
+    quotes = _q("quotes.queries.quote_query_service", "QuoteQueryService")(
+        connection, crm_scope, quote_auth)
     ref = _q("crm.queries.crm_reference_query_service", "CRMReferenceQueryService")(
         connection, customer_auth)
     leads = _q("crm.queries.lead_directory_query_service", "LeadDirectoryQueryService")(
@@ -221,9 +260,11 @@ def build_readers(connection, *, customer_auth, crm_auth, customer_scope, crm_sc
     forecast = _q("crm.queries.sales_pipeline_forecast_query_service",
                   "SalesPipelineForecastQueryService")(connection, crm_scope)
     activities = _q("crm.queries.crm_activity_query_service", "CRMActivityQueryService")(
-        connection, crm_auth)
-    tasks = _q("crm.queries.crm_task_query_service", "CRMTaskQueryService")(connection, crm_auth)
-    notes = _q("crm.queries.crm_note_query_service", "CRMNoteQueryService")(connection, crm_auth)
+        connection, crm_auth, record_visible=record_visible)
+    tasks = _q("crm.queries.crm_task_query_service", "CRMTaskQueryService")(
+        connection, crm_auth, record_visible=record_visible)
+    notes = _q("crm.queries.crm_note_query_service", "CRMNoteQueryService")(
+        connection, crm_auth, record_visible=record_visible)
     calendar = _q("crm.queries.crm_calendar_query_service", "CRMCalendarQueryService")(
         connection, crm_auth)
     lookup = _q("customers.queries.customer_lookup_query_service",
@@ -268,6 +309,15 @@ def build_readers(connection, *, customer_auth, crm_auth, customer_scope, crm_sc
         return CustomerServiceUnitOfWork(connection).categories.list_active()
 
     return {
+        "quotes": lambda ctx, statuses=(), customer_id=None, opportunity_id=None:
+            quotes.list_rows(ctx.crm(), statuses=tuple(statuses), customer_id=customer_id,
+                             opportunity_id=opportunity_id),
+        "quote_approvals": lambda ctx: quotes.pending_approval(ctx.crm()),
+        "quote_detail": lambda ctx, quote_id: quotes.get(quote_id, ctx.crm()),
+        "quote_products": lambda ctx, text, limit=20: quotes.search_products(
+            ctx.crm(), branch_id=ctx.branch_id or "", text=text, limit=limit),
+        "quote_products_empty": lambda ctx, text: quotes.explain_no_products(
+            branch_id=ctx.branch_id or "", text=text),
         "assignable_users": lambda ctx: ref.assignable_users(actor_user_id=ctx.user_id),
         "customer_names": lambda ctx, customer_ids: ref.customer_names(
             customer_ids, actor_user_id=ctx.user_id),
@@ -393,6 +443,7 @@ def build_customers_crm_presenter(connection, session_context=None):
     crm_auth = CRMAuthorizationPolicy(checker)
     customer_scope = CustomerDataScopeResolver(checker)
     crm_scope = CRMDataScopeResolver(checker)
+    quote_auth = QuotesAuthorizationPolicy(checker)
 
     query_services = {
         "dashboard": CustomerDashboardQueryService(connection, crm_scope, crm_auth),
@@ -407,8 +458,17 @@ def build_customers_crm_presenter(connection, session_context=None):
         )
         return build_address_search_service(connection)
 
+    scope_guard = CRMRecordScopeGuard(connection, crm_scope, customer_scope)
+
+    def _record_visible(actor_user_id: str, kind: str, record_id: str) -> bool:
+        from backend.application.crm.data_scope import CRMScopeContext
+        branch = str(getattr(session_context, "active_branch_id", "") or "") or None
+        return scope_guard.can_see(CRMScopeContext(
+            user_id=actor_user_id, branch_ids=(branch,) if branch else ()), kind, record_id)
+
     readers = build_readers(connection, customer_auth=customer_auth, crm_auth=crm_auth,
-                            customer_scope=customer_scope, crm_scope=crm_scope)
+                            customer_scope=customer_scope, crm_scope=crm_scope,
+                            quote_auth=quote_auth, record_visible=_record_visible)
 
     def _session_ctx():
         from backend.application.customers.read_context import CrmReadContext
@@ -436,11 +496,43 @@ def build_customers_crm_presenter(connection, session_context=None):
         run = ExportCustomerDataUseCase(customer_auth, readers=export_readers).execute
         return run(connection, **kwargs)
 
+    def _convert_quote(**kwargs):
+        from backend.application.orders_delivery.authorization import (
+            OrdersDeliveryAuthorizationPolicy,
+        )
+        from backend.application.orders_delivery.session_authorization import (
+            OrdersDeliverySessionPermissionChecker,
+        )
+        from backend.application.quotes.use_cases.convert_quote_use_case import (
+            ConvertQuoteToOrderUseCase,
+        )
+        orders_auth = OrdersDeliveryAuthorizationPolicy(
+            OrdersDeliverySessionPermissionChecker(session_context))
+        run = ConvertQuoteToOrderUseCase(quote_auth, orders_auth).execute
+        return run(connection, **kwargs)
+
+    def _export_quote(**kwargs):
+        from backend.application.quotes.use_cases.export_quote_use_case import (
+            ExportQuotePdfUseCase,
+        )
+        def _name(user_id: str) -> str:
+            try:
+                return {u.id: u.name for u in readers["assignable_users"](
+                    _session_ctx())}.get(user_id, "")
+            except Exception:  # noqa: BLE001 — el nombre de quien atendió es opcional
+                return ""
+        run = ExportQuotePdfUseCase(quote_auth, user_name=_name).execute
+        return run(connection, **kwargs)
+
     return CustomerCrmPresenter(
         session_context=session_context,
         query_services=query_services,
-        command_handlers=build_command_handlers(connection, customer_auth, crm_auth,
-                                                extra={"export_data": _export}),
+        command_handlers=build_command_handlers(
+            connection, customer_auth, crm_auth,
+            extra={"export_data": _export, "convert_quote": _convert_quote,
+                   "export_quote_pdf": _export_quote},
+            scope_guard=scope_guard,
+            branch_id=lambda: _session_ctx().branch_id, quote_auth=quote_auth),
         readers=readers,
         address_search_factory=_address_search_factory,
     )

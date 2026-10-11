@@ -203,49 +203,10 @@ def test_unsubscribing_something_never_subscribed_is_false(bus):
     assert bus.unsubscribe("X", lambda p: None) is False
 
 
-# ── catálogo de productos ───────────────────────────────────────────────────
-def test_a_catalog_change_emits_the_specific_event_and_the_refresh_signal():
-    """Los dos, y no es redundancia: el concreto para quien reacciona a ese
-    hecho, el de refresco para quien sólo necesita saber que su lista quedó
-    vieja."""
-    from backend.application.services.product_catalog_service import (
-        _publish_catalog_change,
-    )
-    from backend.domain.products.events import ProductEvents
-
-    visto = []
-    get_bus().subscribe(ProductEvents.PRODUCT_CREATED, lambda p: visto.append("concreto"))
-    get_bus().subscribe(ProductEvents.PRODUCTS_CHANGED, lambda p: visto.append("refresco"))
-
-    _publish_catalog_change("created", product_id="P1", product_name="Arrachera",
-                            active=True, operation_id="op1")
-    assert visto == ["concreto", "refresco"]
 
 
-def test_the_spanish_legacy_channel_is_no_longer_emitted():
-    """Sus suscriptores vivían en `modulos/`, que ya no existe, y los nombres
-    canónicos los reemplazan por declaración propia."""
-    from backend.application.services.product_catalog_service import (
-        _publish_catalog_change,
-    )
-
-    visto = []
-    get_bus().subscribe("PRODUCTO_CREADO", lambda p: visto.append("legacy"))
-    _publish_catalog_change("created", product_id="P1", product_name="X", active=True)
-    assert visto == []
 
 
-def test_an_unknown_catalog_action_publishes_nothing_and_does_not_raise():
-    from backend.application.services.product_catalog_service import (
-        _publish_catalog_change,
-    )
-    from backend.domain.products.events import ProductEvents
-
-    visto = []
-    get_bus().subscribe(ProductEvents.PRODUCTS_CHANGED, lambda p: visto.append(1))
-    _publish_catalog_change("accion_inventada", product_id="P1", product_name="X",
-                            active=True)
-    assert visto == []
 
 
 # ── paridad con el bus anterior ─────────────────────────────────────────────

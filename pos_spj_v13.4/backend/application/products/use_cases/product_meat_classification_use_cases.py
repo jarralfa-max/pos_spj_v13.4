@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.commands.product_meat_classification_commands import (
+    ClassifyMeatProductCommand,
     CreateAnatomicalRegionCommand,
     CreateCutClassificationCommand,
     CreateSpeciesCommand,
@@ -36,7 +37,11 @@ from backend.domain.products.entities.species import Species
 from backend.domain.products.enums import LifecycleStatus
 from backend.domain.products.events import ProductEvents
 from backend.domain.products.exceptions import ProductsDomainError
+from backend.domain.products.enums import ProductType
+from backend.domain.products.meat_enums import MeatCategory
 from backend.domain.products.policies.meat_product_classification_policy import (
+    requires_classification,
+    validate_product_classification,
     validate_region_species,
 )
 from backend.infrastructure.db.repositories.products.meat_classification_repository import (
@@ -267,6 +272,90 @@ class SetCutClassificationActiveUseCase(_Base):
             raise
         return MeatClassificationResult(True, command.cut_id,
                                         "CUT_CLASSIFICATION_UPDATED")
+
+
+# ── clasificación de UN producto (PROD-22) ─────────────────────────────────
+class ClassifyMeatProductUseCase(_Base):
+    """Categoría cárnica, región anatómica y corte de un producto cárnico.
+
+    La política de dominio (`validate_product_classification`) existía desde
+    PROD-3 y nadie la llamaba: no había dónde guardar la clasificación. Exige
+    especie en el producto, que región y corte sean de esa especie y que el
+    corte cuelgue de la región elegida. Reclasificar exige motivo (§39).
+    """
+
+    name = "ClassifyMeatProductUseCase"
+
+    def execute(self, command: ClassifyMeatProductCommand) -> MeatClassificationResult:
+        command.validate()
+        self._auth.require(command.user_id or "",
+                           ProductPermissions.MEAT_CLASSIFICATION_MANAGE)
+        product = self._repo.product_core(command.product_id)
+        if product is None:
+            return MeatClassificationResult(False, None, "El producto no existe")
+        try:
+            product_type = ProductType(product["product_type"])
+        except ValueError:
+            return MeatClassificationResult(False, None, "Tipo de producto desconocido")
+        if not requires_classification(product_type):
+            return MeatClassificationResult(
+                False, None, "Sólo los productos cárnicos llevan clasificación cárnica")
+        meat_category = (command.meat_category or "").strip() or None
+        if meat_category is not None:
+            try:
+                meat_category = MeatCategory(meat_category).value
+            except ValueError:
+                return MeatClassificationResult(False, None, "Categoría cárnica inválida")
+        species = self._repo.get_species(product["species_id"]) if product["species_id"] else None
+        region = (self._repo.get_region(command.anatomical_region_id)
+                  if command.anatomical_region_id else None)
+        cut = (self._repo.get_cut(command.cut_classification_id)
+               if command.cut_classification_id else None)
+        if command.anatomical_region_id and region is None:
+            return MeatClassificationResult(False, None, "La región anatómica no existe")
+        if command.cut_classification_id and cut is None:
+            return MeatClassificationResult(False, None, "El corte no existe")
+        try:
+            validate_product_classification(product_type=product_type, species=species,
+                                            cut=cut, region=region)
+            if region is not None and species is not None:
+                validate_region_species(region, species)
+        except ProductsDomainError as exc:
+            return MeatClassificationResult(False, None, str(exc))
+        before = self._repo.get_product_classification(command.product_id)
+        after = {"meat_category": meat_category,
+                 "anatomical_region_id": region.id if region else None,
+                 "cut_classification_id": cut.id if cut else None}
+        if before == after:
+            return MeatClassificationResult(True, command.product_id,
+                                            "La clasificación no cambió")
+        changing = before is not None and any(before.values())
+        reason = (command.reason or "").strip() or None
+        if changing and reason is None:
+            return MeatClassificationResult(
+                False, None, "Cambiar la clasificación cárnica requiere un motivo")
+        try:
+            self._repo.save_product_classification(
+                command.product_id, classified_by=command.user_id, **after)
+            record_product_audit_entry(
+                self._conn,
+                action=("MEAT_PRODUCT_CLASSIFICATION_CHANGED" if changing
+                        else "MEAT_PRODUCT_CLASSIFIED"),
+                entity_id=command.product_id, user_id=command.user_id or "",
+                operation_id=command.operation_id, before=before, after=after,
+                reason=reason)
+            _emit(self._conn,
+                  (ProductEvents.MEAT_PRODUCT_CLASSIFICATION_CHANGED if changing
+                   else ProductEvents.MEAT_PRODUCT_CLASSIFIED),
+                  command, command.product_id, after)
+            self._conn.commit()
+        except Exception:
+            self._rollback()
+            logger.exception("classify meat product failed op=%s", command.operation_id)
+            raise
+        return MeatClassificationResult(
+            True, command.product_id,
+            "MEAT_PRODUCT_CLASSIFICATION_CHANGED" if changing else "MEAT_PRODUCT_CLASSIFIED")
 
 
 def _emit(conn, event_name: str, command, entity_id: str, extra: dict) -> None:

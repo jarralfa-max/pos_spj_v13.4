@@ -66,8 +66,12 @@ from backend.infrastructure.db.repositories.crm.task_repository import CRMTaskRe
 
 
 class CRMUnitOfWork:
-    def __init__(self, connection: Any) -> None:
+    def __init__(self, connection: Any, *, owns_transaction: bool = True) -> None:
+        """``owns_transaction=False``: participa en la transacción de quien llama
+        (p. ej. la oportunidad dentro de la conversión del prospecto) y no
+        confirma ni revierte — mismo contrato que Inventario, Ventas y Finanzas."""
         self.connection = connection
+        self._owns_transaction = owns_transaction
         self.leads = LeadRepository(connection)
         self.qualifications = LeadQualificationRepository(connection)
         self.opportunities = OpportunityRepository(connection)
@@ -94,6 +98,10 @@ class CRMUnitOfWork:
             CRMInsightsRepository,
         )
         self.insights = CRMInsightsRepository(connection)
+        from backend.infrastructure.db.repositories.crm.automation_sweep_repository import (
+            AutomationSweepRepository,
+        )
+        self.sweep = AutomationSweepRepository(connection)
         self.outbox = CRMOutboxRepository(connection)
         self.processed_events = CRMProcessedEventRepository(connection)
         self._completed = False
@@ -110,11 +118,13 @@ class CRMUnitOfWork:
         return False
 
     def commit(self) -> None:
-        self.connection.commit()
+        if self._owns_transaction:
+            self.connection.commit()
         self._completed = True
 
     def rollback(self) -> None:
-        rollback = getattr(self.connection, "rollback", None)
-        if rollback is not None:
-            rollback()
+        if self._owns_transaction:
+            rollback = getattr(self.connection, "rollback", None)
+            if rollback is not None:
+                rollback()
         self._completed = True

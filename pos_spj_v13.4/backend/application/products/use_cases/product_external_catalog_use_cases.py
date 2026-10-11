@@ -102,8 +102,11 @@ class SearchExternalCatalogUseCase(_Base):
                     by_normalized_name=self._repo.name_lookup())
                 if matched:
                     record.mark_matched(matched)
+                record.staged_by = command.user_id
                 self._repo.save_record(record)
-                record_ids.append(record.id)
+                # Si ya existía (misma fuente + id externo) conserva su id viejo.
+                record_ids.append(self._repo.record_id_for(record.source_id,
+                                                           record.external_id) or record.id)
             record_product_audit_entry(
                 self._conn, action="EXTERNAL_CATALOG_SEARCHED",
                 entity_id=command.source_id, user_id=command.user_id,
@@ -129,6 +132,10 @@ class ApproveExternalRecordUseCase(_Base):
         record = self._repo.get_record(command.record_id)
         if record is None:
             return ExternalCatalogResult(False, None, "El registro externo no existe")
+        # §39 (PROD-22): quien trajo el registro no lo aprueba él mismo.
+        self._auth.ensure_segregation(
+            actor_user_id=command.user_id or "", creator_user_id=record.staged_by,
+            approval_permission=ProductPermissions.EXTERNAL_APPROVE)
         try:
             record.approve()
         except ProductsDomainError as exc:

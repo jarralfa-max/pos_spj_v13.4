@@ -54,3 +54,43 @@ class CreateCRMReminderUseCase:
                                json.dumps(payload), operation_id)
         return CRMResult.ok("Recordatorio creado", entity_id=reminder.id,
                             operation_id=operation_id)
+
+
+#: Cuántos recordatorios entrega cada pasada; el resto sale en la siguiente.
+REMINDER_DISPATCH_BATCH = 200
+
+
+class DispatchDueCRMRemindersUseCase:
+    """CRM-43: entrega en la bandeja personal (`notification_inbox`) los
+    recordatorios del canal «En la aplicación» cuya hora ya llegó. Los demás
+    canales no se ofrecen en la pantalla mientras no exista quien los envíe.
+
+    Lo llama el ciclo de fondo del sistema (sin actor humano, como la
+    evaluación de automatizaciones). Idempotente: marca ``delivered_at`` y la
+    bandeja deduplica por recordatorio."""
+
+    def execute(self, connection, *, now: str) -> int:
+        from backend.infrastructure.notifications.in_app_inbox_repository import (
+            InAppInboxRepository,
+        )
+        delivered = 0
+        with CRMUnitOfWork(connection) as uow:
+            inbox = InAppInboxRepository(connection)
+            for reminder in uow.reminders.list_due(now, limit=REMINDER_DISPATCH_BATCH):
+                about = ""
+                if reminder.task_id:
+                    task = uow.tasks.get(reminder.task_id)
+                    about = f"Tarea: {task.title}" if task else ""
+                elif reminder.activity_id:
+                    activity = uow.activities.get(reminder.activity_id)
+                    about = f"Actividad: {activity.subject}" if activity else ""
+                body = "\n".join(part for part in (reminder.message, about) if part)
+                inbox.deliver(
+                    recipient_user_id=reminder.recipient_user_id, kind="CRM",
+                    title="Recordatorio", body=body,
+                    data={"reminder_id": reminder.id, "task_id": reminder.task_id,
+                          "activity_id": reminder.activity_id},
+                    dedupe_key=f"crm-reminder:{reminder.id}")
+                uow.reminders.mark_delivered(reminder.id, now)
+                delivered += 1
+        return delivered

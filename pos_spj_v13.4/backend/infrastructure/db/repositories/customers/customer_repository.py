@@ -25,6 +25,16 @@ _MASTER_COLS = (
 
 
 class CustomerRepository(CustomerRepositoryBase):
+    """Auditoría CRM F07 (2026-10-09): concurrencia optimista. ``get`` recuerda
+    la versión leída; ``update`` sólo escribe si la fila sigue en esa versión
+    (``WHERE id=? AND version=?``) y siempre la incrementa. Si otra transacción
+    guardó antes, lanza ``CustomerConcurrencyConflictError`` en lugar de pisar
+    su cambio (antes el segundo UPDATE restauraba lo que el primero cambió)."""
+
+    def __init__(self, connection) -> None:
+        super().__init__(connection)
+        self._loaded_versions: dict[str, int] = {}
+
     def next_code(self) -> CustomerCode:
         last = self._scalar(
             "SELECT customer_number FROM customers"
@@ -40,18 +50,33 @@ class CustomerRepository(CustomerRepositoryBase):
             + (normalize_name(customer.display_name), normalize_name(customer.legal_name)))
 
     def update(self, customer: Customer) -> None:
+        from backend.domain.customers.exceptions import CustomerConcurrencyConflictError
+
+        expected = self._loaded_versions.get(customer.id)
+        if expected is not None and customer.version <= expected:
+            customer.version = expected + 1
+        self._update(customer, expected)
+        if expected is not None:
+            if self._last_rowcount == 0:
+                raise CustomerConcurrencyConflictError(
+                    "Otra persona guardó este cliente mientras lo editabas; tu cambio no se "
+                    "aplicó. Vuelve a abrirlo y repite el cambio.")
+            self._loaded_versions[customer.id] = customer.version
+
+    def _update(self, customer: Customer, expected: int | None) -> None:
         # CRM-41 (Fase 7): normalized_name/normalized_legal_name recomputed
         # on every update so they never drift from display_name/legal_name
         # — same discipline as any derived column that must stay in sync
         # with what it's derived from.
-        self._execute(
+        cursor = self._conn.execute(
             "UPDATE customers SET display_name=?, legal_name=?, first_name=?, last_name=?,"
             " second_last_name=?, commercial_name=?, status=?, lifecycle_stage=?, source=?,"
             " origin_branch_id=?, primary_contact_id=?, default_billing_address_id=?,"
             " default_delivery_address_id=?, account_owner_user_id=?, territory_id=?,"
             " version=?, updated_at=?, activated_at=?, suspended_at=?, blocked_at=?,"
             " closed_at=?, last_purchase_at=?, purchase_count=?, normalized_name=?,"
-            " normalized_legal_name=? WHERE id=?",
+            " normalized_legal_name=? WHERE id=?" + (" AND version=?" if expected is not None
+                                                      else ""),
             (customer.display_name, customer.legal_name, customer.first_name,
              customer.last_name, customer.second_last_name, customer.commercial_name,
              customer.status.value, customer.lifecycle_stage.value, customer.source,
@@ -61,11 +86,17 @@ class CustomerRepository(CustomerRepositoryBase):
              customer.updated_at, customer.activated_at, customer.suspended_at,
              customer.blocked_at, customer.closed_at, customer.last_purchase_at,
              customer.purchase_count, normalize_name(customer.display_name),
-             normalize_name(customer.legal_name), customer.id))
+             normalize_name(customer.legal_name), customer.id)
+            + ((expected,) if expected is not None else ()))
+        self._last_rowcount = cursor.rowcount
 
     def get(self, customer_id: str) -> Customer | None:
         row = self._query_one(f"SELECT {_MASTER_COLS} FROM customers WHERE id=?", (customer_id,))
-        return self._hydrate(row) if row else None
+        if not row:
+            return None
+        customer = self._hydrate(row)
+        self._loaded_versions[customer.id] = customer.version
+        return customer
 
     def get_by_code(self, code: str) -> Customer | None:
         row = self._query_one(

@@ -22,6 +22,7 @@ class CustomerCrmCapabilities:
     clientes: bool = False
     prospectos: bool = False
     oportunidades: bool = False
+    cotizaciones: bool = False
     actividades: bool = False
     atencion: bool = False
     comercial: bool = False

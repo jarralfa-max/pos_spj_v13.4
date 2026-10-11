@@ -68,8 +68,14 @@ class AssignBarcodeUseCase(_Base):
                                 is_primary=bool(command.is_primary))
         except ProductsDomainError as exc:
             return BarcodeResult(False, None, str(exc))
+        # PROD-22: reasignar el mismo código al mismo producto no cambia nada;
+        # antes dejaba auditoría y evento de una asignación que no ocurrió.
+        if self._repo.active_owner(pb.value) == command.product_id and not command.is_primary:
+            return BarcodeResult(True, None, "El código ya estaba asignado a este producto")
         try:
             self._repo.assign(pb)
+            if command.is_primary:
+                self._repo.make_primary(command.product_id, pb.value)
             record_product_audit_entry(
                 self._conn, action="PRODUCT_BARCODE_ASSIGNED", entity_id=command.product_id,
                 user_id=command.user_id, operation_id=command.operation_id,

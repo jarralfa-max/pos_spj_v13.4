@@ -1,7 +1,7 @@
 """PriceElasticityEstimate / PriceRecommendation (§32-35, BI-16).
 
 BI recommends a price change; Pricing decides and creates the new price
-version (§34: BI never executes `UPDATE productos SET precio = ...`). No
+version (§34: BI never writes a price into the product master). No
 execution method exists here, deliberately.
 """
 

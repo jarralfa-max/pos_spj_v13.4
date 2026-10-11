@@ -202,13 +202,17 @@ class CustomerHistoryQueryService:
                   else "ventas")
         if not (self._relation_exists(source) and self._table_exists("customers")):
             return []
-        legacy_customer_id = self._legacy_customer_id(customer_id)
-        if not legacy_customer_id:
-            return []
+        # Auditoría CRM F12: la vista mezcla dos identidades — sus filas
+        # canónicas exponen ``sales.customer_id`` (id CANÓNICO) como
+        # ``cliente_id`` y las legacy el id histórico. Buscar sólo por el
+        # histórico dejaba fuera todas las ventas del POS. Se buscan ambos; una
+        # venta aparece una vez porque cada fila tiene un solo origen.
+        from backend.application.customers.identity import CustomerIdentityResolver
+        ids = CustomerIdentityResolver(self._conn).all_ids(customer_id)
+        marks = ",".join("?" for _ in ids)
         rows = self._conn.execute(
             f"SELECT id, folio, total, estado, usuario, fecha FROM {source}"
-            " WHERE cliente_id=?",
-            (legacy_customer_id,)).fetchall()
+            f" WHERE cliente_id IN ({marks})", tuple(ids)).fetchall()
         action_by_estado = {
             "cancelada": "VENTA_CANCELADA", "cancelado": "VENTA_CANCELADA",
         }

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="22" time="13.958" timestamp="2026-10-08T23:09:16.910205-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceUiIsClean" name="test_no_sql_in_ui" time="0.054" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceUiIsClean" name="test_no_sqlite_or_connections_in_ui" time="0.110" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceUiIsClean" name="test_no_repository_imports_in_ui" time="0.030" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceUiIsClean" name="test_no_commit_rollback_in_ui" time="0.025" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceUiIsClean" name="test_no_hardcoded_hex_colors_in_ui" time="0.033" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceUiIsClean" name="test_no_app_container_in_view_or_pages" time="0.088" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceUiIsClean" name="test_no_except_exception_pass" time="0.031" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceDomainIsPure" name="test_no_framework_imports_in_domain" time="0.058" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceDomainIsPure" name="test_no_float_money_in_domain" time="0.037" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceIdentityRules" name="test_no_integer_id_casts" time="0.121" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceIdentityRules" name="test_no_lastrowid_or_autoincrement" time="0.123" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceIdentityRules" name="test_schema_has_no_autoincrement_or_real_money" time="0.054" /><testcase classname="tests.architecture.test_finance_bounded_context.TestFinanceIdentityRules" name="test_new_uuid_is_the_only_id_generator" time="0.067" /><testcase classname="tests.architecture.test_finance_bounded_context.TestSingleCanonicalRoute" name="test_only_posting_engine_inserts_journal_entries" time="11.686" /><testcase classname="tests.architecture.test_finance_bounded_context.TestSingleCanonicalRoute" name="test_handlers_do_not_hardcode_account_codes" time="0.017" /><testcase classname="tests.architecture.test_hr_architecture" name="test_hr_ui_module_exists_in_target_structure" time="0.001" /><testcase classname="tests.architecture.test_hr_architecture" name="test_hr_ui_does_not_import_sql_or_repositories" time="0.028" /><testcase classname="tests.architecture.test_hr_architecture" name="test_hr_ui_has_no_sql_or_transactions" time="0.013" /><testcase classname="tests.architecture.test_hr_architecture" name="test_legacy_hr_implementation_is_removed" time="0.002" /><testcase classname="tests.architecture.test_hr_architecture" name="test_modulos_rrhh_is_a_thin_wrapper" time="0.001"><failure message="FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\rrhh.py'">def test_modulos_rrhh_is_a_thin_wrapper():
+        """modulos/rrhh.py may only re-export the new view; no logic, SQL or styles."""
+&gt;       text = (REPO / "modulos/rrhh.py").read_text(encoding="utf-8")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\architecture\test_hr_architecture.py:79: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\..\..\AppData\Local\Programs\Python\Python313\Lib\pathlib\_local.py:546: in read_text
+    return PathBase.read_text(self, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\..\..\AppData\Local\Programs\Python\Python313\Lib\pathlib\_abc.py:632: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors, newline=newline) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/modulos/rrhh.py')
+mode = 'r', buffering = -1, encoding = 'utf-8', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+&gt;       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\modulos\\rrhh.py'
+
+..\..\..\AppData\Local\Programs\Python\Python313\Lib\pathlib\_local.py:537: FileNotFoundError</failure></testcase><testcase classname="tests.architecture.test_hr_architecture" name="test_hr_schema_tables_are_born_clean_uuid_identity" time="0.016" /><testcase classname="tests.architecture.test_hr_architecture" name="test_hr_use_cases_mint_uuid_not_lastrowid" time="0.011" /></testsuite></testsuites>

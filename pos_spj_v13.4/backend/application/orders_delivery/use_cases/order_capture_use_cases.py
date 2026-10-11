@@ -42,7 +42,11 @@ class CreateCustomerOrderUseCase(_OrdersDeliveryBaseUseCase):
         contact_phone: str | None = None,
         external_order_reference: str | None = None,
         whatsapp_order_id: str | None = None,
+        quote_id: str | None = None,
     ) -> OrderResult:
+        """``quote_id`` (CRM-43): el pedido nace de una cotización aceptada; sus
+        líneas traen el precio COTIZADO, que se respeta (a diferencia de
+        ``CaptureOrderUseCase``, que tarifica en el servidor)."""
         try:
             self._auth.require(actor_user_id, OrdersDeliveryPermissions.ORDER_CREATE)
         except OrdersDeliveryDomainError as exc:
@@ -75,6 +79,7 @@ class CreateCustomerOrderUseCase(_OrdersDeliveryBaseUseCase):
                     created_by_user_id=actor_user_id,
                     external_order_reference=external_order_reference,
                     whatsapp_order_id=whatsapp_order_id, operation_id=operation_id,
+                    quote_id=quote_id,
                 )
                 for raw_line in lines:
                     order.add_line(_build_line(order.id, raw_line))

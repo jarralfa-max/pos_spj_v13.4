@@ -1,0 +1,304 @@
+{
+  "scope": "Read-only attribution; no production or existing test files modified.",
+  "head_at_review": "d9f2bcaf6a6be26f55c7bf566f6424bd7aa5a2e1",
+  "before_commit": "29317dca7edddff2d36ff08426a8a3a4a8018ce1",
+  "pre_phase9_commit": "cffc218d58fdcadc7b85f8f81fcad2ce35b31e7d",
+  "runs": {
+    "standard-dialog-contracts.xml": {
+      "PASSED": 50,
+      "FAILED": 4,
+      "SKIPPED": 0,
+      "ERROR": 0
+    },
+    "standard-dialog-finance-hr-architecture.xml": {
+      "PASSED": 21,
+      "FAILED": 1,
+      "SKIPPED": 0,
+      "ERROR": 0
+    }
+  },
+  "totals": {
+    "PASSED": 71,
+    "FAILED": 5,
+    "SKIPPED": 0,
+    "ERROR": 0
+  },
+  "failures": [
+    {
+      "run": "standard-dialog-contracts.xml",
+      "nodeid": "tests/architecture/test_settings_dialog_buttons_spanish.py::test_settings_dialog_buttons_are_styled_by_helper",
+      "message": "FileNotFoundError: [Errno 2] No such file or directory: 'C:\\\\Users\\\\Diego Rodriguez\\\\Downloads\\\\pos_spj_v13.4\\\\pos_spj_v13.4\\\\modulos\\\\configuracion.py'"
+    },
+    {
+      "run": "standard-dialog-contracts.xml",
+      "nodeid": "tests/architecture/test_settings_dialog_buttons_spanish.py::test_settings_dialog_buttons_use_spanish_visible_text",
+      "message": "FileNotFoundError: [Errno 2] No such file or directory: 'C:\\\\Users\\\\Diego Rodriguez\\\\Downloads\\\\pos_spj_v13.4\\\\pos_spj_v13.4\\\\modulos\\\\configuracion.py'"
+    },
+    {
+      "run": "standard-dialog-contracts.xml",
+      "nodeid": "tests/architecture/test_design_system_guardrails.py::test_desktop_visual_debt_does_not_grow",
+      "message": "AssertionError: New visual violations (existing exact debt is not a file exemption):\n  frontend/desktop/modules/customers_crm/pages/_work_items.py:111: screen_without_explicit_overflow: class WorkItemsPanel(QWidget)\n  frontend/desktop/modules/customers_crm/pages/_workbench.py:96: screen_without_explicit_overflow: class CrmWorkbenchPage(QWidget)\n  frontend/desktop/modules/customers_crm/pages/customer_sections.py:46: screen_without_explicit_overflow: class _Section(QWidget)\n  frontend/desktop/modules/customers_crm/pages/customer_sections.py:386: screen_without_explicit_overflow: class CustomerScopedPage(QWidget)\n  frontend/desktop/modules/customers_crm/pages/leads_pages.py:366: screen_without_explicit_overflow: class LeadDetailPage(QWidget)\n  frontend/desktop/modules/customers_crm/pages/opportunity_pages.py:305: screen_without_explicit_overflow: class PipelinePage(QWidget)\n  frontend/desktop/modules/customers_crm/pages/opportunity_pages.py:464: screen_without_explicit_overflow: class ForecastPage(QWidget)\n  frontend/desktop/modules/customers_crm/pages/opportunity_pages.py:547: screen_without_explicit_overflow: class OpportunityDetailPage(QWidget)\n  frontend/desktop/modules/customers_crm/pages/service_pages.py:408: screen_without_explicit_overflow: class CaseDetailPage(QWidget)\n  frontend/desktop/modules/meat_processing/dialogs_plan.py:97: native_operational_table: QTableWidget(len(self._suggestions), 3, self)\n  frontend/desktop/modules/meat_processing/pages/meat_processing_settings_page.py:20: screen_without_explicit_overflow: class MeatProcessingSettingsPage(QWidget)\n  frontend/desktop/modules/pricing/pages/settings_page.py:39: screen_without_explicit_overflow: class PricingSettingsPage(QWidget)\n  frontend/desktop/modules/products/dialogs/purchase_units_dialog.py:42: noncanonical_dialog: class PurchaseUnitsDialog(QDialog)\nassert not Counter({('frontend/desktop/modules/customers_crm/pages/_work_items.py', 'screen_without_explicit_overflow', '65a6b9c2...rontend/desktop/modules/products/dialogs/purchase_units_dialog.py', 'noncanonical_dialog', '42aeb29161df6209c740'): 1})"
+    },
+    {
+      "run": "standard-dialog-contracts.xml",
+      "nodeid": "tests/architecture/test_design_system_guardrails.py::test_visual_debt_baseline_is_exact_and_kept_pruned",
+      "message": "AssertionError: assert ('*' not in 'frontend/de...tory_base.py'\n  \n  '*' is contained here:\n    ory_base.py and False)\n +  where False = is_file()\n +    where is_file = (WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4') / 'frontend/desktop/modules/customers_crm/pages/_directory_base.py').is_file"
+    },
+    {
+      "run": "standard-dialog-finance-hr-architecture.xml",
+      "nodeid": "tests/architecture/test_hr_architecture.py::test_modulos_rrhh_is_a_thin_wrapper",
+      "message": "FileNotFoundError: [Errno 2] No such file or directory: 'C:\\\\Users\\\\Diego Rodriguez\\\\Downloads\\\\pos_spj_v13.4\\\\pos_spj_v13.4\\\\modulos\\\\rrhh.py'"
+    }
+  ],
+  "before_audit_path": ".test_tmp/standard-dialog-audit-before.json",
+  "before_audit_sha256": "95a2e390ff9540ea00b0a7a4232a95342a1444487dd843c81a78b9c3d4d4a7a7",
+  "visual_violation_counts": {
+    "total": 13,
+    "present_in_before_audit": 4,
+    "new_crm_concurrent_commit": 9,
+    "all_already_committed_at_head": true
+  },
+  "visual_violations": [
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/_work_items.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 111,
+      "expression": "class WorkItemsPanel(QWidget)",
+      "fingerprint": "65a6b9c29b38774757ae",
+      "present_in_before_audit": false,
+      "present_in_29317dca_ast": false,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "d8c4bd9088470b6996403159251f0e801ff669bb9cf734b2afb6986968af6fe1",
+      "head_source_sha256": "d8c4bd9088470b6996403159251f0e801ff669bb9cf734b2afb6986968af6fe1",
+      "classification": "concurrent_crm_commit"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/_workbench.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 96,
+      "expression": "class CrmWorkbenchPage(QWidget)",
+      "fingerprint": "505985fee4a64bd33171",
+      "present_in_before_audit": false,
+      "present_in_29317dca_ast": false,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "a1c1611df1260535e3980843fdcb2e36714dbd40b48e75fffa7f573e1bf5448a",
+      "head_source_sha256": "a1c1611df1260535e3980843fdcb2e36714dbd40b48e75fffa7f573e1bf5448a",
+      "classification": "concurrent_crm_commit"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/customer_sections.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 46,
+      "expression": "class _Section(QWidget)",
+      "fingerprint": "245252764f6e070bf3b1",
+      "present_in_before_audit": false,
+      "present_in_29317dca_ast": false,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "9c0b828ca44b3bd746e5f0f64591eae504a004713a6aaf4650e759cfeec1bc1c",
+      "head_source_sha256": "9c0b828ca44b3bd746e5f0f64591eae504a004713a6aaf4650e759cfeec1bc1c",
+      "classification": "concurrent_crm_commit"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/customer_sections.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 386,
+      "expression": "class CustomerScopedPage(QWidget)",
+      "fingerprint": "8fc1d92e186e1f139b2a",
+      "present_in_before_audit": false,
+      "present_in_29317dca_ast": false,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "9c0b828ca44b3bd746e5f0f64591eae504a004713a6aaf4650e759cfeec1bc1c",
+      "head_source_sha256": "9c0b828ca44b3bd746e5f0f64591eae504a004713a6aaf4650e759cfeec1bc1c",
+      "classification": "concurrent_crm_commit"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/leads_pages.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 366,
+      "expression": "class LeadDetailPage(QWidget)",
+      "fingerprint": "f94558efaef56cc69b68",
+      "present_in_before_audit": false,
+      "present_in_29317dca_ast": false,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "1847fc7578a939f0ff4b94ca5ad3ae7faca24b0931692033e30efd349ee68496",
+      "head_source_sha256": "1847fc7578a939f0ff4b94ca5ad3ae7faca24b0931692033e30efd349ee68496",
+      "classification": "concurrent_crm_commit"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/opportunity_pages.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 305,
+      "expression": "class PipelinePage(QWidget)",
+      "fingerprint": "af2a64883d2d85801aa2",
+      "present_in_before_audit": false,
+      "present_in_29317dca_ast": false,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "cc20d68b1fc675c2c33000146ca81da85d79e2a42ecc29c4dfd9c4a8b3b860c0",
+      "head_source_sha256": "cc20d68b1fc675c2c33000146ca81da85d79e2a42ecc29c4dfd9c4a8b3b860c0",
+      "classification": "concurrent_crm_commit"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/opportunity_pages.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 464,
+      "expression": "class ForecastPage(QWidget)",
+      "fingerprint": "23a0132092f86674abec",
+      "present_in_before_audit": false,
+      "present_in_29317dca_ast": false,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "cc20d68b1fc675c2c33000146ca81da85d79e2a42ecc29c4dfd9c4a8b3b860c0",
+      "head_source_sha256": "cc20d68b1fc675c2c33000146ca81da85d79e2a42ecc29c4dfd9c4a8b3b860c0",
+      "classification": "concurrent_crm_commit"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/opportunity_pages.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 547,
+      "expression": "class OpportunityDetailPage(QWidget)",
+      "fingerprint": "58bc15b7c8c6ed6497d5",
+      "present_in_before_audit": false,
+      "present_in_29317dca_ast": false,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "cc20d68b1fc675c2c33000146ca81da85d79e2a42ecc29c4dfd9c4a8b3b860c0",
+      "head_source_sha256": "cc20d68b1fc675c2c33000146ca81da85d79e2a42ecc29c4dfd9c4a8b3b860c0",
+      "classification": "concurrent_crm_commit"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/service_pages.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 408,
+      "expression": "class CaseDetailPage(QWidget)",
+      "fingerprint": "fe4874193d7330956d70",
+      "present_in_before_audit": false,
+      "present_in_29317dca_ast": false,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "700d8ede966c4051fc4de4f0ddca28d9f8757b93588828df973cad6e6f65f72d",
+      "head_source_sha256": "700d8ede966c4051fc4de4f0ddca28d9f8757b93588828df973cad6e6f65f72d",
+      "classification": "concurrent_crm_commit"
+    },
+    {
+      "path": "frontend/desktop/modules/meat_processing/dialogs_plan.py",
+      "rule": "native_operational_table",
+      "line": 97,
+      "expression": "QTableWidget(len(self._suggestions), 3, self)",
+      "fingerprint": "05dd7ab084b6bbef866f",
+      "present_in_before_audit": true,
+      "present_in_29317dca_ast": true,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "5f0c191202e8472c42f8c62f40164ce96d5077d65dbe915a196c118296d77c35",
+      "head_source_sha256": "5f0c191202e8472c42f8c62f40164ce96d5077d65dbe915a196c118296d77c35",
+      "classification": "preexisting_before_audit"
+    },
+    {
+      "path": "frontend/desktop/modules/meat_processing/pages/meat_processing_settings_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 20,
+      "expression": "class MeatProcessingSettingsPage(QWidget)",
+      "fingerprint": "ccda8fcb6a5694ec8cac",
+      "present_in_before_audit": true,
+      "present_in_29317dca_ast": true,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "f39a1d3791ef3c4796cdaabc194c1cb556a86c1e9f33584aab7c695a18f57a36",
+      "head_source_sha256": "f39a1d3791ef3c4796cdaabc194c1cb556a86c1e9f33584aab7c695a18f57a36",
+      "classification": "preexisting_before_audit"
+    },
+    {
+      "path": "frontend/desktop/modules/pricing/pages/settings_page.py",
+      "rule": "screen_without_explicit_overflow",
+      "line": 39,
+      "expression": "class PricingSettingsPage(QWidget)",
+      "fingerprint": "eecdb14c0a9c4a98cf33",
+      "present_in_before_audit": true,
+      "present_in_29317dca_ast": true,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "22c85e6ef1061d89b080ad5e45cc441f4a36077ab14f4be43d621eaa1c1de0e7",
+      "head_source_sha256": "22c85e6ef1061d89b080ad5e45cc441f4a36077ab14f4be43d621eaa1c1de0e7",
+      "classification": "preexisting_before_audit"
+    },
+    {
+      "path": "frontend/desktop/modules/products/dialogs/purchase_units_dialog.py",
+      "rule": "noncanonical_dialog",
+      "line": 42,
+      "expression": "class PurchaseUnitsDialog(QDialog)",
+      "fingerprint": "42aeb29161df6209c740",
+      "present_in_before_audit": true,
+      "present_in_29317dca_ast": true,
+      "present_in_head_ast": true,
+      "source_matches_head": true,
+      "current_source_sha256": "aa2c4f39b86aeb5540591f75a84b37cb6347141635d6dcdaa01eefda02cfcef1",
+      "head_source_sha256": "aa2c4f39b86aeb5540591f75a84b37cb6347141635d6dcdaa01eefda02cfcef1",
+      "classification": "preexisting_before_audit"
+    }
+  ],
+  "missing_files": [
+    {
+      "path": "modulos/configuracion.py",
+      "currently_exists": false,
+      "exists_at_pre_phase9": false,
+      "exists_at_29317dca": false,
+      "exists_at_head": false,
+      "deletion_commit": "a35b8bab6edd63cc455c6bf10c04294147e2dcd4 Commit despues de refacturacion ERP"
+    },
+    {
+      "path": "modulos/rrhh.py",
+      "currently_exists": false,
+      "exists_at_pre_phase9": false,
+      "exists_at_29317dca": false,
+      "exists_at_head": false,
+      "deletion_commit": "a35b8bab6edd63cc455c6bf10c04294147e2dcd4 Commit despues de refacturacion ERP"
+    },
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/_directory_base.py",
+      "currently_exists": false,
+      "exists_at_pre_phase9": true,
+      "exists_at_29317dca": true,
+      "exists_at_head": false,
+      "deletion_commit": "d9f2bcaf6a6be26f55c7bf566f6424bd7aa5a2e1 Commit despues de refacturacion ERP"
+    }
+  ],
+  "stale_crm_baseline_entries_committed_at_head": [
+    {
+      "path": "frontend/desktop/modules/customers_crm/pages/_directory_base.py",
+      "rule": "screen_without_explicit_overflow",
+      "fingerprint": "a79937d86bab0d6eb67a",
+      "count": 1,
+      "line": 46,
+      "expression": "class CustomerCrmDirectoryPage(QWidget)"
+    }
+  ],
+  "test_and_scanner_sources": {
+    "tests/architecture/test_settings_dialog_buttons_spanish.py": {
+      "sha256": "bbcfb96b02ef1330ac2b6b15124ff364b49d3e61d5b3a932eb9ad1429261d374",
+      "matches_head": true,
+      "matches_pre_phase9": true
+    },
+    "tests/architecture/test_hr_architecture.py": {
+      "sha256": "d31954870b6724d8541025cf79d1386b28ebfa9f10b45d4e99f7e7842fe8eba5",
+      "matches_head": true,
+      "matches_pre_phase9": true
+    },
+    "tests/architecture/test_design_system_guardrails.py": {
+      "sha256": "a8421750a5e048196244712f5fbe5263b5fa89e5d12b882387447560652de8c2",
+      "matches_head": true,
+      "matches_pre_phase9": true
+    },
+    "tests/architecture/design_system_audit.py": {
+      "sha256": "89c45441eb81796ae4e4a807ae6e3bf8f8ac477b325c4187b9fb0a261ba9b5d8",
+      "matches_head": true,
+      "matches_pre_phase9": false
+    }
+  },
+  "conclusion": "The global audit grew by nine CRM overflow findings from concurrent commit d9f2bcaf, which also deleted an allowlisted CRM file. Four findings already existed before the phase. Configuration/HR tests reference older deleted legacy files. None of these failures is caused by the StandardDialog edits; the global guardrails still fail and are not claimed clean."
+}

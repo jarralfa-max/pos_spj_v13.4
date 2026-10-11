@@ -96,8 +96,7 @@ class CRMInsightsQueryService:
             values["cases_by_type"] = tuple(Counter(r.case.case_type.value for r in rows)
                                             .most_common())
             values["sla_compliance"] = tuple(Counter(
-                r.sla.effective_breach_status().value for r in rows if r.sla is not None)
-                .most_common())
+                r.sla.result_status() for r in rows if r.sla is not None).most_common())
         except Exception:  # noqa: BLE001
             unavailable.append("cases")
 

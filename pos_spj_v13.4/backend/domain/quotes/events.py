@@ -1,0 +1,19 @@
+"""Eventos de Cotizaciones (outbox ``quote_outbox``)."""
+
+from __future__ import annotations
+
+
+class QuoteEvents:
+    CREATED = "QUOTE_CREATED"
+    UPDATED = "QUOTE_UPDATED"
+    SUBMITTED = "QUOTE_SUBMITTED"
+    APPROVED = "QUOTE_APPROVED"
+    RETURNED_TO_DRAFT = "QUOTE_RETURNED_TO_DRAFT"
+    SENT = "QUOTE_SENT"
+    ACCEPTED = "QUOTE_ACCEPTED"
+    REJECTED = "QUOTE_REJECTED"
+    CANCELLED = "QUOTE_CANCELLED"
+    EXPIRED = "QUOTE_EXPIRED"
+    REVISED = "QUOTE_REVISED"
+    CONVERTED = "QUOTE_CONVERTED"
+    EXPORTED = "QUOTE_EXPORTED"

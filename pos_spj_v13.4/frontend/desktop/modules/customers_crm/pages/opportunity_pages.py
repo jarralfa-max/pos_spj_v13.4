@@ -23,6 +23,7 @@ from PyQt5.QtWidgets import (
 )
 
 from backend.application.crm.permissions import CRMPermissions
+from backend.application.quotes.permissions import QuotePermissions
 from frontend.desktop.components import (
     ColumnSpec,
     KPIBar,
@@ -49,12 +50,11 @@ from frontend.desktop.modules.customers_crm.pages._kanban import (
     KanbanCard,
     KanbanColumn,
 )
+from frontend.desktop.modules.customers_crm.pages._outcomes import Fail
 from frontend.desktop.modules.customers_crm.pages._pill_tab_bar import PillTabBar
 from frontend.desktop.modules.customers_crm.pages._work_items import (
     WorkItemsPanel,
     new_activity,
-    new_note,
-    new_task,
 )
 from frontend.desktop.modules.customers_crm.pages._workbench import (
     Action,
@@ -118,7 +118,7 @@ def create_opportunity_dialog(parent, presenter, *, customer_id: str | None = No
                   default=stages[0][0] if stages else None),
         FieldSpec("owner_user_id", "Propietario", "user", default=presenter.current_user_id()),
         FieldSpec("amount", "Valor estimado", "money"),
-        FieldSpec("probability", "Probabilidad (%)", "percent", default=0,
+        FieldSpec("probability", "Probabilidad (%)", "percent",
                   helper="Si la dejas en 0 se toma la de la etapa."),
         FieldSpec("expected_close_date", "Cierre esperado", "date"),
         FieldSpec("description", "Descripción", "textarea"),
@@ -126,7 +126,8 @@ def create_opportunity_dialog(parent, presenter, *, customer_id: str | None = No
         on_submit=lambda v: presenter.run(
             "create_opportunity", customer_id=v["customer_id"], name=v["name"],
             stage_id=v["stage_id"] or None, owner_user_id=v["owner_user_id"] or None,
-            amount=v["amount"] or None, probability=v["probability"] or 0,
+            amount=v["amount"] or None,
+            probability=v["probability"] or None,
             expected_close_date=v["expected_close_date"], description=v["description"],
             origin_branch_id=presenter.branch_id()))
 
@@ -176,15 +177,36 @@ def edit_opportunity_dialog(parent, presenter, opportunity):
 
 
 def product_interest_dialog(parent, presenter, opportunity_id: str):
+    """Auditoría CRM F20: el producto se elige del catálogo (queda su id, aunque
+    después cambie el nombre) y la cantidad admite fracciones (kilos). Texto libre
+    sólo para lo que aún no está en el catálogo."""
+    from decimal import Decimal, InvalidOperation
+
+    def submit(v):
+        try:
+            quantity = Decimal(str(v["quantity"]).strip().replace(",", ""))
+        except (InvalidOperation, ValueError):
+            return Fail("Cantidad: escribe un número (por ejemplo 2.5).")
+        if quantity <= 0:
+            return Fail("La cantidad debe ser mayor que cero.")
+        product_id = v["product"] or None
+        name = (v["product_name"] or "").strip() or (
+            presenter.product_label(product_id) if product_id else "")
+        if not name:
+            return Fail("Elige un producto del catálogo o escribe su nombre.")
+        return presenter.run(
+            "add_product_interest", opportunity_id=opportunity_id, product_name=name,
+            product_reference_id=product_id, quantity=str(quantity),
+            estimated_unit_price=v["estimated_unit_price"] or None, notes=v["notes"])
+
     return ask(parent, title="Producto de interés", submit_text="Agregar", fields=(
-        FieldSpec("product_name", "Producto", required=True),
-        FieldSpec("quantity", "Cantidad", "integer", default=1, minimum=1),
+        FieldSpec("product", "Producto del catálogo", "product"),
+        FieldSpec("product_name", "O, si no está en el catálogo, su nombre"),
+        FieldSpec("quantity", "Cantidad", required=True, placeholder="Ej. 2.5"),
         FieldSpec("estimated_unit_price", "Precio estimado", "money"),
         FieldSpec("notes", "Notas", "textarea"),
-    ), on_submit=lambda v: presenter.run(
-        "add_product_interest", opportunity_id=opportunity_id, product_name=v["product_name"],
-        quantity=v["quantity"], estimated_unit_price=v["estimated_unit_price"] or None,
-        notes=v["notes"]))
+    ), product_provider=presenter.quote_product_options,
+        product_empty_reason=presenter.quote_products_empty_reason, on_submit=submit)
 
 
 def opportunity_actions(page, presenter) -> list[Action]:
@@ -232,7 +254,15 @@ def opportunity_actions(page, presenter) -> list[Action]:
                tooltip="Agregar un producto de interés"),
         Action("Actividad", lambda r: page.report(new_activity(page, p, "OPPORTUNITY", r.id)),
                permission=CRMPermissions.ACTIVITIES_CREATE),
+        Action("Cotizar", lambda r: page.report(_quote_dialog(page, p, r.id)),
+               enabled=lambda r: _status(r) in _ACTIVE, permission=QuotePermissions.CREATE,
+               tooltip="Nueva cotización para el cliente de esta oportunidad"),
     ]
+
+
+def _quote_dialog(parent, presenter, opportunity_id: str):
+    from frontend.desktop.modules.customers_crm.pages.quote_pages import create_quote_dialog
+    return create_quote_dialog(parent, presenter, opportunity_id=opportunity_id)
 
 
 # -- páginas -------------------------------------------------------------------------
@@ -545,6 +575,8 @@ class ForecastPage(QWidget):
 
 
 class OpportunityDetailPage(QWidget):
+    quote_opened = pyqtSignal(str)
+
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
         self._presenter = presenter
@@ -590,9 +622,17 @@ class OpportunityDetailPage(QWidget):
                                         ColumnSpec("Precio est.", "numeric")], products_card)
         self._products.setAccessibleName("Productos de interés")
         products_card.add(self._products)
+        quotes_card = SectionCard(self._body, title="Cotizaciones")
+        self._quotes = StandardTable([ColumnSpec("Folio"), ColumnSpec("Estado"),
+                                      ColumnSpec("Total", "numeric"),
+                                      ColumnSpec("Válida hasta", "date")], quotes_card)
+        self._quotes.setAccessibleName("Cotizaciones de la oportunidad")
+        self._quotes.doubleClicked.connect(self._open_selected_quote)
+        quotes_card.add(self._quotes)
         right = QVBoxLayout()
         right.addWidget(history_card)
         right.addWidget(products_card)
+        right.addWidget(quotes_card)
         top.addLayout(right)
         body.addLayout(top)
         follow = SectionCard(self._body, title="Seguimiento")
@@ -655,8 +695,21 @@ class OpportunityDetailPage(QWidget):
              for pi in profile.product_interests],
             row_ids=[pi.id for pi in profile.product_interests])
         self._work.set_entity("OPPORTUNITY", o.id)
+        try:
+            quotes = self._presenter.read("quotes", opportunity_id=o.id) \
+                if self._presenter.can(QuotePermissions.VIEW) else []
+        except Exception:  # noqa: BLE001 — sin alcance sobre cotizaciones
+            quotes = []
+        self._quotes.load_rows(
+            [[q.quote_number, label("quote_status", q.status), fmt_money(q.total),
+              fmt_date(q.valid_until)] for q in quotes], row_ids=[q.id for q in quotes])
         self._placeholder.hide()
         self._body.show()
+
+    def _open_selected_quote(self, *_args) -> None:
+        quote_id = self._quotes.selected_row_id()
+        if quote_id:
+            self.quote_opened.emit(quote_id)
 
 
 OPPORTUNITY_ROUTE_PAGES = {

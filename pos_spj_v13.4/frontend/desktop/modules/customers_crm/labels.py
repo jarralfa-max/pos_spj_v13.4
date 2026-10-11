@@ -115,6 +115,21 @@ _LABELS: dict[str, dict[str, str]] = {
         "ACCOUNT_MANAGER": "Ejecutivo de cuenta", "CREDIT_MANAGER": "Responsable de crédito",
         "SERVICE_OWNER": "Responsable de atención",
     },
+    "quote_status": {
+        "DRAFT": "Borrador", "PENDING_APPROVAL": "Por aprobar", "APPROVED": "Aprobada",
+        "SENT": "Enviada", "ACCEPTED": "Aceptada", "REJECTED": "Rechazada",
+        "EXPIRED": "Vencida", "CANCELLED": "Cancelada", "CONVERTED": "Convertida en pedido",
+    },
+    "order_status": {
+        "DRAFT": "Borrador", "CONFIRMED": "Confirmado", "IN_PREPARATION": "En preparación",
+        "READY": "Listo", "DISPATCHED": "En camino", "DELIVERED": "Entregado",
+        "CANCELLED": "Cancelado", "COMPLETED": "Completado",
+    },
+    "fulfillment": {
+        "COUNTER": "Mostrador", "PICKUP": "Recoge en sucursal",
+        "HOME_DELIVERY": "Entrega a domicilio", "BRANCH_DELIVERY": "Entrega desde sucursal",
+        "WHOLESALE_DELIVERY": "Entrega de mayoreo", "SCHEDULED_DELIVERY": "Entrega programada",
+    },
     "automation_trigger": {
         "LEAD_CREATED": "Se crea un prospecto", "LEAD_IDLE": "Prospecto sin movimiento",
         "OPPORTUNITY_STAGE_CHANGED": "Oportunidad cambia de etapa",
@@ -158,7 +173,8 @@ _LABELS: dict[str, dict[str, str]] = {
     },
     "sla_status": {
         "ON_TIME": "En tiempo", "AT_RISK": "En riesgo", "BREACHED": "Vencido",
-        "PAUSED": "En pausa", "COMPLETED": "Cumplido",
+        "PAUSED": "En pausa", "COMPLETED": "Atendido", "MET": "Cumplido",
+        "MISSED": "Incumplido",
     },
     "credit_status": {
         "NOT_CONFIGURED": "Sin crédito", "PENDING_APPROVAL": "Por aprobar",
@@ -226,7 +242,8 @@ _VARIANTS: dict[str, dict[str, str]] = {
     "priority": {"LOW": "neutral", "NORMAL": "info", "HIGH": "warning", "URGENT": "danger",
                  "CRITICAL": "danger"},
     "sla_status": {"ON_TIME": "success", "AT_RISK": "warning", "BREACHED": "danger",
-                   "PAUSED": "neutral", "COMPLETED": "success"},
+                   "PAUSED": "neutral", "COMPLETED": "info", "MET": "success",
+                   "MISSED": "danger"},
     "credit_status": {"AUTHORIZED": "success", "PENDING_APPROVAL": "info",
                       "UNDER_REVIEW": "accent", "SUSPENDED": "warning", "BLOCKED": "danger"},
     "risk_level": {"LOW": "success", "MEDIUM": "info", "HIGH": "warning", "VERY_HIGH": "danger"},
@@ -240,13 +257,16 @@ _VARIANTS: dict[str, dict[str, str]] = {
     "import_status": {"PENDING_APPROVAL": "info", "COMPLETED": "success", "PARTIAL": "warning",
                       "FAILED": "danger", "REJECTED": "danger"},
     "merge_status": {"PROPOSED": "info", "EXECUTED": "success", "REJECTED": "danger"},
+    "quote_status": {"DRAFT": "neutral", "PENDING_APPROVAL": "warning", "APPROVED": "info",
+                     "SENT": "accent", "ACCEPTED": "success", "REJECTED": "danger",
+                     "EXPIRED": "neutral", "CANCELLED": "neutral", "CONVERTED": "success"},
 }
 
 
 def _raw(value) -> str:
     if value is None:
         return ""
-    if isinstance(value, Enum):
+    if isinstance(value, Enum) or (not isinstance(value, str) and hasattr(value, "value")):
         return str(value.value)
     return str(value)
 

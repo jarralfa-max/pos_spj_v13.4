@@ -30,6 +30,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
 from config.settings import is_production
 from phone_number import possible_match_key
+from erp.catalog_sql import CATALOG_SELECT, OFFERABLE, catalog_params, product_category_name
 from erp.gateways.api_client import ERPApiClient
 from erp.gateways.sqlite_connection import ERPSqliteConnection
 from erp.gateways.customer_gateway import CustomerGateway as CustomerWriteGateway
@@ -357,38 +358,27 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
     def get_productos_by_category(self, categoria: str,
                                   sucursal_id: str) -> List[Dict]:
-        rows = self.db.execute("""
-            SELECT p.id, p.nombre, p.precio,
-                   COALESCE(bi.quantity, p.existencia, 0) as stock,
-                   COALESCE(p.unidad, 'kg') as unidad, p.categoria
-            FROM productos p
-            LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
-            WHERE p.activo=1 AND COALESCE(p.oculto,0)=0
-              AND LOWER(p.categoria) = LOWER(?)
-            ORDER BY p.nombre
-        """, (sucursal_id, categoria)).fetchall()
+        # PROD-22: maestro canónico (la tabla legacy `productos` está vacía).
+        rows = self.db.execute(
+            CATALOG_SELECT + f" WHERE {OFFERABLE} AND LOWER(pc.name) = LOWER(:categoria)"
+            " ORDER BY p.name",
+            catalog_params(sucursal_id, categoria=categoria)).fetchall()
         return [dict(r) for r in rows]
 
     def get_categorias(self, sucursal_id: str) -> List[str]:
-        rows = self.db.execute("""
-            SELECT DISTINCT p.categoria
-            FROM productos p
-            WHERE p.activo=1 AND COALESCE(p.oculto,0)=0
-              AND p.categoria IS NOT NULL AND p.categoria != ''
-            ORDER BY p.categoria
+        rows = self.db.execute(f"""
+            SELECT DISTINCT pc.name
+            FROM products p
+            JOIN product_categories pc ON pc.id = p.category_id
+            WHERE {OFFERABLE} AND COALESCE(pc.name, '') != ''
+            ORDER BY pc.name
         """).fetchall()
         return [r[0] for r in rows]
 
     def get_producto(self, producto_id: str,
                      sucursal_id: str) -> Optional[Dict]:
-        row = self.db.execute("""
-            SELECT p.id, p.nombre, p.precio,
-                   COALESCE(bi.quantity, p.existencia, 0) as stock,
-                   COALESCE(p.unidad, 'kg') as unidad, p.categoria
-            FROM productos p
-            LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
-            WHERE p.id=?
-        """, (sucursal_id, producto_id)).fetchone()
+        row = self.db.execute(CATALOG_SELECT + " WHERE p.id = :pid",
+                              catalog_params(sucursal_id, pid=producto_id)).fetchone()
         return dict(row) if row else None
 
     # ── Ventas / Pedidos ──────────────────────────────────────────────────────
@@ -868,10 +858,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                     if prod_id:
                         regla = self.db.execute("""
                             SELECT porcentaje FROM anticipo_reglas
-                            WHERE tipo='categoria' AND activo=1
-                            AND categoria = (SELECT categoria FROM productos WHERE id=?)
+                            WHERE tipo='categoria' AND activo=1 AND categoria = ?
                             ORDER BY porcentaje DESC LIMIT 1
-                        """, (prod_id,)).fetchone()
+                        """, (product_category_name(self.db, prod_id),)).fetchone()
                         if regla:
                             pct = float(regla[0]) / 100.0
                             return {"requiere": True,
@@ -947,12 +936,9 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
             cantidad = float(it.get("cantidad", 0))
             if not prod_id:
                 continue
-            stock_row = self.db.execute("""
-                SELECT COALESCE(bi.quantity, p.existencia, 0)
-                FROM productos p
-                LEFT JOIN branch_inventory bi ON bi.product_id=p.id AND bi.branch_id=?
-                WHERE p.id=?
-            """, (sucursal_id, prod_id)).fetchone()
+            stock_row = self.db.execute(
+                "SELECT stock FROM (" + CATALOG_SELECT + " WHERE p.id = :pid)",
+                catalog_params(sucursal_id, pid=prod_id)).fetchone()
             stock_actual = float(stock_row[0]) if stock_row else 0.0
             falta = max(0.0, cantidad - stock_actual)
             resultado.append({**it, "stock_actual": stock_actual, "falta": falta})
@@ -988,8 +974,12 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         # Fallback SQLite — usado cuando ERP_API_URL no está configurado.
         # Endpoint REST disponible: POST /api/v1/ordenes-compra
         try:
+            # Proveedor preferido: `supplier_products.preferred` (Compras).
             prod = self.db.execute(
-                "SELECT nombre, proveedor_id FROM productos WHERE id=?",
+                "SELECT p.name AS nombre, ("
+                " SELECT sp.supplier_id FROM supplier_products sp"
+                " WHERE sp.product_id = p.id AND sp.preferred = 1 AND sp.active = 1"
+                " LIMIT 1) AS proveedor_id FROM products p WHERE p.id=?",
                 (producto_id,)
             ).fetchone()
             if not prod:

@@ -13,7 +13,9 @@ from backend.domain.products.entities.product_image import ProductImage
 def _row_to_entity(row) -> ProductImage:
     return ProductImage(id=row["id"], product_id=row["product_id"], uri=row["uri"],
                         alt_text=row["alt_text"], is_primary=bool(row["is_primary"]),
-                        sort_order=int(row["sort_order"]))
+                        sort_order=int(row["sort_order"]),
+                        source_uri=row["source_uri"],
+                        background_removed=bool(row["background_removed"]))
 
 
 class ProductImageRepository:
@@ -39,11 +41,20 @@ class ProductImageRepository:
     def add(self, image: ProductImage) -> None:
         self._conn.execute(
             "INSERT INTO product_images "
-            "(id, product_id, uri, alt_text, is_primary, sort_order, created_by) "
-            "VALUES (?,?,?,?,?,?,?)",
+            "(id, product_id, uri, alt_text, is_primary, sort_order, source_uri, "
+            "background_removed, created_by) VALUES (?,?,?,?,?,?,?,?,?)",
             (image.id, image.product_id, image.uri, image.alt_text,
-             1 if image.is_primary else 0, image.sort_order,
+             1 if image.is_primary else 0, image.sort_order, image.source_uri,
+             1 if image.background_removed else 0,
              getattr(image, "created_by", None)))
+
+    def save_rendition(self, image: ProductImage) -> None:
+        """Persiste qué archivo se muestra y su original (quitar/restaurar fondo)."""
+        self._conn.execute(
+            "UPDATE product_images SET uri=?, source_uri=?, background_removed=? "
+            "WHERE id=?",
+            (image.uri, image.source_uri, 1 if image.background_removed else 0,
+             image.id))
 
     def clear_primary(self, product_id: str) -> None:
         self._conn.execute(

@@ -54,12 +54,28 @@ class ConvertLeadUseCase:
     def execute(
         self, connection, *, actor_user_id: str, lead_id: str, operation_id: str,
         link_to_customer_id: str | None = None, allow_duplicate: bool = False,
+        create_opportunity: bool = False, stage_id: str | None = None, amount=None,
+        expected_close_date=None,
     ) -> CRMResult:
+        """Auditoría CRM F16: un solo caso de uso para «cliente» o «cliente +
+        oportunidad», en UNA transacción (antes la pantalla encadenaba dos
+        comandos y, si la oportunidad fallaba, la conversión ya estaba hecha). El
+        prospecto guarda ``converted_customer_id``/``converted_opportunity_id``; un
+        reintento sobre un prospecto ya convertido no crea otro cliente: devuelve
+        el que tiene y, si faltaba la oportunidad, la crea."""
         try:
             self._crm_auth.require(actor_user_id, CRMPermissions.LEADS_CONVERT)
             self._customer_auth.require(actor_user_id, CustomerPermissions.CREATE)
+            if create_opportunity:
+                self._crm_auth.require(actor_user_id, CRMPermissions.OPPORTUNITIES_CREATE)
         except (CRMDomainError, CustomerDomainError) as exc:
             return CRMResult.fail(str(exc), "PERMISSION_DENIED", operation_id=operation_id)
+        existing = CRMUnitOfWork(connection).leads.get(lead_id)
+        if existing is not None and existing.status.value == "CONVERTED":
+            return self._resume(connection, existing, actor_user_id=actor_user_id,
+                                operation_id=operation_id, create_opportunity=create_opportunity,
+                                stage_id=stage_id, amount=amount,
+                                expected_close_date=expected_close_date)
 
         crm_uow = CRMUnitOfWork(connection)
         customers_uow = CustomerUnitOfWork(connection)
@@ -71,11 +87,55 @@ class ConvertLeadUseCase:
         except Exception:
             connection.rollback()
             raise
-        if result.success:
-            connection.commit()
-        else:
+        if not result.success:
             connection.rollback()
+            return result
+        if create_opportunity:
+            opportunity = self._create_opportunity(
+                connection, lead_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                stage_id=stage_id, amount=amount, expected_close_date=expected_close_date,
+                commit=False)
+            if not opportunity.success:
+                connection.rollback()
+                return CRMResult.fail(
+                    f"No se convirtió: la oportunidad no se pudo crear ({opportunity.message})",
+                    opportunity.error_code or "VALIDATION", operation_id=operation_id)
+            result = CRMResult.ok("Prospecto convertido con oportunidad", entity_id=lead_id,
+                                  operation_id=operation_id,
+                                  customer_id=result.data["customer_id"],
+                                  opportunity_id=opportunity.entity_id)
+        connection.commit()
         return result
+
+    def _create_opportunity(self, connection, lead_id: str, *, actor_user_id: str,
+                            operation_id: str, stage_id, amount, expected_close_date,
+                            commit: bool):
+        from backend.application.crm.use_cases.create_opportunity_from_lead_use_case import (
+            CreateOpportunityFromLeadUseCase,
+        )
+        return CreateOpportunityFromLeadUseCase(self._crm_auth).execute(
+            connection, actor_user_id=actor_user_id, lead_id=lead_id,
+            operation_id=f"{operation_id}:opportunity", stage_id=stage_id, amount=amount,
+            expected_close_date=expected_close_date,
+            # Dentro de la conversión no confirma: se confirma todo junto o nada.
+            owns_transaction=commit)
+
+    def _resume(self, connection, lead, *, actor_user_id, operation_id, create_opportunity,
+                stage_id, amount, expected_close_date) -> CRMResult:
+        data = {"customer_id": lead.converted_customer_id}
+        if create_opportunity and not lead.converted_opportunity_id:
+            opportunity = self._create_opportunity(
+                connection, lead.id, actor_user_id=actor_user_id, operation_id=operation_id,
+                stage_id=stage_id, amount=amount, expected_close_date=expected_close_date,
+                commit=True)
+            if not opportunity.success:
+                return CRMResult.fail(opportunity.message, opportunity.error_code or "VALIDATION",
+                                      operation_id=operation_id)
+            data["opportunity_id"] = opportunity.entity_id
+        elif lead.converted_opportunity_id:
+            data["opportunity_id"] = lead.converted_opportunity_id
+        return CRMResult.ok("El prospecto ya estaba convertido", entity_id=lead.id,
+                            operation_id=operation_id, **data)
 
     def _convert(
         self, crm_uow: CRMUnitOfWork, customers_uow: CustomerUnitOfWork, *,
@@ -128,7 +188,7 @@ class ConvertLeadUseCase:
         # tenga de dónde partir sin tener que releer el lead.
 
         try:
-            lead.convert()
+            lead.convert(customer.id)
         except CRMDomainError as exc:
             return CRMResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
         crm_uow.leads.update(lead)

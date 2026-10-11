@@ -37,8 +37,8 @@ class CheckCreditSaleEligibilityUseCase:
 
     def execute(
         self, connection, *, actor_user_id: str, customer_id: str, amount, operation_id: str,
-        is_public_customer: bool = False, documents_current: bool = True,
-        branch_allowed: bool = True,
+        is_public_customer: bool = False, documents_current: bool | None = None,
+        branch_allowed: bool | None = None,
     ) -> CustomerCreditResult:
         # CRM-43: exigía CLIENTES.credito.ver (consultar perfiles y montos) y
         # ningún cajero lo tiene: NINGÚN cajero podía vender a crédito. Lo que el

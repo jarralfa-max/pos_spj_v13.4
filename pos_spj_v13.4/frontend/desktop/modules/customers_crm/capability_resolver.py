@@ -14,6 +14,7 @@ from collections.abc import Callable
 
 from backend.application.crm.permissions import CRMPermissions
 from backend.application.customers.permissions import CustomerPermissions
+from backend.application.quotes.permissions import QuotePermissions
 from frontend.desktop.modules.customers_crm.view_models import CustomerCrmCapabilities
 
 
@@ -23,6 +24,7 @@ def resolve_customer_crm_capabilities(can: Callable[[str], bool]) -> CustomerCrm
         clientes=can(CustomerPermissions.VIEW),
         prospectos=can(CRMPermissions.LEADS_VIEW),
         oportunidades=can(CRMPermissions.OPPORTUNITIES_VIEW),
+        cotizaciones=can(QuotePermissions.VIEW),
         actividades=can(CRMPermissions.ACTIVITIES_VIEW),
         atencion=can(CRMPermissions.CASES_VIEW),
         comercial=can(CustomerPermissions.ORDERS_VIEW),

@@ -145,3 +145,34 @@ class MeatClassificationRepository:
         self._conn.execute(
             "UPDATE cut_classifications SET status=? WHERE id=?",
             (status.value, cut_id))
+
+    # ── clasificación de UN producto (PROD-22) ───────────────────────────
+    def product_core(self, product_id: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT id, product_type, species_id FROM products WHERE id=?",
+            (product_id,)).fetchone()
+        return None if row is None else {"id": row[0], "product_type": row[1],
+                                         "species_id": row[2]}
+
+    def get_product_classification(self, product_id: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT meat_category, anatomical_region_id, cut_classification_id "
+            "FROM product_meat_classifications WHERE product_id=?", (product_id,)).fetchone()
+        return None if row is None else {"meat_category": row[0],
+                                         "anatomical_region_id": row[1],
+                                         "cut_classification_id": row[2]}
+
+    def save_product_classification(self, product_id: str, *, meat_category: str | None,
+                                    anatomical_region_id: str | None,
+                                    cut_classification_id: str | None,
+                                    classified_by: str | None) -> None:
+        self._conn.execute(
+            "INSERT INTO product_meat_classifications (product_id, meat_category, "
+            "anatomical_region_id, cut_classification_id, classified_by, updated_at) "
+            "VALUES (?,?,?,?,?,datetime('now')) ON CONFLICT(product_id) DO UPDATE SET "
+            "meat_category=excluded.meat_category, "
+            "anatomical_region_id=excluded.anatomical_region_id, "
+            "cut_classification_id=excluded.cut_classification_id, "
+            "classified_by=excluded.classified_by, updated_at=excluded.updated_at",
+            (product_id, meat_category, anatomical_region_id, cut_classification_id,
+             classified_by))

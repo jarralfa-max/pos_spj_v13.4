@@ -10,7 +10,6 @@ backend/application/crm/use_cases/lead_use_cases.py.
 from __future__ import annotations
 
 import json
-from decimal import Decimal
 
 from backend.application.crm.authorization import CRMAuthorizationPolicy
 from backend.application.crm.permissions import CRMPermissions
@@ -36,14 +35,42 @@ class _BaseUseCase:
         uow.outbox.enqueue(payload["event_id"], event_name, json.dumps(payload), operation_id)
 
 
+_CLOSED_CUSTOMER = {"CLOSED": "cerrado", "MERGED": "fusionado con otro",
+                    "ANONYMIZED": "anonimizado", "BLOCKED": "bloqueado"}
+
+
+def _customer_problem(connection, customer_id: str) -> str | None:
+    """El cliente debe existir y seguir vigente. Una base con sólo el esquema CRM
+    (sin maestro de clientes) no permite validarlo y no se bloquea."""
+    exists = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='customers'").fetchone()
+    if not exists:
+        return None
+    from backend.infrastructure.db.repositories.customers.unit_of_work import (
+        CustomerUnitOfWork,
+    )
+    customer = CustomerUnitOfWork(connection).customers.get(customer_id)
+    if customer is None:
+        return "El cliente no existe"
+    status = getattr(customer.status, "value", customer.status)
+    if status in _CLOSED_CUSTOMER:
+        return f"El cliente está {_CLOSED_CUSTOMER[status]}"
+    return None
+
+
 class CreateOpportunityUseCase(_BaseUseCase):
     def execute(
         self, connection, *, actor_user_id: str, customer_id: str, name: str, operation_id: str,
         stage_id: str | None = None, account_id: str | None = None,
         source_lead_id: str | None = None, owner_user_id: str | None = None, amount=None,
-        probability: int = 0, expected_close_date=None, territory_id: str | None = None,
-        origin_branch_id: str | None = None, description: str = "",
+        probability: int | None = None, expected_close_date=None,
+        territory_id: str | None = None, origin_branch_id: str | None = None,
+        description: str = "",
     ) -> CRMResult:
+        """Auditoría CRM F09: ``probability=None`` toma la de la etapa (antes el 0
+        por omisión la anulaba aunque la etapa dijera 70); un 0 explícito se
+        respeta. El cliente debe existir y seguir vigente, y la etapa existir,
+        estar activa y no ser de cierre."""
         try:
             self._auth.require(actor_user_id, CRMPermissions.OPPORTUNITIES_CREATE)
         except CRMDomainError as exc:
@@ -53,14 +80,30 @@ class CreateOpportunityUseCase(_BaseUseCase):
             if existing is not None:
                 return CRMResult.ok("Oportunidad ya registrada", entity_id=existing.id,
                                     operation_id=operation_id)
-            resolved_stage_id = stage_id
-            if resolved_stage_id is None:
-                default_stage = uow.stage_definitions.get_default_initial_stage()
-                if default_stage is None:
+            problem = _customer_problem(connection, customer_id)
+            if problem:
+                return CRMResult.fail(problem, "VALIDATION", operation_id=operation_id)
+            if stage_id is None:
+                stage = uow.stage_definitions.get_default_initial_stage()
+                if stage is None:
                     return CRMResult.fail(
                         "No hay una etapa inicial configurada en el pipeline", "VALIDATION",
                         operation_id=operation_id)
-                resolved_stage_id = default_stage.id
+            else:
+                stage = uow.stage_definitions.get(stage_id)
+                if stage is None:
+                    return CRMResult.fail("La etapa no existe", "VALIDATION",
+                                          operation_id=operation_id)
+                if not stage.active:
+                    return CRMResult.fail(f"La etapa «{stage.name}» está retirada",
+                                          "VALIDATION", operation_id=operation_id)
+                if stage.is_won_stage or stage.is_lost_stage:
+                    return CRMResult.fail(
+                        "Una oportunidad nueva no puede nacer ganada ni perdida",
+                        "VALIDATION", operation_id=operation_id)
+            resolved_stage_id = stage.id
+            if probability is None:
+                probability = stage.probability_default
             try:
                 opportunity = Opportunity.create(
                     uow.opportunities.next_code(), customer_id, name, resolved_stage_id,
@@ -108,10 +151,10 @@ class UpdateOpportunityUseCase(_BaseUseCase):
                                           operation_id=operation_id)
                 opportunity.name = name.strip()
             if amount is not None:
-                if isinstance(amount, bool) or isinstance(amount, float):
-                    return CRMResult.fail("amount debe ser Decimal, nunca float", "VALIDATION",
-                                          operation_id=operation_id)
-                opportunity.amount = Decimal(str(amount))
+                try:
+                    opportunity.set_amount(amount)
+                except CRMDomainError as exc:
+                    return CRMResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
             if description is not None:
                 opportunity.description = description
             if territory_id is not None:
@@ -278,9 +321,12 @@ class MoveOpportunityStageUseCase(_BaseUseCase):
                 self._policy.validate(
                     opportunity, from_stage, to_stage, reason=reason, probability=probability,
                     expected_close_date=expected_close_date,
-                    # CRM-6 (Actividades) no existe todavía — hasta entonces
-                    # min_activities solo puede satisfacerse con override=True.
-                    activities_logged_count=0, override=override)
+                    # Auditoría CRM F08: cuentan las actividades COMPLETADAS de esta
+                    # oportunidad (antes se mandaba siempre 0 y sólo pasaba con
+                    # sobrescritura). Una cancelada o de otro registro no cuenta.
+                    activities_logged_count=uow.activities.count_completed_for(
+                        "OPPORTUNITY", opportunity.id),
+                    override=override)
                 opportunity.move_stage(to_stage_id, probability=probability,
                                        expected_close_date=expected_close_date)
             except CRMDomainError as exc:

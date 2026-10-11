@@ -196,6 +196,8 @@ QLabel {{ background: transparent; }}
 QLabel[role="subtitle"] {{ color: {c.TEXT_SECONDARY}; }}
 QLabel[role="muted"] {{ color: {c.TEXT_MUTED}; }}
 QLabel#hrEmptyState, QLabel[role="empty"] {{ color: {c.TEXT_MUTED}; }}
+QLabel[role="imageThumbnail"] {{ background: transparent; border-radius: 6px; }}
+QLabel[role="imageThumbnail"][empty="true"] {{ background: {c.SURFACE_MUTED}; color: {c.TEXT_MUTED}; font-size: {Typography.SIZE_TITLE_LG}px; font-weight: 600; }}
 """.strip()
 
 

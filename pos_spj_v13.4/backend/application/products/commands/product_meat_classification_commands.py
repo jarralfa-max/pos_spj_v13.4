@@ -94,3 +94,24 @@ class SetCutClassificationActiveCommand:
         missing = [f for f in ("operation_id", "cut_id") if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
+
+
+@dataclass(frozen=True)
+class ClassifyMeatProductCommand:
+    """PROD-22 (§11, §39): categoría cárnica, región y corte de UN producto.
+
+    Cambiar una clasificación ya existente exige `reason` (§39: quien modifica
+    clasificación cárnica crítica debe justificar)."""
+
+    operation_id: str
+    product_id: str
+    meat_category: str | None = None
+    anatomical_region_id: str | None = None
+    cut_classification_id: str | None = None
+    reason: str | None = None
+    user_id: str | None = None
+
+    def validate(self) -> None:
+        missing = [f for f in ("operation_id", "product_id") if not getattr(self, f)]
+        if missing:
+            raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")

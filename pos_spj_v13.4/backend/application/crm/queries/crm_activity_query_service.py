@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from backend.application.crm.authorization import CRMAuthorizationPolicy
 from backend.application.crm.permissions import CRMPermissions
+from backend.application.crm.work_item_visibility import WorkItemVisibility
 from backend.domain.crm.entities.crm_activity import CRMActivity
 from backend.domain.crm.enums import CRMWorkItemStatus
 from backend.domain.crm.exceptions import CRMActivityNotFoundError
@@ -23,25 +24,33 @@ from backend.infrastructure.db.repositories.crm.unit_of_work import CRMUnitOfWor
 
 
 class CRMActivityQueryService:
-    def __init__(self, connection, authorization: CRMAuthorizationPolicy | None = None) -> None:
+    def __init__(self, connection, authorization: CRMAuthorizationPolicy | None = None, *,
+                 record_visible=None) -> None:
         self._uow = CRMUnitOfWork(connection)
         self._auth = authorization or CRMAuthorizationPolicy()
+        self._visibility = WorkItemVisibility(self._auth, CRMPermissions.ACTIVITIES_REASSIGN,
+                                              record_visible)
 
     def get(self, activity_id: str, *, actor_user_id: str) -> CRMActivity:
         self._auth.require(actor_user_id, CRMPermissions.ACTIVITIES_VIEW)
         activity = self._uow.activities.get(activity_id)
-        if activity is None:
-            raise CRMActivityNotFoundError(f"Actividad {activity_id!r} no existe")
+        if activity is None or not self._visibility.can_see_item(
+                actor_user_id, activity,
+                owners=(activity.assigned_user_id, activity.created_by_user_id)):
+            raise CRMActivityNotFoundError(
+                f"Actividad {activity_id!r} no existe o está fuera de tu alcance")
         return activity
 
     def list_for_related_entity(self, related_entity_type: str, related_entity_id: str, *,
                                  actor_user_id: str) -> list[CRMActivity]:
         self._auth.require(actor_user_id, CRMPermissions.ACTIVITIES_VIEW)
+        self._visibility.require_record(actor_user_id, related_entity_type, related_entity_id)
         return self._uow.activities.list_for_related_entity(related_entity_type,
                                                               related_entity_id)
 
     def list_assigned_to(self, user_id: str, *, actor_user_id: str) -> list[CRMActivity]:
         self._auth.require(actor_user_id, CRMPermissions.ACTIVITIES_VIEW)
+        self._visibility.require_user(actor_user_id, user_id)
         return self._uow.activities.list_assigned_to(user_id)
 
     def list_overdue_for(self, user_id: str, *, actor_user_id: str,
@@ -49,5 +58,6 @@ class CRMActivityQueryService:
         """§23-26: "Vencida se muestra con estado+icono" — the query layer
         exposes overdue via ``effective_status()``, never a stored column."""
         self._auth.require(actor_user_id, CRMPermissions.ACTIVITIES_VIEW)
+        self._visibility.require_user(actor_user_id, user_id)
         return [a for a in self._uow.activities.list_assigned_to(user_id)
                 if a.effective_status(as_of=as_of) is CRMWorkItemStatus.OVERDUE]

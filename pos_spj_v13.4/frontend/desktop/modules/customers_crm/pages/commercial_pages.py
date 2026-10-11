@@ -12,6 +12,7 @@ from decimal import Decimal, InvalidOperation
 
 from frontend.desktop.components import ColumnSpec
 from frontend.desktop.modules.customers_crm.formatting import fmt_date, fmt_datetime, fmt_money
+from frontend.desktop.modules.customers_crm.labels import label
 from frontend.desktop.modules.customers_crm.pages.customer_sections import _Section
 
 _SALE_STATUS = {"COMPLETED": "Completada", "REVERSED": "Reversada"}
@@ -79,13 +80,9 @@ class OrdersSection(_HistorySection):
     columns = (ColumnSpec("Fecha", "date"), ColumnSpec("Pedido"), ColumnSpec("Canal"),
                ColumnSpec("Entrega"), ColumnSpec("Estado"), ColumnSpec("Pago"),
                ColumnSpec("Total", "numeric"))
-    _STATUS = {"DRAFT": "Borrador", "CONFIRMED": "Confirmado", "IN_PREPARATION": "En preparación",
-               "READY": "Listo", "DISPATCHED": "En camino", "DELIVERED": "Entregado",
-               "CANCELLED": "Cancelado", "COMPLETED": "Completado"}
-
     def cells(self, r):
         return [fmt_datetime(r["created_at"]), r["order_number"] or "—", r["channel"] or "—",
-                r["fulfillment_type"] or "—", self._STATUS.get(r["status"], r["status"] or "—"),
+                r["fulfillment_type"] or "—", label("order_status", r["status"]) if r["status"] else "—",
                 r["payment_status"] or "—", fmt_money(r["grand_total"])]
 
 
@@ -95,8 +92,9 @@ class QuotesSection(_HistorySection):
                ColumnSpec("Vence", "date"), ColumnSpec("Estado"))
 
     def cells(self, r):
-        return [fmt_date(r["fecha"]), r["folio"] or "—", fmt_money(r["total"]),
-                fmt_date(r["fecha_vencimiento"]), (r["estado"] or "—").capitalize()]
+        return [fmt_date(str(r["created_at"])[:10]), r["quote_number"] or "—",
+                fmt_money(r["total"]), fmt_date(str(r["valid_until"])[:10]),
+                label("quote_status", r["status"])]
 
 
 class ReturnsSection(_HistorySection):
@@ -125,15 +123,5 @@ class AffinitySection(_HistorySection):
                 fmt_datetime(r["last_bought_at"])]
 
 
-COMMERCIAL_SECTIONS = {
-    "customers.purchase_history": (PurchasesSection, "Compras",
-                                   "Ventas completadas del cliente, con devoluciones."),
-    "customers.order_history": (OrdersSection, "Pedidos",
-                                "Pedidos de mostrador, teléfono, WhatsApp o en línea."),
-    "customers.quote_history": (QuotesSection, "Cotizaciones",
-                                "Cotizaciones emitidas al cliente."),
-    "customers.return_history": (ReturnsSection, "Devoluciones",
-                                 "Partidas devueltas y su motivo."),
-    "customers.product_affinity": (AffinitySection, "Productos frecuentes",
-                                   "Lo que más compra el cliente."),
-}
+# Sin entradas propias en el menú (2026-10-09): estas secciones se muestran en la
+# pestaña «Relación comercial» del expediente del cliente.

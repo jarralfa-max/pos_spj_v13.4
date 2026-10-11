@@ -111,12 +111,13 @@ def test_update_draft_replaces_outputs(conn):
 
 
 def test_full_lifecycle(conn):
+    # PROD-22 §39: quien capturó (u1) envía; otro usuario (u2) aprueba y activa.
     r = _create(conn)
-    for uc in (SubmitCuttingVersionUseCase, ApproveCuttingVersionUseCase,
-               ActivateCuttingVersionUseCase):
+    for uc, user in ((SubmitCuttingVersionUseCase, "u1"), (ApproveCuttingVersionUseCase, "u2"),
+                     (ActivateCuttingVersionUseCase, "u2")):
         assert uc(conn, _MANAGE).execute(CuttingVersionTransitionCommand(
             operation_id=f"t{uc.__name__}", version_id=r.version_id,
-            user_id="u1")).success
+            user_id=user)).success
     assert conn.execute("SELECT status FROM cutting_scheme_versions WHERE id=?",
                         (r.version_id,)).fetchone()["status"] == "ACTIVE"
 
@@ -134,3 +135,17 @@ def test_query_lists_schemes_and_detail(conn):
 
 def test_cycle_error_is_domain():
     assert issubclass(CuttingSchemeCycleDetectedError, Exception)
+
+
+def test_creator_cannot_approve_or_activate_own_version(conn):
+    """PROD-22 §39: antes la versión no guardaba creador y el mismo usuario la
+    capturaba, aprobaba y activaba."""
+    from backend.domain.products.exceptions import SegregationOfDutiesError
+    r = _create(conn)
+    SubmitCuttingVersionUseCase(conn, _MANAGE).execute(CuttingVersionTransitionCommand(
+        operation_id="s", version_id=r.version_id, user_id="u1"))
+    with pytest.raises(SegregationOfDutiesError):
+        ApproveCuttingVersionUseCase(conn, _MANAGE).execute(CuttingVersionTransitionCommand(
+            operation_id="a", version_id=r.version_id, user_id="u1"))
+    assert conn.execute("SELECT created_by FROM cutting_scheme_versions WHERE id=?",
+                        (r.version_id,)).fetchone()[0] == "u1"

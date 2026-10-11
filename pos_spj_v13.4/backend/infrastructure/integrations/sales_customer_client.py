@@ -28,14 +28,12 @@ from backend.application.customers.queries.customer_lookup_query_service import 
     CustomerLookupResult,
 )
 from backend.application.customers.result import CustomerResult
-from backend.application.customers.use_cases.contact_use_cases import AddCustomerContactUseCase
 from backend.application.customers.use_cases.legacy_customer_bridge_use_cases import (
     ResolveLegacyCustomerUseCase,
 )
 from backend.application.customers.use_cases.lifecycle_use_cases import (
     CreateCustomerUseCase as CustomerMasterCreateCustomerUseCase,
 )
-from backend.shared.ids import new_uuid
 
 
 class SalesCustomerClient:
@@ -61,15 +59,11 @@ class SalesCustomerClient:
         touches `customers`, audit, and its own outbox event, nothing
         loyalty-adjacent."""
         use_case = CustomerMasterCreateCustomerUseCase(self._auth)
-        result = use_case.execute(
+        # El alta ya guarda el teléfono como contacto principal (auditoría CRM
+        # F05); antes este cliente lo agregaba aparte con otra transacción.
+        return use_case.execute(
             self._connection, actor_user_id=actor_user_id, display_name=display_name,
             operation_id=operation_id, phone_e164=phone_e164)
-        if result.success and phone_e164:
-            AddCustomerContactUseCase(self._auth).execute(
-                self._connection, actor_user_id=actor_user_id, customer_id=result.entity_id,
-                first_name=display_name, phone_e164=phone_e164, is_primary=True,
-                operation_id=new_uuid())
-        return result
 
     def exists(self, customer_id: str) -> bool:
         row = self._connection.execute(

@@ -150,4 +150,8 @@ SEGREGATED_APPROVALS = {
     ProductPermissions.APPROVE: ProductPermissions.CREATE,
     ProductPermissions.EXTERNAL_APPROVE: ProductPermissions.EXTERNAL_IMPORT,
     ProductPermissions.IMPORT_APPROVE: ProductPermissions.IMPORT_EXECUTE,
+    # PROD-22: despiece y combos tienen un solo permiso para capturar y aprobar;
+    # sin esto quien capturaba una versión podía aprobarla y activarla él mismo.
+    ProductPermissions.CUTTING_SCHEME_MANAGE: ProductPermissions.CUTTING_SCHEME_MANAGE,
+    ProductPermissions.BUNDLES_MANAGE: ProductPermissions.BUNDLES_MANAGE,
 }

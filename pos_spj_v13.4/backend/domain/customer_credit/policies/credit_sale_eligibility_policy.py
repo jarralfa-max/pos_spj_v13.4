@@ -54,8 +54,9 @@ class CreditSaleEligibilityResult:
 class CreditSaleEligibilityPolicy:
     def evaluate(
         self, profile: CustomerCreditProfile | None, *, amount: Decimal,
-        is_public_customer: bool, available_credit: Decimal, documents_current: bool,
-        branch_allowed: bool, customer_blocked: bool = False,
+        is_public_customer: bool, available_credit: Decimal,
+        documents_current: bool | None = None, branch_allowed: bool | None = None,
+        customer_blocked: bool = False,
     ) -> CreditSaleEligibilityResult:
         """CRM-43: los mensajes son los de §39, literales y con importes — el
         cajero tiene que saber QUÉ falta (antes: «no elegible» a secas)."""
@@ -82,9 +83,14 @@ class CreditSaleEligibilityPolicy:
             violations.append(
                 f"Crédito insuficiente: disponible {_money(available_credit)}, "
                 f"requerido {_money(amount)}.")
-        if not documents_current:
+        # Auditoría CRM F23: «documentos vigentes» y «sucursal permitida» sólo se
+        # evalúan cuando quien llama aporta una verificación REAL (``True``/
+        # ``False``). ``None`` = no hay regla configurada; antes el valor por
+        # omisión era ``True`` y se presentaba como comprobación hecha. Hoy el
+        # perfil de crédito no modela vigencia de documentos ni sucursales.
+        if documents_current is False:
             violations.append("Los documentos del cliente no están vigentes")
-        if not branch_allowed:
+        if branch_allowed is False:
             violations.append("La sucursal no está habilitada para ventas a crédito de este cliente")
 
         return CreditSaleEligibilityResult(eligible=not violations, violations=tuple(violations))

@@ -7,10 +7,26 @@ consume these results.
 
 from __future__ import annotations
 
-from backend.domain.products.enums import MEAT_PRODUCT_TYPES
+from backend.domain.products.enums import MEAT_PRODUCT_TYPES, ProductType
 
 _MEAT_VALUES = tuple(t.value for t in MEAT_PRODUCT_TYPES)
 _MEAT_PLACEHOLDERS = ",".join("?" for _ in _MEAT_VALUES)
+
+#: §42 «Productos cárnicos / internos / materiales»: el MISMO catálogo con otro
+#: filtro, no tres pantallas (feedback del usuario: una sección no repite otra).
+#: familia → (tipos, sólo internos)
+CATALOG_FAMILIES: dict[str, tuple[tuple[str, ...] | None, bool]] = {
+    "MEAT": (tuple(sorted(_MEAT_VALUES)), False),
+    "INTERNAL": (None, True),
+    "MATERIALS": (tuple(t.value for t in (
+        ProductType.RAW_MATERIAL, ProductType.PACKAGING_MATERIAL,
+        ProductType.CONSUMABLE, ProductType.MRO_MATERIAL, ProductType.SPARE_PART,
+        ProductType.PRODUCTION_COMPONENT, ProductType.RETURNABLE_CONTAINER)), False),
+    "BYPRODUCTS": (tuple(t.value for t in (
+        ProductType.BY_PRODUCT, ProductType.CO_PRODUCT, ProductType.WASTE)), False),
+    "SERVICES": (tuple(t.value for t in (
+        ProductType.SERVICE, ProductType.VIRTUAL_BUNDLE, ProductType.STOCKED_KIT)), False),
+}
 
 
 class ProductCatalogReadService:
@@ -49,7 +65,7 @@ class ProductCatalogReadService:
                 "under_review": under_review}
 
     def list_catalog(self, *, query: str | None = None, product_type: str | None = None,
-                     limit: int = 200) -> list[dict]:
+                     family: str | None = None, limit: int = 200) -> list[dict]:
         """Listado del catálogo maestro, por el contrato compartido de búsqueda.
 
         Tenía SQL propio con su PROPIA semántica de coincidencia
@@ -66,8 +82,10 @@ class ProductCatalogReadService:
             ProductCatalogSearchQueryService,
             ProductSearchQuery,
         )
+        types, internal = CATALOG_FAMILIES.get(family or "", (None, False))
         dtos = ProductCatalogSearchQueryService(self._conn).search(ProductSearchQuery(
             text=(query or "").strip() or None, product_type=product_type,
+            product_types=types, internal_only=internal,
             active_only=False, page_size=int(limit)))
         return [{"id": d.product_id, "code": d.code, "name": d.name,
                  "product_type": d.product_type,

@@ -49,13 +49,14 @@ def sla_texts(sla) -> tuple[str, str]:
     """(SLA respuesta, SLA resolución) en texto — nunca sólo color."""
     if sla is None:
         return "Sin SLA", "Sin SLA"
-    first = sla.first_response_status()
+    # Auditoría CRM F11: terminado se muestra Cumplido/Incumplido, no «Cumplido» siempre.
+    first = sla.first_response_result()
     response = label("sla_status", first)
-    if first.value not in ("COMPLETED", "PAUSED"):
+    if first not in ("COMPLETED", "PAUSED", "MET", "MISSED"):
         response += f" · {fmt_datetime(sla.first_response_due_at)}"
-    overall = sla.effective_breach_status()
+    overall = sla.result_status()
     resolution = label("sla_status", overall)
-    if overall.value not in ("COMPLETED", "PAUSED"):
+    if overall not in ("COMPLETED", "PAUSED", "MET", "MISSED"):
         resolution += f" · {fmt_datetime(sla.resolution_due_at)}"
     return response, resolution
 
@@ -341,14 +342,15 @@ class SlaPage(CrmWorkbenchPage):
             FieldSpec("case_type", "Tipo de caso", "choice", options=tuple(options("case_type"))),
             FieldSpec("priority", "Prioridad", "choice", options=tuple(options("priority"))),
             FieldSpec("channel", "Canal", "choice", options=tuple(options("case_channel"))),
-            FieldSpec("first", "Primera respuesta (minutos)", "integer", default=240, minimum=1),
-            FieldSpec("resolution", "Resolución (minutos)", "integer", default=2880, minimum=1),
-            FieldSpec("risk", "En riesgo al consumir (%)", "percent", default=80),
+            FieldSpec("first", "Primera respuesta (minutos)", "integer", minimum=1),
+            FieldSpec("resolution", "Resolución (minutos)", "integer", minimum=1),
+            FieldSpec("risk", "En riesgo al consumir (%)", "percent",
+                      helper="Déjalo en 0 para usar el del sistema."),
         ), on_submit=lambda v: self._presenter.run(
             "create_sla_policy", code=v["code"], name=v["name"],
             first_response_minutes=v["first"], resolution_minutes=v["resolution"],
             case_type=v["case_type"], priority=v["priority"], channel=v["channel"],
-            origin_branch_id=None, at_risk_threshold_pct=v["risk"]))
+            origin_branch_id=None, **({"at_risk_threshold_pct": v["risk"]} if v["risk"] else {})))
 
     @staticmethod
     def _minutes(value: int) -> str:
@@ -490,7 +492,7 @@ class CaseDetailPage(QWidget):
         self._badge.setText(label("case_status", case.status))
         self._badge.set_status(variant("case_status", case.status))
         if detail.sla is not None:
-            status = detail.sla.effective_breach_status()
+            status = detail.sla.result_status()
             self._sla_badge.setText(f"SLA: {label('sla_status', status)}")
             self._sla_badge.set_status(variant("sla_status", status))
         else:

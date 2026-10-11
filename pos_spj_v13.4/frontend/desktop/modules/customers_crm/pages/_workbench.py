@@ -121,6 +121,9 @@ class CrmWorkbenchPage(QWidget):
         self._root.setSpacing(Spacing.MD)
 
         self._actions = list(self.row_actions())
+        #: Acciones de página con su botón: si declaran ``enabled``, se evalúa
+        #: con ``None`` (sin fila) cada vez que cambia la selección o se recarga.
+        self._page_buttons: list[tuple[Action, QWidget]] = []
         page_buttons = []
         for action in self.page_actions():
             if not self._allowed(action):
@@ -132,6 +135,7 @@ class CrmWorkbenchPage(QWidget):
                 button.setToolTip(action.tooltip)
             button.clicked.connect(lambda _c=False, a=action: self._run(a, None))
             page_buttons.append(button)
+            self._page_buttons.append((action, button))
         self.header = PageHeader(self, title=self.title, subtitle=self.subtitle, icon=self.icon,
                                  compact=True, actions=page_buttons)
         self._root.addWidget(self.header)
@@ -300,6 +304,10 @@ class CrmWorkbenchPage(QWidget):
 
     def _selection_changed(self) -> None:
         row = self.selected_row()
+        for action, button in getattr(self, "_page_buttons", []):
+            # Una acción de página que no aplica al estado se oculta: con muchas
+            # acciones (el detalle de una cotización) el encabezado desbordaba.
+            button.setVisible(action.enabled is None or bool(action.enabled(None)))
         for action, button in getattr(self, "_action_buttons", []):
             if not action.needs_row:
                 button.setEnabled(True)

@@ -83,20 +83,13 @@ class UpdateCustomerContactUseCase(_BaseContactUseCase):
             if contact is None:
                 return CustomerResult.fail("El contacto no existe", "NOT_FOUND",
                                            operation_id=operation_id)
-            if first_name is not None:
-                contact.first_name = first_name.strip()
-            if last_name is not None:
-                contact.last_name = last_name.strip()
-            if job_title is not None:
-                contact.job_title = job_title
-            if department is not None:
-                contact.department = department
-            if phone_e164 is not None:
-                contact.phone_e164 = phone_e164
-            if email is not None:
-                contact.email = email
-            if decision_role is not None:
-                contact.decision_role = ContactDecisionRole(decision_role)
+            try:
+                contact.update(first_name=first_name, last_name=last_name,
+                               job_title=job_title, department=department,
+                               phone_e164=phone_e164, email=email,
+                               decision_role=decision_role)
+            except (CustomerDomainError, ValueError) as exc:
+                return CustomerResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
             uow.contacts.update(contact)
             uow.audit.record(action=CustomerEvents.CONTACT_UPDATED, actor_user_id=actor_user_id,
                              customer_id=contact.customer_id, reason="edición de contacto",

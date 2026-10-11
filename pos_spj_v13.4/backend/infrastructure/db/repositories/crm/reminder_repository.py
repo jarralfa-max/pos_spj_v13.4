@@ -26,6 +26,19 @@ class CRMReminderRepository(CRMRepositoryBase):
             (task_id,))
         return [self._hydrate(r) for r in rows]
 
+    def list_due(self, now: str, *, limit: int) -> list[CRMReminder]:
+        """CRM-43: los recordatorios en la bandeja cuya hora ya llegó y que aún no
+        se entregan (migración 317)."""
+        rows = self._query(
+            f"SELECT {_REMINDER_COLS} FROM crm_reminders"
+            " WHERE delivered_at IS NULL AND channel='IN_APP' AND remind_at <= ?"
+            " ORDER BY remind_at ASC LIMIT ?", (now, limit))
+        return [self._hydrate(r) for r in rows]
+
+    def mark_delivered(self, reminder_id: str, delivered_at: str) -> None:
+        self._execute("UPDATE crm_reminders SET delivered_at=? WHERE id=? AND delivered_at IS NULL",
+                      (delivered_at, reminder_id))
+
     def list_for_activity(self, activity_id: str) -> list[CRMReminder]:
         rows = self._query(
             f"SELECT {_REMINDER_COLS} FROM crm_reminders"

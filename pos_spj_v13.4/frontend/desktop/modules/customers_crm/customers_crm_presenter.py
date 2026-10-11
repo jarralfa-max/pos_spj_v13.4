@@ -23,18 +23,14 @@ still not built as of CRM-15, same deferred-top-level-registration decision
 CRM-14 already documented) rather than raising — a page must always have
 something safe to render.
 
-CRM-16 adds four directory methods (``customers_directory()``/
-``leads_directory()``/``opportunities_directory()``/``cases_directory()``),
-same lookup-and-degrade-to-empty shape. None of CRM-3/4/5/7's
-``list_directory()`` methods take a search/status filter — adding one would
-mean touching each bounded context's repository layer across four separate
-packages, out of proportion for a "Directorios" phase whose own name is
-about *listing*, not extending four other phases' read paths. Instead this
-presenter fetches the caller's already-scoped page (``limit=200``, same
-default every ``list_directory()`` already uses) and filters by search
-text/status in plain Python — a display refinement over already-authorized
-data, not a recomputed business metric, so it does not violate "la UI no
-calcula KPIs" (§90) the way inventing a new count or total would.
+CRM-43 (re-auditoría, 2026-10-08) retiró los cuatro métodos de directorio
+de CRM-16 y añadió dos genéricos: ``read(lectura, **kw)`` y
+``run(comando, **kw)``. La raíz de composición
+(``backend/infrastructure/desktop/customers_crm_factory.py``) registra las
+lecturas — cada una recibe un ``CrmReadContext`` con usuario y sucursal
+activa, para que el alcance BRANCH resuelva — y los ~150 comandos; ``run``
+inyecta el actor y una ``operation_id`` nueva. Ambos nombres son
+posicionales: varios casos de uso reciben un campo ``name``.
 
 CRM-17 adds ``customer_360()`` wrapping ``Customer360QueryService``
 (``query_services["customer_360"]``). Unlike ``dashboard()``, it does NOT
@@ -183,12 +179,41 @@ class CustomerCrmPresenter:
         return [SearchOption(id=r.customer_id, label=r.display_name,
                              subtitle=r.code) for r in self.read("customer_lookup", query=query)]
 
+    def quote_product_options(self, query: str) -> list:
+        """Proveedor de ``ProductSearchBox`` al cotizar: productos vendibles en la
+        sucursal activa, con su precio de vitrina y unidad."""
+        from frontend.desktop.components.search_selector import SearchOption
+
+        if len(query.strip()) < 2 or not self.has_reader("quote_products"):
+            return []
+        options = []
+        labels = getattr(self, "_product_labels", None)
+        if labels is None:
+            labels = self._product_labels = {}
+        for item in self.read("quote_products", text=query):
+            price = f"${item.price:,.2f}" if item.price is not None else "sin precio"
+            unit = f" / {item.unit_code}" if item.unit_code else ""
+            labels[item.product_id] = item.name
+            options.append(SearchOption(id=item.product_id, label=item.name,
+                                        subtitle=f"{item.code} · {price}{unit}"))
+        return options
+
+    def product_label(self, product_id: str) -> str:
+        """Nombre de un producto elegido en el buscador (lo recuerda la búsqueda)."""
+        return getattr(self, "_product_labels", {}).get(product_id, "")
+
+    def quote_products_empty_reason(self, query: str) -> str | None:
+        if not self.has_reader("quote_products_empty"):
+            return None
+        return self.read("quote_products_empty", text=query)
+
     def dashboard(self) -> CustomerDashboardView:
         service = self.query_service("dashboard")
         if service is None:
             return CustomerDashboardView()
         return service.get_dashboard(
-            actor_user_id=self.current_user_id(), team_member_ids=self._team_member_ids)
+            actor_user_id=self.current_user_id(), team_member_ids=self._team_member_ids,
+            branch_ids=(self.branch_id(),) if self.branch_id() else ())
 
     def customer_360(self, customer_id: str) -> Customer360View:
         service = self.query_service("customer_360")

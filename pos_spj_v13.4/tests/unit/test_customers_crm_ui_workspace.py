@@ -40,7 +40,7 @@ class _FakePresenter(CrmFakePresenter):
 
 
 _ALL_TRUE = CustomerCrmCapabilities(
-    module_view=True, clientes=True, prospectos=True, oportunidades=True,
+    module_view=True, clientes=True, prospectos=True, oportunidades=True, cotizaciones=True,
     actividades=True, atencion=True, comercial=True, credito=True,
     segmentacion=True, comunicaciones=True, privacidad=True, control=True)
 _NONE = CustomerCrmCapabilities()
@@ -62,7 +62,12 @@ class TestCustomerCrmRoutes:
         # existed; only the route/page were missing). The CRM-1
         # routes-are-stable guardrail only checks id format/no-None
         # resolution, not a fixed count, so adding one is sanctioned.
-        assert len(CUSTOMER_CRM_ROUTES) == 62
+        # CRM-43: + 3 de Cotizaciones (crm.quotes, crm.quote_approvals, crm.quote_detail)
+        # y − 1: «customers.quote_history» duplicaba la sección (queda en el expediente).
+        # − 11 (2026-10-09): cuentas, contactos, direcciones, datos fiscales,
+        # consentimientos, preferencias, compras, pedidos, devoluciones y productos
+        # frecuentes ya son pestañas del expediente; «Notificaciones» repetía «WhatsApp».
+        assert len(CUSTOMER_CRM_ROUTES) == 53
 
     def test_every_route_capability_field_exists_on_capabilities(self):
         for route in CUSTOMER_CRM_ROUTES:
@@ -83,8 +88,8 @@ class TestCustomerCrmRoutes:
         groups = grouped_routes()
         group_names = [g for g, _ in groups]
         assert group_names == [
-            "Resumen", "Clientes", "Prospectos", "Oportunidades", "Actividades",
-            "Atención al cliente", "Relación comercial", "Crédito", "Segmentación",
+            "Resumen", "Clientes", "Prospectos", "Oportunidades", "Cotizaciones", "Actividades",
+            "Atención al cliente", "Crédito", "Segmentación",
             "Comunicaciones", "Privacidad", "Control"]
         assert sum(len(routes) for _, routes in groups) == len(CUSTOMER_CRM_ROUTES)
 

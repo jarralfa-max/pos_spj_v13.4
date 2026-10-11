@@ -35,9 +35,6 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
-from backend.application.queries.inventory_balance_service import (
-    InventoryBalanceQueryService,
-)
 
 
 # ── Minimal DB fixture ────────────────────────────────────────────────────────
@@ -206,44 +203,10 @@ def test_04_inventario_subscribes_to_inventario_actualizado():
 
 # ── Test 5: query service re-queries after event ──────────────────────────────
 
-def test_05_query_service_re_queries_after_event(db):
-    """InventoryBalanceQueryService reads fresh data on every call (no cache)."""
-    svc = InventoryBalanceQueryService(db)
-
-    b1 = svc.get_product_balance(1, 1)
-    assert float(b1["stock_fisico"]) == 100.0
-
-    # Simulate production write
-    db.execute("""
-        INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
-        VALUES (1,1,75)
-        ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET cantidad=75
-    """)
-    db.commit()
-
-    b2 = svc.get_product_balance(1, 1)
-    assert float(b2["stock_fisico"]) == 75.0
-    assert b2["fuente"] == "inventario_actual"
 
 
 # ── Test 6: UI value == SQLite value ─────────────────────────────────────────
 
-def test_06_balance_matches_sqlite_after_event(db):
-    """Stock returned by service matches what's in SQLite."""
-    db.execute("""
-        INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
-        VALUES (1,1,42)
-        ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET cantidad=42
-    """)
-    db.commit()
-
-    svc = InventoryBalanceQueryService(db)
-    b = svc.get_product_balance(1, 1)
-
-    raw = db.execute(
-        "SELECT cantidad FROM inventario_actual WHERE producto_id=1 AND sucursal_id=1"
-    ).fetchone()
-    assert float(b["stock_fisico"]) == float(raw[0])
 
 
 # ── Test 7: event from other sucursal skipped ────────────────────────────────
@@ -360,42 +323,10 @@ def test_10_no_duplicate_subscriptions():
 
 # ── Test 11: multiple productions show last balance ──────────────────────────
 
-def test_11_multiple_productions_show_last_balance(db):
-    """After several sequential production events, service returns the latest stock."""
-    svc = InventoryBalanceQueryService(db)
-
-    for qty in [90.0, 80.0, 70.0, 55.5]:
-        db.execute("""
-            INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
-            VALUES (1,1,?)
-            ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET cantidad=excluded.cantidad
-        """, (qty,))
-        db.commit()
-
-    b = svc.get_product_balance(1, 1)
-    assert float(b["stock_fisico"]) == 55.5
 
 
 # ── Test 12: session restart not needed ──────────────────────────────────────
 
-def test_12_session_restart_not_needed(db):
-    """Stock correct after event without restarting session (service always reads live)."""
-    svc = InventoryBalanceQueryService(db)
-
-    b_before = svc.get_product_balance(1, 1)
-    assert float(b_before["stock_fisico"]) == 100.0
-
-    # Production writes new stock
-    db.execute("""
-        INSERT INTO inventario_actual (producto_id, sucursal_id, cantidad)
-        VALUES (1,1,63)
-        ON CONFLICT(producto_id, sucursal_id) DO UPDATE SET cantidad=63
-    """)
-    db.commit()
-
-    b_after = svc.get_product_balance(1, 1)
-    assert float(b_after["stock_fisico"]) == 63.0
-    assert float(b_before["stock_fisico"]) != float(b_after["stock_fisico"])
 
 
 # ── Test 13: PRODUCCION_REGISTRADA triggers Inventario refresh ────────────────

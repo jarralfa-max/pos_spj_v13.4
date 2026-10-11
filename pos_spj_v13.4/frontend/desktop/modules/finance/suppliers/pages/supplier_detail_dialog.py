@@ -7,7 +7,6 @@ go through the presenter.
 from __future__ import annotations
 
 from PyQt5.QtWidgets import (
-    QDialog,
     QHBoxLayout,
     QLabel,
     QMessageBox,
@@ -24,6 +23,7 @@ from frontend.desktop.components import (
     create_secondary_button,
     create_success_button,
 )
+from frontend.desktop.components.dialogs import StandardDialog
 from frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs import (
     SupplierAddressDialog,
     SupplierBankAccountDialog,
@@ -38,23 +38,20 @@ from frontend.desktop.modules.finance.suppliers.supplier_view_models import (
 from frontend.desktop.themes.tokens import DialogMetrics, Spacing
 
 
-class SupplierDetailDialog(QDialog):
+class SupplierDetailDialog(StandardDialog):
     def __init__(self, presenter, supplier_id: str, parent=None) -> None:
-        super().__init__(parent)
-        self.setObjectName("standardDialog")
+        super().__init__(parent, title="Ficha del proveedor", width=DialogMetrics.WIDTH_LG)
         self._presenter = presenter
         self._supplier_id = supplier_id
         self._loaded_tabs: set[int] = set()
         self.setMinimumSize(DialogMetrics.WIDTH_LG, 520)
 
-        root = QVBoxLayout(self)
-        root.setContentsMargins(DialogMetrics.PADDING, DialogMetrics.PADDING,
-                                DialogMetrics.PADDING, DialogMetrics.PADDING)
-        root.setSpacing(Spacing.MD)
+        root = self.content_layout()
 
         self._header = QHBoxLayout()
         self._title = QLabel("")
         self._title.setProperty("role", "dialogTitle")
+        self._title.setWordWrap(True)
         self._status_badge = StatusBadge("—")
         self._risk_badge = StatusBadge("—")
         self._header.addWidget(self._title, stretch=1)
@@ -69,10 +66,12 @@ class SupplierDetailDialog(QDialog):
 
         close = create_secondary_button(self, "Cerrar")
         close.clicked.connect(self.accept)
-        bottom = QHBoxLayout()
+        footer = QWidget(self)
+        bottom = QHBoxLayout(footer)
+        bottom.setContentsMargins(0, 0, 0, 0)
         bottom.addStretch(1)
         bottom.addWidget(close)
-        root.addLayout(bottom)
+        self.add_footer_widget(footer)
 
         self._load_header()
         self._on_tab_changed(0)

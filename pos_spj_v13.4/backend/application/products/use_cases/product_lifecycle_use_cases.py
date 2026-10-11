@@ -47,6 +47,11 @@ def _row_to_entity(row: dict) -> Product:
         created_by=row.get("created_by"), **flags)
 
 
+#: Público para los read models que evalúan reglas de dominio sobre el maestro
+#: (calidad de datos, PROD-22) sin reconstruir la entidad por su cuenta.
+product_from_row = _row_to_entity
+
+
 class _LifecycleResult:
     def __init__(self, success: bool, message: str, status: str | None = None):
         self.success = success
@@ -72,6 +77,9 @@ class _BaseLifecycleUseCase:
         if row is None:
             return _LifecycleResult(False, "El producto no existe")
         self._check_extra(row, user_id)
+        blocked = self._readiness_block(product_id)
+        if blocked:
+            return _LifecycleResult(False, blocked)
         try:
             product = _row_to_entity(row)
             getattr(product, self.transition)()
@@ -100,6 +108,22 @@ class _BaseLifecycleUseCase:
     def _check_extra(self, row: dict, user_id: str) -> None:
         pass
 
+    #: Transiciones que dejan el producto ACTIVO revalidan la preparación.
+    _requires_readiness = False
+
+    def _readiness_block(self, product_id: str) -> str | None:
+        """PROD-22: el backend revalida lo mismo que la pantalla de «Activar»
+        (incluidas las exigencias encendidas en Configuración)."""
+        if not self._requires_readiness:
+            return None
+        from backend.application.products.queries.product_activation_readiness_query_service import (  # noqa: E501
+            ProductActivationReadinessQueryService,
+        )
+        readiness = ProductActivationReadinessQueryService(self._conn).readiness(product_id)
+        if readiness.ready:
+            return None
+        return "Faltan datos para activar: " + "; ".join(readiness.missing)
+
 
 class SubmitProductUseCase(_BaseLifecycleUseCase):
     permission = ProductPermissions.SUBMIT
@@ -111,6 +135,7 @@ class ActivateProductUseCase(_BaseLifecycleUseCase):
     permission = ProductPermissions.ACTIVATE
     event = ProductEvents.PRODUCT_ACTIVATED
     transition = "activate"
+    _requires_readiness = True
 
     def _check_extra(self, row: dict, user_id: str) -> None:
         # Segregación (§39): quien creó el producto no puede activarlo (segundo par
@@ -136,6 +161,7 @@ class UnblockProductUseCase(_BaseLifecycleUseCase):
     permission = ProductPermissions.ACTIVATE
     event = ProductEvents.PRODUCT_ACTIVATED
     transition = "unblock"
+    _requires_readiness = True
 
 
 class DiscontinueProductUseCase(_BaseLifecycleUseCase):

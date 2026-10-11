@@ -11,14 +11,11 @@ from decimal import Decimal
 
 from PyQt5.QtWidgets import (
     QCheckBox,
-    QDialog,
-    QDialogButtonBox,
-    QFormLayout,
     QMessageBox,
-    QVBoxLayout,
 )
 
 from frontend.desktop.components.address_input import AddressInput
+from frontend.desktop.components.dialogs import FormDialog
 from frontend.desktop.components import (
     EmailInput,
     IntegerInput,
@@ -33,7 +30,7 @@ from frontend.desktop.components import (
     TimeRangeInput,
 )
 from frontend.desktop.i18n.es_mx import ui
-from frontend.desktop.themes.tokens import DialogMetrics, Spacing
+from frontend.desktop.themes.tokens import DialogMetrics
 
 _CLASSIFICATIONS = [
     ("GOODS", "Bienes"), ("SERVICES", "Servicios"), ("LOGISTICS", "Logística"),
@@ -72,28 +69,13 @@ _EVAL_DIMENSIONS = [
 ]
 
 
-class _SupplierDialog(QDialog):
+class _SupplierDialog(FormDialog):
     dialog_title = ""
 
     def __init__(self, parent=None, *, width: int = DialogMetrics.WIDTH_MD) -> None:
-        super().__init__(parent)
-        self.setObjectName("standardDialog")
-        self.setWindowTitle(self.dialog_title)
-        self.setMinimumWidth(width)
-        root = QVBoxLayout(self)
-        root.setContentsMargins(DialogMetrics.PADDING, DialogMetrics.PADDING,
-                                DialogMetrics.PADDING, DialogMetrics.PADDING)
-        root.setSpacing(Spacing.MD)
-        self.form = QFormLayout()
-        self.form.setSpacing(Spacing.SM)
-        root.addLayout(self.form)
+        super().__init__(parent, title=self.dialog_title, width=width)
         self._build()
-        box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
-        box.button(QDialogButtonBox.Ok).setText(ui("action.save"))
-        box.button(QDialogButtonBox.Cancel).setText(ui("action.cancel"))
-        box.accepted.connect(self._accept_if_valid)
-        box.rejected.connect(self.reject)
-        root.addWidget(box)
+        self.add_button_box(ok_text=ui("action.save"), on_accept=self._accept_if_valid)
 
     def _build(self) -> None:
         raise NotImplementedError

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="6" skipped="0" tests="7" time="2.429" timestamp="2026-10-10T05:34:50.319766+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_numeric_keypad_standard_dialog" name="test_numeric_capture_fits_with_keyboard_and_preserves_value[compact-light]" time="0.107"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDB7C680&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000262DDB7C560&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-noPqcg')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000262DDBA4180&gt;
+theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_numeric_capture_fits_with_keyboard_and_preserves_value(
+            qt_font_resources, ui_tmp_path, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "numeric.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = NumericKeypadDialog(titulo="Capturar peso", decimals=3, inicial=12.5, unidad="kg")
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDB7C680&gt;, StandardDialog)
+
+tests\ui\test_numeric_keypad_standard_dialog.py:24: AssertionError</failure></testcase><testcase classname="tests.ui.test_numeric_keypad_standard_dialog" name="test_numeric_capture_fits_with_keyboard_and_preserves_value[compact-dark]" time="0.036"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDBF6840&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000262DDB7C560&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-LgGIhE')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000262DD328E90&gt;
+theme = 'dark', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_numeric_capture_fits_with_keyboard_and_preserves_value(
+            qt_font_resources, ui_tmp_path, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "numeric.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = NumericKeypadDialog(titulo="Capturar peso", decimals=3, inicial=12.5, unidad="kg")
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDBF6840&gt;, StandardDialog)
+
+tests\ui\test_numeric_keypad_standard_dialog.py:24: AssertionError</failure></testcase><testcase classname="tests.ui.test_numeric_keypad_standard_dialog" name="test_numeric_capture_fits_with_keyboard_and_preserves_value[comfortable-light]" time="0.041"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDBF6F90&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000262DDB7C560&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-cmPXTf')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000262DDB5E9F0&gt;
+theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_numeric_capture_fits_with_keyboard_and_preserves_value(
+            qt_font_resources, ui_tmp_path, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "numeric.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = NumericKeypadDialog(titulo="Capturar peso", decimals=3, inicial=12.5, unidad="kg")
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDBF6F90&gt;, StandardDialog)
+
+tests\ui\test_numeric_keypad_standard_dialog.py:24: AssertionError</failure></testcase><testcase classname="tests.ui.test_numeric_keypad_standard_dialog" name="test_numeric_capture_fits_with_keyboard_and_preserves_value[comfortable-dark]" time="0.042"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDBF68D0&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000262DDB7C560&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-HxezLR')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000262DD783BD0&gt;
+theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_numeric_capture_fits_with_keyboard_and_preserves_value(
+            qt_font_resources, ui_tmp_path, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "numeric.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = NumericKeypadDialog(titulo="Capturar peso", decimals=3, inicial=12.5, unidad="kg")
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDBF68D0&gt;, StandardDialog)
+
+tests\ui\test_numeric_keypad_standard_dialog.py:24: AssertionError</failure></testcase><testcase classname="tests.ui.test_numeric_keypad_standard_dialog" name="test_numeric_capture_fits_with_keyboard_and_preserves_value[touch-light]" time="0.029"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDBF7020&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000262DDB7C560&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-JcGJie')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000262DDC30050&gt;
+theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_numeric_capture_fits_with_keyboard_and_preserves_value(
+            qt_font_resources, ui_tmp_path, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "numeric.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = NumericKeypadDialog(titulo="Capturar peso", decimals=3, inicial=12.5, unidad="kg")
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDBF7020&gt;, StandardDialog)
+
+tests\ui\test_numeric_keypad_standard_dialog.py:24: AssertionError</failure></testcase><testcase classname="tests.ui.test_numeric_keypad_standard_dialog" name="test_numeric_capture_fits_with_keyboard_and_preserves_value[touch-dark]" time="0.025"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDBF7C80&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000262DDB7C560&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-GDAova')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000262DDC01150&gt;
+theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_numeric_capture_fits_with_keyboard_and_preserves_value(
+            qt_font_resources, ui_tmp_path, monkeypatch, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager(QSettings(str(ui_tmp_path / "numeric.ini"), QSettings.IniFormat))
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = NumericKeypadDialog(titulo="Capturar peso", decimals=3, inicial=12.5, unidad="kg")
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.components.numeric_keypad_dialog.NumericKeypadDialog object at 0x00000262DDBF7C80&gt;, StandardDialog)
+
+tests\ui\test_numeric_keypad_standard_dialog.py:24: AssertionError</failure></testcase><testcase classname="tests.ui.test_numeric_keypad_standard_dialog" name="test_numeric_invalid_enter_stays_open_and_escape_cancels" time="0.561" /></testsuite></testsuites>

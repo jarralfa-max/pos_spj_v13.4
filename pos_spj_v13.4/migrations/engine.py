@@ -320,6 +320,21 @@ MIGRATIONS = [
     _Migration("314",  "migrations.standalone.314_seed_customers_crm_role_permissions"),
     _Migration("315",  "migrations.standalone.315_seed_service_level_policies"),
     _Migration("316",  "migrations.standalone.316_backfill_customer_sales_projection"),
+    _Migration("317",  "migrations.standalone.317_crm_reminder_delivery"),
+    _Migration("318",  "migrations.standalone.318_quotes_bounded_context"),
+    _Migration("319",  "migrations.standalone.319_seed_quotes_role_permissions"),
+    _Migration("320",  "migrations.standalone.320_grant_order_create_for_quote_conversion"),
+    _Migration("321",  "migrations.standalone.321_lead_conversion_links"),
+    _Migration("322",  "migrations.standalone.322_sla_pause_and_outcome"),
+    _Migration("323",  "migrations.standalone.323_product_image_background_removal"),
+    _Migration("324",  "migrations.standalone.324_seed_products_granular_permissions"),
+    _Migration("325",  "migrations.standalone.325_drop_legacy_products_schema"),
+    _Migration("326",  "migrations.standalone.326_product_meat_classification"),
+    _Migration("327",  "migrations.standalone.327_cutting_bundle_version_creator"),
+    _Migration("328",  "migrations.standalone.328_external_catalog_source_and_reviewer"),
+    _Migration("329",  "migrations.standalone.329_products_settings_catalog"),
+    _Migration("330",  "migrations.standalone.330_products_activation_requirements"),
+    _Migration("331",  "migrations.standalone.331_product_whatsapp_outbox"),
 ]
 
 def _ensure_tracking_table(conn):

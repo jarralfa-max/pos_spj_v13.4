@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="12" skipped="0" tests="18" time="14.681" timestamp="2026-10-09T05:05:47.994901+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_validates_before_accepting[click-finance]" time="3.280" /><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_validates_before_accepting[click-hr]" time="0.326" /><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_validates_before_accepting[enter-finance]" time="0.046" /><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_validates_before_accepting[enter-hr]" time="2.538" /><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_escape_rejects_without_accepting[finance]" time="0.253" /><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_escape_rejects_without_accepting[hr]" time="0.377" /><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[compact-light-finance]" time="0.052"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F71520&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F3B1F8A0&gt;
+kind = 'finance', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F71520&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[compact-light-hr]" time="0.237"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F71E20&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F3F9C750&gt;
+kind = 'hr', theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F71E20&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[compact-dark-finance]" time="0.016"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F711C0&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F3F9CA50&gt;
+kind = 'finance', theme = 'dark', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F711C0&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[compact-dark-hr]" time="0.029"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F70C20&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F3B8A5D0&gt;
+kind = 'hr', theme = 'dark', density = 'compact'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F70C20&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[comfortable-light-finance]" time="0.076"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F72A80&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F3B8AD50&gt;
+kind = 'finance', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F72A80&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[comfortable-light-hr]" time="0.022"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F70830&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F3F9B310&gt;
+kind = 'hr', theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F70830&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[comfortable-dark-finance]" time="0.010"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F72DE0&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F3F9B070&gt;
+kind = 'finance', theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F72DE0&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[comfortable-dark-hr]" time="0.312"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F71760&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F389B2B0&gt;
+kind = 'hr', theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F71760&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[touch-light-finance]" time="0.009"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F70C20&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F3B94DD0&gt;
+kind = 'finance', theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F70C20&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[touch-light-hr]" time="0.025"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F72F00&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F3B95490&gt;
+kind = 'hr', theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F72F00&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[touch-dark-finance]" time="0.095"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F72D50&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F3FD1650&gt;
+kind = 'finance', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.finance.dialogs.bank_transfer_dialog.BankTransferDialog object at 0x00000217F3F72D50&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase><testcase classname="tests.ui.test_finance_hr_standard_dialogs" name="test_real_form_keeps_footer_visible_and_capture_intact[touch-dark-hr]" time="0.090"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F72060&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x00000217F3F70D40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000217F3FD1A70&gt;
+kind = 'hr', theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("kind", ["finance", "hr"])
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_real_form_keeps_footer_visible_and_capture_intact(
+            qt_font_resources, monkeypatch, kind, theme, density):
+        app = qt_font_resources
+        manager = ThemeManager()
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        manager.apply(app, theme, density=density)
+        dialog = _build(kind)
+        try:
+&gt;           assert isinstance(dialog, StandardDialog)
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.hr.dialogs.hr_dialogs.EmployeeDialog object at 0x00000217F3F72060&gt;, StandardDialog)
+
+tests\ui\test_finance_hr_standard_dialogs.py:118: AssertionError</failure></testcase></testsuite></testsuites>

@@ -158,18 +158,19 @@ async def pending_orders(
                 "COALESCE(d.subtotal, 0) AS subtotal",
             ]
             if "nombre" in detalle_cols:
-                detail_select.append("COALESCE(NULLIF(d.nombre,''), p.nombre, 'Producto') AS nombre")
+                detail_select.append("COALESCE(NULLIF(d.nombre,''), p.name, 'Producto') AS nombre")
             else:
-                detail_select.append("COALESCE(p.nombre, 'Producto') AS nombre")
+                detail_select.append("COALESCE(p.name, 'Producto') AS nombre")
             if "unidad" in detalle_cols:
-                detail_select.append("COALESCE(NULLIF(d.unidad,''), p.unidad, 'kg') AS unidad")
+                detail_select.append("COALESCE(NULLIF(d.unidad,''), u.code, 'kg') AS unidad")
             else:
-                detail_select.append("COALESCE(p.unidad, 'kg') AS unidad")
+                detail_select.append("COALESCE(u.code, 'kg') AS unidad")
 
             items = conn.execute(f"""
                 SELECT {', '.join(detail_select)}
                 FROM detalles_venta d
-                LEFT JOIN productos p ON p.id = d.producto_id
+                LEFT JOIN products p ON p.id = d.producto_id
+                LEFT JOIN units_of_measure u ON u.id = p.base_unit_id
                 WHERE d.venta_id=?
                 ORDER BY d.id
             """, (order["venta_id"],)).fetchall()

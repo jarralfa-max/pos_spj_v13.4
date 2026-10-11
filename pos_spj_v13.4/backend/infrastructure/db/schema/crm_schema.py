@@ -76,7 +76,9 @@ _DDL = (
         created_by_user_id TEXT,
         operation_id TEXT UNIQUE,
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        converted_customer_id TEXT,
+        converted_opportunity_id TEXT
     )
     """,
     """
@@ -225,7 +227,8 @@ _DDL = (
         activity_id TEXT REFERENCES crm_activities(id),
         message TEXT NOT NULL DEFAULT '',
         created_by_user_id TEXT,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        delivered_at TEXT
     )
     """,
     """

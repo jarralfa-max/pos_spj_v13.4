@@ -12,14 +12,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+# PROD-22: el maestro de productos es `products` (la tabla legacy `productos`
+# se retira con la migración 325) y la existencia vive en `inventory_balances`.
 TABLAS_CRITICAS = [
-    "productos", "clientes", "ventas", "detalle_ventas",
+    "products", "clientes", "ventas", "detalle_ventas",
     "sucursales", "usuarios", "empleados", "proveedores",
     "categorias", "inventario",
 ]
 
 _EQUIVALENCIAS = {
-    "inventario": {"inventario", "branch_inventory"},
+    "inventario": {"inventario", "inventory_balances"},
     "detalle_ventas": {"detalle_ventas", "venta_items", "sale_items"},
 }
 

@@ -15,13 +15,10 @@ what makes a single uniform table possible here), `ModuleLoader`,
 `DesktopRouter`, `SidebarResolver` + `GlobalSidebar`, and finally
 `ApplicationWindow` itself.
 
-Deliberately excludes two concerns that belong to a later, separate step:
-`service_supervisor`/`shutdown_coordinator` (SHELL-14/15) are not wired in
-here — nothing about wiring the shell live requires background services or
-graceful shutdown to work at all, and inventing wiring for them now would
-be scope this file has no real information to get right yet. `parent`
-callers may still attach those to the returned `ApplicationWindow` the
-same way `ApplicationWindow.__init__` already allows.
+`service_supervisor` (SHELL-14) is wired since CRM-43 with the two background
+services the live app actually needs: the CRM cycle (time-based automations
++ due reminders) and the notification-bell refresh from `notification_inbox`.
+`shutdown_coordinator` (SHELL-15) is still not wired here.
 
 Takes a `session_context` explicitly rather than building one — the
 caller (the authentication half, piece 4b) is what actually has an
@@ -175,6 +172,56 @@ _MIGRATED_MODULE_WIRINGS = (
 )
 
 
+#: Cada cuánto corre el ciclo del CRM (automatizaciones por tiempo y recordatorios).
+CRM_CYCLE_INTERVAL_MS = 5 * 60 * 1000
+#: Cada cuánto se refresca la campana de avisos.
+INBOX_REFRESH_INTERVAL_MS = 60 * 1000
+#: Cada cuánto se entrega la cola de alertas de Productos por WhatsApp (PROD-22).
+PRODUCTS_WHATSAPP_OUTBOX_INTERVAL_MS = 60 * 1000
+
+
+def _build_background_services(*, context: ApplicationContext, connection):
+    """CRM-43: los servicios de fondo de la sesión. Devuelve el supervisor y la
+    fuente de la campana, que se conecta al cajón una vez creada la ventana."""
+    from backend.application.crm.background_cycle import run_crm_background_cycle
+    from backend.application.notifications.user_inbox_service import UserInboxService
+    from frontend.desktop.shell.application_shell.notification_inbox_feed import (
+        NotificationInboxFeed,
+    )
+    from frontend.desktop.shell.background.background_service_descriptor import (
+        BackgroundServiceDescriptor,
+    )
+    from frontend.desktop.shell.background.background_service_registry import (
+        BackgroundServiceRegistry,
+    )
+    from frontend.desktop.shell.background.background_service_supervisor import (
+        BackgroundServiceSupervisor,
+    )
+    from frontend.desktop.shell.background.periodic_task_service import PeriodicTaskService
+
+    registry = BackgroundServiceRegistry()
+    registry.register(BackgroundServiceDescriptor(
+        "crm.background_cycle", "Automatizaciones y recordatorios del CRM",
+        module_id="customers_crm"))
+    registry.register(BackgroundServiceDescriptor("notifications.inbox", "Bandeja de avisos"))
+    registry.register(BackgroundServiceDescriptor(
+        "products.whatsapp_outbox", "Alertas de Productos por WhatsApp", module_id="products"))
+    supervisor = BackgroundServiceSupervisor(registry=registry)
+    supervisor.bind("crm.background_cycle", PeriodicTaskService(
+        lambda: run_crm_background_cycle(connection), interval_ms=CRM_CYCLE_INTERVAL_MS,
+        name="ciclo CRM"))
+    from backend.application.products.notifications.whatsapp_outbox import (
+        drain_product_whatsapp_outbox,
+    )
+    supervisor.bind("products.whatsapp_outbox", PeriodicTaskService(
+        lambda: drain_product_whatsapp_outbox(connection),
+        interval_ms=PRODUCTS_WHATSAPP_OUTBOX_INTERVAL_MS, name="cola WhatsApp de Productos"))
+    feed = NotificationInboxFeed(UserInboxService(connection), context.user_id)
+    supervisor.bind("notifications.inbox", PeriodicTaskService(
+        feed.refresh, interval_ms=INBOX_REFRESH_INTERVAL_MS, name="bandeja de avisos"))
+    return supervisor, feed
+
+
 def build_application_window(
     *, context: ApplicationContext, connection, session_context, health_report: HealthReport,
 ) -> ApplicationWindow:
@@ -205,4 +252,8 @@ def build_application_window(
     sidebar = GlobalSidebar(settings_key=f"{context.workstation_id}/{context.user_id}")
     sidebar.set_items(resolver.resolve(context=context, health_report=health_report))
 
-    return ApplicationWindow(router=router, sidebar=sidebar, module_loader=loader)
+    supervisor, inbox_feed = _build_background_services(context=context, connection=connection)
+    window = ApplicationWindow(router=router, sidebar=sidebar, module_loader=loader,
+                               service_supervisor=supervisor)
+    inbox_feed.attach(window.notification_drawer)
+    return window

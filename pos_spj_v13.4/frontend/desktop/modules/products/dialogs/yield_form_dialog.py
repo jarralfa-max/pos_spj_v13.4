@@ -73,7 +73,13 @@ class YieldProfileFormDialog(QDialog):
         form = QFormLayout()
         self.name = QLineEdit(str(self._version.get("profile_name") or ""))
         self.tolerance = PercentInput()
-        self.tolerance.setValue(float(_dec(self._version.get("tolerance_pct") or 0)))
+        tolerance = self._version.get("tolerance_pct")
+        if tolerance is None and not self._version_id:
+            # PROD-22: perfil nuevo → tolerancia por omisión de Configuración.
+            settings = getattr(self._presenter, "settings", None)
+            tolerance = (settings.defaults().get("yield_tolerance_pct")
+                         if settings is not None else None)
+        self.tolerance.setValue(float(_dec(tolerance or 0)))
         self.tolerance.valueChanged.connect(self._refresh_total)
         if self._is_edit:
             self.name.setEnabled(False)

@@ -9,6 +9,7 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 from whatsapp_service.config.settings import FUZZY_MATCH_THRESHOLD
+from whatsapp_service.erp.catalog_sql import CATALOG_SELECT, OFFERABLE, catalog_params
 
 logger = logging.getLogger("wa.matcher")
 
@@ -45,17 +46,10 @@ class ProductMatcher:
     def reload(self):
         """Recarga el catálogo de productos activos."""
         try:
-            rows = self.db.execute("""
-                SELECT p.id, p.nombre, p.precio,
-                       COALESCE(bi.quantity, p.existencia, 0) as stock,
-                       COALESCE(p.unidad, 'kg') as unidad,
-                       COALESCE(p.categoria, '') as categoria
-                FROM productos p
-                LEFT JOIN branch_inventory bi
-                    ON bi.product_id = p.id AND bi.branch_id = ?
-                WHERE p.activo = 1 AND COALESCE(p.oculto, 0) = 0
-                ORDER BY p.nombre
-            """, (self.sucursal_id,)).fetchall()
+            # PROD-22: maestro canónico; `productos` (legacy) está vacía.
+            rows = self.db.execute(
+                CATALOG_SELECT + f" WHERE {OFFERABLE} ORDER BY p.name",
+                catalog_params(self.sucursal_id)).fetchall()
 
             self._cache = [
                 {

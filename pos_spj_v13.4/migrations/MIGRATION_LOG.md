@@ -5,6 +5,81 @@ documentarse aquí antes del commit.
 
 ---
 
+## 326-329 — Pendientes de PROD-22 — 2026-10-10
+
+**326_product_meat_classification.** Tabla `product_meat_classifications`
+(categoría cárnica, región y corte de un producto). La política de dominio que
+valida la coherencia con la especie existía desde PROD-3 sin dónde guardar el
+resultado. Reclasificar exige motivo (§39).
+
+**327_cutting_bundle_version_creator.** `created_by` en `cutting_scheme_versions`
+y `bundle_versions`: sin creador, quien capturaba un despiece o un combo lo
+aprobaba y activaba él mismo. Ahora aplica la segregación como recetas y
+rendimientos. Versiones previas: creador NULL, no se bloquean.
+
+**328_external_catalog_source_and_reviewer.** `external_product_records.staged_by`
+(misma segregación para el catálogo externo) y registro de la fuente Open Food
+Facts: no existía ninguna fuente y la búsqueda era inalcanzable.
+
+**329_products_settings_catalog.** Parámetros `products.*` en el catálogo
+gobernado: tipo y unidad por omisión de la ficha, alertas a la campana (roles) y
+alertas críticas por WhatsApp (teléfonos, marcado sensible). Valores por
+omisión = comportamiento actual (alertas apagadas).
+
+Sin migración, con efecto: `SetCatchWeightConfigUseCase` convertía un rango
+vacío en 0–0 (aceptaba peso variable sin rango) y el repositorio escribía `''`
+como unidad, que viola la FK con `foreign_keys=ON`; volver a buscar en el
+catálogo externo regresaba a «pendiente» un registro ya revisado y devolvía ids
+inexistentes.
+
+---
+
+## 324/325 — Re-auditoría de Productos (PROD-22) — 2026-10-10
+
+**324_seed_products_granular_permissions.** Los 68 permisos granulares de
+`PRODUCTOS` eran otorgables pero nadie los tenía: todo lo decidía el puente de
+permisos, que concedía aprobar/activar con `editar` y cualquier código sin
+mapeo con la sola vista (cajero y solo_lectura podían habilitar productos por
+sucursal, gestionar cortes y códigos, aprobar importaciones externas, editar la
+configuración y ver la bitácora). Matriz (misma regla que la 260 de Precios):
+`system_owner`/`admin` todo; `gerente` todo salvo configuración del módulo y
+alertas; `almacen` captura y mantenimiento técnico, sin aprobar/activar/
+habilitar por sucursal; `cajero`/`solo_lectura` nada nuevo. Sólo `INSERT OR
+IGNORE`. El puente ahora deniega lo no mapeado y lo sensible exige su código.
+
+**325_drop_legacy_products_schema.** Retira las 18 tablas legacy de Productos
+(maestro `productos`, `branch_products`, 8 sistemas de recetas, 4 de
+rendimientos solo-pollo, `inventario_subproductos`) y las 3 vacías que las
+referenciaban por llave foránea (`branch_inventory`, `historial_precios`,
+`merma_log`), con sus vistas y triggers. Todo o nada: no toca nada si alguna
+tabla tiene filas o si una tabla ajena las referencia. Medido en la base real:
+todas con 0 filas y ratchet de lectores en 0 (el microservicio WhatsApp leía
+`productos` y se repuntó a `products`). Sustituye al script diferido
+`migrations/deferred/legacy_products_drop.py` (borrado). Verificada en copia de
+la base real (integridad OK, sin violaciones de FK) y en arranque desde cero.
+
+---
+
+## 323 — Imagen de producto sin fondo, visible en el POS (PROD-21) — 2026-10-09
+
+**323_product_image_background_removal.** Agrega a `product_images` las columnas
+`source_uri` (el original que se conserva al quitar el fondo) y
+`background_removed` (0/1). `uri` sigue siendo SIEMPRE lo que se muestra; el
+catálogo del POS no cambia su consulta. DDL en `products_schema.py`
+(`CREATE TABLE` + dos `ALTER` con guarda de columna); la migración sólo llama a
+`create_products_schema`. Idempotente, sin datos semilla: las imágenes
+existentes quedan como originales. Verificada sobre una copia de la base real
+(0 pendientes).
+
+Sin migración, con efecto real: la galería ahora COPIA el archivo elegido a
+`AppPaths.product_images_dir` (antes guardaba la ruta del escritorio del usuario
+y la tarjeta se quedaba sin imagen al mover el archivo). Eliminados por cero
+consumidores: `backend/application/services/product_image_service.py` y
+`frontend/desktop/components/logo_utils.py` (`quitar_fondo`, sólo lo llamaba su
+propio test).
+
+---
+
 ## 312/313 — Pruebas de dispositivo, permisos por usuario y media de pantalla — 2026-10-08
 
 **312_seed_device_test_and_user_permissions.** `DISPOSITIVOS.probar` (dueño y
@@ -4696,3 +4771,64 @@ regla para ese evento. No siembra teléfonos.
 abrir (día LOCAL de la apertura) y el asiento del Corte Z se fecha con ella, no con el
 día UTC del evento. La migración la completa para los turnos anteriores: el turno real
 «del 25» abrió a las 20:36 del 24 en hora local.
+
+### 314 — acciones de Clientes y CRM por rol (2026-10-08, CRM-43)
+
+Medido en la base real: sólo el dueño entraba al módulo (los roles traían los códigos
+gruesos `CLIENTES.ver/crear/...`; el módulo exige `CLIENTES.acceso` y códigos granulares;
+`CLIENTES_CRM.ver`, la puerta del menú, no la tenía nadie) y el cajero no podía buscar
+clientes en el POS (`CLIENTES.buscar`). Siembra la matriz que eligió el usuario
+(dueño/admin todo; gerente supervisor + crédito; cajero operación básica; solo lectura
+consulta; almacén/repartidor nada) a partir de una foto fija del catálogo, y borra
+`CLIENTES.eliminar`. Idempotente; un rol inexistente se omite.
+
+### 315 — políticas de SLA por prioridad (2026-10-08, CRM-43)
+
+`service_level_policies` estaba vacía: ningún caso tenía vencimiento. Siembra Baja
+8 h/72 h, Normal 4 h/48 h, Alta 1 h/24 h, Urgente y Crítica 30 min/8 h (decisión del
+usuario), sólo si la prioridad no tiene ya una política genérica activa.
+
+### 316 — proyección de compras de los clientes (2026-10-08, CRM-43)
+
+La proyección Ventas → Clientes se suscribía en `core/events` (borrado). CRM-43 la
+recablea (`customers/integrations/sales_wiring.py`); esta migración aplica una vez los
+`SALE_COMPLETED`/`SALE_REVERSED` ya despachados (idempotente por `event_id`).
+
+### 317 — entrega de los recordatorios del CRM (2026-10-09, CRM-43)
+
+Los recordatorios del CRM se guardaban y nadie los entregaba; la campana de la barra
+superior no tenía fuente. CRM-43 agrega el ciclo de fondo que deja los vencidos en la
+bandeja personal (`notification_inbox`); `crm_reminders.delivered_at` los marca como
+entregados para no repetirlos (índice parcial sobre los pendientes). Idempotente.
+
+### 318 — Cotizaciones como contexto propio (2026-10-09, CRM-43)
+
+No existía módulo de cotizaciones (cascarones sin llamadores; `cotizaciones` legacy sin
+escritor, 0 filas). Crea `quotes`, `quote_lines`, `quote_audit_log`, `quote_outbox` y
+copia las filas legacy que hubiera con el cliente canónico (`customers.legacy_customer_id`;
+sin él, se omiten con aviso en el log). Idempotente por `legacy_quote_id`.
+
+### 319 — permisos de Cotizaciones por rol (2026-10-09, CRM-43)
+
+Decisión del usuario («como el CRM»): dueño/admin todo; gerente su sucursal, aprueba y
+convierte; cajero las suyas sin aprobar; solo lectura consulta su sucursal;
+almacén/repartidor nada. Retira el grueso `COTIZACIONES.eliminar`.
+
+### 320 — `DELIVERY.pedido.crear` para convertir cotizaciones (2026-10-09, CRM-43)
+
+En la base real ningún rol tenía códigos granulares de Pedidos y la conversión se
+rechazaba. Concede sólo `pedido.crear` a gerente y cajero; la matriz completa de Pedidos
+queda pendiente de decisión.
+
+### 321 — vínculos de conversión del prospecto (2026-10-09, auditoría CRM F16)
+
+La relación prospecto → cliente sólo viajaba en el evento; la oportunidad se creaba con
+un `customer_id` sin comparar y un reintento no tenía de dónde retomar. Agrega
+`leads.converted_customer_id`/`converted_opportunity_id` y completa el cliente de los ya
+convertidos desde `crm_outbox`. Idempotente.
+
+### 322 — SLA con pausas medidas y resultado (2026-10-09, auditoría CRM F11)
+
+Pausar no descontaba la espera y una resolución tardía se mostraba «Cumplido». Agrega a
+`sla_instances` `paused_at`, `paused_seconds`, `first_response_outcome` y
+`resolution_outcome` (MET/MISSED); calcula el resultado de las ya resueltas. Idempotente.

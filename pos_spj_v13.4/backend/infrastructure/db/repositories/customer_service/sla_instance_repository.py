@@ -10,22 +10,28 @@ from backend.infrastructure.db.repositories.customer_service.base import (
 _SLA_COLS = (
     "id, case_id, policy_id, first_response_due_at, resolution_due_at,"
     " at_risk_threshold_pct, first_response_at, resolved_at, paused,"
-    " escalation_level, created_at"
+    " escalation_level, created_at, paused_at, paused_seconds, first_response_outcome,"
+    " resolution_outcome"
 )
 
 
 class SLAInstanceRepository(CustomerServiceRepositoryBase):
     def save(self, instance: SLAInstance) -> None:
         self._execute(
-            f"INSERT INTO sla_instances ({_SLA_COLS}) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            f"INSERT INTO sla_instances ({_SLA_COLS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             self._params(instance))
 
     def update(self, instance: SLAInstance) -> None:
+        # Auditoría CRM F11: también los vencimientos (se recorren al reanudar) y
+        # el resultado; antes sólo se guardaban marcas y el indicador de pausa.
         self._execute(
-            "UPDATE sla_instances SET first_response_at=?, resolved_at=?, paused=?,"
-            " escalation_level=? WHERE id=?",
-            (instance.first_response_at, instance.resolved_at, int(instance.paused),
-             instance.escalation_level, instance.id))
+            "UPDATE sla_instances SET first_response_due_at=?, resolution_due_at=?,"
+            " first_response_at=?, resolved_at=?, paused=?, escalation_level=?, paused_at=?,"
+            " paused_seconds=?, first_response_outcome=?, resolution_outcome=? WHERE id=?",
+            (instance.first_response_due_at, instance.resolution_due_at,
+             instance.first_response_at, instance.resolved_at, int(instance.paused),
+             instance.escalation_level, instance.paused_at, instance.paused_seconds,
+             instance.first_response_outcome, instance.resolution_outcome, instance.id))
 
     def get_for_case(self, case_id: str) -> SLAInstance | None:
         row = self._query_one(f"SELECT {_SLA_COLS} FROM sla_instances WHERE case_id=?",
@@ -45,7 +51,9 @@ class SLAInstanceRepository(CustomerServiceRepositoryBase):
             instance.id, instance.case_id, instance.policy_id, instance.first_response_due_at,
             instance.resolution_due_at, instance.at_risk_threshold_pct,
             instance.first_response_at, instance.resolved_at, int(instance.paused),
-            instance.escalation_level, instance.created_at,
+            instance.escalation_level, instance.created_at, instance.paused_at,
+            instance.paused_seconds, instance.first_response_outcome,
+            instance.resolution_outcome,
         )
 
     @staticmethod
@@ -57,5 +65,8 @@ class SLAInstanceRepository(CustomerServiceRepositoryBase):
             at_risk_threshold_pct=row["at_risk_threshold_pct"],
             first_response_at=row["first_response_at"], resolved_at=row["resolved_at"],
             paused=bool(row["paused"]), escalation_level=row["escalation_level"],
-            created_at=row["created_at"],
+            created_at=row["created_at"], paused_at=row.get("paused_at"),
+            paused_seconds=int(row.get("paused_seconds") or 0),
+            first_response_outcome=row.get("first_response_outcome"),
+            resolution_outcome=row.get("resolution_outcome"),
         )

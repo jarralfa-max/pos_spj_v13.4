@@ -27,7 +27,7 @@ class CrmFakePresenter:
                  users=(("u1", "Ana"), ("u2", "Beto"))) -> None:
         from frontend.desktop.modules.customers_crm.view_models import CustomerCrmCapabilities
         self._capabilities = capabilities or CustomerCrmCapabilities(
-            module_view=True, clientes=True, prospectos=True, oportunidades=True,
+            module_view=True, clientes=True, prospectos=True, oportunidades=True, cotizaciones=True,
             actividades=True, atencion=True, comercial=True, credito=True, segmentacion=True,
             comunicaciones=True, privacidad=True, control=True)
         #: ``None`` = todo permitido; un conjunto = sólo esos códigos.

@@ -16,6 +16,8 @@ scope for this phase.
 
 from __future__ import annotations
 
+from backend.domain.products.notification_enums import NotificationChannel
+
 from backend.application.products.notification_handlers.product_alert_detectors import (
     detect_product_alerts,
 )
@@ -51,10 +53,11 @@ def dispatch_product_alerts(
     notification_service: ProductNotificationService | None,
     notify_recipients: list[str] | None,
     operation_id: str,
+    whatsapp_recipients: list[str] | None = None,
 ) -> None:
     """No-ops unless both `notification_service` and `notify_recipients` are
     given — see module docstring."""
-    if notification_service is None or not notify_recipients:
+    if notification_service is None or not (notify_recipients or whatsapp_recipients):
         return
     profiles = ProfileRepository(conn)
     units = UnitRepository(conn)
@@ -62,11 +65,25 @@ def dispatch_product_alerts(
         product,
         has_shelf_life_profile=profiles.has_shelf_life(product.id),
         has_quality_profile=profiles.get_quality(product.id) is not None,
-        catch_weight_configured=(units.get_catch_weight(product.id) is not None),
+        # PROD-22: «configurado» exige rango; una fila deshabilitada o sin
+        # mínimo/máximo no apaga la alerta de peso variable sin rango.
+        catch_weight_configured=_catch_weight_has_range(units.get_catch_weight(product.id)),
     )
     for alert_type in alerts:
         message = _MESSAGES.get(alert_type.value, alert_type.value).format(
             code=product.code.value)
-        notification_service.notify(
-            alert_type, entity_id=product.id, message=message,
-            recipients=notify_recipients, operation_id=operation_id)
+        if notify_recipients:  # campana: ids de usuario, nunca WhatsApp
+            notification_service.notify(
+                alert_type, entity_id=product.id, message=message,
+                recipients=notify_recipients, operation_id=operation_id,
+                only_channels={NotificationChannel.IN_APP})
+        if whatsapp_recipients:  # WhatsApp: teléfonos, sólo alertas de alto impacto
+            notification_service.notify(
+                alert_type, entity_id=product.id, message=message,
+                recipients=whatsapp_recipients, operation_id=operation_id,
+                only_channels={NotificationChannel.WHATSAPP})
+
+
+def _catch_weight_has_range(cfg) -> bool:
+    return bool(cfg is not None and cfg.enabled and cfg.maximum_weight
+                and cfg.maximum_weight > 0)

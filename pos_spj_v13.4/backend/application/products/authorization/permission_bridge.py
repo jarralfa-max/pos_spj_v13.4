@@ -19,72 +19,80 @@ from collections.abc import Callable
 
 from backend.application.products.permissions import ProductPermissions
 
-#: Permiso canónico → códigos legacy que lo conceden (cualquiera basta).
+#: Permiso canónico → códigos gruesos que lo conceden (cualquiera basta).
+#:
+#: Re-auditoría PROD-22 (2026-10-09), medido en la base real: NINGÚN rol tenía
+#: sembrado un solo permiso granular de Productos, así que todo se decidía aquí.
+#: Y aquí había dos huecos: (1) aprobar/activar se concedían con
+#: ``PRODUCTOS.editar`` — quien captura podía aprobar y activar —, y (2) todo
+#: código SIN mapeo se concedía con la sola vista: ``cajero`` y ``solo_lectura``
+#: podían habilitar productos por sucursal (lo que vende el POS), gestionar
+#: especies, cortes y códigos de barras, crear productos internos, aprobar
+#: importaciones externas y cambiar la configuración y las alertas de WhatsApp.
+#:
+#: Ahora el puente sólo traduce lo que el permiso grueso significa de verdad:
+#: ver → consultar, crear → dar de alta, editar → mantener la ficha y sus
+#: catálogos, eliminar → bajas. Lo que exige segregación o es sensible
+#: (aprobar, activar, bloquear, descontinuar, archivar, reglas de código,
+#: clasificación cárnica, surtido por sucursal, productos internos, catálogos
+#: externos, configuración, notificaciones, WhatsApp, costo de referencia,
+#: bitácora de auditoría)
+#: NO tiene equivalente grueso: se concede sólo con su código granular, que la
+#: migración 324 siembra por rol. Lo no listado se DENIEGA.
+_VER = ("PRODUCTOS.ver",)
+_CREAR = ("PRODUCTOS.crear", "CREAR_PRODUCTO")
+_EDITAR = ("PRODUCTOS.editar", "EDITAR_PRODUCTO")
+_ELIMINAR = ("PRODUCTOS.eliminar", "ELIMINAR_PRODUCTO")
+
 CANONICAL_TO_LEGACY: dict[str, tuple[str, ...]] = {
-    ProductPermissions.ACCESS: ("PRODUCTOS.ver",),
-    ProductPermissions.VIEW: ("PRODUCTOS.ver",),
-    ProductPermissions.VIEW_MEAT: ("PRODUCTOS.ver",),
-    ProductPermissions.VIEW_INTERNAL: ("PRODUCTOS.ver",),
-    ProductPermissions.VIEW_AUDIT: ("PRODUCTOS.ver",),
-    ProductPermissions.EXPORT: ("PRODUCTOS.ver",),
-    ProductPermissions.CREATE: ("PRODUCTOS.crear", "CREAR_PRODUCTO"),
-    ProductPermissions.EDIT: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    ProductPermissions.DEACTIVATE: ("PRODUCTOS.eliminar", "ELIMINAR_PRODUCTO"),
-    ProductPermissions.ARCHIVE: ("PRODUCTOS.eliminar", "ELIMINAR_PRODUCTO"),
-    ProductPermissions.DISCONTINUE: ("PRODUCTOS.eliminar",),
-    ProductPermissions.SUBMIT: ("PRODUCTOS.editar",),
-    ProductPermissions.APPROVE: ("PRODUCTOS.editar",),
-    ProductPermissions.ACTIVATE: ("PRODUCTOS.editar",),
-    ProductPermissions.BLOCK: ("PRODUCTOS.editar",),
-    # P0-04: sobrescribir el código y gestionar sus reglas son privilegios de
-    # edición/configuración — nunca se conceden con la sola vista.
-    ProductPermissions.OVERRIDE_CODE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    ProductPermissions.CODE_RULES_MANAGE: ("PRODUCTOS.configurar",),
-    # P1-01: ver categorías con la vista; gestionarlas exige edición.
-    ProductPermissions.CATEGORIES_VIEW: ("PRODUCTOS.ver",),
-    ProductPermissions.CATEGORIES_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    # P1-02: ver marcas con la vista; gestionarlas exige edición.
-    ProductPermissions.BRANDS_VIEW: ("PRODUCTOS.ver",),
-    ProductPermissions.BRANDS_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    # P1-03: ver atributos con la vista; gestionarlos/generar variantes exige edición.
-    ProductPermissions.ATTRIBUTES_VIEW: ("PRODUCTOS.ver",),
-    ProductPermissions.ATTRIBUTES_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    ProductPermissions.VARIANTS_GENERATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    # P1: gestionar imágenes es un privilegio de edición del maestro.
-    ProductPermissions.IMAGES_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    # Recetas: ver con la vista; crear/editar/aprobar/activar con edición (nunca
-    # se conceden con la sola vista — la segregación exige además dos usuarios).
-    ProductPermissions.RECIPE_VIEW: ("PRODUCTOS.ver",),
-    ProductPermissions.RECIPE_CREATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    ProductPermissions.RECIPE_EDIT: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    ProductPermissions.RECIPE_APPROVE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    ProductPermissions.RECIPE_ACTIVATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    # Rendimientos (yields): ver con la vista; el resto con edición.
-    ProductPermissions.YIELD_VIEW: ("PRODUCTOS.ver",),
-    ProductPermissions.YIELD_CREATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    ProductPermissions.YIELD_EDIT: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    ProductPermissions.YIELD_APPROVE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    ProductPermissions.YIELD_ACTIVATE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    # Esquemas de despiece (cutting): ver con la vista; gestionar con edición.
-    ProductPermissions.CUTTING_SCHEME_VIEW: ("PRODUCTOS.ver",),
-    ProductPermissions.CUTTING_SCHEME_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    # Combos / kits: ver con la vista; gestionar con edición.
-    ProductPermissions.BUNDLES_VIEW: ("PRODUCTOS.ver",),
-    ProductPermissions.BUNDLES_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    # Unidades y conversiones (presentaciones de compra): ver con la vista;
-    # gestionarlas exige edición. Sin mapeo caían al permiso por omisión (la
-    # vista) y cualquiera que viera productos podía cambiar un factor que mueve
-    # inventario y costo.
-    ProductPermissions.UNITS_VIEW: ("PRODUCTOS.ver",),
-    ProductPermissions.UNITS_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    ProductPermissions.CONVERSIONS_MANAGE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
-    # Importación CSV/XLSX: ejecutar/aprobar son privilegios de creación/edición.
-    ProductPermissions.IMPORT_EXECUTE: ("PRODUCTOS.crear", "CREAR_PRODUCTO"),
-    ProductPermissions.IMPORT_APPROVE: ("PRODUCTOS.editar", "EDITAR_PRODUCTO"),
+    # ── consulta ──────────────────────────────────────────────────────────
+    ProductPermissions.ACCESS: _VER,
+    ProductPermissions.VIEW: _VER,
+    ProductPermissions.VIEW_MEAT: _VER,
+    ProductPermissions.VIEW_INTERNAL: _VER,
+    ProductPermissions.EXPORT: ("PRODUCTOS.exportar", "PRODUCTOS.ver"),
+    ProductPermissions.CATEGORIES_VIEW: _VER,
+    ProductPermissions.BRANDS_VIEW: _VER,
+    ProductPermissions.ATTRIBUTES_VIEW: _VER,
+    ProductPermissions.BUNDLES_VIEW: _VER,
+    ProductPermissions.SPECIES_VIEW: _VER,
+    ProductPermissions.MEAT_CLASSIFICATION_VIEW: _VER,
+    ProductPermissions.CUTS_VIEW: _VER,
+    ProductPermissions.UNITS_VIEW: _VER,
+    ProductPermissions.RECIPE_VIEW: _VER,
+    ProductPermissions.YIELD_VIEW: _VER,
+    ProductPermissions.CUTTING_SCHEME_VIEW: _VER,
+    ProductPermissions.BRANCH_ASSIGNMENT_VIEW: _VER,
+    ProductPermissions.SETTINGS_VIEW: _VER,
+    # ── alta y mantenimiento de la ficha ──────────────────────────────────
+    ProductPermissions.CREATE: _CREAR,
+    ProductPermissions.IMPORT_EXECUTE: _CREAR,
+    ProductPermissions.EDIT: _EDITAR,
+    ProductPermissions.SUBMIT: _EDITAR,
+    ProductPermissions.CATEGORIES_MANAGE: _EDITAR,
+    ProductPermissions.BRANDS_MANAGE: _EDITAR,
+    ProductPermissions.ATTRIBUTES_MANAGE: _EDITAR,
+    ProductPermissions.VARIANTS_GENERATE: _EDITAR,
+    ProductPermissions.IMAGES_MANAGE: _EDITAR,
+    # Unidades y conversiones mueven inventario y costo: nunca con la vista.
+    ProductPermissions.UNITS_MANAGE: _EDITAR,
+    ProductPermissions.CONVERSIONS_MANAGE: _EDITAR,
+    ProductPermissions.BARCODES_MANAGE: _EDITAR,
+    ProductPermissions.ALTERNATE_CODES_MANAGE: _EDITAR,
+    # Capturar borradores de receta/rendimiento/despiece/combo: sí con edición;
+    # aprobarlos y activarlos, no (abajo, sin equivalente grueso).
+    ProductPermissions.RECIPE_CREATE: _EDITAR,
+    ProductPermissions.RECIPE_EDIT: _EDITAR,
+    ProductPermissions.YIELD_CREATE: _EDITAR,
+    ProductPermissions.YIELD_EDIT: _EDITAR,
+    ProductPermissions.CUTTING_SCHEME_MANAGE: _EDITAR,
+    ProductPermissions.BUNDLES_MANAGE: _EDITAR,
+    # ── bajas ─────────────────────────────────────────────────────────────
+    ProductPermissions.DEACTIVATE: _ELIMINAR,
 }
 
-#: Cuando un permiso canónico no está mapeado arriba, se concede con la vista.
-_DEFAULT_LEGACY = ("PRODUCTOS.ver",)
+#: Sin mapeo → se deniega (antes se concedía con la vista).
+_DEFAULT_LEGACY: tuple[str, ...] = ()
 
 
 def legacy_codes_for(canonical_code: str) -> tuple[str, ...]:

@@ -488,16 +488,26 @@ class ProductsPresenter:
     def remove_image(self, image_id: str) -> tuple[bool, str]:
         return self._run_image("remove", image_id=image_id)
 
+    def remove_image_background(self, image_id: str) -> tuple[bool, str]:
+        return self._run_image("remove_background", image_id=image_id)
+
+    def restore_image_background(self, image_id: str) -> tuple[bool, str]:
+        return self._run_image("restore_background", image_id=image_id)
+
     def _run_image(self, action: str, **kw) -> tuple[bool, str]:
         if self._images_write is None:
             return False, "Sin permisos de gestión de imágenes"
         from backend.application.products.commands.product_image_commands import (
             AddProductImageCommand,
+            RemoveImageBackgroundCommand,
             RemoveProductImageCommand,
+            RestoreImageBackgroundCommand,
             SetPrimaryImageCommand,
         )
         from backend.shared.ids import new_uuid
         ucs = self._images_write()
+        if action not in ucs:
+            return False, "Acción de imagen no disponible"
         user_id = getattr(self._session, "user_id", None)
         try:
             if action == "add":
@@ -507,6 +517,12 @@ class ProductsPresenter:
                     make_primary=bool(kw.get("make_primary")), user_id=user_id)
             elif action == "set_primary":
                 cmd = SetPrimaryImageCommand(
+                    operation_id=new_uuid(), image_id=kw["image_id"], user_id=user_id)
+            elif action == "remove_background":
+                cmd = RemoveImageBackgroundCommand(
+                    operation_id=new_uuid(), image_id=kw["image_id"], user_id=user_id)
+            elif action == "restore_background":
+                cmd = RestoreImageBackgroundCommand(
                     operation_id=new_uuid(), image_id=kw["image_id"], user_id=user_id)
             else:
                 cmd = RemoveProductImageCommand(
@@ -1213,6 +1229,18 @@ class ProductsPresenter:
         from backend.application.products.permissions import ProductPermissions
         return self._allowed(ProductPermissions.EDIT)
 
+    @property
+    def can_submit(self) -> bool:
+        from backend.application.products.permissions import ProductPermissions
+        return self._allowed(ProductPermissions.SUBMIT)
+
+    @property
+    def can_activate(self) -> bool:
+        """PROD-22: activar es un permiso propio (antes el botón se habilitaba
+        con editar y el backend lo rechazaba después)."""
+        from backend.application.products.permissions import ProductPermissions
+        return self._allowed(ProductPermissions.ACTIVATE)
+
     def get_product(self, product_id: str) -> dict | None:
         """Fila del maestro para prellenar el formulario de edición."""
         if not self.can_write:
@@ -1285,9 +1313,20 @@ class ProductsPresenter:
         ]
 
     # ── catálogo (§43) ────────────────────────────────────────────────────
-    def catalog(self, *, query: str | None = None, product_type: str | None = None
-                ) -> TableViewModel:
-        rows = self._read_factory().list_catalog(query=query, product_type=product_type)
+    #: Familias del filtro del catálogo (§42), en es-MX.
+    CATALOG_FAMILY_OPTIONS = (
+        ("", "Todos los productos"),
+        ("MEAT", "Productos cárnicos"),
+        ("INTERNAL", "Productos internos y de proceso"),
+        ("MATERIALS", "Materias primas y materiales"),
+        ("BYPRODUCTS", "Subproductos, coproductos y residuos"),
+        ("SERVICES", "Servicios y kits"),
+    )
+
+    def catalog(self, *, query: str | None = None, product_type: str | None = None,
+                family: str | None = None) -> TableViewModel:
+        rows = self._read_factory().list_catalog(
+            query=query, product_type=product_type, family=family)
         return catalog_table(rows)
 
     # ── alertas (§35) ─────────────────────────────────────────────────────

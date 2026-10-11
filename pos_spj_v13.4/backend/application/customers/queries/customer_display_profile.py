@@ -6,9 +6,10 @@ teléfono, el correo, el RFC y la calle se enmascaran según el permiso de
 quien mira — nunca lo decide la pantalla.
 
 * ``CLIENTES.sensible.ver``  → VISIBLE (dueño, administrador, gerente).
-* ``CLIENTES.contacto.ver``  → PARCIAL (últimos 4: el cajero reconoce al
-  cliente sin ver el dato completo).
-* nada de lo anterior        → OCULTO (solo lectura).
+* ``CLIENTES.contacto.crear`` o ``.editar`` → PARCIAL (últimos 4: quien
+  atiende —el cajero— reconoce al cliente sin ver el dato completo).
+* sólo consulta              → OCULTO (solo lectura «ve sin datos sensibles»,
+  decisión del usuario 2026-10-08).
 
 ``visibility`` viaja en el resultado para que un formulario de edición sepa
 que NO debe precargar un valor enmascarado (guardarlo lo destruiría).
@@ -34,7 +35,8 @@ class DisplayCustomerProfile:
 def resolve_visibility(authorization, actor_user_id: str) -> FieldVisibility:
     if authorization.has_permission(actor_user_id, CustomerPermissions.SENSITIVE_DATA_VIEW):
         return FieldVisibility.VISIBLE
-    if authorization.has_permission(actor_user_id, CustomerPermissions.CONTACT_VIEW):
+    if (authorization.has_permission(actor_user_id, CustomerPermissions.CONTACT_CREATE)
+            or authorization.has_permission(actor_user_id, CustomerPermissions.CONTACT_EDIT)):
         return FieldVisibility.PARTIALLY_VISIBLE
     return FieldVisibility.MASKED
 

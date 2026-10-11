@@ -405,7 +405,7 @@ class RetentionPage(CrmWorkbenchPage):
                 FieldSpec("name", "Nombre", required=True),
                 FieldSpec("category", "Tipo de dato", "choice", required=True,
                           options=tuple(options("data_category"))),
-                FieldSpec("days", "Conservar (días)", "integer", default=1825, minimum=1),
+                FieldSpec("days", "Conservar (días)", "integer", minimum=1),
                 FieldSpec("customer_type", "Tipo de cliente", "choice",
                           options=tuple(options("customer_type"))),
                 FieldSpec("customer_status", "Estatus del cliente", "choice",

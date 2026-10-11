@@ -297,14 +297,6 @@
       "expression": "class CustomersCrmOverviewPage(QWidget)"
     },
     {
-      "path": "frontend/desktop/modules/finance/dialogs/_form_dialog.py",
-      "rule": "noncanonical_dialog",
-      "fingerprint": "1b6b3283da87138e89cf",
-      "count": 1,
-      "line": 8,
-      "expression": "class FinanceFormDialog(QDialog)"
-    },
-    {
       "path": "frontend/desktop/modules/finance/dialogs/commercial_posting_profile_dialog.py",
       "rule": "noncanonical_dialog",
       "fingerprint": "b6c00d935ed882da331d",
@@ -371,14 +363,6 @@
       "expression": "class SuppliersView(QWidget)",
       "coverage_added_on": "2026-09-11",
       "verified_existing_in": "HEAD"
-    },
-    {
-      "path": "frontend/desktop/modules/hr/dialogs/_form_dialog.py",
-      "rule": "noncanonical_dialog",
-      "fingerprint": "0a3823a69371f37c60a5",
-      "count": 1,
-      "line": 12,
-      "expression": "class HRFormDialog(QDialog)"
     },
     {
       "path": "frontend/desktop/modules/hr/hr_view.py",
@@ -853,22 +837,6 @@
       "count": 1,
       "line": 49,
       "expression": "class CuttingSchemeFormDialog(QDialog)"
-    },
-    {
-      "path": "frontend/desktop/modules/products/dialogs/image_gallery_dialog.py",
-      "rule": "noncanonical_dialog",
-      "fingerprint": "391020364d878e3370c5",
-      "count": 1,
-      "line": 25,
-      "expression": "class ImageGalleryDialog(QDialog)"
-    },
-    {
-      "path": "frontend/desktop/modules/products/dialogs/image_gallery_dialog.py",
-      "rule": "unicode_icon_literal",
-      "fingerprint": "1d0dbddbc33e2f16c233",
-      "count": 1,
-      "line": 78,
-      "expression": "'\u2605'"
     },
     {
       "path": "frontend/desktop/modules/products/dialogs/product_form_dialog.py",

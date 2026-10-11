@@ -164,6 +164,21 @@ class ProductFormDialog(QDialog):
 
         if product_id:
             self._load(product_id)
+        else:
+            self._apply_defaults()
+
+    def _apply_defaults(self) -> None:
+        """PROD-22: tipo y unidad por omisión de Productos → Configuración."""
+        settings = getattr(self._presenter, "settings", None)
+        defaults = settings.defaults() if settings is not None else {}
+        if defaults.get("product_type"):
+            self._select(self.product_type, defaults["product_type"])
+        code = (defaults.get("base_unit_code") or "").upper()
+        if code:
+            unit = next((u for u in self._presenter.list_units()
+                         if (u.get("code") or "").upper() == code), None)
+            if unit is not None:
+                self.base_unit.set_current_id(unit["id"])
 
     def _open_gallery(self) -> None:
         from frontend.desktop.modules.products.dialogs.image_gallery_dialog import (

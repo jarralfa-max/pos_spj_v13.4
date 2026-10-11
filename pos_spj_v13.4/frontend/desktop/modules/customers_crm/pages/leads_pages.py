@@ -11,7 +11,6 @@ qué acciones pone primero.
 
 from __future__ import annotations
 
-from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from backend.application.crm.permissions import CRMPermissions
@@ -34,7 +33,6 @@ from frontend.desktop.modules.customers_crm.pages._work_items import (
     WorkItemsPanel,
     new_activity,
     new_note,
-    new_task,
 )
 from frontend.desktop.modules.customers_crm.pages._workbench import (
     Action,
@@ -149,10 +147,9 @@ def qualify_dialog(parent, presenter, lead_id: str):
         FieldSpec("zone", "Está en zona de atención / reparto", "check"),
         FieldSpec("credit", "Capacidad de pago o de crédito", "check"),
         FieldSpec("min_criteria", "Criterios mínimos para calificar (criterios)", "integer",
-                  default=4, maximum=6),
-        FieldSpec("score", "Puntaje (por puntaje)", "integer", default=0, maximum=100),
-        FieldSpec("threshold", "Puntaje mínimo (por puntaje)", "integer", default=60,
-                  maximum=100),
+                  minimum=1, maximum=6),
+        FieldSpec("score", "Puntaje (por puntaje)", "integer", maximum=100),
+        FieldSpec("threshold", "Puntaje mínimo (por puntaje)", "integer", maximum=100),
         FieldSpec("decision", "Decisión (manual o regla propia)", "choice",
                   options=tuple(options("qualification_decision"))),
         FieldSpec("notes", "Notas / evidencia", "textarea"),
@@ -163,30 +160,21 @@ def convert_dialog(parent, presenter, lead):
     stages = [(s.id, s.name) for s in presenter.read("stages") if not s.is_terminal()]
 
     def submit(v):
+        # Auditoría CRM F16: un solo comando; cliente y oportunidad se crean juntos
+        # o no se crea nada.
         result = presenter.run("convert_lead", lead_id=lead.id,
                                link_to_customer_id=v["link_customer"] or None,
-                               allow_duplicate=bool(v["allow_duplicate"]))
-        if not result.success:
-            if getattr(result, "error_code", "") == "DUPLICATE":
-                dupes = result.data.get("duplicates", [])
-                names = presenter.customer_names([d["customer_id"] for d in dupes])
-                listed = ", ".join(names.get(d["customer_id"], "cliente") for d in dupes)
-                return Fail(f"Ya hay clientes parecidos: {listed}. Vincúlalo a uno existente "
-                             "o marca «Crear cliente nuevo aunque se parezca».")
-            return result
-        if v["create_opportunity"]:
-            try:
-                opportunity = presenter.run(
-                    "create_opportunity_from_lead", lead_id=lead.id,
-                    customer_id=result.data["customer_id"], stage_id=v["stage_id"] or None,
-                    amount=v["amount"] or lead.estimated_value,
-                    expected_close_date=v["expected_close"])
-            except Exception as exc:  # noqa: BLE001 — la conversión YA ocurrió
-                opportunity = Fail(str(exc))
-            if not opportunity.success:
-                return DoneWithWarning(
-                    f"Prospecto convertido, pero la oportunidad no se creó: "
-                    f"{opportunity.message}")
+                               allow_duplicate=bool(v["allow_duplicate"]),
+                               create_opportunity=bool(v["create_opportunity"]),
+                               stage_id=v["stage_id"] or None,
+                               amount=v["amount"] or lead.estimated_value,
+                               expected_close_date=v["expected_close"])
+        if not result.success and getattr(result, "error_code", "") == "DUPLICATE":
+            dupes = result.data.get("duplicates", [])
+            names = presenter.customer_names([d["customer_id"] for d in dupes])
+            listed = ", ".join(names.get(d["customer_id"], "cliente") for d in dupes)
+            return Fail(f"Ya hay clientes parecidos: {listed}. Vincúlalo a uno existente "
+                         "o marca «Crear cliente nuevo aunque se parezca».")
         return result
 
     return ask(parent, title=f"Convertir a cliente: {lead.display_name}",
@@ -231,10 +219,13 @@ def edit_lead_dialog(parent, presenter, lead):
         FieldSpec("company_name", "Empresa", default=lead.company_name),
         FieldSpec("contact_name", "Persona de contacto", default=lead.contact_name),
         FieldSpec("next_action_at", "Próxima acción", "datetime"),
+        FieldSpec("priority", "Prioridad", "choice", required=True,
+                  options=tuple(options("priority", exclude=("CRITICAL",))),
+                  default=getattr(lead.priority, "value", lead.priority)),
     ), on_submit=lambda v: presenter.run(
         "update_lead", lead_id=lead.id, display_name=v["display_name"],
         company_name=v["company_name"], contact_name=v["contact_name"],
-        next_action_at=v["next_action_at"]))
+        next_action_at=v["next_action_at"], priority=v["priority"]))
 
 
 # -- páginas ---------------------------------------------------------------------

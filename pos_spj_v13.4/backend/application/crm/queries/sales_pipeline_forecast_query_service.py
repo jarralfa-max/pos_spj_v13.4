@@ -56,7 +56,7 @@ class SalesPipelineForecastQueryService:
 
         # Sólo OPEN (ON_HOLD queda fuera del pronóstico, como siempre).
         open_opportunities = [
-            o for o in self._uow.opportunities.list_in_scope(scope, open_only=True, limit=5000)
+            o for o in self._uow.opportunities.list_in_scope(scope, open_only=True, limit=-1)
             if o.status is OpportunityStatus.OPEN]
 
         total = Decimal("0")

@@ -235,9 +235,11 @@ class TestCustomerMerge:
             "SELECT tax_identifier FROM customer_tax_profiles WHERE customer_id=?",
             (a,)).fetchone()
         assert tax[0] == "MASTER010101000"
+        # Auditoría CRM F06 (2026-10-09): el perfil fiscal del fusionado ya NO se
+        # borra; queda con el cliente fusionado (que conserva su historia).
         merged_tax_count = cust_conn.execute(
             "SELECT COUNT(*) FROM customer_tax_profiles WHERE customer_id=?", (b,)).fetchone()[0]
-        assert merged_tax_count == 0
+        assert merged_tax_count == 1
 
     def test_reject_merge(self, cust_conn):
         a = _customer(cust_conn, name="Cliente A")

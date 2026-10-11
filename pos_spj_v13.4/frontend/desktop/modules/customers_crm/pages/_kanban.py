@@ -24,7 +24,6 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QScrollArea,
-    QVBoxLayout,
     QWidget,
 )
 

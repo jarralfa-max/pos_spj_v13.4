@@ -70,6 +70,7 @@ _CONTEXT_PERMISSION_MODULES = (
     "backend.application.procurement.permissions",
     "backend.application.products.permissions",
     "backend.application.quality.permissions",
+    "backend.application.quotes.permissions",
     "backend.application.sales.permissions",
 )
 

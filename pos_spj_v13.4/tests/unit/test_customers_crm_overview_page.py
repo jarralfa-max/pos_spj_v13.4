@@ -67,7 +67,9 @@ class TestCustomerCrmPresenterDashboard:
             team_member_ids=("u42", "u43"))
         view = presenter.dashboard()
         assert view is _SAMPLE_VIEW
-        assert fake_service.calls == [{"actor_user_id": "u42", "team_member_ids": ("u42", "u43")}]
+        # Auditoría CRM F22: también la sucursal activa (la falsa sesión no tiene).
+        assert fake_service.calls == [{"actor_user_id": "u42", "team_member_ids": ("u42", "u43"),
+                                       "branch_ids": ()}]
 
 
 class _FakePresenter:

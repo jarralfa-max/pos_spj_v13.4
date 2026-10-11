@@ -42,6 +42,9 @@ class CRMCalendarQueryService:
         scheduled_at/due_at timestamp."""
         self._auth.require(actor_user_id, CRMPermissions.ACTIVITIES_VIEW)
         self._auth.require(actor_user_id, CRMPermissions.TASKS_VIEW)
+        if user_id != actor_user_id:  # auditoría CRM F03: la agenda de otro, sólo supervisión
+            self._auth.require(actor_user_id, CRMPermissions.ACTIVITIES_REASSIGN)
+            self._auth.require(actor_user_id, CRMPermissions.TASKS_REASSIGN)
 
         entries: list[CRMCalendarEntry] = []
         for activity in self._uow.activities.list_assigned_to(user_id):

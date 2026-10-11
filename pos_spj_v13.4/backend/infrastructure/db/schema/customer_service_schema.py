@@ -138,7 +138,11 @@ _DDL = (
         resolved_at TEXT,
         paused INTEGER NOT NULL DEFAULT 0,
         escalation_level INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        paused_at TEXT,
+        paused_seconds INTEGER NOT NULL DEFAULT 0,
+        first_response_outcome TEXT,
+        resolution_outcome TEXT
     )
     """,
     """

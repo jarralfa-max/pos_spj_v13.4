@@ -30,9 +30,12 @@ class CreateReceivableUseCase:
     def execute(self, connection, *, customer_id: str, amount: str, currency_code: str = "MXN",
                 document_number: str, issue_date: date, due_date: date | None = None,
                 branch_id: str | None = None, source_module: str = "finance",
-                source_document_id: str | None = None, operation_id: str) -> Receivable:
+                source_document_id: str | None = None, operation_id: str,
+                owns_transaction: bool = True) -> Receivable:
+        """``owns_transaction=False``: la deuda se escribe dentro de la transacción
+        de quien llama (la venta) y se confirma o revierte junto con ella."""
         money = Money.from_string(amount, currency_code)
-        with FinanceUnitOfWork(connection) as uow:
+        with FinanceUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
             existing = uow.receivables.find_by_operation_id(operation_id)
             if existing is not None:
                 return existing

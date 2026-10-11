@@ -104,7 +104,7 @@ CONTRACTS: tuple[ComponentContract, ...] = (
     ComponentContract("StandardTable", "frontend.desktop.components.tables",
                       "StandardTable", "Tabla con política visual única."),
     ComponentContract("StandardDialog", "frontend.desktop.components.dialogs",
-                      "StandardDialog", "Diálogo base."),
+                      "StandardDialog", "Cabecera sincronizada, cuerpo desplazable, pie fijo y límites del monitor."),
     ComponentContract("ConfirmationDialog", "frontend.desktop.components.dialogs",
                       "ConfirmationDialog", "Confirmación estándar."),
     ComponentContract("StatusBadge", "frontend.desktop.components.status_badge",

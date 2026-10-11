@@ -47,6 +47,7 @@ class BundleVersion:
     effective_from: str | None = None
     effective_to: str | None = None
     approved_by_user_id: str | None = None
+    created_by: str | None = None   # PROD-22: segregación (§39)
     reason: str | None = None
 
     def __post_init__(self) -> None:

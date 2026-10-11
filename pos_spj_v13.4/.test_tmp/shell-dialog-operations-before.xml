@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="7" skipped="0" tests="23" time="5.885" timestamp="2026-10-09T23:34:50.319754-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_pos_validation_failure_and_retry_preserve_capture[click-discount]" time="0.653" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_pos_validation_failure_and_retry_preserve_capture[click-customer]" time="0.066" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_pos_validation_failure_and_retry_preserve_capture[enter-discount]" time="0.049" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_pos_validation_failure_and_retry_preserve_capture[enter-customer]" time="0.016" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_discount_rejected_authorizer_never_applies" time="0.067" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_pos_escape_rejects_without_mutations[payment]" time="0.029" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_pos_escape_rejects_without_mutations[discount]" time="0.089" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_pos_escape_rejects_without_mutations[customer]" time="0.013" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_payment_enter_adds_local_line_and_cancel_never_starts_checkout" time="1.089" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_payment_retry_keeps_recorded_lines_and_accepts_once" time="0.311" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_payment_voucher_keeps_reference_and_rejects_duplicates" time="0.131" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_inventory_close_accepts_and_escape_rejects[zones]" time="0.047" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_inventory_close_accepts_and_escape_rejects[movement]" time="0.028" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_inventory_close_accepts_and_escape_rejects[lot]" time="0.053" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_inventory_close_accepts_and_escape_rejects[weight]" time="0.152" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_inventory_permissions_and_callbacks_remain_authoritative" time="0.122" /><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_operations_use_scroll_body_and_sticky_footer[zones]" time="0.008"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.inventory.dialogs.ManageZonesDialog object at 0x0000020DF0BF7770&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000020DF0BF7650&gt;
+dialogs = [&lt;frontend.desktop.modules.inventory.dialogs.ManageZonesDialog object at 0x0000020DF0BF7770&gt;]
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020DF0C17490&gt;
+kind = 'zones'
+
+    @pytest.mark.parametrize("kind", ["zones", "movement", "lot", "weight", "payment", "discount", "customer"])
+    def test_operations_use_scroll_body_and_sticky_footer(qt_font_resources, dialogs, monkeypatch, kind):
+        dialog = _build(kind)
+        dialogs.append(dialog)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.inventory.dialogs.ManageZonesDialog object at 0x0000020DF0BF7770&gt;, StandardDialog)
+
+tests\ui\test_operations_standard_dialogs.py:275: AssertionError</failure></testcase><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_operations_use_scroll_body_and_sticky_footer[movement]" time="0.010"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.inventory.dialogs.MovementDetailDialog object at 0x0000020DF10C3890&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000020DF0BF7650&gt;
+dialogs = [&lt;frontend.desktop.modules.inventory.dialogs.MovementDetailDialog object at 0x0000020DF10C3890&gt;]
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020DF10A9D90&gt;
+kind = 'movement'
+
+    @pytest.mark.parametrize("kind", ["zones", "movement", "lot", "weight", "payment", "discount", "customer"])
+    def test_operations_use_scroll_body_and_sticky_footer(qt_font_resources, dialogs, monkeypatch, kind):
+        dialog = _build(kind)
+        dialogs.append(dialog)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.inventory.dialogs.MovementDetailDialog object at 0x0000020DF10C3890&gt;, StandardDialog)
+
+tests\ui\test_operations_standard_dialogs.py:275: AssertionError</failure></testcase><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_operations_use_scroll_body_and_sticky_footer[lot]" time="0.064"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.inventory.dialogs.LotDetailDialog object at 0x0000020DF1117BF0&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000020DF0BF7650&gt;
+dialogs = [&lt;frontend.desktop.modules.inventory.dialogs.LotDetailDialog object at 0x0000020DF1117BF0&gt;]
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020DF0C45260&gt;
+kind = 'lot'
+
+    @pytest.mark.parametrize("kind", ["zones", "movement", "lot", "weight", "payment", "discount", "customer"])
+    def test_operations_use_scroll_body_and_sticky_footer(qt_font_resources, dialogs, monkeypatch, kind):
+        dialog = _build(kind)
+        dialogs.append(dialog)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.inventory.dialogs.LotDetailDialog object at 0x0000020DF1117BF0&gt;, StandardDialog)
+
+tests\ui\test_operations_standard_dialogs.py:275: AssertionError</failure></testcase><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_operations_use_scroll_body_and_sticky_footer[weight]" time="0.025"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.inventory.dialogs.WeightHistoryDialog object at 0x0000020DF10C0F80&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000020DF0BF7650&gt;
+dialogs = [&lt;frontend.desktop.modules.inventory.dialogs.WeightHistoryDialog object at 0x0000020DF10C0F80&gt;]
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020DF0C45480&gt;
+kind = 'weight'
+
+    @pytest.mark.parametrize("kind", ["zones", "movement", "lot", "weight", "payment", "discount", "customer"])
+    def test_operations_use_scroll_body_and_sticky_footer(qt_font_resources, dialogs, monkeypatch, kind):
+        dialog = _build(kind)
+        dialogs.append(dialog)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.inventory.dialogs.WeightHistoryDialog object at 0x0000020DF10C0F80&gt;, StandardDialog)
+
+tests\ui\test_operations_standard_dialogs.py:275: AssertionError</failure></testcase><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_operations_use_scroll_body_and_sticky_footer[payment]" time="0.017"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.sales_pos.dialogs.payment_dialog.PaymentDialog object at 0x0000020DF10C17F0&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000020DF0BF7650&gt;
+dialogs = [&lt;frontend.desktop.modules.sales_pos.dialogs.payment_dialog.PaymentDialog object at 0x0000020DF10C17F0&gt;]
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020DF10AD450&gt;
+kind = 'payment'
+
+    @pytest.mark.parametrize("kind", ["zones", "movement", "lot", "weight", "payment", "discount", "customer"])
+    def test_operations_use_scroll_body_and_sticky_footer(qt_font_resources, dialogs, monkeypatch, kind):
+        dialog = _build(kind)
+        dialogs.append(dialog)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.sales_pos.dialogs.payment_dialog.PaymentDialog object at 0x0000020DF10C17F0&gt;, StandardDialog)
+
+tests\ui\test_operations_standard_dialogs.py:275: AssertionError</failure></testcase><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_operations_use_scroll_body_and_sticky_footer[discount]" time="0.025"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.sales_pos.dialogs.discount_dialog.DiscountDialog object at 0x0000020DF1117890&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000020DF0BF7650&gt;
+dialogs = [&lt;frontend.desktop.modules.sales_pos.dialogs.discount_dialog.DiscountDialog object at 0x0000020DF1117890&gt;]
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020DF10AC450&gt;
+kind = 'discount'
+
+    @pytest.mark.parametrize("kind", ["zones", "movement", "lot", "weight", "payment", "discount", "customer"])
+    def test_operations_use_scroll_body_and_sticky_footer(qt_font_resources, dialogs, monkeypatch, kind):
+        dialog = _build(kind)
+        dialogs.append(dialog)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.sales_pos.dialogs.discount_dialog.DiscountDialog object at 0x0000020DF1117890&gt;, StandardDialog)
+
+tests\ui\test_operations_standard_dialogs.py:275: AssertionError</failure></testcase><testcase classname="tests.ui.test_operations_standard_dialogs" name="test_operations_use_scroll_body_and_sticky_footer[customer]" time="0.009"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.sales_pos.dialogs.quick_customer_dialog.QuickCustomerDialog object at 0x0000020DF10C1F40&gt;, StandardDialog)">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000020DF0BF7650&gt;
+dialogs = [&lt;frontend.desktop.modules.sales_pos.dialogs.quick_customer_dialog.QuickCustomerDialog object at 0x0000020DF10C1F40&gt;]
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000020DF116C6E0&gt;
+kind = 'customer'
+
+    @pytest.mark.parametrize("kind", ["zones", "movement", "lot", "weight", "payment", "discount", "customer"])
+    def test_operations_use_scroll_body_and_sticky_footer(qt_font_resources, dialogs, monkeypatch, kind):
+        dialog = _build(kind)
+        dialogs.append(dialog)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.sales_pos.dialogs.quick_customer_dialog.QuickCustomerDialog object at 0x0000020DF10C1F40&gt;, StandardDialog)
+
+tests\ui\test_operations_standard_dialogs.py:275: AssertionError</failure></testcase></testsuite></testsuites>

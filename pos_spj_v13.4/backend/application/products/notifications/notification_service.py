@@ -58,10 +58,17 @@ class ProductNotificationService:
         operation_id: str | None = None,
         whatsapp_enabled: bool = True,
         context: dict | None = None,
+        only_channels=None,
     ) -> NotificationOutcome:
         severity = severity_for(alert_type)
         channels = channels_for(alert_type, whatsapp_enabled=whatsapp_enabled)
+        # PROD-22: cada canal tiene su propio espacio de direcciones (usuarios
+        # para la campana, teléfonos para WhatsApp); el llamador elige el canal.
+        if only_channels is not None:
+            channels = [c for c in channels if c in set(only_channels)]
         ctx = dict(context or {})
+        ctx.setdefault("alert_type", alert_type.value)
+        ctx.setdefault("entity_id", entity_id)
         sent = throttled = failed = 0
 
         for channel in channels:

@@ -31,7 +31,6 @@ from frontend.desktop.modules.customers_crm.labels import (
     module_label,
     options,
 )
-from frontend.desktop.modules.customers_crm.pages._outcomes import Fail
 from frontend.desktop.modules.customers_crm.pages._workbench import (
     Action,
     CrmWorkbenchPage,
@@ -403,9 +402,9 @@ class SettingsPage(CrmWorkbenchPage):
             self, title="Nueva etapa del pipeline", submit_text="Crear", fields=(
                 FieldSpec("code", "Código", required=True, placeholder="DEMO"),
                 FieldSpec("name", "Nombre", required=True),
-                FieldSpec("probability", "Probabilidad (%)", "percent", default=30),
+                FieldSpec("probability", "Probabilidad (%)", "percent"),
                 FieldSpec("min_activities", "Actividades mínimas para entrar", "integer",
-                          default=0, maximum=20)),
+                          maximum=20)),
             on_submit=lambda v: self._presenter.run(
                 "create_stage", code=v["code"], name=v["name"],
                 probability_default=v["probability"], min_activities=v["min_activities"]))),
@@ -473,13 +472,15 @@ class SettingsPage(CrmWorkbenchPage):
             segments = [(s.entity.id, s.entity.name) for s in self._presenter.read("segments")]
         except Exception:  # noqa: BLE001
             pass
-        actions = options("automation_action", exclude=("CHANGE_PRIORITY", "SEND_NOTIFICATION"))
+        actions = options("automation_action")
 
         def submit(v):
+            # El dominio valida la combinación (qué acción aplica a qué disparador,
+            # días del umbral, datos obligatorios) y devuelve el motivo en español.
             action = v["action"]
             config = {}
             if action == "CREATE_TASK":
-                config = {"title": v["title"] or None, "due_in_hours": v["hours"],
+                config = {"title": v["title"] or None, "due_in_hours": v["hours"] or None,
                           "assigned_user_id": v["user"] or None}
             elif action == "ASSIGN_OWNER":
                 config = {"assignee_user_id": v["user"]}
@@ -489,11 +490,14 @@ class SettingsPage(CrmWorkbenchPage):
                 config = {"tag_id": v["tag"]}
             elif action == "ADD_TO_SEGMENT":
                 config = {"segment_id": v["segment"]}
+            elif action == "CHANGE_PRIORITY":
+                config = {"priority": v["priority"]}
+            elif action == "SEND_NOTIFICATION":
+                config = {"recipient_user_id": v["user"] or None,
+                          "notify_responsible": v["responsible"] or None,
+                          "message": v["message"] or None}
             config = {k: val for k, val in config.items() if val not in (None, "")}
-            if action in ("ASSIGN_OWNER", "ESCALATE_CASE") and "assignee_user_id" not in config \
-                    and "escalated_to_user_id" not in config:
-                return Fail("Elige el usuario.")
-            trigger_config = {"idle_days": v["idle_days"]} if v["trigger"].endswith("IDLE") else {}
+            trigger_config = {"days": v["days"]} if v["days"] else {}
             return self._presenter.run("create_automation", name=v["name"],
                                        trigger_type=v["trigger"], action_type=action,
                                        trigger_config=trigger_config, action_config=config,
@@ -501,18 +505,24 @@ class SettingsPage(CrmWorkbenchPage):
 
         self.notify_result(ask(self, title="Nueva automatización", submit_text="Crear", intro=(
             "Reglas declarativas: cuando ocurre algo, el sistema hace una acción con los "
-            "permisos de esa acción. No se ejecutan scripts."), fields=(
+            "permisos de esa acción. No se ejecutan scripts. Las reglas por tiempo se "
+            "revisan solas cada pocos minutos mientras el sistema está abierto, una vez "
+            "por registro."), fields=(
             FieldSpec("name", "Nombre", required=True),
             FieldSpec("trigger", "Cuando", "choice", required=True,
                       options=tuple(options("automation_trigger")), default="LEAD_CREATED"),
-            FieldSpec("idle_days", "Días sin movimiento (si aplica)", "integer", default=3,
-                      minimum=1, maximum=365),
+            FieldSpec("days", "Después de cuántos días", "integer", maximum=3650,
+                      helper="Sin movimiento, sin compra o sin revisión de crédito."),
             FieldSpec("action", "Hacer", "choice", required=True, options=tuple(actions),
                       default="CREATE_TASK"),
             FieldSpec("title", "Título de la tarea (crear tarea)"),
-            FieldSpec("hours", "Vence en horas (crear tarea)", "integer", default=24,
-                      minimum=1, maximum=720),
-            FieldSpec("user", "Usuario (asignar / escalar / tarea)", "user"),
+            FieldSpec("hours", "Vence en horas (crear tarea)", "integer", maximum=720),
+            FieldSpec("user", "Usuario (asignar / escalar / tarea / aviso)", "user"),
+            FieldSpec("responsible", "Avisar también al responsable del registro (aviso)",
+                      "check"),
+            FieldSpec("message", "Texto del aviso (aviso)", "textarea"),
+            FieldSpec("priority", "Prioridad nueva (cambiar prioridad)", "choice",
+                      options=tuple(options("priority"))),
             FieldSpec("tag", "Etiqueta (agregar etiqueta)", "choice", options=tuple(tags)),
             FieldSpec("segment", "Segmento (agregar a segmento)", "choice",
                       options=tuple(segments)),

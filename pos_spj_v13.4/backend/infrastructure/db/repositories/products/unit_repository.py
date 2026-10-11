@@ -133,7 +133,9 @@ class UnitRepository:
                  label_required=excluded.label_required,
                  scale_barcode_enabled=excluded.scale_barcode_enabled,
                  updated_at=datetime('now')""",
-            (product_id, int(cfg.enabled), cfg.nominal_unit_id, cfg.weight_unit_id,
+            # '' violaría la FK a units_of_measure (la app corre con foreign_keys=ON).
+            (product_id, int(cfg.enabled), cfg.nominal_unit_id or None,
+             cfg.weight_unit_id or None,
              None if cfg.minimum_weight is None else str(cfg.minimum_weight),
              None if cfg.maximum_weight is None else str(cfg.maximum_weight),
              None if cfg.average_weight is None else str(cfg.average_weight),

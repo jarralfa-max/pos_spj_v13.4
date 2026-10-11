@@ -42,6 +42,10 @@ class LeadDirectoryQueryService:
                 f"El lead {lead_id!r} está fuera del alcance ({scope.axis}) del usuario")
         return LeadProfile(lead=lead, qualifications=self._uow.qualifications.list_for_lead(lead_id))
 
+    def count_in_scope(self, context: CRMScopeContext, statuses: tuple[str, ...]) -> int:
+        scope = self._scope_resolver.resolve_view_scope(context, LEAD_VIEW_SCOPE_PERMISSIONS)
+        return self._uow.leads.count_in_scope(scope, statuses)
+
     def list_directory(self, context: CRMScopeContext, *, limit: int = 200,
                         offset: int = 0) -> list[Lead]:
         scope = self._scope_resolver.resolve_view_scope(context, LEAD_VIEW_SCOPE_PERMISSIONS)

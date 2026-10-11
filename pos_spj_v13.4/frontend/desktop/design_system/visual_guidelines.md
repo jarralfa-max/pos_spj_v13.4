@@ -112,6 +112,18 @@ anchos legibles y ofrece scroll horizontal; sus columnas secundarias pueden
 ocultarse según `ColumnSpec.hide_below`. `StandardDialog` limita su marco al área
 disponible del monitor y desplaza el contenido conservando el footer.
 
+El diálogo sigue su propio monitor después de abrirse, aunque su ventana padre
+permanezca en otra pantalla. Conserva el tamaño elegido al reabrir la misma
+instancia y adapta mínimos demasiado grandes al área disponible. El título
+visible sigue `setWindowTitle()`. Cabecera y botones permanecen fuera del scroll;
+los campos conservan sus valores al cambiar tema o densidad.
+
+Los formularios usan `FormDialog` y validan mediante `add_button_box(on_accept=…)`
+antes de aceptar. Enter activa la acción predeterminada y Escape cancela según
+el contrato del diálogo. En confirmaciones destructivas, Cancelar recibe el
+foco y es la acción predeterminada. Ver las capturas y pruebas del
+[punto 9](../../../docs/refactor/standard_dialog_phase_9.md).
+
 El sidebar global ocupa 240 px expandido y 64 px colapsado, con toggle visible,
 iconos y tooltips. `ModuleSidebar`/`SideNav` agrupa secciones, permite colapso
 horizontal y ofrece flyouts. Los índices de navegación existentes se conservan.

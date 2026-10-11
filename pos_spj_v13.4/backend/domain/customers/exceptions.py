@@ -138,3 +138,8 @@ class CustomerSyncConflictDetectedError(CustomerDomainError):
     swallowed) when an incoming remote mutation targets a stale local
     version. The caller must not apply the incoming change; a
     CustomerSyncConflict record blocks it until explicitly resolved."""
+
+
+class CustomerConcurrencyConflictError(CustomerDomainError):
+    """Auditoría CRM F07: otra persona guardó el cliente después de que lo
+    abriste; tu cambio no se aplicó para no borrar el suyo."""

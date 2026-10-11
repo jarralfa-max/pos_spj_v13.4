@@ -43,3 +43,31 @@ class RemoveProductImageCommand:
         missing = [f for f in ("operation_id", "image_id") if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
+
+
+@dataclass(frozen=True)
+class RemoveImageBackgroundCommand:
+    """PROD-21: deja la imagen con fondo transparente (conserva el original)."""
+
+    operation_id: str
+    image_id: str
+    user_id: str | None = None
+
+    def validate(self) -> None:
+        missing = [f for f in ("operation_id", "image_id") if not getattr(self, f)]
+        if missing:
+            raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
+
+
+@dataclass(frozen=True)
+class RestoreImageBackgroundCommand:
+    """PROD-21: vuelve a la foto original (descarta la versión sin fondo)."""
+
+    operation_id: str
+    image_id: str
+    user_id: str | None = None
+
+    def validate(self) -> None:
+        missing = [f for f in ("operation_id", "image_id") if not getattr(self, f)]
+        if missing:
+            raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")

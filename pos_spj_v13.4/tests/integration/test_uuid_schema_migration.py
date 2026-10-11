@@ -77,11 +77,6 @@ def test_inventory_commands_use_str_ids():
     assert "to_branch_id: int" not in src, "inventory_commands.py must not declare to_branch_id as int"
 
 
-def test_product_commands_use_str_ids():
-    src = (PACKAGE_ROOT / "backend" / "application" / "commands" / "product_commands.py").read_text()
-    assert "product_id: int" not in src, "product_commands.py must not declare product_id as int"
-
-
 def test_sales_commands_use_str_ids():
     src = (PACKAGE_ROOT / "backend" / "application" / "commands" / "sales_commands.py").read_text()
     assert "customer_id: int" not in src
@@ -91,8 +86,6 @@ def test_sales_commands_use_str_ids():
 def test_use_case_commands_use_str_ids():
     """Individual use case command dataclasses must not have int IDs."""
     files = [
-        "backend/application/use_cases/deactivate_product_use_case.py",
-        "backend/application/use_cases/restore_product_use_case.py",
         "backend/application/use_cases/get_inventory_stock_use_case.py",
     ]
     for rel in files:

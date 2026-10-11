@@ -48,6 +48,15 @@ def _opt_decimal(value) -> Decimal | None:
     return Decimal(str(value))
 
 
+def _checked_amount(value) -> Decimal | None:
+    """Auditoría CRM F09: el valor de una oportunidad es finito y no negativo
+    (antes la edición aceptaba -500 y deformaba el pronóstico)."""
+    amount = _opt_decimal(value)
+    if amount is not None and (not amount.is_finite() or amount < 0):
+        raise InvalidOpportunityStateError("El valor de la oportunidad no puede ser negativo.")
+    return amount
+
+
 _CLOSABLE = {OpportunityStatus.OPEN, OpportunityStatus.ON_HOLD}
 _STAGE_MOVABLE = {OpportunityStatus.OPEN, OpportunityStatus.ON_HOLD}
 _REOPENABLE = {OpportunityStatus.LOST, OpportunityStatus.CANCELLED}
@@ -98,6 +107,7 @@ class Opportunity:
             raise InvalidOpportunityStateError("name es obligatorio")
         if not stage_id:
             raise InvalidOpportunityStateError("stage_id es obligatorio")
+        amount = _checked_amount(amount)
         return cls(
             id=new_uuid(), code=code, customer_id=customer_id, name=name.strip(),
             stage_id=stage_id, account_id=account_id, source_lead_id=source_lead_id,
@@ -109,6 +119,10 @@ class Opportunity:
 
     def _touch(self) -> None:
         self.updated_at = _utcnow()
+
+    def set_amount(self, amount) -> None:
+        self.amount = _checked_amount(amount)
+        self._touch()
 
     # lifecycle ---------------------------------------------------------------
     def assign_owner(self, user_id: str) -> None:

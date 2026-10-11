@@ -11,6 +11,13 @@ service doesn't need).
 Returns a lightweight DTO, never the full ``Customer`` aggregate —
 ``CustomerRepository.search_lookup()`` was built specifically to stay
 cheap per keystroke.
+
+Auditoría CRM F04 (2026-10-09): «puede seleccionar al cliente» no es «puede
+ver su teléfono y correo». Con sólo ``SEARCH`` el teléfono y el correo llegaban
+en claro; ahora pasan por la MISMA política de visibilidad que el expediente
+(``resolve_visibility``: completo con datos sensibles, parcial con permiso de
+contactos, enmascarado sin él). La búsqueda por teléfono sigue funcionando: se
+compara en el servidor, sólo se enmascara lo que se devuelve.
 """
 
 from __future__ import annotations
@@ -19,6 +26,8 @@ from dataclasses import dataclass
 
 from backend.application.customers.authorization import CustomerAuthorizationPolicy
 from backend.application.customers.permissions import CustomerPermissions
+from backend.application.customers.queries.customer_display_profile import resolve_visibility
+from backend.domain.customers.value_objects.field_visibility import FieldVisibility, mask
 from backend.infrastructure.db.repositories.customers.unit_of_work import CustomerUnitOfWork
 
 
@@ -45,11 +54,18 @@ class CustomerLookupQueryService:
         if not query or not query.strip():
             return []
         rows = self._uow.customers.search_lookup(query.strip(), limit=limit)
-        return [CustomerLookupResult(
+        visibility = resolve_visibility(self._auth, actor_user_id)
+        return [self._result(row, visibility) for row in rows]
+
+    @staticmethod
+    def _result(row, visibility: FieldVisibility) -> CustomerLookupResult:
+        def shown(value):
+            return value if value in (None, "") else mask(str(value), visibility)
+        return CustomerLookupResult(
             customer_id=row["id"], code=row["customer_number"],
             display_name=row["display_name"], legal_name=row["legal_name"] or "",
-            status=row["status"], phone_e164=row["phone_e164"], email=row["email"])
-            for row in rows]
+            status=row["status"], phone_e164=shown(row["phone_e164"]),
+            email=shown(row["email"]))
 
     def get(self, customer_id: str, *, actor_user_id: str) -> CustomerLookupResult | None:
         """El cliente asignado a una venta, por id (§21: "mostrar" el cliente
@@ -60,8 +76,5 @@ class CustomerLookupQueryService:
         row = self._uow.customers.lookup_row(customer_id)
         if row is None:
             return None
-        return CustomerLookupResult(
-            customer_id=row["id"], code=row["customer_number"],
-            display_name=row["display_name"], legal_name=row["legal_name"] or "",
-            status=row["status"], phone_e164=row["phone_e164"], email=row["email"])
+        return self._result(row, resolve_visibility(self._auth, actor_user_id))
 

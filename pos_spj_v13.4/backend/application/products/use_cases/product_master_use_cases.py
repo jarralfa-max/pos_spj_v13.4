@@ -102,8 +102,8 @@ class CreateProductMasterUseCase:
 
     def __init__(self, connection,
                  authorization: ProductsAuthorizationPolicy | None = None, *,
-                 notification_service=None, notify_recipients: list[str] | None = None
-                 ) -> None:
+                 notification_service=None, notify_recipients: list[str] | None = None,
+                 whatsapp_recipients: list[str] | None = None) -> None:
         self._conn = connection
         self._repo = ProductMasterRepository(connection)
         self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
@@ -111,6 +111,7 @@ class CreateProductMasterUseCase:
         # notification_handlers/dispatch.py.
         self._notification_service = notification_service
         self._notify_recipients = notify_recipients
+        self._whatsapp_recipients = whatsapp_recipients
 
     def execute(self, command: CreateProductMasterCommand) -> ProductMasterResult:
         command.validate()
@@ -158,6 +159,7 @@ class CreateProductMasterUseCase:
             dispatch_product_alerts(
                 self._conn, product, notification_service=self._notification_service,
                 notify_recipients=self._notify_recipients,
+                whatsapp_recipients=self._whatsapp_recipients,
                 operation_id=command.operation_id)
             self._conn.commit()
         except Exception:
@@ -172,13 +174,14 @@ class UpdateProductMasterUseCase:
 
     def __init__(self, connection,
                  authorization: ProductsAuthorizationPolicy | None = None, *,
-                 notification_service=None, notify_recipients: list[str] | None = None
-                 ) -> None:
+                 notification_service=None, notify_recipients: list[str] | None = None,
+                 whatsapp_recipients: list[str] | None = None) -> None:
         self._conn = connection
         self._repo = ProductMasterRepository(connection)
         self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
         self._notification_service = notification_service
         self._notify_recipients = notify_recipients
+        self._whatsapp_recipients = whatsapp_recipients
 
     def execute(self, command: UpdateProductMasterCommand) -> ProductMasterResult:
         command.validate()
@@ -213,6 +216,7 @@ class UpdateProductMasterUseCase:
             dispatch_product_alerts(
                 self._conn, product, notification_service=self._notification_service,
                 notify_recipients=self._notify_recipients,
+                whatsapp_recipients=self._whatsapp_recipients,
                 operation_id=command.operation_id)
             self._conn.commit()
         except Exception:

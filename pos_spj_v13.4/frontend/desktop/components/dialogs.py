@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QFormLayout,
     QLabel,
     QLayout,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
@@ -68,10 +69,21 @@ class StandardDialog(QDialog):
         self.viewport.set_page(self._body)
         self._frame.addWidget(self.viewport, 1)
         self._button_boxes = []
+        self._footer_widgets = []
         ThemeManager.instance().density_changed.connect(self._density_changed)
 
     def content_layout(self) -> QVBoxLayout:
         return self._root
+
+    def add_footer_widget(self, widget: QWidget) -> QWidget:
+        """Keep existing module actions outside the scroll without rewiring them."""
+        if widget not in self._footer_widgets:
+            self._frame.addWidget(widget)
+            self._footer_widgets.append(widget)
+            if isinstance(widget, QDialogButtonBox):
+                self._button_boxes.append(widget)
+            self._density_changed()
+        return widget
 
     def add_button_box(self, *, ok_text: str = None, cancel_text: str = None,
                        ok_role=QDialogButtonBox.Ok,
@@ -83,9 +95,7 @@ class StandardDialog(QDialog):
         box.button(ok_role).setDefault(True)
         box.accepted.connect(self.accept if on_accept is None else on_accept)
         box.rejected.connect(self.reject)
-        self._frame.addWidget(box)
-        self._button_boxes.append(box)
-        self._density_changed()
+        self.add_footer_widget(box)
         return box
 
     def _update_heading(self, title: str) -> None:
@@ -93,10 +103,13 @@ class StandardDialog(QDialog):
         self._heading.setVisible(bool(title))
 
     def _density_changed(self, _density=None):
-        for box in self._button_boxes:
-            for button in box.buttons():
+        for widget in self._footer_widgets:
+            buttons = ([widget] if isinstance(widget, QPushButton)
+                       else widget.findChildren(QPushButton))
+            for button in buttons:
                 button.setMinimumHeight(density_metrics().button_height)
-                button.setAccessibleName(button.text())
+                if not button.accessibleName():
+                    button.setAccessibleName(button.text())
         if self.isVisible():
             self._fit_timer.start()
 

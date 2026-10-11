@@ -12,9 +12,12 @@ persisted anywhere in this bounded context — see
 ``CustomerCreditProfile``'s module docstring for why a cached
 ``current_exposure`` column would go stale.
 
-``cuentas_por_cobrar`` has no due-date column — the due date is computed as
-``fecha + payment_terms_days`` (from the caller's ``CustomerCreditProfile``),
-same derived-not-stored discipline as CRM-6/7's OVERDUE/breach-status.
+Vencimiento (auditoría CRM F23, 2026-10-09): en ``receivables`` manda el
+``due_date`` PACTADO del documento (lo fija el cobro a crédito con el plazo
+del perfil en ese momento; si el plazo cambia después, los documentos viejos
+conservan el suyo). Sólo la deuda histórica de ``cuentas_por_cobrar``, que no
+tiene columna de vencimiento, y un documento sin ``due_date`` usan el respaldo
+``fecha + payment_terms_days`` del perfil actual.
 
 **Data-model note, not a bug in this query**: ``cuentas_por_cobrar.
 cliente_id`` was created against the legacy ``clientes`` table
@@ -26,8 +29,14 @@ migration 193, resolved via ``ResolveLegacyCustomerUseCase``) but this
 query itself needs no change from it — call it directly with the LEGACY
 ``cliente_id`` (not the new ``customers.id``) and it already returns real
 exposure, since ``cuentas_por_cobrar`` was never migrated and still keys on
-the legacy id. Passing a new ``customers.id`` here (with no matching legacy
-rows) correctly returns zero exposure — accurate, not a silent failure.
+the legacy id.
+
+Auditoría CRM F02 (2026-10-09): eso último era el defecto — la elegibilidad y la
+ficha llaman con el id CANÓNICO, así que la deuda histórica de un cliente
+migrado daba 0 y se le autorizaba crédito que no tenía. Ahora la consulta recibe
+el id canónico y resuelve ella misma el puente (``customers.legacy_customer_id``):
+busca la deuda histórica por ambos ids. Sin doble conteo: son tablas distintas y
+ninguna venta se apuntó en las dos.
 
 All amounts converted row-by-row to ``Decimal`` (REGLA CERO) — SQL
 ``SUM()`` over the underlying ``REAL`` columns is deliberately avoided to
@@ -90,10 +99,18 @@ class CustomerAccountsReceivableSummaryQuery:
         """
         if not self._table_exists("cuentas_por_cobrar"):
             return []
-        return list(self._conn.execute(
+        ids = self._identities(customer_id)
+        marks = ",".join("?" for _ in ids)
+        return [(row[0], row[1], row[2], None) for row in self._conn.execute(
             "SELECT saldo_pendiente, fecha, fecha_pago FROM cuentas_por_cobrar"
-            " WHERE cliente_id=? AND estado NOT IN ('pagado', 'cancelada', 'cancelado')",
-            (customer_id,)).fetchall())
+            f" WHERE cliente_id IN ({marks})"
+            " AND estado NOT IN ('pagado', 'cancelada', 'cancelado')",
+            ids).fetchall()]
+
+    def _identities(self, customer_id: str) -> tuple[str, ...]:
+        """El id canónico, su histórico y los de clientes fusionados en él (F02/F06)."""
+        from backend.application.customers.identity import CustomerIdentityResolver
+        return CustomerIdentityResolver(self._conn).all_ids(customer_id)
 
     def _canonical_rows(self, customer_id: str) -> list[tuple]:
         """Deuda viva en `receivables`, el modelo canónico de Finanzas.
@@ -114,12 +131,17 @@ class CustomerAccountsReceivableSummaryQuery:
         """
         if not self._table_exists("receivables"):
             return []
+        # Auditoría CRM F06: la deuda de un cliente fusionado sigue contando para
+        # el superviviente (los documentos contables no se reescriben).
+        from backend.application.customers.identity import CustomerIdentityResolver
+        ids = CustomerIdentityResolver(self._conn).canonical_ids(customer_id)
+        marks = ",".join("?" for _ in ids)
         return [
-            (row[0], row[1], None)
+            (row[0], row[1], None, row[2])
             for row in self._conn.execute(
-                "SELECT outstanding_amount, issue_date FROM receivables"
-                " WHERE customer_id=? AND status IN ('OPEN','PARTIALLY_COLLECTED')",
-                (customer_id,)).fetchall()
+                "SELECT outstanding_amount, issue_date, due_date FROM receivables"
+                f" WHERE customer_id IN ({marks}) AND status IN ('OPEN','PARTIALLY_COLLECTED')",
+                ids).fetchall()
         ]
 
     def get_summary(
@@ -132,7 +154,7 @@ class CustomerAccountsReceivableSummaryQuery:
         overdue = Decimal("0")
         next_due: date | None = None
         count = 0
-        for saldo_pendiente, fecha, fecha_pago in rows:
+        for saldo_pendiente, fecha, fecha_pago, pactado in rows:
             if saldo_pendiente is None:
                 continue
             amount = Decimal(str(saldo_pendiente))
@@ -142,10 +164,12 @@ class CustomerAccountsReceivableSummaryQuery:
             exposure += amount
             if fecha_pago:
                 continue  # already paid — never overdue, never "next due"
-            billed_on = _parse_date(fecha)
-            if billed_on is None:
-                continue
-            due_date = billed_on + timedelta(days=payment_terms_days)
+            due_date = _parse_date(pactado) if pactado else None
+            if due_date is None:
+                billed_on = _parse_date(fecha)
+                if billed_on is None:
+                    continue
+                due_date = billed_on + timedelta(days=payment_terms_days)
             if due_date < as_of:
                 overdue += amount
             elif next_due is None or due_date < next_due:

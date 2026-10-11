@@ -64,12 +64,14 @@ class CommercialHistoryRepository(CustomerRepositoryBase):
             (customer_id, limit))
 
     def quotes(self, customer_id: str, *, limit: int = 300) -> list[dict]:
-        if not self._has("cotizaciones"):
+        """CRM-43: cotizaciones canónicas (``quotes``); las legacy de
+        ``cotizaciones`` se copiaron ahí con la migración 318."""
+        if not self._has("quotes"):
             return []
         return self._query(
-            "SELECT q.id, q.folio, q.total, q.estado, q.fecha, q.fecha_vencimiento"
-            " FROM cotizaciones q JOIN customers c ON c.legacy_customer_id = q.cliente_id"
-            " WHERE c.id=? ORDER BY q.fecha DESC LIMIT ?", (customer_id, limit))
+            "SELECT id, quote_number, total, status, created_at, valid_until,"
+            " converted_order_id FROM quotes WHERE customer_id=?"
+            " ORDER BY created_at DESC LIMIT ?", (customer_id, limit))
 
     def product_affinity(self, customer_id: str, *, limit: int = 50) -> list[dict]:
         if not (self._has("sales") and self._has("sale_lines")):

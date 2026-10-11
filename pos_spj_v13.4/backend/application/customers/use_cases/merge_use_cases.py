@@ -109,6 +109,36 @@ class ProposeCustomerMergeUseCase(_BaseUseCase):
                                  operation_id=operation_id)
 
 
+def _consolidate_credit(connection, merged_id: str, master_id: str) -> str:
+    """Auditoría CRM F06: el perfil de crédito no se queda colgado del id
+    fusionado. Si el superviviente no tiene, hereda el del fusionado; si ambos
+    tienen, se conserva el del superviviente y el otro se CIERRA (su deuda sigue
+    contando para el superviviente por el resolvedor de identidad). Misma
+    transacción que la fusión."""
+    exists = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='customer_credit_profiles'"
+    ).fetchone()
+    if not exists:
+        return "sin crédito"
+    from backend.infrastructure.db.repositories.customer_credit.unit_of_work import (
+        CustomerCreditUnitOfWork,
+    )
+    profiles = CustomerCreditUnitOfWork(connection).profiles
+    merged_profile = profiles.get_by_customer_id(merged_id)
+    if merged_profile is None:
+        return "sin crédito"
+    if profiles.get_by_customer_id(master_id) is None:
+        connection.execute("UPDATE customer_credit_profiles SET customer_id=? WHERE id=?",
+                           (master_id, merged_profile.id))
+        return "perfil heredado del fusionado"
+    if merged_profile.status.value in ("AUTHORIZED", "SUSPENDED", "BLOCKED"):
+        merged_profile.close(f"Fusionado en {master_id}")
+        profiles.update(merged_profile)
+        return "perfil del fusionado cerrado; se conserva el del superviviente"
+    return (f"el fusionado tenía una solicitud de crédito {merged_profile.status.value}; "
+            "se conserva el perfil del superviviente")
+
+
 class ExecuteCustomerMergeUseCase(_BaseUseCase):
     def __init__(self, authorization: CustomerAuthorizationPolicy | None = None) -> None:
         super().__init__(authorization)
@@ -149,13 +179,35 @@ class ExecuteCustomerMergeUseCase(_BaseUseCase):
             except CustomerSegregationOfDutiesError as exc:
                 return CustomerResult.fail(str(exc), "SOD_VIOLATION", operation_id=operation_id)
 
+            # Auditoría CRM F06: un solo contacto principal y un domicilio
+            # predeterminado por tipo en el superviviente (antes quedaban dos y el
+            # cliente salía dos veces en la búsqueda).
+            master_has_primary = any(c.is_primary
+                                     for c in uow.contacts.list_for_customer(master.id))
+            for contact in uow.contacts.list_for_customer(merged.id):
+                if master_has_primary and contact.is_primary:
+                    contact.is_primary = False
+                    uow.contacts.update(contact)
+            master_defaults = {getattr(a.address_type, "value", a.address_type)
+                               for a in uow.addresses.list_for_customer(master.id)
+                               if a.is_default}
+            for address in uow.addresses.list_for_customer(merged.id):
+                kind = getattr(address.address_type, "value", address.address_type)
+                if address.is_default and kind in master_defaults:
+                    address.is_default = False
+                    uow.addresses.update(address)
             uow.contacts.reassign_customer_id(merged.id, master.id)
             uow.addresses.reassign_customer_id(merged.id, master.id)
             uow.accounts.reassign_customer_id(merged.id, master.id)
+            # Perfil fiscal: si el superviviente no tiene, hereda el del fusionado.
+            # Si ambos tienen, el del fusionado NO se borra (antes sí): queda con el
+            # cliente fusionado, que conserva su historia, y en la auditoría.
+            kept_tax = None
             if uow.tax_profiles.get_for_customer(master.id) is None:
                 uow.tax_profiles.reassign_customer_id(merged.id, master.id)
             else:
-                uow.tax_profiles.delete_for_customer(merged.id)
+                kept_tax = uow.tax_profiles.get_for_customer(merged.id)
+            credit_note = _consolidate_credit(uow.connection, merged.id, master.id)
 
             merged.mark_merged(master.id)
             uow.customers.update(merged)
@@ -172,9 +224,11 @@ class ExecuteCustomerMergeUseCase(_BaseUseCase):
             uow.audit.record(
                 action=CustomerEvents.MERGE_EXECUTED, actor_user_id=actor_user_id,
                 customer_id=master.id, reason=reason, operation_id=operation_id,
-                before_json=json.dumps({"merged_customer_id": merged.id}),
+                before_json=json.dumps({
+                    "merged_customer_id": merged.id,
+                    "merged_tax_identifier_kept": kept_tax.tax_identifier if kept_tax else None}),
                 after_json=json.dumps({"master_customer_id": master.id,
-                                       "merge_record_id": record.id}))
+                                       "merge_record_id": record.id, "credit": credit_note}))
             self._emit(uow, CustomerEvents.MERGE_EXECUTED, master.id, operation_id,
                       actor_user_id, merged_customer_id=merged.id, master_customer_id=master.id)
         return CustomerResult.ok("Fusión ejecutada", entity_id=record.id,

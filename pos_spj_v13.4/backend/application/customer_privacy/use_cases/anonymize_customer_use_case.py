@@ -30,6 +30,22 @@ CRM-3 specifically for this call) flips ``status`` to ``ANONYMIZED``; it
 does not implement anonymization logic itself, so this use case is exactly
 the caller CRM-3 was waiting for.
 
+Auditoría CRM F15 (2026-10-09): la operación prometía más de lo que hacía —
+dejaba en claro teléfono, correo y domicilios de los contactos. Contactos y
+domicilios son hijos del PROPIO maestro de clientes, así que ahora también se
+tratan, con esta política:
+
+* contactos: nombre → «Contacto anonimizado»; teléfono, correo, puesto y área
+  se borran; quedan inactivos;
+* domicilios de entrega, comerciales y personales: calle, números, colonia,
+  referencias y coordenadas se borran (se conservan código postal, municipio y
+  estado: no identifican a la persona y sostienen estadística por zona);
+* SE CONSERVAN, por obligación fiscal: el perfil fiscal (RFC, razón social) y
+  los domicilios FISCAL/BILLING — igual que ya se conservaba ``legal_name``.
+
+Lo que vive en otros contextos (ventas, CxC, notas del CRM, conversaciones de
+WhatsApp) no se toca aquí; queda listado en la reauditoría como pendiente.
+
 Atomicity: both bounded contexts (customer_privacy, customers) write to
 the same connection in one transaction — same shared-connection,
 manual-commit pattern as CRM-4's ``ConvertLeadUseCase``.
@@ -54,6 +70,33 @@ from backend.infrastructure.db.repositories.customer_privacy.unit_of_work import
 from backend.infrastructure.db.repositories.customers.unit_of_work import CustomerUnitOfWork
 
 _ANONYMIZED_PLACEHOLDER = "Cliente anonimizado"
+_ANONYMIZED_CONTACT = "Contacto anonimizado"
+#: Domicilios que se conservan por obligación fiscal (facturas emitidas).
+_FISCAL_ADDRESS_TYPES = ("FISCAL", "BILLING")
+
+
+def _scrub_contacts_and_addresses(customers_uow, customer_id: str) -> None:
+    for contact in customers_uow.contacts.list_for_customer(customer_id):
+        contact.first_name = _ANONYMIZED_CONTACT
+        contact.last_name = ""
+        contact.job_title = ""
+        contact.department = ""
+        contact.phone_e164 = None
+        contact.email = None
+        contact.status = "INACTIVE"
+        customers_uow.contacts.update(contact)
+    for address in customers_uow.addresses.list_for_customer(customer_id):
+        if getattr(address.address_type, "value", address.address_type) in _FISCAL_ADDRESS_TYPES:
+            continue
+        address.street = "Anonimizado"
+        address.external_number = ""
+        address.internal_number = ""
+        address.neighborhood = ""
+        address.locality = ""
+        address.references = ""
+        address.latitude = None
+        address.longitude = None
+        customers_uow.addresses.update(address)
 
 
 class AnonymizeCustomerUseCase:
@@ -119,6 +162,7 @@ class AnonymizeCustomerUseCase:
         customer.commercial_name = ""
         customer.mark_anonymized()
         customers_uow.customers.update(customer)
+        _scrub_contacts_and_addresses(customers_uow, customer.id)
 
         try:
             request.complete(f"Anonimizado por {grant.authorized_by}: {reason}")

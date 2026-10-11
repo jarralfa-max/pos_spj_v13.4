@@ -364,6 +364,7 @@ class CustomerOrder:
         external_order_reference: str | None = None,
         whatsapp_order_id: str | None = None,
         operation_id: str | None = None,
+        quote_id: str | None = None,
     ) -> "CustomerOrder":
         _ids(branch_id)
         for value in (customer_id, created_by_user_id):
@@ -377,6 +378,7 @@ class CustomerOrder:
             external_order_reference=external_order_reference,
             whatsapp_order_id=whatsapp_order_id,
             operation_id=operation_id,
+            quote_id=quote_id,
         )
 
     def _find_line(self, line_id: str) -> CustomerOrderLine:

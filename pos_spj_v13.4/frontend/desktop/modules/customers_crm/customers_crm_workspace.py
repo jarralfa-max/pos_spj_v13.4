@@ -223,6 +223,17 @@ class CustomersCrmWorkspace(QWidget):
             page = OPPORTUNITY_ROUTE_PAGES[route_id](self._presenter, self)
             page.row_opened.connect(self._open_opportunity)
             return page
+        from frontend.desktop.modules.customers_crm.pages.quote_pages import (
+            QUOTE_ROUTE_PAGES,
+            QuoteDetailPage,
+        )
+        if route_id in QUOTE_ROUTE_PAGES:
+            page = QUOTE_ROUTE_PAGES[route_id](self._presenter, self)
+            page.row_opened.connect(self._open_quote)
+            return page
+        if route_id == "crm.quote_detail":
+            self._quote_detail = QuoteDetailPage(self._presenter, self)
+            return self._quote_detail
         if route_id == "crm.pipeline":
             page = PipelinePage(self._presenter, self)
             page.opportunity_opened.connect(self._open_opportunity)
@@ -231,6 +242,7 @@ class CustomersCrmWorkspace(QWidget):
             return ForecastPage(self._presenter, self)
         if route_id == "crm.opportunity_detail":
             self._opportunity_detail = OpportunityDetailPage(self._presenter, self)
+            self._opportunity_detail.quote_opened.connect(self._open_quote)
             return self._opportunity_detail
         if route_id in ACTIVITY_ROUTE_PAGES:
             return ACTIVITY_ROUTE_PAGES[route_id](self._presenter, self)
@@ -262,41 +274,19 @@ class CustomersCrmWorkspace(QWidget):
         if route_id in SEGMENTATION_ROUTE_PAGES:
             return SEGMENTATION_ROUTE_PAGES[route_id](self._presenter, self)
         from frontend.desktop.modules.customers_crm.pages import customer_sections as cs
-        scoped = {
-            "customers.contacts": (cs.ContactsSection, "Contactos",
-                                   "Personas de contacto de cada cliente.", Icons.PHONE),
-            "customers.addresses": (cs.AddressesSection, "Direcciones",
-                                    "Direcciones fiscales, de entrega y comerciales.",
-                                    Icons.ADDRESS),
-            "customers.tax_profiles": (cs.TaxProfileSection, "Datos fiscales",
-                                       "RFC, régimen, uso de CFDI y correo de facturación.",
-                                       Icons.FINANCE),
-            "customers.accounts": (cs.AccountsSection, "Cuentas comerciales",
-                                   "Cuentas de clientes empresariales.", Icons.COMPANY),
-        }
         from frontend.desktop.modules.customers_crm.pages import privacy_pages as pv
         if route_id in pv.PRIVACY_ROUTE_PAGES:
             return pv.PRIVACY_ROUTE_PAGES[route_id](self._presenter, self)
-        scoped.update({
-            "customers.communication_preferences": (
-                pv.PreferencesSection, "Preferencias de comunicación",
-                "Canal, horario y tipos de aviso que acepta cada cliente.", Icons.SETTINGS),
-            "customers.consents": (
-                pv.ConsentsSection, "Consentimientos",
-                "Aviso de privacidad, WhatsApp, marketing… con su evidencia.", Icons.APPROVAL),
+        # Lo que es de UN cliente (contactos, direcciones, datos fiscales, cuentas,
+        # consentimientos, preferencias, compras, pedidos, devoluciones…) vive en
+        # las pestañas del expediente; el menú ya no lo repite (2026-10-09).
+        # WhatsApp no tiene pestaña con su historial, por eso conserva su entrada.
+        scoped = {
             "customers.whatsapp_summary": (
                 pv.WhatsAppSection, "WhatsApp",
                 "Consentimiento, conversaciones y mensajes del cliente (sin contenido).",
                 Icons.PHONE),
-            "customers.notification_history": (
-                pv.WhatsAppSection, "Notificaciones",
-                "Avisos enviados al cliente y su estado de entrega.", Icons.NOTIFICATIONS),
-        })
-        from frontend.desktop.modules.customers_crm.pages.commercial_pages import (
-            COMMERCIAL_SECTIONS,
-        )
-        for commercial_route, (section, title, subtitle) in COMMERCIAL_SECTIONS.items():
-            scoped[commercial_route] = (section, title, subtitle, Icons.SALES)
+        }
         if route_id in scoped:
             section, title, subtitle, icon = scoped[route_id]
             return cs.scoped_page(route_id, section, title, subtitle, icon)(
@@ -316,6 +306,18 @@ class CustomersCrmWorkspace(QWidget):
             return
         self.select_route("crm.case_detail")
         detail.show_case(case_id)
+
+    def _open_quote(self, quote_id: str) -> None:
+        if getattr(self, "_quote_detail", None) is None:
+            # El detalle se construye al seleccionar su ruta; sin permiso no existe.
+            if "crm.quote_detail" not in self._route_index_by_id:
+                return
+            self.select_route("crm.quote_detail")
+        else:
+            self.select_route("crm.quote_detail")
+        detail = getattr(self, "_quote_detail", None)
+        if detail is not None:
+            detail.show_quote(quote_id)
 
     def _open_opportunity(self, opportunity_id: str) -> None:
         detail = getattr(self, "_opportunity_detail", None)

@@ -49,6 +49,13 @@ class CRMActivityRepository(CRMRepositoryBase):
             (related_entity_type, related_entity_id))
         return [self._hydrate(r) for r in rows]
 
+    def count_completed_for(self, related_entity_type: str, related_entity_id: str) -> int:
+        """Auditoría CRM F08: lo que cuenta para «actividades mínimas» de una etapa."""
+        return int(self._scalar(
+            "SELECT COUNT(*) FROM crm_activities WHERE related_entity_type=?"
+            " AND related_entity_id=? AND status='COMPLETED'",
+            (related_entity_type, related_entity_id), default=0))
+
     def list_assigned_to(self, user_id: str) -> list[CRMActivity]:
         rows = self._query(
             f"SELECT {_ACTIVITY_COLS} FROM crm_activities"

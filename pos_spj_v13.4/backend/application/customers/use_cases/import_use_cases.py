@@ -63,6 +63,10 @@ class _BaseUseCase:
             row_operation_id = f"{operation_id}:row{index}"
             customer_id = row.get("customer_id")
             if customer_id:
+                # Auditoría CRM F03: actualizar por id es EDITAR, no sólo importar.
+                if not self._auth.has_permission(actor_user_id, CustomerPermissions.EDIT):
+                    batch.record_row("ERROR")
+                    continue
                 customer = uow.customers.get(customer_id)
                 if customer is None:
                     batch.record_row("ERROR")
@@ -102,7 +106,26 @@ class _BaseUseCase:
             except (CustomerDomainError, ValueError):
                 batch.record_row("ERROR")
                 continue
+            # Auditoría CRM F05: teléfono/correo/RFC se guardan (antes se perdían). Si
+            # no son válidos la fila es ERROR y no se crea nada a medias.
+            try:
+                from backend.domain.customers.entities.customer_contact import (
+                    normalize_email,
+                    normalize_phone,
+                )
+                normalize_phone(row.get("phone_e164"))
+                normalize_email(row.get("email"))
+            except (CustomerDomainError, ValueError):
+                batch.record_row("ERROR")
+                continue
             uow.customers.save(customer, operation_id=row_operation_id)
+            from backend.application.customers.use_cases.lifecycle_use_cases import (
+                attach_contact_and_tax,
+            )
+            attach_contact_and_tax(uow, customer, phone_e164=row.get("phone_e164"),
+                                   email=row.get("email"),
+                                   tax_identifier=row.get("tax_identifier"),
+                                   legal_name=row.get("legal_name", ""))
             batch.record_row("CREATED")
             existing_rows.append({
                 "id": customer.id, "display_name": display_name,

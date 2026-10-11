@@ -46,3 +46,18 @@ class MeatClassificationQueryService:
         """Cortes con su cadena de niveles, para renderizar el árbol
         canal → primario → secundario → porcionado en la UI."""
         return self.list_cuts(species_id, active_only=active_only)
+
+    # ── clasificación de UN producto (PROD-22) ───────────────────────────
+    def product_classification(self, product_id: str) -> dict:
+        """Especie (del producto) + categoría, región y corte guardados."""
+        row = self._conn.execute(
+            "SELECT p.product_type, p.species_id, s.name, c.meat_category, "
+            "c.anatomical_region_id, c.cut_classification_id "
+            "FROM products p LEFT JOIN species s ON s.id = p.species_id "
+            "LEFT JOIN product_meat_classifications c ON c.product_id = p.id "
+            "WHERE p.id=?", (product_id,)).fetchone()
+        if row is None:
+            return {}
+        return {"product_type": row[0], "species_id": row[1], "species_name": row[2],
+                "meat_category": row[3], "anatomical_region_id": row[4],
+                "cut_classification_id": row[5]}

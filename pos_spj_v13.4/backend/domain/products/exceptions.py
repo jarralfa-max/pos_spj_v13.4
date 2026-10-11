@@ -257,3 +257,8 @@ class VariantAlreadyExistsError(ProductsDomainError):
 # ── P1 images ────────────────────────────────────────────────────────────────
 class InvalidProductImageError(ProductsDomainError):
     """A product image is malformed (missing product/uri)."""
+
+
+class ProductImageProcessingError(ProductsDomainError):
+    """The image file could not be read or processed (not an image, missing
+    file, or the background could not be told apart from the product)."""

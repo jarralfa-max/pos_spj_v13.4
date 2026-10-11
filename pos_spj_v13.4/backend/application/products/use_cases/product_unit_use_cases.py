@@ -250,10 +250,12 @@ class SetCatchWeightConfigUseCase(_Base):
                 enabled=bool(command.enabled),
                 nominal_unit_id=command.nominal_unit_id or "",
                 weight_unit_id=command.weight_unit_id or "",
+                # PROD-22: sin rango no se inventa un 0–0 (que rechazaría todo
+                # peso real); el value object exige el rango si está activo.
                 minimum_weight=(Decimal(command.minimum_weight)
-                               if command.minimum_weight is not None else Decimal("0")),
+                               if command.minimum_weight not in (None, "") else None),
                 maximum_weight=(Decimal(command.maximum_weight)
-                               if command.maximum_weight is not None else Decimal("0")),
+                               if command.maximum_weight not in (None, "") else None),
                 average_weight=(Decimal(command.average_weight)
                                 if command.average_weight is not None else None),
                 tolerance_pct=Decimal(command.tolerance_pct),
