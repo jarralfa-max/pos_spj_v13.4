@@ -173,6 +173,7 @@ def build_enterprise_presenter(connection, session_context=None, *,
             "invoices": InvoiceReadService(connection),
             "receipts": ReceiptReadService(connection),
             "rfqs": RfqReadService(connection),
+            "returns": _returns_reads(connection),
         },
         analytics=ProcurementAnalyticsService(connection),
         event_dispatcher=_post_commit_dispatcher(connection),
@@ -198,6 +199,7 @@ def build_enterprise_presenter(connection, session_context=None, *,
                 payment_terms=payment_terms),
             "inv_release": ReleaseInvoiceVarianceUseCase(
                 authorization, payment_terms=payment_terms),
+            **_audit_use_cases(authorization),
         },
         session_context=session_context,
         logistics_reads=logistics_reads,
@@ -241,3 +243,37 @@ def create_enterprise_purchasing_view(container, parent=None):
         "history": DirectPurchaseHistoryView(direct_presenter),
     }
     return EnterprisePurchasingView(presenter, parent, direct_purchase_views=direct_views)
+
+
+def _returns_reads(connection):
+    from backend.application.procurement.queries.returns_read_service import (
+        PurchaseReturnsReadService,
+    )
+    return PurchaseReturnsReadService(connection)
+
+
+def _audit_use_cases(authorization) -> dict:
+    """Casos de uso que la auditoría de Compras C26 expone a la pantalla:
+    reversar recepción, devolver al proveedor, cerrar faltante, cancelar factura."""
+    from backend.application.procurement.use_cases.purchase_order_use_cases import (
+        ReverseGoodsReceiptUseCase,
+    )
+    from backend.application.procurement.use_cases.purchase_return_use_cases import (
+        CancelPurchaseReturnUseCase,
+        ConfirmPurchaseReturnUseCase,
+        CreatePurchaseReturnUseCase,
+    )
+    from backend.application.procurement.use_cases.remainder_use_cases import (
+        CancelSupplierInvoiceUseCase,
+        CloseDirectPurchaseRemainderUseCase,
+        ClosePurchaseOrderRemainderUseCase,
+    )
+    return {
+        "gr_reverse": ReverseGoodsReceiptUseCase(authorization),
+        "return_create": CreatePurchaseReturnUseCase(authorization),
+        "return_confirm": ConfirmPurchaseReturnUseCase(authorization),
+        "return_cancel": CancelPurchaseReturnUseCase(authorization),
+        "po_close_remainder": ClosePurchaseOrderRemainderUseCase(authorization),
+        "dp_close_remainder": CloseDirectPurchaseRemainderUseCase(authorization),
+        "inv_cancel": CancelSupplierInvoiceUseCase(authorization),
+    }

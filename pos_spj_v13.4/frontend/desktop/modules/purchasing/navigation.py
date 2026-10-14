@@ -16,6 +16,7 @@ class PurchasingRoutes:
     DIRECT_PURCHASE_HISTORY = "direct_purchase_history"
     ORIGIN_LOADING = "origin_loading"
     RECEIPTS = "receipts"
+    RETURNS = "returns"
     INVOICES = "invoices"
 
 
@@ -46,6 +47,8 @@ IMPLEMENTED_PURCHASING_ROUTES = (
                               "COMPRA EN ORIGEN", "origin_view", Icons.PICKING),
     PurchasingRouteDefinition(PurchasingRoutes.RECEIPTS, "Pendientes y diferencias",
                               "RECEPCIONES", "receipt_view", Icons.RECEIVING),
+    PurchasingRouteDefinition(PurchasingRoutes.RETURNS, "Devoluciones y reversos",
+                              "RECEPCIONES", "returns_view", Icons.RETURN),
     PurchasingRouteDefinition(PurchasingRoutes.INVOICES, "Facturas y conciliación",
                               "FACTURACIÓN", "invoice_view", Icons.DOCUMENT, "invoices"),
 )

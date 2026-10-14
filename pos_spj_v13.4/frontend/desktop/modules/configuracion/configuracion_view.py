@@ -2,10 +2,11 @@
 Mirrors `frontend/desktop/modules/transfers/transfers_view.py`.
 """
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QStackedWidget, QWidget
+from PyQt5.QtWidgets import QWidget
 
 from frontend.desktop.components import ViewState, create_state_widget
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from .configuracion_routes import build_page
 from .navigation.configuracion_sidebar import CONFIGURACION_NAV
@@ -23,7 +24,7 @@ class ConfiguracionView(QWidget):
         self._pages = {}
         self._denied = None
         self.sidebar = ConfiguracionSidebarWidget(has_permission=has_permission, badges=badges, parent=self)
-        self.stack = QStackedWidget(self)
+        self.stack = PageStack(self)
         self.module_layout = ModuleLayout(
             self, title="Configuración", icon=Icons.SETTINGS,
             sidebar=self.sidebar, content=self.stack,

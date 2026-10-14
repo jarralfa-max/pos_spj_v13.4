@@ -4,6 +4,7 @@ Funciones helper para construir los mensajes con botones y listas
 que cubren el 70% de la interacción sin NLP.
 """
 from __future__ import annotations
+from decimal import Decimal
 from typing import List, Dict
 from messaging.sender import send_buttons, send_list, send_text
 
@@ -131,7 +132,7 @@ async def send_tipo_entrega(to: str):
     )
 
 
-async def send_metodo_pago(to: str, total: float):
+async def send_metodo_pago(to: str, total: Decimal):
     """Selección de método de pago."""
     await send_buttons(
         to=to,

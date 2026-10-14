@@ -1,4 +1,8 @@
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal, loads_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -19,7 +23,7 @@ class IdempotencyRecord:
         if not self.result_json:
             return {}
         try:
-            return json.loads(self.result_json)
+            return loads_decimal(self.result_json)
         except Exception:
             return {}
 
@@ -91,7 +95,7 @@ class BusinessIdempotencyService:
             SET status='completed', result_json=?, error='', updated_at=datetime('now')
             WHERE action_key=?
             """,
-            (json.dumps(result, ensure_ascii=False), action_key),
+            (dumps_decimal(result, ensure_ascii=False), action_key),
         )
         self.db.commit()
 

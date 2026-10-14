@@ -132,6 +132,7 @@ def bootstrap_finance(connection, *, today: date | None = None) -> None:
 
         _seed_treasury(uow, code_to_id)
         _seed_posting_profiles(uow, code_to_id, today)
+        _ensure_late_additions(uow, today)
     logger.info("Finance bootstrap: chart, journals, period, treasury and profiles seeded.")
 
 
@@ -165,7 +166,8 @@ def _ensure_late_additions(uow: FinanceUnitOfWork, today: date) -> None:
     chart = {code: (name, acc_type, cash_flow, posting)
              for code, name, acc_type, cash_flow, posting in _CHART}
     ids: dict[str, str] = {}
-    for code in ("2136", "6110", "4120", "1120", "1102", "2132", "4101"):
+    for code in ("2136", "6110", "4120", "1120", "1102", "2132", "4101",
+                 "1140", "1150", "2101", "1170"):
         account = uow.accounts.get_by_code(code)
         if account is None:
             name, acc_type, cash_flow, posting = chart[code]
@@ -179,6 +181,15 @@ def _ensure_late_additions(uow: FinanceUnitOfWork, today: date) -> None:
             instrument_type=CommercialInstrumentType.SWEEPSTAKES_PRIZE) is None:
         uow.posting_profiles.save(_sweepstakes_profile(ids, date(today.year, 1, 1)))
         logger.info("Finance: perfil SWEEPSTAKES_PRIZE agregado")
+    if uow.posting_profiles.find_effective("PURCHASE_RETURN", today) is None:
+        uow.posting_profiles.save(_profile(
+            "PURCHASE_RETURN", "Devoluciones a proveedor (nota de crédito)", {
+                "payable_account_id": ids["2101"],
+                "inventory_account_id": ids["1150"],
+                "supplier_advance_account_id": ids["1140"],
+                "tax_account_id": ids["1170"],
+            }, date(today.year, 1, 1)))
+        logger.info("Finance: perfil PURCHASE_RETURN agregado")
     if uow.posting_profiles.find_effective(
             "PREPAID_VOUCHER", today,
             instrument_type=CommercialInstrumentType.PREPAID_VOUCHER) is None:

@@ -8,7 +8,7 @@ from datetime import date
 from backend.application.services.finance.posting_engine import PostingEngine
 from backend.domain.finance.entities.fixed_asset import FixedAsset
 from backend.domain.finance.enums import JournalType, PostingPurpose
-from backend.domain.finance.exceptions import FinanceDomainError
+from backend.domain.finance.exceptions import CurrencyMismatchError, FinanceDomainError
 from backend.domain.finance.services.depreciation_service import DepreciationDomainService
 from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.money import Money
@@ -24,14 +24,21 @@ class RegisterCapitalContributionUseCase:
 
     def execute(self, connection, *, amount: str, contribution_date: date,
                 treasury_account_id: str, contributor: str = "",
-                currency_code: str = "MXN", operation_id: str) -> str:
+                currency_code: str = "MXN", operation_id: str,
+                created_by: str | None = None) -> str:
         with FinanceUnitOfWork(connection) as uow:
             duplicate = uow.journal_entries.find_by_operation_id(operation_id)
             if duplicate is not None:
                 return duplicate.id
             treasury_account = uow.treasury.get(treasury_account_id)
-            if treasury_account is None:
-                raise FinanceDomainError("Cuenta de tesorería inexistente")
+            if treasury_account is None or not treasury_account.active:
+                raise FinanceDomainError("Cuenta de tesorería inexistente o inactiva")
+            from backend.domain.finance.services.treasury_service import TreasuryService
+            TreasuryService.assert_not_promotional_cash(treasury_account)
+            if treasury_account.currency_code != currency_code.upper():
+                raise CurrencyMismatchError(
+                    f"La aportación en {currency_code} no entra a una cuenta en "
+                    f"{treasury_account.currency_code} sin conversión explícita")
             money = Money.from_string(amount, currency_code)
             profile = uow.posting_profiles.find_effective("CAPITAL", contribution_date)
             if profile is None:
@@ -48,6 +55,7 @@ class RegisterCapitalContributionUseCase:
                     LineSpec(profile.account_for("capital_account_id"), credit=money,
                              description="Aportación de capital"),
                 ],
+                currency_code=money.currency_code, created_by=created_by,
             )
             uow.outbox.enqueue(
                 event_id=new_uuid(),
@@ -71,7 +79,13 @@ class CapitalizeAssetUseCase:
                 residual_value: str = "0.00", useful_life_months: int,
                 capitalization_date: date, paid_from_treasury_account_id: str | None = None,
                 branch_id: str | None = None, cost_center_id: str | None = None,
-                currency_code: str = "MXN", operation_id: str) -> FixedAsset:
+                currency_code: str = "MXN", operation_id: str,
+                supplier_id: str | None = None, document_number: str = "",
+                created_by: str | None = None) -> FixedAsset:
+        """Pagado desde tesorería: Dr activo / Cr tesorería. Sin pagar: exige
+        ``supplier_id`` y crea la CxP en la MISMA transacción que el asiento
+        (auditoría F11: antes el mayor mostraba Proveedores 100 sin registro
+        de CxP que pagar)."""
         with FinanceUnitOfWork(connection) as uow:
             duplicate = uow.fixed_assets.find_by_operation_id(operation_id)
             if duplicate is not None:
@@ -93,10 +107,28 @@ class CapitalizeAssetUseCase:
             )
             if paid_from_treasury_account_id:
                 treasury_account = uow.treasury.get(paid_from_treasury_account_id)
-                if treasury_account is None:
-                    raise FinanceDomainError("Cuenta de tesorería inexistente")
+                if treasury_account is None or not treasury_account.active:
+                    raise FinanceDomainError("Cuenta de tesorería inexistente o inactiva")
+                if treasury_account.currency_code != cost.currency_code:
+                    raise CurrencyMismatchError(
+                        f"El activo en {cost.currency_code} no se paga desde una cuenta en "
+                        f"{treasury_account.currency_code}")
                 credit_account = treasury_account.ledger_account_id
             else:
+                if not supplier_id:
+                    raise FinanceDomainError(
+                        "Un activo no pagado requiere el proveedor: su deuda debe quedar "
+                        "como cuenta por pagar")
+                from backend.application.use_cases.finance.payable_use_cases import (
+                    CreatePayableUseCase,
+                )
+                CreatePayableUseCase.create_in(
+                    uow, supplier_id=supplier_id, amount=cost.to_string(),
+                    currency_code=cost.currency_code,
+                    document_number=document_number or f"CAPEX-{asset.id[:8]}",
+                    issue_date=capitalization_date, due_date=None, branch_id=branch_id,
+                    source_module="finance", source_document_id=asset.id,
+                    operation_id=f"{operation_id}:payable")
                 credit_account = profile.account_for("payable_account_id")
             self._engine.post(
                 uow, JournalType.FIXED_ASSETS, capitalization_date,
@@ -109,7 +141,7 @@ class CapitalizeAssetUseCase:
                     LineSpec(credit_account, credit=cost,
                              description="Origen de fondos CAPEX"),
                 ],
-                currency_code=currency_code, branch_id=branch_id,
+                currency_code=currency_code, branch_id=branch_id, created_by=created_by,
             )
             uow.fixed_assets.save(asset)
             uow.outbox.enqueue(
@@ -129,9 +161,11 @@ class RunDepreciationUseCase:
         self._engine = PostingEngine()
         self._domain = DepreciationDomainService()
 
-    def execute(self, connection, *, year: int, month: int, operation_id: str) -> list[str]:
+    def execute(self, connection, *, year: int, month: int, operation_id: str,
+                created_by: str | None = None) -> list[str]:
+        import calendar
         period_code = f"{year:04d}-{month:02d}"
-        entry_date = date(year, month, 28)
+        entry_date = date(year, month, calendar.monthrange(year, month)[1])
         posted: list[str] = []
         with FinanceUnitOfWork(connection) as uow:
             assets = self._domain.depreciable_assets(
@@ -152,7 +186,7 @@ class RunDepreciationUseCase:
                         LineSpec(asset.accumulated_depreciation_account_id, credit=amount,
                                  description="Depreciación acumulada"),
                     ],
-                    branch_id=asset.branch_id,
+                    branch_id=asset.branch_id, created_by=created_by,
                 )
                 uow.fixed_assets.update(asset)
                 posted.append(entry.id)

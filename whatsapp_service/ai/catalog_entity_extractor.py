@@ -1,4 +1,9 @@
 from __future__ import annotations
+from decimal import Decimal
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 
 import re
 from typing import Any, Dict, List
@@ -13,14 +18,14 @@ _TIME_MARKERS = {
     "manana", "tarde", "noche", "mediodia", "medio",
 }
 _NUMBER_WORDS = {
-    "un": 1.0, "una": 1.0, "uno": 1.0,
-    "dos": 2.0, "tres": 3.0, "cuatro": 4.0, "cinco": 5.0,
-    "seis": 6.0, "siete": 7.0, "ocho": 8.0, "nueve": 9.0,
-    "diez": 10.0, "once": 11.0, "doce": 12.0, "trece": 13.0,
-    "catorce": 14.0, "quince": 15.0, "dieciseis": 16.0,
-    "diecisiete": 17.0, "dieciocho": 18.0, "diecinueve": 19.0,
-    "veinte": 20.0,
-    "media": 0.5, "medio": 0.5,
+    "un": Decimal("1"), "una": Decimal("1"), "uno": Decimal("1"),
+    "dos": Decimal("2"), "tres": Decimal("3"), "cuatro": Decimal("4"), "cinco": Decimal("5"),
+    "seis": Decimal("6"), "siete": Decimal("7"), "ocho": Decimal("8"), "nueve": Decimal("9"),
+    "diez": Decimal("10"), "once": Decimal("11"), "doce": Decimal("12"), "trece": Decimal("13"),
+    "catorce": Decimal("14"), "quince": Decimal("15"), "dieciseis": Decimal("16"),
+    "diecisiete": Decimal("17"), "dieciocho": Decimal("18"), "diecinueve": Decimal("19"),
+    "veinte": Decimal("20"),
+    "media": Decimal("0.5"), "medio": Decimal("0.5"),
 }
 _NUM_RE = re.compile(r"^\d+(?:[.,]\d+)?$")
 _CLOCK_RE = re.compile(r"\b\d{1,2}:\d{2}\b")
@@ -71,7 +76,7 @@ class CatalogEntityExtractor:
             return None
         if prod.get("id"):
             out = dict(prod)
-            qty = out.get("cantidad_solicitada") or out.get("cantidad") or out.get("quantity") or out.get("qty") or 1.0
+            qty = out.get("cantidad_solicitada") or out.get("cantidad") or out.get("quantity") or out.get("qty") or 1
             out["cantidad_solicitada"] = self._coerce_quantity(qty)
             out.setdefault("unidad_solicitada", out.get("unidad", "kg") or "kg")
             return out
@@ -84,7 +89,7 @@ class CatalogEntityExtractor:
             match = None
         if not match:
             return None
-        qty = prod.get("cantidad_solicitada") or prod.get("quantity") or prod.get("cantidad") or prod.get("qty") or 1.0
+        qty = prod.get("cantidad_solicitada") or prod.get("quantity") or prod.get("cantidad") or prod.get("qty") or 1
         unit = prod.get("unidad_solicitada") or prod.get("unit") or prod.get("unidad") or "kg"
         out = dict(match)
         out["cantidad_solicitada"] = self._coerce_quantity(qty)
@@ -98,14 +103,14 @@ class CatalogEntityExtractor:
         words = [w for w in name_norm.split() if len(w) >= 4]
         return any((" " + w + " ") in (" " + text_norm + " ") for w in words)
 
-    def _quantity_for_product(self, text: str, name: str, default_unit: str) -> tuple[float, str]:
+    def _quantity_for_product(self, text: str, name: str, default_unit: str) -> tuple[Decimal, str]:
         tokens = self._tokens(text)
         name_tokens = self._tokens(name)
         if not tokens or not name_tokens:
-            return 1.0, self._unit(default_unit)
+            return Decimal("1"), self._unit(default_unit)
 
         product_idx = self._find_product_index(tokens, name_tokens)
-        candidates: List[tuple[int, float, str]] = []
+        candidates: List[tuple[int, Decimal, str]] = []
         units_normalized = {self._unit(u) for u in _PRODUCT_UNITS}
         for i, token in enumerate(tokens):
             qty = self._quantity_token_value(tokens, i)
@@ -127,7 +132,7 @@ class CatalogEntityExtractor:
             if token in units_normalized and i + 2 < len(tokens) and tokens[i + 1] == "y" and tokens[i + 2] in {"medio", "media"}:
                 distance = abs(i - product_idx) if product_idx >= 0 else 99
                 if product_idx < 0 or distance <= 6:
-                    candidates.append((distance, 1.5, self._unit(token)))
+                    candidates.append((distance, Decimal("1.5"), self._unit(token)))
                 continue
 
             # Compact pattern: "pechuga dos", "dos pechuga", but not "pechuga a las dos".
@@ -139,12 +144,12 @@ class CatalogEntityExtractor:
         if candidates:
             _, qty, unit = sorted(candidates, key=lambda x: x[0])[0]
             return qty, unit
-        return 1.0, self._unit(default_unit)
+        return Decimal("1"), self._unit(default_unit)
 
-    def _quantity_token_value(self, tokens: List[str], i: int) -> float | None:
+    def _quantity_token_value(self, tokens: List[str], i: int) -> Decimal | None:
         token = tokens[i]
         if _NUM_RE.match(token):
-            return float(token.replace(",", "."))
+            return to_decimal(token.replace(",", "."))
         if token in _NUMBER_WORDS:
             return _NUMBER_WORDS[token]
         # veinte y uno / treinta not supported yet; fail closed instead of guessing.
@@ -192,15 +197,15 @@ class CatalogEntityExtractor:
             clean.append(char if char.isalnum() or char.isspace() or char in ":,." else " ")
         return " ".join("".join(clean).split())
 
-    def _coerce_quantity(self, value: Any) -> float:
-        if isinstance(value, (int, float)):
-            return float(value)
+    def _coerce_quantity(self, value: Any) -> Decimal:
+        if isinstance(value, (int, Decimal)):
+            return to_decimal(value)
         text = self._norm(str(value))
         if _NUM_RE.match(text):
-            return float(text.replace(",", "."))
+            return to_decimal(text.replace(",", "."))
         if text in _NUMBER_WORDS:
             return _NUMBER_WORDS[text]
-        return 1.0
+        return Decimal("1")
 
     def _unit(self, unit: str) -> str:
         unit = (unit or "kg").lower().strip(".,")

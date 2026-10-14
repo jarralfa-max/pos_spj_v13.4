@@ -6,9 +6,10 @@ El tipo de dato sólo se elige al crear (inmutable después). Delega en el prese
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from PyQt5.QtWidgets import (
     QComboBox,
-    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
@@ -17,7 +18,6 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSpinBox,
-    QVBoxLayout,
 )
 
 from frontend.desktop.components import ColumnSpec, StandardTable
@@ -30,9 +30,9 @@ _DATA_TYPES = (
 )
 
 
-class AttributeFormDialog(QDialog):
+class AttributeFormDialog(StandardDialog):
     def __init__(self, presenter, *, attribute=None, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=420)
         self._presenter = presenter
         self._attribute = attribute or {}
         self._attribute_id = self._attribute.get("id")
@@ -41,7 +41,7 @@ class AttributeFormDialog(QDialog):
                             else "Nuevo atributo")
         self.setMinimumWidth(420)
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.code = QLineEdit(str(self._attribute.get("code") or ""))
         self.name = QLineEdit(str(self._attribute.get("name") or ""))
@@ -67,7 +67,7 @@ class AttributeFormDialog(QDialog):
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
     @staticmethod
     def _select(combo: QComboBox, value) -> None:
@@ -92,9 +92,9 @@ class AttributeFormDialog(QDialog):
             QMessageBox.warning(self, "No se pudo guardar", message)
 
 
-class _OptionEditor(QDialog):
+class _OptionEditor(StandardDialog):
     def __init__(self, presenter, *, attribute_id, option=None, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=360)
         self._presenter = presenter
         self._attribute_id = attribute_id
         self._option = option or {}
@@ -102,7 +102,7 @@ class _OptionEditor(QDialog):
         self.setWindowTitle("Editar opción" if self._option_id else "Nueva opción")
         self.setMinimumWidth(360)
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.code = QLineEdit(str(self._option.get("code") or ""))
         self.label = QLineEdit(str(self._option.get("label") or ""))
@@ -124,7 +124,7 @@ class _OptionEditor(QDialog):
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
     def _on_save(self) -> None:
         self._error.setText("")
@@ -144,11 +144,11 @@ class _OptionEditor(QDialog):
             QMessageBox.warning(self, "No se pudo guardar", message)
 
 
-class AttributeOptionsDialog(QDialog):
+class AttributeOptionsDialog(StandardDialog):
     """Lista y edita las opciones de un atributo de tipo LISTA."""
 
     def __init__(self, presenter, *, attribute, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=480)
         self._presenter = presenter
         self._attribute = attribute
         self._attribute_id = attribute["id"]
@@ -157,7 +157,7 @@ class AttributeOptionsDialog(QDialog):
         self.setWindowTitle(f"Opciones de «{attribute.get('name')}»")
         self.setMinimumSize(480, 360)
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         toolbar = QHBoxLayout()
         self.btn_new = QPushButton("Nueva opción")
         self.btn_edit = QPushButton("Editar")
@@ -185,7 +185,7 @@ class AttributeOptionsDialog(QDialog):
         close.button(QDialogButtonBox.Close).setText("Cerrar")
         close.rejected.connect(self.reject)
         close.accepted.connect(self.accept)
-        layout.addWidget(close)
+        self.add_footer_widget(close)
         self.refresh()
 
     def refresh(self) -> None:

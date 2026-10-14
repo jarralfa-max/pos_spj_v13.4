@@ -1,4 +1,8 @@
 from __future__ import annotations
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 
 from whatsapp_service.parser.intent_parser import ParsedIntent
 
@@ -16,7 +20,7 @@ def map_ai_to_parsed_intent(ai_result) -> ParsedIntent:
         "cancel_order": "cancel",
     }
     intent_name = mapping.get(str(ai_result.intent.value), "unknown")
-    parsed = ParsedIntent(intent=intent_name, confidence=float(ai_result.confidence), source="ai")
+    parsed = ParsedIntent(intent=intent_name, confidence=to_decimal(ai_result.confidence), source="ai")
     parsed.products = [
         {
             "nombre": p.product_name,

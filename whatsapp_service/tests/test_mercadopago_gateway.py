@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+from decimal import Decimal
 
 import pytest
 
+from domain.money import loads_decimal
 from domain.whatsapp.payment_provider_ports import PaymentLinkRef
 from infrastructure.providers.mercadopago.gateway import MercadoPagoGateway, MercadoPagoPreferenceError
 
@@ -29,7 +31,7 @@ class _FakeAsyncClient:
     async def __aexit__(self, *exc):
         return False
 
-    async def post(self, url, json=None, headers=None):
+    async def post(self, url, json=None, content=None, headers=None):
         return self._response
 
 
@@ -88,8 +90,9 @@ class TestMercadoPagoGateway:
         captured = {}
 
         class _CapturingClient(_FakeAsyncClient):
-            async def post(self, url, json=None, headers=None):
-                captured["payload"] = json
+            async def post(self, url, json=None, content=None, headers=None):
+                captured["raw"] = content
+                captured["payload"] = loads_decimal(content) if content else json
                 captured["headers"] = headers
                 return self._response
 
@@ -101,7 +104,9 @@ class TestMercadoPagoGateway:
         gateway = MercadoPagoGateway()
         _run(gateway.create_preference(amount=250.5, external_reference="order-9:555", description="Pedido F-009"))
 
-        assert captured["payload"]["items"][0]["unit_price"] == 250.5
+        # Decimal exacto en el cable: número JSON (lo exige MP), nunca float ni texto.
+        assert captured["payload"]["items"][0]["unit_price"] == Decimal("250.5")
+        assert '"unit_price": 250.5' in captured["raw"]
         assert captured["payload"]["external_reference"] == "order-9:555"
         assert captured["payload"]["items"][0]["title"] == "Pedido F-009"
         assert captured["headers"]["Authorization"] == "Bearer token-123"

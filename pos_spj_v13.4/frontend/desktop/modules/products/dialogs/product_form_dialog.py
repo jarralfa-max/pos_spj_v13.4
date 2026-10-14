@@ -8,10 +8,11 @@ Precios; la existencia en Inventario — este formulario NO los captura.
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QGridLayout,
@@ -20,7 +21,6 @@ from PyQt5.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -53,9 +53,9 @@ _FLAGS = (
 )
 
 
-class ProductFormDialog(QDialog):
+class ProductFormDialog(StandardDialog):
     def __init__(self, presenter, product_id: str | None = None, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=460)
         self._presenter = presenter
         self._product_id = product_id
         self.setObjectName("productFormDialog")
@@ -69,7 +69,7 @@ class ProductFormDialog(QDialog):
         self._can_override = bool(getattr(self._presenter, "can_override_code", False))
         self._manual_code = not self._is_new  # en edición el código ya es explícito
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.code = QLineEdit()
         self.name = QLineEdit()
@@ -160,7 +160,7 @@ class ProductFormDialog(QDialog):
             buttons.addButton(self._btn_images, QDialogButtonBox.ActionRole)
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
         if product_id:
             self._load(product_id)

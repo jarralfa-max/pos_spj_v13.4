@@ -1,0 +1,230 @@
+2026-10-10 15:48:51,413 SPJ.Boot INFO =======================================================
+2026-10-10 15:48:51,415 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-10 15:48:51,416 SPJ.Boot INFO =======================================================
+2026-10-10 15:48:56,230 spj.migrations.325 WARNING 325: esquema legacy de Productos retirado (18 tablas): branch_inventory, historial_precios, merma_log, branch_products, productos, recetas, receta_componentes, product_recipes, product_recipe_components, product_recipes_abarrotes, componentes_producto, paquetes_componentes, recipe_dependency_graph, rendimiento_pollo, rendimiento_derivados, meat_production_yields, production_yield_analysis, inventario_subproductos
+2026-10-10 15:48:56,237 spj.migrations INFO Migración 325 ejecutada.
+2026-10-10 15:48:56,934 spj.migrations.326 INFO 326: product_meat_classifications asegurada.
+2026-10-10 15:48:57,112 spj.migrations INFO Migración 326 ejecutada.
+2026-10-10 15:48:57,120 spj.migrations.327 INFO 327: created_by en versiones de despiece y combo asegurado.
+2026-10-10 15:48:57,124 spj.migrations INFO Migración 327 ejecutada.
+2026-10-10 15:48:57,133 spj.migrations.328 INFO 328: fuente Open Food Facts y staged_by asegurados.
+2026-10-10 15:48:57,139 spj.migrations INFO Migración 328 ejecutada.
+2026-10-10 15:48:57,225 spj.migrations.329 INFO 329: 24 definiciones de configuración sincronizadas.
+2026-10-10 15:48:57,227 spj.migrations INFO Migración 329 ejecutada.
+2026-10-10 15:48:57,228 spj.migrations INFO Migraciones completadas: 5 ejecutadas.
+2026-10-10 15:49:01,486 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-10 15:49:01,487 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-10 15:49:02,870 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-10 15:49:03,803 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-10 15:49:05,202 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-10 15:49:05,203 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-10 15:49:05,204 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-10 15:49:05,205 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-10 15:49:05,205 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-10 15:49:05,206 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-10 15:49:05,207 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-10 15:49:05,211 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-10-10 15:49:33,545 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-10 16:08:03,503 SPJ.Boot INFO Sesión iniciada: Juana Rodriguez en Corregidora.
+2026-10-10 16:46:19,052 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-10-10 17:20:51,619 SPJ.Boot INFO =======================================================
+2026-10-10 17:20:51,620 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-10 17:20:51,620 SPJ.Boot INFO =======================================================
+2026-10-10 17:20:57,167 spj.migrations.330 INFO 330: 29 definiciones de configuración sincronizadas.
+2026-10-10 17:20:57,171 spj.migrations INFO Migración 330 ejecutada.
+2026-10-10 17:20:57,196 spj.migrations.331 INFO 331: cola de WhatsApp de Productos asegurada.
+2026-10-10 17:20:57,202 spj.migrations INFO Migración 331 ejecutada.
+2026-10-10 17:20:57,209 spj.migrations INFO Migraciones completadas: 2 ejecutadas.
+2026-10-10 17:20:57,866 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-10 17:20:57,899 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-10 17:20:59,377 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-10 17:21:00,222 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-10 17:21:00,470 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-10 17:21:00,471 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-10 17:21:00,471 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-10 17:21:00,471 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-10 17:21:00,471 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-10 17:21:00,472 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-10 17:21:00,472 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-10 17:21:00,472 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-10-10 17:21:56,397 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-10 17:23:27,320 SPJ.Boot INFO Sesión iniciada: Juana Rodriguez en Corregidora.
+2026-10-10 17:39:59,624 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-10 17:51:14,866 spj.security.system_integration INFO integración sales→loyalty: 01a0d664-e618-7659-ad9e-cdaad8f61247 pide GROWTH_ENGINE.puntos.acreditar → concedido
+2026-10-10 17:51:14,876 spj.security.system_integration INFO integración sales→loyalty: 01a0d664-e618-7659-ad9e-cdaad8f61247 pide GROWTH_ENGINE.puntos.acreditar → concedido
+2026-10-10 21:29:38,118 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-10-10 21:29:52,950 SPJ.Boot INFO =======================================================
+2026-10-10 21:29:52,951 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-10 21:29:52,952 SPJ.Boot INFO =======================================================
+2026-10-10 21:29:57,121 spj.migrations.332 INFO 332: esquema de Finanzas al contrato de la auditoría; columnas nuevas: ['receivables.row_version', 'payables.row_version', 'financial_documents.row_version', 'budgets.row_version', 'reconciliation_matches.active', 'reconciliation_matches.reverted_at', 'reconciliation_matches.reverted_by', 'reconciliations.difference_reason', 'supplier_payments.executed_by', 'supplier_payments.execution_reference', 'finance_outbox.attempts', 'finance_outbox.last_error', 'hr_outbox.attempts', 'hr_outbox.last_error']
+2026-10-10 21:29:57,125 spj.migrations INFO Migración 332 ejecutada.
+2026-10-10 21:29:57,142 spj.migrations.333 INFO 333: 48 permisos de Finanzas concedidos; roles omitidos: ninguno
+2026-10-10 21:29:57,147 spj.migrations INFO Migración 333 ejecutada.
+2026-10-10 21:29:57,148 spj.migrations INFO Migraciones completadas: 2 ejecutadas.
+2026-10-10 21:29:57,703 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-10 21:29:57,704 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-10 21:29:58,973 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-10 21:30:00,017 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-10 21:30:00,451 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-10 21:30:00,452 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-10 21:30:00,452 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-10 21:30:00,453 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-10 21:30:00,453 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-10 21:30:00,454 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-10 21:30:00,454 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-10 21:30:00,736 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-10-10 21:30:01,268 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 1 subscriptions
+2026-10-10 21:31:47,568 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-10 21:32:18,564 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-10-10 21:33:45,273 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\finance\pages\general_ledger_page.py", line 25, in <lambda>
+    self._account_combo.currentIndexChanged.connect(lambda _i: self._load_lines())
+                                                               ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\finance\pages\general_ledger_page.py", line 40, in _load_lines
+    self.set_table(self._presenter.general_ledger(account_id))
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\worklist_page.py", line 212, in set_table
+    self._table.load_rows(model.rows, row_ids=model.row_ids)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\tables.py", line 197, in load_rows
+    raise ValueError("row_ids must contain one identity per row")
+ValueError: row_ids must contain one identity per row
+
+2026-10-10 21:34:02,856 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\finance\pages\general_ledger_page.py", line 25, in <lambda>
+    self._account_combo.currentIndexChanged.connect(lambda _i: self._load_lines())
+                                                               ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\finance\pages\general_ledger_page.py", line 40, in _load_lines
+    self.set_table(self._presenter.general_ledger(account_id))
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\worklist_page.py", line 212, in set_table
+    self._table.load_rows(model.rows, row_ids=model.row_ids)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\tables.py", line 197, in load_rows
+    raise ValueError("row_ids must contain one identity per row")
+ValueError: row_ids must contain one identity per row
+
+2026-10-10 21:55:23,652 spj.purchasing.direct_presenter ERROR DirectPurchasePresenter: error in confirm
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\purchasing\direct_purchase_presenter.py", line 145, in _run
+    result = self._use_cases[key].execute(
+        self._conn(), operation_id=operation_id or new_uuid(), **kwargs)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\procurement\use_cases\direct_purchase_use_cases.py", line 476, in execute
+    uow.receipts.save(gr)
+    ~~~~~~~~~~~~~~~~~^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\goods_receipt_repository.py", line 85, in save
+    self._save_children(
+    ~~~~~~~~~~~~~~~~~~~^
+        "goods_receipt_lines", "goods_receipt_id", gr.id,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+             ln.purchase_order_line_id, ln.direct_purchase_line_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         for ln in gr.lines])
+         ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\base.py", line 69, in _save_children
+    self._execute(sql, row)
+    ~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\base.py", line 46, in _execute
+    self._conn.execute(sql, params)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table goods_receipt_lines has no column named direct_purchase_line_id
+2026-10-10 21:55:36,144 spj.purchasing.direct_presenter ERROR DirectPurchasePresenter: error in confirm
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\purchasing\direct_purchase_presenter.py", line 145, in _run
+    result = self._use_cases[key].execute(
+        self._conn(), operation_id=operation_id or new_uuid(), **kwargs)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\procurement\use_cases\direct_purchase_use_cases.py", line 476, in execute
+    uow.receipts.save(gr)
+    ~~~~~~~~~~~~~~~~~^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\goods_receipt_repository.py", line 85, in save
+    self._save_children(
+    ~~~~~~~~~~~~~~~~~~~^
+        "goods_receipt_lines", "goods_receipt_id", gr.id,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+             ln.purchase_order_line_id, ln.direct_purchase_line_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         for ln in gr.lines])
+         ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\base.py", line 69, in _save_children
+    self._execute(sql, row)
+    ~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\base.py", line 46, in _execute
+    self._conn.execute(sql, params)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table goods_receipt_lines has no column named direct_purchase_line_id
+2026-10-10 21:58:37,683 spj.purchasing.direct_presenter ERROR DirectPurchasePresenter: error in confirm
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\purchasing\direct_purchase_presenter.py", line 145, in _run
+    result = self._use_cases[key].execute(
+        self._conn(), operation_id=operation_id or new_uuid(), **kwargs)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\procurement\use_cases\direct_purchase_use_cases.py", line 476, in execute
+    uow.receipts.save(gr)
+    ~~~~~~~~~~~~~~~~~^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\goods_receipt_repository.py", line 85, in save
+    self._save_children(
+    ~~~~~~~~~~~~~~~~~~~^
+        "goods_receipt_lines", "goods_receipt_id", gr.id,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+             ln.purchase_order_line_id, ln.direct_purchase_line_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         for ln in gr.lines])
+         ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\base.py", line 69, in _save_children
+    self._execute(sql, row)
+    ~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\base.py", line 46, in _execute
+    self._conn.execute(sql, params)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table goods_receipt_lines has no column named direct_purchase_line_id
+2026-10-10 21:59:09,669 spj.purchasing.direct_presenter ERROR DirectPurchasePresenter: error in confirm
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\purchasing\direct_purchase_presenter.py", line 145, in _run
+    result = self._use_cases[key].execute(
+        self._conn(), operation_id=operation_id or new_uuid(), **kwargs)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\procurement\use_cases\direct_purchase_use_cases.py", line 476, in execute
+    uow.receipts.save(gr)
+    ~~~~~~~~~~~~~~~~~^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\goods_receipt_repository.py", line 85, in save
+    self._save_children(
+    ~~~~~~~~~~~~~~~~~~~^
+        "goods_receipt_lines", "goods_receipt_id", gr.id,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+             ln.purchase_order_line_id, ln.direct_purchase_line_id)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         for ln in gr.lines])
+         ^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\base.py", line 69, in _save_children
+    self._execute(sql, row)
+    ~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\procurement\base.py", line 46, in _execute
+    self._conn.execute(sql, params)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table goods_receipt_lines has no column named direct_purchase_line_id
+2026-10-10 22:00:39,580 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-10-10 22:28:40,060 SPJ.Boot INFO Sesión iniciada: Anai Pichardo en Corregidora.
+2026-10-10 22:31:49,390 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-10-10 22:56:19,732 SPJ.Boot INFO =======================================================
+2026-10-10 22:56:19,734 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-10 22:56:19,734 SPJ.Boot INFO =======================================================
+2026-10-10 22:56:23,899 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-10-10 22:56:24,371 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-10 22:56:24,372 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-10 22:56:25,711 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-10 22:56:26,690 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-10 22:56:27,045 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-10 22:56:27,046 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-10 22:56:27,046 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-10 22:56:27,047 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-10 22:56:27,047 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-10 22:56:27,048 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-10 22:56:27,048 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-10 22:56:27,049 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 4 subscriptions
+2026-10-10 22:56:27,049 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 1 subscriptions
+2026-10-10 22:57:12,235 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-10 22:58:54,452 SPJ.Boot INFO Sistema cerrado. Código: 0

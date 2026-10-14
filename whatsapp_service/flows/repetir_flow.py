@@ -3,6 +3,10 @@
 Busca el último pedido del cliente y permite repetirlo con un click.
 """
 from __future__ import annotations
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 from models.context import ConversationContext, FlowState, PedidoItem
 from parser.intent_parser import ParsedIntent
 from flows.base_flow import BaseFlow, FlowResult
@@ -33,7 +37,7 @@ class RepetirFlow(BaseFlow):
         for it in ultimo["items"]:
             lines.append(
                 f"• {it['nombre']}: {it['cantidad']} {it.get('unidad','kg')} "
-                f"— ${float(it['precio_unitario']) * float(it['cantidad']):.2f}")
+                f"— ${to_decimal(it['precio_unitario']) * to_decimal(it['cantidad']):.2f}")
         lines.append(f"\nTotal: *${ultimo['total']:.2f}*")
 
         await send_buttons(
@@ -51,9 +55,9 @@ class RepetirFlow(BaseFlow):
             ctx.pedido_items.append(PedidoItem(
                 producto_id=it["producto_id"],
                 nombre=it["nombre"],
-                cantidad=float(it["cantidad"]),
+                cantidad=to_decimal(it["cantidad"]),
                 unidad=it.get("unidad", "kg"),
-                precio_unitario=float(it["precio_unitario"]),
+                precio_unitario=to_decimal(it["precio_unitario"]),
             ))
 
         return FlowResult(FlowState.PEDIDO_CONFIRMACION)

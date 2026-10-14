@@ -31,6 +31,7 @@ crudo original del Protocol por un tipo propio, mismo criterio que el
 resto de los Ref de este módulo.
 """
 from __future__ import annotations
+from decimal import Decimal
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Protocol
@@ -48,8 +49,8 @@ class ProductRef:
     external_id: str
     name: str
     unit: str
-    price: float
-    stock: float
+    price: Decimal
+    stock: Decimal
 
 
 @dataclass(frozen=True)
@@ -110,10 +111,10 @@ class QuotesApiClient(Protocol):
 
 class PaymentsApiClient(Protocol):
     async def register_advance(
-        self, *, order_id: str, amount: float, method: str = "mercadopago"
+        self, *, order_id: str, amount: Decimal, method: str = "mercadopago"
     ) -> str: ...
     async def confirm_payment(
-        self, *, order_id: str, amount: float, reference: str = "", method: str = "mercadopago"
+        self, *, order_id: str, amount: Decimal, reference: str = "", method: str = "mercadopago"
     ) -> bool: ...
 
 

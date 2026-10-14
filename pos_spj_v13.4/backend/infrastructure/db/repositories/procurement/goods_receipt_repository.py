@@ -49,16 +49,37 @@ class GoodsReceiptRepository(ProcurementRepositoryBase):
         rápidas), agrupado por producto para repartirlo después."""
         by_line: dict[str, Decimal] = {}
         unlinked: dict[str, Decimal] = {}
-        for receipt in self.completed_for_document(
-                purchase_order_id=purchase_order_id,
-                direct_purchase_id=direct_purchase_id):
+        receipts = self.completed_for_document(purchase_order_id=purchase_order_id,
+                                               direct_purchase_id=direct_purchase_id)
+        returned = self._confirmed_returns([r.id for r in receipts])
+        for receipt in receipts:
             for line in receipt.lines:
-                if line.purchase_order_line_id:
-                    key, bucket = line.purchase_order_line_id, by_line
+                source_line = line.purchase_order_line_id or line.direct_purchase_line_id
+                if source_line:
+                    key, bucket = source_line, by_line
                 else:
                     key, bucket = line.product_id, unlinked
-                bucket[key] = bucket.get(key, Decimal("0")) + line.accepted_quantity
+                # Auditoría Compras C12/C13: lo devuelto (confirmado) ya no es
+                # facturable; la factura posterior debe venir por menos.
+                net = line.accepted_quantity - returned.get(line.id, Decimal("0"))
+                bucket[key] = bucket.get(key, Decimal("0")) + net
         return by_line, unlinked
+
+    def _confirmed_returns(self, receipt_ids: list[str]) -> dict[str, Decimal]:
+        if not receipt_ids or not self._query_one(
+                "SELECT 1 AS hit FROM sqlite_master WHERE type='table'"
+                " AND name='purchase_return_lines'"):
+            return {}
+        placeholders = ",".join("?" for _ in receipt_ids)
+        totals: dict[str, Decimal] = {}
+        for row in self._query(
+                "SELECT l.goods_receipt_line_id AS line_id, l.quantity FROM purchase_return_lines l"
+                " JOIN purchase_returns r ON r.id = l.purchase_return_id"
+                f" WHERE r.status='CONFIRMED' AND r.goods_receipt_id IN ({placeholders})",
+                tuple(receipt_ids)):
+            if row["line_id"]:
+                totals[row["line_id"]] = totals.get(row["line_id"], Decimal("0")) +                     to_decimal(row["quantity"])
+        return totals
 
     def get_by_operation(self, operation_id: str) -> GoodsReceipt | None:
         row = self._query_one("SELECT id FROM goods_receipts WHERE operation_id=?",
@@ -86,7 +107,7 @@ class GoodsReceiptRepository(ProcurementRepositoryBase):
             ("id", "goods_receipt_id", "product_id", "ordered_quantity",
              "received_quantity", "accepted_quantity", "rejected_quantity", "lot",
              "expiration", "temperature", "net_weight", "piece_count",
-             "purchase_order_line_id"),
+             "purchase_order_line_id", "direct_purchase_line_id"),
             [(ln.id, gr.id, ln.product_id, dec_str(ln.ordered_quantity),
                  dec_str(ln.received_quantity), dec_str(ln.accepted_quantity),
                  dec_str(ln.rejected_quantity), ln.lot,
@@ -94,7 +115,7 @@ class GoodsReceiptRepository(ProcurementRepositoryBase):
                  dec_str(ln.temperature) if ln.temperature is not None else None,
                  dec_str(ln.net_weight) if ln.net_weight is not None else None,
                  str(ln.piece_count) if ln.piece_count is not None else None,
-                 ln.purchase_order_line_id)
+                 ln.purchase_order_line_id, ln.direct_purchase_line_id)
              for ln in gr.lines])
         self._execute("DELETE FROM receipt_discrepancies WHERE goods_receipt_id=?", (gr.id,))
         for d in gr.discrepancies:
@@ -130,7 +151,8 @@ class GoodsReceiptRepository(ProcurementRepositoryBase):
                 temperature=to_decimal(lr["temperature"]) if lr["temperature"] else None,
                 net_weight=to_decimal(lr["net_weight"]) if lr.get("net_weight") else None,
                 piece_count=int(lr["piece_count"]) if lr.get("piece_count") else None,
-                purchase_order_line_id=lr.get("purchase_order_line_id") or None)
+                purchase_order_line_id=lr.get("purchase_order_line_id") or None,
+                direct_purchase_line_id=lr.get("direct_purchase_line_id") or None)
             for lr in line_rows
         ]
         disc_rows = self._query(

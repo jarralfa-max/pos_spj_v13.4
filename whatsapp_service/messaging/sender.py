@@ -148,7 +148,7 @@ def _build_headers(token: str) -> dict:
     }
 
 
-async def _post_message(url: str, payload: dict, headers: dict, *, timeout: float = 10.0) -> dict:
+async def _post_message(url: str, payload: dict, headers: dict, *, timeout: int = 10) -> dict:
     """POST de bajo nivel a la Graph API — retorna un dict normalizado
     `{"ok", "status_code", "provider_message_id", "error", "raw"}`.
 

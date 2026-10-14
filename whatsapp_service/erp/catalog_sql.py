@@ -36,7 +36,7 @@ CATALOG_SELECT = f"""
     SELECT
         p.id AS id,
         p.name AS nombre,
-        CAST(COALESCE(ppb.sale_price, pp.sale_price, '0') AS REAL) AS precio,
+        COALESCE(ppb.sale_price, pp.sale_price, '0') AS precio,
         COALESCE(inv.qty, 0) AS stock,
         COALESCE(u.code, 'kg') AS unidad,
         COALESCE(pc.name, '') AS categoria
@@ -51,12 +51,17 @@ CATALOG_SELECT = f"""
     LEFT JOIN product_categories pc ON pc.id = p.category_id
     LEFT JOIN (
         SELECT product_id, branch_id,
-               SUM(CAST(quantity AS REAL) - CAST(COALESCE(reserved_quantity, 0) AS REAL)) AS qty
+               printf('%.4f', SUM(CAST(quantity AS REAL)
+                                  - CAST(COALESCE(reserved_quantity, 0) AS REAL))) AS qty
         FROM inventory_balances
         WHERE inventory_status = 'AVAILABLE'
         GROUP BY product_id, branch_id
     ) inv ON inv.product_id = p.id AND inv.branch_id = :branch
 """
+
+#: Precio y existencia salen como TEXTO (Decimal en Python vía `catalog_row`).
+#: SQLite sólo suma en doble precisión: el total se redondea a 4 decimales en
+#: texto (las cantidades se guardan con <= 4), así no llega ningún float.
 
 #: Lo que se puede ofrecer por WhatsApp.
 OFFERABLE = ("p.lifecycle_status = 'ACTIVE' AND COALESCE(p.sellable, 0) = 1 "
@@ -74,3 +79,15 @@ def product_category_name(db, product_id) -> str:
         "LEFT JOIN product_categories pc ON pc.id = p.category_id WHERE p.id = ?",
         (product_id,)).fetchone()
     return (row[0] or "") if row else ""
+
+
+def catalog_row(row) -> dict:
+    """Fila de `CATALOG_SELECT` → dict con `precio`/`stock` como Decimal."""
+    try:
+        from domain.money import to_decimal
+    except ImportError:  # importado como paquete `whatsapp_service.`
+        from whatsapp_service.domain.money import to_decimal
+    data = dict(row)
+    data["precio"] = to_decimal(data.get("precio"))
+    data["stock"] = to_decimal(data.get("stock"))
+    return data

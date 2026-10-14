@@ -12,7 +12,8 @@ from backend.infrastructure.db.repositories.finance.base import FinanceRepositor
 _COLUMNS = ("id, payable_id, supplier_id, amount, currency_code, scheduled_date,"
             " treasury_account_id, status, scheduled_by, authorized_by, authorized_at,"
             " executed_at, executed_date, journal_entry_id, reconciled_at, reference,"
-            " branch_id, operation_id, created_at, updated_at")
+            " branch_id, operation_id, created_at, updated_at, executed_by,"
+            " execution_reference")
 
 
 def _to_entity(row: dict) -> SupplierPayment:
@@ -29,6 +30,7 @@ def _to_entity(row: dict) -> SupplierPayment:
         journal_entry_id=row["journal_entry_id"], reconciled_at=row["reconciled_at"],
         reference=row["reference"], branch_id=row["branch_id"],
         created_at=row["created_at"], updated_at=row["updated_at"],
+        executed_by=row["executed_by"], execution_reference=row["execution_reference"],
     )
 
 
@@ -36,7 +38,7 @@ class SupplierPaymentRepository(FinanceRepositoryBase):
     def save(self, payment: SupplierPayment) -> None:
         self._execute(
             f"INSERT INTO supplier_payments ({_COLUMNS})"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (payment.id, payment.payable_id, payment.supplier_id,
              payment.amount.to_string(), payment.amount.currency_code,
              payment.scheduled_date.isoformat(), payment.treasury_account_id,
@@ -44,18 +46,20 @@ class SupplierPaymentRepository(FinanceRepositoryBase):
              payment.authorized_at, payment.executed_at,
              payment.executed_date.isoformat() if payment.executed_date else None,
              payment.journal_entry_id, payment.reconciled_at, payment.reference,
-             payment.branch_id, payment.operation_id, payment.created_at, payment.updated_at),
+             payment.branch_id, payment.operation_id, payment.created_at, payment.updated_at,
+             payment.executed_by, payment.execution_reference),
         )
 
     def update(self, payment: SupplierPayment) -> None:
         self._execute(
             "UPDATE supplier_payments SET status=?, authorized_by=?, authorized_at=?,"
-            " executed_at=?, executed_date=?, journal_entry_id=?, reconciled_at=?, updated_at=?"
-            " WHERE id=?",
+            " executed_at=?, executed_date=?, journal_entry_id=?, reconciled_at=?, updated_at=?,"
+            " executed_by=?, execution_reference=? WHERE id=?",
             (payment.status.value, payment.authorized_by, payment.authorized_at,
              payment.executed_at,
              payment.executed_date.isoformat() if payment.executed_date else None,
-             payment.journal_entry_id, payment.reconciled_at, payment.updated_at, payment.id),
+             payment.journal_entry_id, payment.reconciled_at, payment.updated_at,
+             payment.executed_by, payment.execution_reference, payment.id),
         )
 
     def get(self, payment_id: str) -> SupplierPayment | None:

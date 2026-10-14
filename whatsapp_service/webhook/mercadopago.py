@@ -3,6 +3,14 @@
 Recibe notificaciones de pago y actualiza el estado del pedido.
 """
 from __future__ import annotations
+try:
+    from domain.money import loads_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import loads_decimal
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 import json
 import logging
 from fastapi import APIRouter, Query, Request, Response
@@ -55,7 +63,7 @@ async def mp_notification(
         )
 
     try:
-        data = json.loads(body) if body else {}
+        data = loads_decimal(body) if body else {}
     except Exception:
         return {"status": "error"}
 
@@ -76,7 +84,7 @@ async def mp_notification(
         if not MP_ACCESS_TOKEN:
             return {"status": "ok"}
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(
                 f"https://api.mercadopago.com/v1/payments/{payment_id}",
                 headers={"Authorization": f"Bearer {MP_ACCESS_TOKEN}"})
@@ -133,14 +141,14 @@ async def mp_notification(
                     def _confirm_payment() -> dict:
                         _erp_bridge.confirmar_pago_anticipo(
                             venta_id=venta_id,
-                            monto=float(amount or 0),
+                            monto=to_decimal(amount or 0),
                             referencia=f"MP-{payment_id}",
                             metodo="mercadopago",
                         )
-                        return {"venta_id": venta_id, "payment_id": str(payment_id), "monto": float(amount or 0)}
+                        return {"venta_id": venta_id, "payment_id": str(payment_id), "monto": to_decimal(amount or 0)}
 
                     idem.run_once(
-                        action_key=f"confirm_payment:{venta_id}:{float(amount or 0):.2f}",
+                        action_key=f"confirm_payment:{venta_id}:{to_decimal(amount or 0):.2f}",
                         phone=str(external_ref),
                         action_type="confirm_payment",
                         callback=_confirm_payment,

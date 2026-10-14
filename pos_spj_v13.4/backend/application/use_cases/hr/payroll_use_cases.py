@@ -167,6 +167,8 @@ class PayPayrollRunUseCase:
                 "net_paid": payment.net_amount.to_string(),
                 "payment_method": payment.payment_method.value,
                 "paid_at": payment.paid_at,
+                # Finanzas fecha el asiento con la fecha de negocio del pago.
+                "occurred_at": payment.paid_at,
                 "authorized_by_user_id": payment.authorized_by_user_id,
                 "paid_by_user_id": payment.paid_by_user_id,
             }), operation_id)

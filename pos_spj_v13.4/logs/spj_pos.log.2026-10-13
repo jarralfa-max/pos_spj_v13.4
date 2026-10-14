@@ -1,0 +1,125 @@
+2026-10-13 12:58:20,419 SPJ.Boot INFO =======================================================
+2026-10-13 12:58:20,432 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-13 12:58:20,447 SPJ.Boot INFO =======================================================
+2026-10-13 12:58:26,071 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-10-13 12:58:28,547 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-13 12:58:28,558 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-13 12:58:30,814 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-13 12:58:31,987 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-13 12:58:32,355 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-13 12:58:32,357 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-13 12:58:32,357 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-13 12:58:32,358 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-13 12:58:32,358 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-13 12:58:32,359 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-13 12:58:32,360 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-13 12:58:32,360 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 9 subscriptions
+2026-10-13 12:58:32,361 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 1 subscriptions
+2026-10-13 12:59:34,932 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-13 13:49:52,418 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-10-13 13:50:01,565 SPJ.Boot INFO =======================================================
+2026-10-13 13:50:01,565 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-13 13:50:01,566 SPJ.Boot INFO =======================================================
+2026-10-13 13:50:03,317 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-10-13 13:50:05,262 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-13 13:50:05,357 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-13 13:50:06,830 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-13 13:50:07,434 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-13 13:50:07,692 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-13 13:50:07,693 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-13 13:50:07,693 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-13 13:50:07,693 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-13 13:50:07,693 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-13 13:50:07,694 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-13 13:50:07,694 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-13 13:50:07,694 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 9 subscriptions
+2026-10-13 13:50:07,694 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 1 subscriptions
+2026-10-13 13:50:37,063 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-13 13:51:55,530 spj.finance.bootstrap INFO Finance: perfil PURCHASE_RETURN agregado
+2026-10-13 13:58:45,444 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\application_shell\application_window.py", line 135, in navigate
+    result = self._router.navigate(route_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 110, in navigate
+    result = self._build_result(route)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\router\desktop_router.py", line 134, in _build_result
+    view = self._views.create_view(route.view_factory_id)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\routing\view_factory_registry.py", line 49, in create_view
+    return self.require(view_factory_id)()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\purchasing\shell_registration.py", line 111, in <lambda>
+    lambda: create_purchasing_view(
+            ~~~~~~~~~~~~~~~~~~~~~~^
+        self._connection, self._session_context,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        logistics_service=self._logistics_service, logistics_queries=self._logistics_queries,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ),
+    ^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\purchasing\shell_registration.py", line 86, in create_purchasing_view
+    return EnterprisePurchasingView(presenter, parent, direct_purchase_views=direct_views)
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\purchasing\purchasing_module_shell.py", line 112, in __init__
+    self._build_navigation(self._direct_purchase_views)
+    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\purchasing\purchasing_module_shell.py", line 159, in _build_navigation
+    page = factory()
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\purchasing\purchasing_module_shell.py", line 152, in <lambda>
+    PurchasingRoutes.RETURNS: lambda: _returns_page(self._presenter, self),
+                                      ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\purchasing\purchasing_module_shell.py", line 284, in _returns_page
+    from frontend.desktop.modules.purchasing.pages.returns_page import ReturnsPage
+ModuleNotFoundError: No module named 'frontend.desktop.modules.purchasing.pages.returns_page'
+
+2026-10-13 13:58:56,212 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-10-13 13:59:55,762 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-10-13 13:59:55,766 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-10-13 13:59:55,767 frontend.desktop.components.icons WARNING Unknown icon identifier '🧮'; using file symbol
+2026-10-13 13:59:55,770 frontend.desktop.components.icons WARNING Unknown icon identifier '🧮'; using file symbol
+2026-10-13 13:59:55,771 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-10-13 13:59:55,774 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-10-13 14:00:13,105 frontend.desktop.components.icons WARNING Unknown icon identifier '📦'; using file symbol
+2026-10-13 14:00:13,108 frontend.desktop.components.icons WARNING Unknown icon identifier '📦'; using file symbol
+2026-10-13 14:00:13,110 frontend.desktop.components.icons WARNING Unknown icon identifier '🔄'; using file symbol
+2026-10-13 14:00:13,113 frontend.desktop.components.icons WARNING Unknown icon identifier '🔄'; using file symbol
+2026-10-13 14:00:13,115 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-10-13 14:00:13,119 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-10-13 14:00:18,264 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-10-13 14:00:18,266 frontend.desktop.components.icons WARNING Unknown icon identifier '🗑️'; using file symbol
+2026-10-13 14:00:18,267 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-10-13 14:00:18,269 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-10-13 14:00:26,659 frontend.desktop.components.icons WARNING Unknown icon identifier '🏷️'; using file symbol
+2026-10-13 14:00:26,662 frontend.desktop.components.icons WARNING Unknown icon identifier '🏷️'; using file symbol
+2026-10-13 14:00:26,664 frontend.desktop.components.icons WARNING Unknown icon identifier '📈'; using file symbol
+2026-10-13 14:00:26,668 frontend.desktop.components.icons WARNING Unknown icon identifier '📈'; using file symbol
+2026-10-13 14:00:26,672 frontend.desktop.components.icons WARNING Unknown icon identifier '％'; using file symbol
+2026-10-13 14:00:26,675 frontend.desktop.components.icons WARNING Unknown icon identifier '％'; using file symbol
+2026-10-13 14:00:26,678 frontend.desktop.components.icons WARNING Unknown icon identifier '🗂️'; using file symbol
+2026-10-13 14:00:26,682 frontend.desktop.components.icons WARNING Unknown icon identifier '🗂️'; using file symbol
+2026-10-13 14:00:45,265 frontend.desktop.components.icons WARNING Unknown icon identifier '🏬'; using file symbol
+2026-10-13 14:00:45,267 frontend.desktop.components.icons WARNING Unknown icon identifier '🏬'; using file symbol
+2026-10-13 14:00:45,269 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-10-13 14:00:45,271 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-10-13 14:00:45,272 frontend.desktop.components.icons WARNING Unknown icon identifier '🥇'; using file symbol
+2026-10-13 14:00:45,275 frontend.desktop.components.icons WARNING Unknown icon identifier '🥇'; using file symbol
+2026-10-13 14:00:45,277 frontend.desktop.components.icons WARNING Unknown icon identifier '⚖️'; using file symbol
+2026-10-13 14:00:45,280 frontend.desktop.components.icons WARNING Unknown icon identifier '⚖️'; using file symbol
+2026-10-13 14:00:53,463 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-10-13 14:00:53,465 frontend.desktop.components.icons WARNING Unknown icon identifier '💵'; using file symbol
+2026-10-13 14:00:53,467 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-10-13 14:00:53,468 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-10-13 14:00:53,470 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-10-13 14:00:53,473 frontend.desktop.components.icons WARNING Unknown icon identifier '📊'; using file symbol
+2026-10-13 14:00:53,474 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-10-13 14:00:53,477 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-10-13 14:00:53,478 frontend.desktop.components.icons WARNING Unknown icon identifier '👥'; using file symbol
+2026-10-13 14:00:53,481 frontend.desktop.components.icons WARNING Unknown icon identifier '👥'; using file symbol
+2026-10-13 14:00:53,483 frontend.desktop.components.icons WARNING Unknown icon identifier '🚚'; using file symbol
+2026-10-13 14:00:53,485 frontend.desktop.components.icons WARNING Unknown icon identifier '🚚'; using file symbol
+2026-10-13 14:01:04,400 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-10-13 14:01:04,403 frontend.desktop.components.icons WARNING Unknown icon identifier '💰'; using file symbol
+2026-10-13 14:01:04,404 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-10-13 14:01:04,406 frontend.desktop.components.icons WARNING Unknown icon identifier '💸'; using file symbol
+2026-10-13 14:01:04,408 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-10-13 14:01:04,411 frontend.desktop.components.icons WARNING Unknown icon identifier '🪙'; using file symbol
+2026-10-13 14:01:04,412 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol
+2026-10-13 14:01:04,415 frontend.desktop.components.icons WARNING Unknown icon identifier '🧾'; using file symbol

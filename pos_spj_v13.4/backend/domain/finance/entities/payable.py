@@ -37,6 +37,7 @@ class Payable:
     status: PayableStatus = PayableStatus.OPEN
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
+    row_version: int = 0  # control optimista (auditoría F18)
 
     @classmethod
     def create(cls, supplier_id: str, financial_document_id: str, amount: Money,
@@ -63,6 +64,22 @@ class Payable:
             raise InsufficientOutstandingError(
                 f"Payment {amount.to_string()} exceeds outstanding {self.outstanding_amount.to_string()}"
             )
+        self.outstanding_amount = self.outstanding_amount.subtract(amount)
+        self.status = (PayableStatus.SETTLED if self.outstanding_amount.is_zero()
+                       else PayableStatus.PARTIALLY_PAID)
+        self.updated_at = _utcnow()
+
+    def apply_credit_note(self, amount: Money) -> None:
+        """Nota de crédito del proveedor (devolución): baja lo que se le debe.
+        No puede exceder el saldo; el excedente es un anticipo a proveedor."""
+        if self.status is PayableStatus.CANCELLED:
+            raise FinanceDomainError("Cannot credit a cancelled payable")
+        if not amount.is_positive():
+            raise FinanceDomainError("Credit note amount must be positive")
+        if amount > self.outstanding_amount:
+            raise InsufficientOutstandingError(
+                f"Credit note {amount.to_string()} exceeds outstanding "
+                f"{self.outstanding_amount.to_string()}")
         self.outstanding_amount = self.outstanding_amount.subtract(amount)
         self.status = (PayableStatus.SETTLED if self.outstanding_amount.is_zero()
                        else PayableStatus.PARTIALLY_PAID)
@@ -99,6 +116,10 @@ class SupplierPayment:
     branch_id: str | None = None
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
+    #: Evidencia de la ejecución (auditoría F13): quién ejecutó y con qué
+    #: referencia externa verificable (folio SPEI, número de cheque…).
+    executed_by: str | None = None
+    execution_reference: str | None = None
 
     @classmethod
     def schedule(cls, payable_id: str, supplier_id: str, amount: Money,
@@ -130,11 +151,14 @@ class SupplierPayment:
         self.authorized_at = _utcnow()
         self.updated_at = self.authorized_at
 
-    def execute(self, executed_date: date, journal_entry_id: str) -> None:
+    def execute(self, executed_date: date, journal_entry_id: str, *,
+                executed_by: str | None = None, execution_reference: str | None = None) -> None:
         if self.status is not SupplierPaymentStatus.AUTHORIZED:
             raise PaymentAuthorizationError(
                 f"Cannot execute payment in status {self.status.value}; authorization is mandatory"
             )
+        self.executed_by = executed_by
+        self.execution_reference = execution_reference
         self.status = SupplierPaymentStatus.EXECUTED
         self.executed_date = executed_date
         self.journal_entry_id = journal_entry_id

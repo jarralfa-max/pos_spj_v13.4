@@ -1,0 +1,3056 @@
+{
+  "phase": "9. StandardDialog — shell module adoption",
+  "closed_on": "2026-10-13",
+  "git_head": "cebf67a7fb19fbf8819a3877c99f565b6cbff93e",
+  "scope": {
+    "module_native_dialog_bases_migrated": 33,
+    "module_files": 22,
+    "shared_numeric_dialog_migrated": true,
+    "native_prompt_calls_migrated": 10,
+    "prompt_files": 8,
+    "shell_modules_scanned": 17
+  },
+  "runs": [
+    {
+      "name": "shell-dialog-core-before",
+      "category": "baseline",
+      "counts": {
+        "failure": 9,
+        "passed": 7
+      },
+      "timestamp_utc": "2026-10-10T05:33:35.948729+00:00",
+      "xml_sha256": "4124f5a44432d3f131bdad5a4c4c16a32eb5ec25a5a63dd9838ace744281bcbc"
+    },
+    {
+      "name": "shell-dialog-finance-before",
+      "category": "baseline",
+      "counts": {
+        "passed": 31,
+        "failure": 33
+      },
+      "timestamp_utc": "2026-10-10T05:34:39.847881+00:00",
+      "xml_sha256": "b4259ab7b16e07d77fe0ad295a332f834572b215a18db10a4e23b8d59ae76acd"
+    },
+    {
+      "name": "shell-dialog-numeric-before",
+      "category": "baseline",
+      "counts": {
+        "failure": 6,
+        "passed": 1
+      },
+      "timestamp_utc": "2026-10-10T05:34:55.840590+00:00",
+      "xml_sha256": "4f666c96fe9dec32f99216cd987d4343e50ea88ad516c22b46438d50fcdeb005"
+    },
+    {
+      "name": "shell-dialog-operations-before",
+      "category": "baseline",
+      "counts": {
+        "passed": 16,
+        "failure": 7
+      },
+      "timestamp_utc": "2026-10-10T05:34:57.573986+00:00",
+      "xml_sha256": "8571c9395bff78accc2b08dd68348b5eff8798a818ff4b29fbae91f0808728cf"
+    },
+    {
+      "name": "shell-dialog-products-before",
+      "category": "baseline",
+      "counts": {
+        "failure": 28,
+        "passed": 32
+      },
+      "timestamp_utc": "2026-10-10T05:35:14.635854+00:00",
+      "xml_sha256": "602d433e244f9d9e2eb9d4aa75b9b886d7fb433f51a53b913fb7773dd74353fd"
+    },
+    {
+      "name": "shell-dialog-finance-after",
+      "category": "validation",
+      "counts": {
+        "passed": 64
+      },
+      "timestamp_utc": "2026-10-10T05:35:51.872479+00:00",
+      "xml_sha256": "b2ec24be2e220e8f8e0ee8ce2905a11b045ad2cabdc152db4347a559fc412cf9"
+    },
+    {
+      "name": "shell-dialog-core-after",
+      "category": "validation",
+      "counts": {
+        "passed": 55,
+        "error": 53
+      },
+      "timestamp_utc": "2026-10-11T04:49:11.352557+00:00",
+      "xml_sha256": "84ca9b57b20748f5dae0e771cae51e7cb035d53ce317daf07d136df488f6f7f1"
+    },
+    {
+      "name": "shell-dialog-ownership-before",
+      "category": "baseline",
+      "counts": {
+        "failure": 1,
+        "passed": 17
+      },
+      "timestamp_utc": "2026-10-11T04:50:12.737739+00:00",
+      "xml_sha256": "23a4cee6c837c70b3d25293fefad849e6c9f520312af92cff816ca163e99a349"
+    },
+    {
+      "name": "shell-dialog-geometry-check",
+      "category": "validation",
+      "counts": {
+        "passed": 11
+      },
+      "timestamp_utc": "2026-10-11T04:50:18.257514+00:00",
+      "xml_sha256": "78e62d88970496ab247c3ca1f1455198027aeaf0ff05a9e560986f0de1b2c1fa"
+    },
+    {
+      "name": "shell-dialog-operations-regression",
+      "category": "validation",
+      "counts": {
+        "passed": 9
+      },
+      "timestamp_utc": "2026-10-11T04:53:00.231546+00:00",
+      "xml_sha256": "1a6b090dcf9b13076f392eb0b7f7e655b49d266f6ee883df47904e2f12395ffe"
+    },
+    {
+      "name": "shell-dialog-finance-ownership-after",
+      "category": "validation",
+      "counts": {
+        "passed": 82
+      },
+      "timestamp_utc": "2026-10-11T04:54:12.542803+00:00",
+      "xml_sha256": "c28e9d5dc25fef371f6729463006c950b7693e9b2a4c51fbc62f879f50c52fb9"
+    },
+    {
+      "name": "shell-dialog-operations-after",
+      "category": "validation",
+      "counts": {
+        "passed": 72
+      },
+      "timestamp_utc": "2026-10-11T04:54:15.608233+00:00",
+      "xml_sha256": "197ae6883094c21b3bde6a772df31b5d29b7804242c5967fcb0faf4596ee55c9"
+    },
+    {
+      "name": "shell-dialog-products-after",
+      "category": "validation",
+      "counts": {
+        "passed": 60
+      },
+      "timestamp_utc": "2026-10-11T04:55:14.867449+00:00",
+      "xml_sha256": "1e8c4d9e1759c8d5f6c0056a478ddb03a569f94075e78b24351149f6dabc28cd"
+    },
+    {
+      "name": "shell-dialog-core-final",
+      "category": "validation",
+      "counts": {
+        "passed": 100
+      },
+      "timestamp_utc": "2026-10-11T04:56:03.169579+00:00",
+      "xml_sha256": "c3f94b77da336353a788a38051a6cd4e5c6aa68702c3563e095ef7bac77247c3"
+    },
+    {
+      "name": "shell-dialog-operations-payment-final",
+      "category": "validation",
+      "counts": {
+        "passed": 12
+      },
+      "timestamp_utc": "2026-10-11T21:21:14.072325+00:00",
+      "xml_sha256": "9ad44aa785eb35fd1cb76ad6b12646b3fb38e7dd94a5cd483a6ae9929de84534"
+    },
+    {
+      "name": "shell-dialog-page-prompts-before",
+      "category": "baseline",
+      "counts": {
+        "passed": 26
+      },
+      "timestamp_utc": "2026-10-11T21:23:51.950942+00:00",
+      "xml_sha256": "a1c0555d9268fcb38cd6809b15c40e85fde72ae0c297407f60e3f28d4e538381"
+    },
+    {
+      "name": "shell-dialog-ownership-prompts-before",
+      "category": "baseline",
+      "counts": {
+        "passed": 27,
+        "failure": 1
+      },
+      "timestamp_utc": "2026-10-11T21:24:03.607754+00:00",
+      "xml_sha256": "24e29b71647715fafd32568469f45ac0f3051a18737c359b028173513ccae5af"
+    },
+    {
+      "name": "shell-dialog-global-guardrails",
+      "category": "validation",
+      "counts": {
+        "passed": 26,
+        "failure": 2
+      },
+      "timestamp_utc": "2026-10-11T21:24:45.381976+00:00",
+      "xml_sha256": "997525b67fa513e7d9ccaa2906177b0bfa66daacc6045ea0f9b131febb4d9fa8"
+    },
+    {
+      "name": "shell-dialog-page-prompts-after",
+      "category": "validation",
+      "counts": {
+        "passed": 27
+      },
+      "timestamp_utc": "2026-10-11T21:25:16.429008+00:00",
+      "xml_sha256": "f1d02439bfee10240b7e89658d4394342da81aeaaaf2fb24e7b35b079e752a9f"
+    },
+    {
+      "name": "shell-dialog-prompt-api-final",
+      "category": "validation",
+      "counts": {
+        "passed": 16
+      },
+      "timestamp_utc": "2026-10-13T19:05:24.232176+00:00",
+      "xml_sha256": "f67cf329fb3a09049557d56dd8be33cba9ad477cbe9fa3a3d63d183d8dd8b444"
+    },
+    {
+      "name": "shell-dialog-ownership-final",
+      "category": "validation",
+      "counts": {
+        "passed": 28
+      },
+      "timestamp_utc": "2026-10-13T19:05:46.265851+00:00",
+      "xml_sha256": "e4deed5d9cefdf766650a747a8606b14c85c91539e81ac0d9f16876635de304e"
+    }
+  ],
+  "latest_distinct_counts": {
+    "passed": 398,
+    "failure": 2
+  },
+  "latest_distinct_cases": [
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_accepts_canonical_composition_and_ignores_prose",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_accepts_explicit_scroll_and_keeps_web_colors_separate",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button = QPushButton(\"\\\\U0001f514 Notificaciones\")-unicode_icon_literal]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button = QPushButton()\\nbutton.setFixedHeight(32)-fixed_control_below_touch_target]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[button.setStyleSheet(style)-inline_qss]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class EditDialog(QDialog):\\n    pass-noncanonical_dialog]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class EditDialog(StandardDialog):\\n    def setup(self):\\n        self.setMinimumSize(1400, 900)-dialog_geometry_exceeds_smallest_viewport]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class KPICard(QWidget):\\n    pass-local_standard_component]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalButton(QPushButton):\\n    def setup(self):\\n        self.setFont(font)-local_visual_control]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalInput(QLineEdit):\\n    def paintEvent(self, event):\\n        pass-local_visual_control]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class LocalTable(QtWidgets.QTableWidget):\\n    pass-native_operational_table]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class OrdersView(QWidget):\\n    pass-screen_without_explicit_overflow]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class SalesPage(QWidget):\\n    pass-screen_without_explicit_overflow]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[class SalesPageHeader(QWidget):\\n    pass-local_standard_component]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[color = \"#18372B\"-hardcoded_visual_hex]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[color = \"#ffffff\"-hardcoded_visual_hex]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_ast_audit_detects_forbidden_module_patterns[from PyQt5.QtWidgets import QTableWidget as Grid\\ntable = Grid()-native_operational_table]",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_brand_colors_only_in_theme_layer",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_charts_render_via_html_js_not_native",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_desktop_visual_debt_does_not_grow",
+      "status": "failure",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_existing_file_debt_cannot_hide_new_expressions_or_duplicate_occurrences",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_no_hardcoded_hex_in_components",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_no_inline_stylesheets_in_components",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_no_native_pyqt_charts_in_frontend",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_print_canvas_white_is_data_and_does_not_exempt_widget_colors",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_theme_layer_is_the_single_qss_source",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_time_input_builds_on_qtimeedit_not_qlineedit",
+      "status": "passed",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_design_system_guardrails::test_visual_debt_baseline_is_exact_and_kept_pruned",
+      "status": "failure",
+      "run": "shell-dialog-global-guardrails"
+    },
+    {
+      "id": "tests.architecture.test_sales_pos_ui_does_not_receive_app_container::test_sales_pos_ui_does_not_receive_app_container",
+      "status": "passed",
+      "run": "shell-dialog-operations-regression"
+    },
+    {
+      "id": "tests.architecture.test_sales_pos_ui_has_no_sql::test_sales_pos_ui_has_no_raw_sql",
+      "status": "passed",
+      "run": "shell-dialog-operations-regression"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_allows_result_constants_native_selectors_and_content_layouts[class Edit(FormDialog):\\n def setup(self): self.form.addRow(label, field)]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_allows_result_constants_native_selectors_and_content_layouts[class Edit(StandardDialog):\\n class Body(QWidget):\\n  def setup(self): QVBoxLayout(self)]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_allows_result_constants_native_selectors_and_content_layouts[class Edit(StandardDialog):\\n def setup(self):\\n  root = self.content_layout()\\n  footer = QWidget(self)\\n  buttons = QHBoxLayout(footer)\\n  self.add_footer_widget(footer)]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_allows_result_constants_native_selectors_and_content_layouts[class Page(QWidget):\\n def setup(self): QVBoxLayout(self)]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_allows_result_constants_native_selectors_and_content_layouts[from PyQt5 import QtWidgets as W\\nrejected = W.QDialog.Rejected]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_allows_result_constants_native_selectors_and_content_layouts[from PyQt5.QtWidgets import QDialog\\naccepted = dialog.exec_() == QDialog.Accepted]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_allows_result_constants_native_selectors_and_content_layouts[from PyQt5.QtWidgets import QFileDialog, QMessageBox\\npicker = QFileDialog()\\nmessage = QMessageBox()]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_allows_result_constants_native_selectors_and_content_layouts[from frontend.desktop.components.dialogs import FormDialog as Capture\\nvalue = Capture.get_text(parent, title, label)\\nitem = Capture.get_item(parent, title, label, items)]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliased_native_prompt_methods[getDouble]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliased_native_prompt_methods[getInt]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliased_native_prompt_methods[getItem]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliased_native_prompt_methods[getText]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[class Edit(StandardDialog):\\n def setup(self): self.setLayout(layout)]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[from PyQt5 import QtWidgets as W\\nclass Edit(W.QDialog): pass]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[from PyQt5.QtWidgets import QDialog as Native\\nclass Edit(Native): pass]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[from PyQt5.QtWidgets import QDialog\\nNative = QDialog\\ndialog = Native()]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[from PyQt5.QtWidgets import QDialog\\nclass Edit(QDialog): pass]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[from PyQt5.QtWidgets import QInputDialog as Native\\nclass Edit(Native): pass]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[from PyQt5.QtWidgets import QInputDialog as Native\\ndialog = Native()]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[from PyQt5.QtWidgets import QInputDialog as Native\\nvalue = Native.getText(parent, title, label)]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[from frontend.desktop.components import dialogs as D\\nfrom PyQt5 import QtWidgets as W\\nclass Edit(D.FormDialog):\\n def setup(self): W.QFormLayout(parent=self)]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[from frontend.desktop.components.dialogs import StandardDialog as Base\\nfrom PyQt5.QtWidgets import QVBoxLayout as Layout\\nclass Edit(Base):\\n def setup(self): Layout(self)]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[import PyQt5.QtWidgets as W\\ndialog = W.QDialog(parent)]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[import PyQt5.QtWidgets as W\\ndialog = W.QInputDialog()]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_guard_detects_aliases_and_layout_replacement[import PyQt5.QtWidgets\\ndialog = PyQt5.QtWidgets.QDialog(parent)]",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_native_input_dialogs_use_the_canonical_capture_components",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_only_canonical_component_inherits_or_constructs_qdialog",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.architecture.test_standard_dialog_ownership::test_standard_dialog_subclasses_preserve_the_owned_layout",
+      "status": "passed",
+      "run": "shell-dialog-ownership-final"
+    },
+    {
+      "id": "tests.integration.meat_processing.test_quality_inspection_page::test_the_page_asks_for_a_reason_before_blocking",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.test_numeric_keypad_dialog::test_get_quantity_flujo_completo",
+      "status": "passed",
+      "run": "shell-dialog-core-after"
+    },
+    {
+      "id": "tests.test_numeric_keypad_dialog::test_permitir_cero_habilita_confirmar_cero",
+      "status": "passed",
+      "run": "shell-dialog-core-after"
+    },
+    {
+      "id": "tests.test_numeric_keypad_dialog::test_por_defecto_exige_mayor_que_cero",
+      "status": "passed",
+      "run": "shell-dialog-core-after"
+    },
+    {
+      "id": "tests.test_numeric_keypad_dialog::test_porcentaje_respeta_maximo_100",
+      "status": "passed",
+      "run": "shell-dialog-core-after"
+    },
+    {
+      "id": "tests.test_numeric_keypad_dialog::test_quantity_input_dialog_es_subclase",
+      "status": "passed",
+      "run": "shell-dialog-core-after"
+    },
+    {
+      "id": "tests.test_numeric_keypad_dialog::test_subclase_acepta_permitir_cero",
+      "status": "passed",
+      "run": "shell-dialog-core-after"
+    },
+    {
+      "id": "tests.test_numeric_keypad_dialog::test_valor_inicial_en_edicion",
+      "status": "passed",
+      "run": "shell-dialog-core-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_dialog_escape_preserves_data_and_rejects[address]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_dialog_escape_preserves_data_and_rejects[bank]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_dialog_escape_preserves_data_and_rejects[block]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_dialog_escape_preserves_data_and_rejects[contact]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_dialog_escape_preserves_data_and_rejects[detail]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_dialog_escape_preserves_data_and_rejects[evaluation]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_dialog_escape_preserves_data_and_rejects[form]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_dialog_escape_preserves_data_and_rejects[journal]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_dialog_escape_preserves_data_and_rejects[profile]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_dialog_escape_preserves_data_and_rejects[reason]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_dialog_escape_preserves_data_and_rejects[terms]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-address]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-bank]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-block]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-contact]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-detail]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-evaluation]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-form]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-journal]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-profile]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-reason]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[dark-touch-terms]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-address]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-bank]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-block]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-contact]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-detail]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-evaluation]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-form]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-journal]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-profile]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-reason]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-comfortable-terms]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-address]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-bank]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-block]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-contact]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-detail]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-evaluation]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-form]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-journal]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-profile]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-reason]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_finance_shell_keeps_actions_reachable_on_small_screen[light-compact-terms]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_read_only_close_keeps_existing_result[detail]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_read_only_close_keeps_existing_result[journal]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_read_only_close_keeps_existing_result[profile]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[click-address]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[click-bank]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[click-block]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[click-contact]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[click-evaluation]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[click-form]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[click-reason]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[click-terms]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[enter-address]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[enter-bank]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[enter-block]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[enter-contact]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[enter-evaluation]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[enter-form]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[enter-reason]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_capture_validates_then_accepts_once[enter-terms]",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_finance_remaining_standard_dialogs::test_supplier_detail_keeps_lazy_tabs_and_uuid_selection",
+      "status": "passed",
+      "run": "shell-dialog-finance-ownership-after"
+    },
+    {
+      "id": "tests.ui.test_numeric_keypad_standard_dialog::test_numeric_capture_fits_with_keyboard_and_preserves_value[comfortable-dark]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_numeric_keypad_standard_dialog::test_numeric_capture_fits_with_keyboard_and_preserves_value[comfortable-light]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_numeric_keypad_standard_dialog::test_numeric_capture_fits_with_keyboard_and_preserves_value[compact-dark]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_numeric_keypad_standard_dialog::test_numeric_capture_fits_with_keyboard_and_preserves_value[compact-light]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_numeric_keypad_standard_dialog::test_numeric_capture_fits_with_keyboard_and_preserves_value[touch-dark]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_numeric_keypad_standard_dialog::test_numeric_capture_fits_with_keyboard_and_preserves_value[touch-light]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_numeric_keypad_standard_dialog::test_numeric_invalid_enter_stays_open_and_escape_cancels",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_discount_rejected_authorizer_never_applies",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_inventory_close_accepts_and_escape_rejects[lot]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_inventory_close_accepts_and_escape_rejects[movement]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_inventory_close_accepts_and_escape_rejects[weight]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_inventory_close_accepts_and_escape_rejects[zones]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_inventory_permissions_and_callbacks_remain_authoritative",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-dark-customer]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-dark-discount]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-dark-lot]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-dark-movement]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-dark-payment]",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-dark-weight]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-dark-zones]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-light-customer]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-light-discount]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-light-lot]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-light-movement]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-light-payment]",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-light-weight]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[comfortable-light-zones]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-dark-customer]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-dark-discount]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-dark-lot]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-dark-movement]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-dark-payment]",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-dark-weight]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-dark-zones]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-light-customer]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-light-discount]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-light-lot]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-light-movement]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-light-payment]",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-light-weight]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[compact-light-zones]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-dark-customer]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-dark-discount]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-dark-lot]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-dark-movement]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-dark-payment]",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-dark-weight]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-dark-zones]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-light-customer]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-light-discount]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-light-lot]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-light-movement]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-light-payment]",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-light-weight]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operation_footer_buttons_fit_with_live_appearance[touch-light-zones]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size0-customer]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size0-discount]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size0-lot]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size0-movement]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size0-payment]",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size0-weight]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size0-zones]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size1-customer]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size1-discount]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size1-lot]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size1-movement]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size1-payment]",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size1-weight]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_operations_use_scroll_body_and_sticky_footer[size1-zones]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_payment_enter_adds_local_line_and_cancel_never_starts_checkout",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_payment_retry_keeps_recorded_lines_and_accepts_once",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_payment_voucher_keeps_reference_and_rejects_duplicates",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_pos_escape_rejects_without_mutations[customer]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_pos_escape_rejects_without_mutations[discount]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_pos_escape_rejects_without_mutations[payment]",
+      "status": "passed",
+      "run": "shell-dialog-operations-payment-final"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_pos_validation_failure_and_retry_preserve_capture[click-customer]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_pos_validation_failure_and_retry_preserve_capture[click-discount]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_pos_validation_failure_and_retry_preserve_capture[enter-customer]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_operations_standard_dialogs::test_pos_validation_failure_and_retry_preserve_capture[enter-discount]",
+      "status": "passed",
+      "run": "shell-dialog-operations-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_catalog_validation_and_saved_payload_are_preserved[click-attribute]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_catalog_validation_and_saved_payload_are_preserved[click-brand]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_catalog_validation_and_saved_payload_are_preserved[click-category]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_catalog_validation_and_saved_payload_are_preserved[click-option]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_catalog_validation_and_saved_payload_are_preserved[enter-attribute]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_catalog_validation_and_saved_payload_are_preserved[enter-brand]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_catalog_validation_and_saved_payload_are_preserved[enter-category]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_catalog_validation_and_saved_payload_are_preserved[enter-option]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[attribute_form_dialog.AttributeFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[attribute_form_dialog.AttributeOptionsDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[attribute_form_dialog._OptionEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[brand_form_dialog.BrandFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[bundle_form_dialog.BundleFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[bundle_form_dialog._ComponentEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[bundles_dialog.BundlesDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[category_form_dialog.CategoryFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[category_form_dialog.MoveCategoryDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[cutting_dialog.CuttingSchemesDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[cutting_form_dialog.CuttingSchemeFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[cutting_form_dialog._OutputEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[product_form_dialog.ProductFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[purchase_units_dialog.PurchaseUnitsDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[recipe_form_dialog.RecipeFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[recipe_form_dialog._ComponentEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[recipe_form_dialog._OutputEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[recipes_dialog.RecipesDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[variant_generator_dialog.VariantGeneratorDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[yield_form_dialog.YieldProfileFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[yield_form_dialog._OutputEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_escape_rejects_each_product_dialog_without_writes[yields_dialog.YieldProfilesDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[attribute_form_dialog.AttributeFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[attribute_form_dialog.AttributeOptionsDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[attribute_form_dialog._OptionEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[brand_form_dialog.BrandFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[bundle_form_dialog.BundleFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[bundle_form_dialog._ComponentEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[bundles_dialog.BundlesDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[category_form_dialog.CategoryFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[category_form_dialog.MoveCategoryDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[cutting_dialog.CuttingSchemesDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[cutting_form_dialog.CuttingSchemeFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[cutting_form_dialog._OutputEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[product_form_dialog.ProductFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[purchase_units_dialog.PurchaseUnitsDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[recipe_form_dialog.RecipeFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[recipe_form_dialog._ComponentEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[recipe_form_dialog._OutputEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[recipes_dialog.RecipesDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[variant_generator_dialog.VariantGeneratorDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[yield_form_dialog.YieldProfileFormDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[yield_form_dialog._OutputEditor]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_every_product_dialog_has_scroll_body_and_fixed_footer[yields_dialog.YieldProfilesDialog]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_product_long_form_scroll_keeps_footer_and_capture[comfortable-dark]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_product_long_form_scroll_keeps_footer_and_capture[comfortable-light]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_product_long_form_scroll_keeps_footer_and_capture[compact-dark]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_product_long_form_scroll_keeps_footer_and_capture[compact-light]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_product_long_form_scroll_keeps_footer_and_capture[touch-dark]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_product_long_form_scroll_keeps_footer_and_capture[touch-light]",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_product_save_failure_keeps_capture_and_success_accepts_once",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_products_standard_dialog_adoption::test_variant_generate_retains_nonclosing_behavior",
+      "status": "passed",
+      "run": "shell-dialog-products-after"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_keyboard_attach_is_idempotent_and_destructive_default_is_cancel",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[decimal]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[email]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[integer]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[money]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[phone]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[text]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[weight]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution0]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution1]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution2]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution3]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution4]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution0]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution1]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution2]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution3]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution4]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution0]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution1]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution2]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution3]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution4]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution0]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution1]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution2]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution3]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution4]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_page_viewport_scrolls_oversized_content_in_both_directions",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_pricing_scroll_preserves_lazy_routes_when_opened_out_of_order",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_runtime_density_updates_existing_inputs_tables_and_tabs",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_table_filter_loading_and_manual_population_state",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_table_minimum_width_scroll_visibility_and_saved_width_survive_resize",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_table_rejects_incomplete_rows_without_destroying_existing_data",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_table_reload_while_sorted_keeps_each_uuid_with_all_of_its_values",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_virtual_keyboard_keeps_touch_targets_after_global_density_changes",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_virtual_keyboard_preserves_validation_selection_and_read_only",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_wizard_prevents_navigation_past_first_or_last_step",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_responsive_components::test_yield_monitoring_uses_page_scroll_without_eager_queries",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_assortment_two_prompts_preserve_channel_mapping[ -True-True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_assortment_two_prompts_preserve_channel_mapping[ Nuevo surtido -False-True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_assortment_two_prompts_preserve_channel_mapping[ Nuevo surtido -True-False]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_assortment_two_prompts_preserve_channel_mapping[ Nuevo surtido -True-True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_campaign_reason_keeps_blank_and_cancel_semantics[ -True-expected2]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_campaign_reason_keeps_blank_and_cancel_semantics[ motivo -False-expected1]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_campaign_reason_keeps_blank_and_cancel_semantics[ motivo -True-expected0]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_quality_prompt_preserves_reason_without_new_normalization[False]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_quality_prompt_preserves_reason_without_new_normalization[True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reason_actions_preserve_validation_and_payload[   -True-finance.pages.bank_reconciliation_page-BankReconciliationPage-_revert-revert_reconciliation-Revertir conciliaci\\xf3n-Motivo:-False]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reason_actions_preserve_validation_and_payload[   -True-hr.pages.employees_page-EmployeesPage-_deactivate-deactivate_employee-Dar de baja-Motivo de la baja:-True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reason_actions_preserve_validation_and_payload[   -True-purchasing.pages.enterprise_pages-InvoicesPage-_cancel_invoice-cancel_invoice-Cancelar factura-Motivo de la cancelaci\\xf3n:-False]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reason_actions_preserve_validation_and_payload[ motivo capturado -False-finance.pages.bank_reconciliation_page-BankReconciliationPage-_revert-revert_reconciliation-Revertir conciliaci\\xf3n-Motivo:-False]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reason_actions_preserve_validation_and_payload[ motivo capturado -False-hr.pages.employees_page-EmployeesPage-_deactivate-deactivate_employee-Dar de baja-Motivo de la baja:-True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reason_actions_preserve_validation_and_payload[ motivo capturado -False-purchasing.pages.enterprise_pages-InvoicesPage-_cancel_invoice-cancel_invoice-Cancelar factura-Motivo de la cancelaci\\xf3n:-False]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reason_actions_preserve_validation_and_payload[ motivo capturado -True-finance.pages.bank_reconciliation_page-BankReconciliationPage-_revert-revert_reconciliation-Revertir conciliaci\\xf3n-Motivo:-False]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reason_actions_preserve_validation_and_payload[ motivo capturado -True-hr.pages.employees_page-EmployeesPage-_deactivate-deactivate_employee-Dar de baja-Motivo de la baja:-True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reason_actions_preserve_validation_and_payload[ motivo capturado -True-purchasing.pages.enterprise_pages-InvoicesPage-_cancel_invoice-cancel_invoice-Cancelar factura-Motivo de la cancelaci\\xf3n:-False]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_receivable_prompt_preserves_customer_selection[ -True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_receivable_prompt_preserves_customer_selection[ 019f327a-1694-7000-8000-000000000001 -True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_receivable_prompt_preserves_customer_selection[019f327a-1694-7000-8000-000000000001-False]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reconciliation_difference_retries_only_after_a_valid_reason[ -True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reconciliation_difference_retries_only_after_a_valid_reason[ diferencia -False]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_reconciliation_difference_retries_only_after_a_valid_reason[ diferencia -True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_suggestions_prompt_maps_the_label_to_source_key[False]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_shell_prompt_adoption::test_suggestions_prompt_maps_the_label_to_source_key[True]",
+      "status": "passed",
+      "run": "shell-dialog-page-prompts-after"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_footer::test_existing_footer_preserves_wiring_and_stays_accessible[comfortable-box]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_footer::test_existing_footer_preserves_wiring_and_stays_accessible[comfortable-button]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_footer::test_existing_footer_preserves_wiring_and_stays_accessible[comfortable-container]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_footer::test_existing_footer_preserves_wiring_and_stays_accessible[compact-box]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_footer::test_existing_footer_preserves_wiring_and_stays_accessible[compact-button]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_footer::test_existing_footer_preserves_wiring_and_stays_accessible[compact-container]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_footer::test_existing_footer_preserves_wiring_and_stays_accessible[touch-box]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_footer::test_existing_footer_preserves_wiring_and_stays_accessible[touch-button]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_footer::test_existing_footer_preserves_wiring_and_stays_accessible[touch-container]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_geometry::test_changing_window_title_updates_visible_heading",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_geometry::test_confirmation_keyboard_uses_safe_default_and_escape[16777216-ConfirmationDialog]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_geometry::test_confirmation_keyboard_uses_safe_default_and_escape[16777216-DestructiveConfirmationDialog]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_geometry::test_confirmation_keyboard_uses_safe_default_and_escape[16777220-ConfirmationDialog]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_geometry::test_confirmation_keyboard_uses_safe_default_and_escape[16777220-DestructiveConfirmationDialog]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_geometry::test_crossing_monitor_edge_is_not_undone_before_screen_change",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_geometry::test_explicit_minimum_yields_to_small_screen_and_recovers",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_geometry::test_lost_dialog_moves_back_inside_available_screen",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_geometry::test_moved_dialog_uses_its_own_monitor_and_disconnects_parent_screen",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_geometry::test_reopening_preserves_user_size_and_capture",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_geometry::test_validation_callback_does_not_accept_before_validation",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_prompts::test_prompt_keeps_capture_and_modal_result[False-choice]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_prompts::test_prompt_keeps_capture_and_modal_result[False-editable_choice]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_prompts::test_prompt_keeps_capture_and_modal_result[False-text]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_prompts::test_prompt_keeps_capture_and_modal_result[True-choice]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_prompts::test_prompt_keeps_capture_and_modal_result[True-editable_choice]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_prompts::test_prompt_keeps_capture_and_modal_result[True-text]",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_prompts::test_text_prompt_leaves_empty_value_validation_to_caller",
+      "status": "passed",
+      "run": "shell-dialog-prompt-api-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_confirmation_titles_wrap_and_actions_remain_visible[ConfirmationDialog-dark]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_confirmation_titles_wrap_and_actions_remain_visible[ConfirmationDialog-light]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_confirmation_titles_wrap_and_actions_remain_visible[DestructiveConfirmationDialog-dark]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_confirmation_titles_wrap_and_actions_remain_visible[DestructiveConfirmationDialog-light]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[comfortable-dark-size0]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[comfortable-dark-size1]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[comfortable-dark-size2]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[comfortable-dark-size3]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[comfortable-dark-size4]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[comfortable-light-size0]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[comfortable-light-size1]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[comfortable-light-size2]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[comfortable-light-size3]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[comfortable-light-size4]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[compact-dark-size0]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[compact-dark-size1]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[compact-dark-size2]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[compact-dark-size3]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[compact-dark-size4]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[compact-light-size0]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[compact-light-size1]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[compact-light-size2]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[compact-light-size3]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[compact-light-size4]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[touch-dark-size0]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[touch-dark-size1]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[touch-dark-size2]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[touch-dark-size3]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[touch-dark-size4]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[touch-light-size0]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[touch-light-size1]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[touch-light-size2]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[touch-light-size3]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.ui.test_standard_dialog_visuals::test_long_form_keeps_footer_and_last_field_accessible[touch-light-size4]",
+      "status": "passed",
+      "run": "shell-dialog-core-final"
+    },
+    {
+      "id": "tests.unit.test_pos_discount_and_price_list_ui::test_el_autorizador_se_verifica_con_su_clave_antes_de_aplicar",
+      "status": "passed",
+      "run": "shell-dialog-operations-regression"
+    },
+    {
+      "id": "tests.unit.test_pos_discount_and_price_list_ui::test_sin_autorizador_aplica_el_descuento_sin_verificar",
+      "status": "passed",
+      "run": "shell-dialog-operations-regression"
+    },
+    {
+      "id": "tests.unit.test_pos_discount_and_price_list_ui::test_un_rechazo_del_caso_de_uso_se_muestra",
+      "status": "passed",
+      "run": "shell-dialog-operations-regression"
+    },
+    {
+      "id": "tests.unit.test_pos_discount_and_price_list_ui::test_una_clave_mala_no_aplica_nada_y_lo_dice",
+      "status": "passed",
+      "run": "shell-dialog-operations-regression"
+    },
+    {
+      "id": "tests.unit.test_virtual_keyboard_stale_controller::test_un_controlador_destruido_se_reemplaza_sin_reventar",
+      "status": "passed",
+      "run": "shell-dialog-core-after"
+    }
+  ],
+  "audit": {
+    "before_count": 136,
+    "after_count": 103,
+    "new_findings": [],
+    "resolved_count": 33,
+    "allowlist_entries_removed": 32,
+    "outside_allowlist": [
+      {
+        "key": [
+          "frontend/desktop/modules/customers_crm/pages/_work_items.py",
+          "screen_without_explicit_overflow",
+          "65a6b9c29b38774757ae"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/customers_crm/pages/_workbench.py",
+          "screen_without_explicit_overflow",
+          "505985fee4a64bd33171"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/customers_crm/pages/customer_sections.py",
+          "screen_without_explicit_overflow",
+          "245252764f6e070bf3b1"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/customers_crm/pages/customer_sections.py",
+          "screen_without_explicit_overflow",
+          "8fc1d92e186e1f139b2a"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/customers_crm/pages/leads_pages.py",
+          "screen_without_explicit_overflow",
+          "f94558efaef56cc69b68"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/customers_crm/pages/opportunity_pages.py",
+          "screen_without_explicit_overflow",
+          "af2a64883d2d85801aa2"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/customers_crm/pages/opportunity_pages.py",
+          "screen_without_explicit_overflow",
+          "23a0132092f86674abec"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/customers_crm/pages/opportunity_pages.py",
+          "screen_without_explicit_overflow",
+          "58bc15b7c8c6ed6497d5"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/customers_crm/pages/service_pages.py",
+          "screen_without_explicit_overflow",
+          "fe4874193d7330956d70"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/meat_processing/dialogs_plan.py",
+          "native_operational_table",
+          "05dd7ab084b6bbef866f"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/meat_processing/pages/meat_processing_settings_page.py",
+          "screen_without_explicit_overflow",
+          "ccda8fcb6a5694ec8cac"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/pricing/pages/settings_page.py",
+          "screen_without_explicit_overflow",
+          "eecdb14c0a9c4a98cf33"
+        ],
+        "count": 1
+      }
+    ],
+    "stale_allowlist": [
+      {
+        "key": [
+          "frontend/desktop/modules/business_intelligence/business_intelligence_view.py",
+          "screen_without_explicit_overflow",
+          "2bf3ba99c641162b769c"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/configuracion/configuracion_view.py",
+          "screen_without_explicit_overflow",
+          "0f64b8b9ceeac523c1f0"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/customers_crm/pages/_directory_base.py",
+          "screen_without_explicit_overflow",
+          "a79937d86bab0d6eb67a"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/finance/finance_view.py",
+          "screen_without_explicit_overflow",
+          "4818c361e7a799832447"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/hr/hr_view.py",
+          "screen_without_explicit_overflow",
+          "094b34a5ab941a2cbd79"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/inventory/inventory_view.py",
+          "screen_without_explicit_overflow",
+          "2f4dfb30a8b0b1cba75e"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/losses/losses_view.py",
+          "screen_without_explicit_overflow",
+          "2ff1dd19a5abd02c03fb"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/meat_processing/meat_processing_view.py",
+          "screen_without_explicit_overflow",
+          "4cde71084b72cc49fa22"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/orders_delivery/orders_delivery_view.py",
+          "screen_without_explicit_overflow",
+          "7ba63dec04a6fed3f238"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/products/products_view.py",
+          "screen_without_explicit_overflow",
+          "039ffd95e2ef2e76fc86"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/purchasing/pages/direct_purchase_page.py",
+          "screen_without_explicit_overflow",
+          "2c4c5bda610d6bbe4406"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/purchasing/pages/direct_purchase_page.py",
+          "unicode_icon_literal",
+          "230a57e0948de9a5dd55"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+          "unicode_icon_literal",
+          "3056c66f316a90669364"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+          "unicode_icon_literal",
+          "5b113988080c310b1873"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+          "unicode_icon_literal",
+          "753c217a828d7a7e1624"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+          "unicode_icon_literal",
+          "98a36d8d20769648ad59"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/sales_pos/components/actions_panel.py",
+          "unicode_icon_literal",
+          "c306c2d4c8986e33ff25"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/sales_pos/components/cashier_bar.py",
+          "unicode_icon_literal",
+          "1b72c50e8a9b2035d92f"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/sales_pos/components/cashier_bar.py",
+          "unicode_icon_literal",
+          "a86175341d07cdbabb00"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/sales_pos/components/cashier_bar.py",
+          "unicode_icon_literal",
+          "fc995c6ce257bd78734a"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/sales_pos/dialogs/payment_dialog.py",
+          "unicode_icon_literal",
+          "56d5eb0cde29b981d1f1"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/sales_pos/sales_pos_workspace.py",
+          "screen_without_explicit_overflow",
+          "b3eff1a28b5607e08b9f"
+        ],
+        "count": 1
+      },
+      {
+        "key": [
+          "frontend/desktop/modules/transfers/transfers_view.py",
+          "screen_without_explicit_overflow",
+          "82c33c1a5318f4369530"
+        ],
+        "count": 1
+      }
+    ]
+  },
+  "source_sha256": {
+    "frontend/desktop/components/dialogs.py": "9480a0b4ccb98fb4f2830fa097c72f04a86fa1ca3c94b6e338e526d43783808f",
+    "frontend/desktop/components/numeric_keypad_dialog.py": "c92a6a54c77e4ea518d85db855f2e99e3c59cbeea04d202143c507fcce0c9b24",
+    "frontend/desktop/design_system/migration_guide.md": "eebc9d1ff3c7fcae96136d1f73077630ff270aca67d13c6a9a3c65ec53341555",
+    "frontend/desktop/modules/configuracion/pages/pantalla_cliente_page.py": "572c84dbcd47f9a4e86db383a0f6f0f658df07b764d2d6cca5c4e5a86972535c",
+    "frontend/desktop/modules/finance/dialogs/commercial_posting_profile_dialog.py": "b06c570fd6dd13a077926010c5d4f0783ef1b840276e76c909539a5c9aa03246",
+    "frontend/desktop/modules/finance/dialogs/journal_entry_dialog.py": "675a214b47dc6000954ca244bf0aa554284005d0321fdeecb6a15b801c338f97",
+    "frontend/desktop/modules/finance/pages/accounts_receivable_page.py": "a301d27d87c27d0ab0ad129ff8f7dc74c6ab77cbf70b80fb5224bd7ef43d2632",
+    "frontend/desktop/modules/finance/pages/bank_reconciliation_page.py": "957597931390a31d7a9021a47f048a98592b9ba9f437f55989b272e12a1634d6",
+    "frontend/desktop/modules/finance/suppliers/dialogs/supplier_dialogs.py": "595b8104170cfaca4943080e500421f1716090eb727a37a33de186b7b32aed29",
+    "frontend/desktop/modules/finance/suppliers/pages/supplier_detail_dialog.py": "55c7cc03f081dd66e4126a64b5e0bf1c66a90413c84a4eab0e5c8647c6f44977",
+    "frontend/desktop/modules/hr/pages/employees_page.py": "973b4220db5293c7fb4a93efa3896e4c31aed65a0bd05e6537777d05a4a1a92e",
+    "frontend/desktop/modules/inventory/dialogs.py": "3b78b37d54063f9040aecf6455eb03cc7cc0d0999204e23b359e9fceccd50bdb",
+    "frontend/desktop/modules/meat_processing/pages/production_plan_page.py": "bc223b507214fc3926dcf89a260e1ae8df0dc4763135cb8d6f0f8fc2fbfdf7fb",
+    "frontend/desktop/modules/meat_processing/pages/quality_inspection_page.py": "cf7e55760c012c94ae1c5f9c53fe0e6ed4f10d801937f3b700099b93476f986e",
+    "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py": "2655d79b41a58421c7e6aad0a541105b0d990e6324db5396a5ab2c50f137a968",
+    "frontend/desktop/modules/products/dialogs/brand_form_dialog.py": "dfa1490cb6d1b448196bdd682289bff0d18893c7eb80c620a6cab9ca3b0e41be",
+    "frontend/desktop/modules/products/dialogs/bundle_form_dialog.py": "feb75ddfa1f5fc2b9d01dd490695d7c346152a95436f5f5dad295badfd10d031",
+    "frontend/desktop/modules/products/dialogs/bundles_dialog.py": "b5b53cc4e5967b9894834199abf63a35f66b02b953f65d0628c8e4de6573824d",
+    "frontend/desktop/modules/products/dialogs/category_form_dialog.py": "15dd42c375fc16e49b850b6a755d55d469070dfc2303408849471841e045ea7c",
+    "frontend/desktop/modules/products/dialogs/cutting_dialog.py": "6538d677f0bc0b11ffeac62855496305e50824a2d7008ab9984d0b9b6d7ee510",
+    "frontend/desktop/modules/products/dialogs/cutting_form_dialog.py": "3ce4a5559eec0cc6271c4bbbcecf166576a96ec5101e285b7c2468d175bf05fe",
+    "frontend/desktop/modules/products/dialogs/product_form_dialog.py": "fc743b4ac04b16359bd442b2372dc333d59dce27383c7e1f728deab7b7db817b",
+    "frontend/desktop/modules/products/dialogs/purchase_units_dialog.py": "d4b878c5d78141db86df05ac94475f650ad8b3dae5c6d7c0d9ed4d76fb659ccb",
+    "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py": "d99fb3522638226a8b2bc4605410d00905d466382bebe5a58001f41dd6002f1a",
+    "frontend/desktop/modules/products/dialogs/recipes_dialog.py": "34326b40853dcb7d75ea66a4af6622a64dee950afad358f0f278779b100ec0f7",
+    "frontend/desktop/modules/products/dialogs/variant_generator_dialog.py": "0227f36d297735311edbf3d0b697fa08d5820d036876f6ab3161748a5b7d1c43",
+    "frontend/desktop/modules/products/dialogs/yield_form_dialog.py": "81260b24165a9f882d767663a32e660f5e1aebdfe42a77c31af562f445fb0b54",
+    "frontend/desktop/modules/products/dialogs/yields_dialog.py": "73d4173c23a449fe1df6884044712846bcfa9d8057015f18acd46ab283ebb49b",
+    "frontend/desktop/modules/products/pages/branch_channel_page.py": "8af91eebfffdc05ed7a9e44880ee141f7ec667ff3cfc7b6b1b91563298ae107a",
+    "frontend/desktop/modules/purchasing/pages/enterprise_pages.py": "d07194886f901cc0efb104f1d2adf9edd3d737f877d57d9166fb0834ded7e476",
+    "frontend/desktop/modules/sales_pos/dialogs/discount_dialog.py": "e8d48a284d10535366cfb176703eaddb0e5dba3b00fe45d63a2f01ee61264d3c",
+    "frontend/desktop/modules/sales_pos/dialogs/payment_dialog.py": "789465a3d61e317c2bd1070b61a507630e2ddf8572824d81910c4229e8fe2b33",
+    "frontend/desktop/modules/sales_pos/dialogs/quick_customer_dialog.py": "ae797ef6cff4ee5734ef2ab10f06a7c6e3cd224c11a6a205f36a8665bf7789ae",
+    "tests/architecture/design_system_debt_baseline.json": "33878cf55feda981a32138ae99ae58512ed14366f81b2896a97455619ea91341",
+    "tests/architecture/test_standard_dialog_ownership.py": "eb7ad3550e12c26cb803d0e0ebbfe6a8b994af5cdd16881297799960b2c62b45",
+    "tests/integration/meat_processing/test_quality_inspection_page.py": "d441b179d342a0807ffa58ead778298791931c53580792abd22302fcb2c54dc3",
+    "tests/ui/test_finance_remaining_standard_dialogs.py": "1e9bdef88d85c2c4e03d59d9fbf2d1fab807e190ce634dc6a7f64c7846a47984",
+    "tests/ui/test_numeric_keypad_standard_dialog.py": "27bb0f7638b5495140c5da3f24ad1c4ba008e28714c42785d52243d28cbfcd4f",
+    "tests/ui/test_operations_standard_dialogs.py": "ec644e28e7e8d17c835e97b176df8dc795e3070c61ff865488b35cbece898846",
+    "tests/ui/test_products_standard_dialog_adoption.py": "c6f5b77597c7fd54a280cc5c59f4bfb1b055f084273602834c1fd3a073d68624",
+    "tests/ui/test_shell_prompt_adoption.py": "8c97ce3a40d0100f2cf99b95eebfc49bd02ecb0f24c892a3035b454261569936",
+    "tests/ui/test_standard_dialog_footer.py": "314daa87de4f4d91a679da395f2ae122b1dc25dc1507b984c5896f31ab02728e",
+    "tests/ui/test_standard_dialog_prompts.py": "5ac87b1ab4788ba1dfdfea144c40e6f26680ee6f802ba38b57acdd850a7f8acf"
+  },
+  "captures": [
+    {
+      "path": "captures/dark-comfortable-1280x720-dialog.png",
+      "sha256": "a6d0ddce99eb657d0c4e55b969849272d5fd83eec78cf663df64395cae65a92b"
+    },
+    {
+      "path": "captures/dark-comfortable-1366x768-dialog.png",
+      "sha256": "92a3c9247510f9b9b746c5318c9c077fd6c418756d109e5dfe323a367d162cdd"
+    },
+    {
+      "path": "captures/dark-comfortable-1440x900-dialog.png",
+      "sha256": "81dc53f966842c3f5185fcd99e19f85cd143b69e4dc6686b5a392d0d4a0a034a"
+    },
+    {
+      "path": "captures/dark-comfortable-1600x900-dialog.png",
+      "sha256": "81dc53f966842c3f5185fcd99e19f85cd143b69e4dc6686b5a392d0d4a0a034a"
+    },
+    {
+      "path": "captures/dark-comfortable-1920x1080-dialog.png",
+      "sha256": "f40132ccb0e85e51256006c3c9061221bbb52bfe88e3082596361df1164cbc72"
+    },
+    {
+      "path": "captures/dark-compact-1280x720-dialog.png",
+      "sha256": "f41ae788607b8fd080c1ac844f955e34d6b26534fee8e6ea6a1e195fc7addc19"
+    },
+    {
+      "path": "captures/dark-compact-1366x768-dialog.png",
+      "sha256": "3ba9b8c219bcc56359825432d313fa7fa49fa150961543255a48fba17763176a"
+    },
+    {
+      "path": "captures/dark-compact-1440x900-dialog.png",
+      "sha256": "03912cb4005bcfa22b6a33d06d3ea421b4976500791e535945c5776bd56d3fd6"
+    },
+    {
+      "path": "captures/dark-compact-1600x900-dialog.png",
+      "sha256": "03912cb4005bcfa22b6a33d06d3ea421b4976500791e535945c5776bd56d3fd6"
+    },
+    {
+      "path": "captures/dark-compact-1920x1080-dialog.png",
+      "sha256": "4f0242a9911bc2ee1f7623cbbd29622cfbfb28acba25d08a552cfe90d1f39038"
+    },
+    {
+      "path": "captures/dark-touch-1280x720-dialog.png",
+      "sha256": "86c21b236370447ab516655ba82d1430dbb510a3ebddcc88f0b7bec22adc2941"
+    },
+    {
+      "path": "captures/dark-touch-1366x768-dialog.png",
+      "sha256": "0522b1bbb4f586cc145eceb0a6e66e069df1021a5e382665b5dc5181dc7febba"
+    },
+    {
+      "path": "captures/dark-touch-1440x900-dialog.png",
+      "sha256": "563f85fe154d4edc95f328f2511c70f180463d5d250cc4fe9ac298b7ce03c7ac"
+    },
+    {
+      "path": "captures/dark-touch-1600x900-dialog.png",
+      "sha256": "563f85fe154d4edc95f328f2511c70f180463d5d250cc4fe9ac298b7ce03c7ac"
+    },
+    {
+      "path": "captures/dark-touch-1920x1080-dialog.png",
+      "sha256": "8adb2782de7c584e9d7fb0c0741e7852d290f674935c9c5ceacdad93e04da9d7"
+    },
+    {
+      "path": "captures/finance-address-dark-touch-640x480.png",
+      "sha256": "c7636bd83e0642f7c008ce1eaaa500f5cb1c178892d58b219bc10ff5655ab829"
+    },
+    {
+      "path": "captures/finance-address-light-comfortable-640x480.png",
+      "sha256": "8f25fb5df544b13f891bdc2b66d2fd9095b5457a745b2a9e357ad420caccb34e"
+    },
+    {
+      "path": "captures/finance-address-light-compact-640x480.png",
+      "sha256": "1fc728a59164d845aaf89a4d10df02d59c845be6ec5f56dd03a3049a81bd4cef"
+    },
+    {
+      "path": "captures/finance-bank-dark-touch-640x480.png",
+      "sha256": "b3ea79f92d3298995e31de90fe9bb90ba17531bf7449ec3c3886304de718d8fa"
+    },
+    {
+      "path": "captures/finance-bank-light-comfortable-640x480.png",
+      "sha256": "76a264fe525367ff52781ffce63b669a7448294b2c817485c4b1ca423af57cf4"
+    },
+    {
+      "path": "captures/finance-bank-light-compact-640x480.png",
+      "sha256": "0ce82570c75f608dc8c78677c135388aedd836ccffb63a9a30b29c19f28b8b0f"
+    },
+    {
+      "path": "captures/finance-block-dark-touch-640x480.png",
+      "sha256": "808e0cee90ca67d1dad1c5f03e77c478a158fb948f7dd4e62d61fb53fc14f5d8"
+    },
+    {
+      "path": "captures/finance-block-light-comfortable-640x480.png",
+      "sha256": "f4c84e0e0a7314dc5b863775a2e7dea2ac8b1e3dee19525efefe557086d43f7d"
+    },
+    {
+      "path": "captures/finance-block-light-compact-640x480.png",
+      "sha256": "008092dcbfaa148c83b4b16efde7601293cbb2b8b57f622d669e444e265097ac"
+    },
+    {
+      "path": "captures/finance-contact-dark-touch-640x480.png",
+      "sha256": "962d29e1e32103dc669d39ad31e0a6eab377b7e15ea309ffdbdb0d9c84adfc18"
+    },
+    {
+      "path": "captures/finance-contact-light-comfortable-640x480.png",
+      "sha256": "0cb4af43aeb364648e7717320c11ffb096e2653a97dea7e43e1b6e9bf57bdda9"
+    },
+    {
+      "path": "captures/finance-contact-light-compact-640x480.png",
+      "sha256": "98d27d7e885c203196ddf9220632df752913cabfbae2be9f8703e1e6e1c6984a"
+    },
+    {
+      "path": "captures/finance-detail-dark-touch-640x480.png",
+      "sha256": "38059d08951ee916d0b342b7b9fc01479a33b9bd1e707faf2e0ba66aac6139b4"
+    },
+    {
+      "path": "captures/finance-detail-light-comfortable-640x480.png",
+      "sha256": "f892cb01b490adce7160b477c6efc671d4149b28860e59e483b2c82b730aece1"
+    },
+    {
+      "path": "captures/finance-detail-light-compact-640x480.png",
+      "sha256": "fea8127119ec72e6dec5a63f51bc8f3188c02fc1ffabb74dc7cfac8a21095ae9"
+    },
+    {
+      "path": "captures/finance-evaluation-dark-touch-640x480.png",
+      "sha256": "fc5ef294f2bf1d7d6807e35e22b2507581cb461d5c43280c72bc40db93a28935"
+    },
+    {
+      "path": "captures/finance-evaluation-light-comfortable-640x480.png",
+      "sha256": "7a5007d70972aba18857d012f44b27d46404d08bdb0362124f87d57b37fc73d1"
+    },
+    {
+      "path": "captures/finance-evaluation-light-compact-640x480.png",
+      "sha256": "adc9256c8ddb2c91e70f4188b911da2ce35830420f1885fa49f5a0cdb3357512"
+    },
+    {
+      "path": "captures/finance-form-dark-touch-640x480.png",
+      "sha256": "d113982ae39259ff6d8b2d16b891be294498b148b836f8c73dc73c48f72e472e"
+    },
+    {
+      "path": "captures/finance-form-light-comfortable-640x480.png",
+      "sha256": "2605a2df3e86f7227891afabee78adcfcc1819687c601400d678763a2cf420b9"
+    },
+    {
+      "path": "captures/finance-form-light-compact-640x480.png",
+      "sha256": "850720c59d4389b6ba915f06b927343df5871e49d3c22a3f6d74d66970831cac"
+    },
+    {
+      "path": "captures/finance-journal-dark-touch-640x480.png",
+      "sha256": "c285fc4c551bb7ead39688935ea51374a0e3a243f6bea3cfee0ab338414e1617"
+    },
+    {
+      "path": "captures/finance-journal-light-comfortable-640x480.png",
+      "sha256": "7ffe1eb606b96c41f9291650437c5700ee8db54c32bd31953ddf8c56a2f7ba0b"
+    },
+    {
+      "path": "captures/finance-journal-light-compact-640x480.png",
+      "sha256": "1b517e671fd23e8be045132ac6dc50e1e9295eb780db36bf677e285a00d66aad"
+    },
+    {
+      "path": "captures/finance-profile-dark-touch-640x480.png",
+      "sha256": "bb6444b856fc2207e1f7af8829a18088eacb09d6aed3c63b6c813b3d82aa6e4a"
+    },
+    {
+      "path": "captures/finance-profile-light-comfortable-640x480.png",
+      "sha256": "8ce9a36e60a2006d1a379d4b48d547e77aa4461dd5d57939fc345d4437300c4f"
+    },
+    {
+      "path": "captures/finance-profile-light-compact-640x480.png",
+      "sha256": "be1b4d790a0bc56d05dc2658e47fb4fa03ef7b4f1aaef29124561d71d04f298a"
+    },
+    {
+      "path": "captures/finance-reason-dark-touch-640x480.png",
+      "sha256": "49a300a90d5cf21ee4f7baddb27fc2b1870706680dcde25a41c7a7c5eee8e354"
+    },
+    {
+      "path": "captures/finance-reason-light-comfortable-640x480.png",
+      "sha256": "31092958fb18dd7913867d9b9cb0dee81df8924117b46d93fbc410b88429e5e6"
+    },
+    {
+      "path": "captures/finance-reason-light-compact-640x480.png",
+      "sha256": "f8cf9e6ceb2df70b74c4c668acc5c659ae859698b1fb13e85053d0788c33175b"
+    },
+    {
+      "path": "captures/finance-terms-dark-touch-640x480.png",
+      "sha256": "dc9b916dfb7a547180aea3c26250890fb2c83f84e84a15a6c913610652250fd7"
+    },
+    {
+      "path": "captures/finance-terms-light-comfortable-640x480.png",
+      "sha256": "99bdd83975a16d7f94ac7d0bb2d2b6979f538af3845b14772843110b4f05b100"
+    },
+    {
+      "path": "captures/finance-terms-light-compact-640x480.png",
+      "sha256": "f52121a7481be6e7f43367976e1119056cbaaa9805b2eb84cdb52ababa726604"
+    },
+    {
+      "path": "captures/light-comfortable-1280x720-dialog.png",
+      "sha256": "f620f18e732a1604f0cb0245594cd10237675bd573f0222218be7611103c4a51"
+    },
+    {
+      "path": "captures/light-comfortable-1366x768-dialog.png",
+      "sha256": "a4efb8d4e47346c87dbfb34532815aafac2e62d87cea95f54a441bcbf580edac"
+    },
+    {
+      "path": "captures/light-comfortable-1440x900-dialog.png",
+      "sha256": "d66aa78b8419a04e6bbc4e066ea8071a7d10aa65601e679f8cbc2fdee62242fc"
+    },
+    {
+      "path": "captures/light-comfortable-1600x900-dialog.png",
+      "sha256": "d66aa78b8419a04e6bbc4e066ea8071a7d10aa65601e679f8cbc2fdee62242fc"
+    },
+    {
+      "path": "captures/light-comfortable-1920x1080-dialog.png",
+      "sha256": "d1d7885883b7515ba7882cd35fdc899b019c6f23ef20fdf05d2e2587ca1b4fd9"
+    },
+    {
+      "path": "captures/light-compact-1280x720-dialog.png",
+      "sha256": "1be92f198877bcceab10bf5fabb795e5d8f57d99b2892e73a0dd6a371b68f7af"
+    },
+    {
+      "path": "captures/light-compact-1366x768-dialog.png",
+      "sha256": "e2f1ec3dcad5c71bbebc58a9244103cc9ba8717863d029bf056cb3d099c72699"
+    },
+    {
+      "path": "captures/light-compact-1440x900-dialog.png",
+      "sha256": "0af2ca9b3d002508f97e84ef7b3de565099d42119baa299c9e997267649dc057"
+    },
+    {
+      "path": "captures/light-compact-1600x900-dialog.png",
+      "sha256": "0af2ca9b3d002508f97e84ef7b3de565099d42119baa299c9e997267649dc057"
+    },
+    {
+      "path": "captures/light-compact-1920x1080-dialog.png",
+      "sha256": "8cacf5a59ad9f25da2ee823151234256d5f2603bb0c885fd2ca65a5584b72b35"
+    },
+    {
+      "path": "captures/light-touch-1280x720-dialog.png",
+      "sha256": "5a7c5c2dcc8f54805623dd2876bf04743daf657b5173de9d36b672c9cb655230"
+    },
+    {
+      "path": "captures/light-touch-1366x768-dialog.png",
+      "sha256": "97afa32c30a7a40b213585a3d6059c7530a6645dc79cb6699471b28520caa098"
+    },
+    {
+      "path": "captures/light-touch-1440x900-dialog.png",
+      "sha256": "48712f745cd5f9f1de5738082d43a6b477184765c3d0c2f9c645c1231b833d7f"
+    },
+    {
+      "path": "captures/light-touch-1600x900-dialog.png",
+      "sha256": "48712f745cd5f9f1de5738082d43a6b477184765c3d0c2f9c645c1231b833d7f"
+    },
+    {
+      "path": "captures/light-touch-1920x1080-dialog.png",
+      "sha256": "99c1fc0e321a824f9f01d4269cff5b96d294692a0f2ecf86b04238921c817db7"
+    },
+    {
+      "path": "captures/numeric-dark-comfortable-collapsed.png",
+      "sha256": "e82e426401c9adbd0dd2d4c9157ccf592234b50f418e0d4b15606dc0ab8ce2c5"
+    },
+    {
+      "path": "captures/numeric-dark-comfortable-expanded.png",
+      "sha256": "0820f12d479ffe2751e85a9ee10497a03aae5e673f3d634f9977841a93c22e25"
+    },
+    {
+      "path": "captures/numeric-dark-compact-collapsed.png",
+      "sha256": "3abfc1ebdbe14385e4015df49f512a2d73c5596d126c86cf85e8227305952648"
+    },
+    {
+      "path": "captures/numeric-dark-compact-expanded.png",
+      "sha256": "7b75438ad04c013ba5bb36647ab38a69c454bcf473f58ab04e97359c54cfd9a6"
+    },
+    {
+      "path": "captures/numeric-dark-touch-collapsed.png",
+      "sha256": "b0eed096be8ec7cc7d753b8408dff1c2789ff695c424fa7410b6b36122394ca3"
+    },
+    {
+      "path": "captures/numeric-dark-touch-expanded.png",
+      "sha256": "37aecaa2bf3875f991bdc14448cfbd55c07b4a36551a61f4b6d41d2586673441"
+    },
+    {
+      "path": "captures/numeric-light-comfortable-collapsed.png",
+      "sha256": "1091c627485aed2f7a4381401ee60fea5834b1588d48aa570ee080b30c1ddf5f"
+    },
+    {
+      "path": "captures/numeric-light-comfortable-expanded.png",
+      "sha256": "5b83e557635602489027e03d7581925b1e82f61de256aec349f816d663d5c71b"
+    },
+    {
+      "path": "captures/numeric-light-compact-collapsed.png",
+      "sha256": "9f69c36d7925ba6e4b75093420d72da0b5c31194b0c01260da55678dc71c9552"
+    },
+    {
+      "path": "captures/numeric-light-compact-expanded.png",
+      "sha256": "ba32b51480bf005be6d70dca3d0db1f52904f18e3a3c8fba9a716ffefd0a18f7"
+    },
+    {
+      "path": "captures/numeric-light-touch-collapsed.png",
+      "sha256": "f3703b48a4e592a1e0a9896e548dfbb16957befe74d810b1a40c6bf64965b191"
+    },
+    {
+      "path": "captures/numeric-light-touch-expanded.png",
+      "sha256": "8dd9165c41251d7223073b796d91c99d6be1202350106d06146ae7558174fa43"
+    },
+    {
+      "path": "captures/operations-customer-dark-comfortable.png",
+      "sha256": "252cd9b02c071723e0c6807e552de39fe844f28227381ee9cd08abf114e6e1f9"
+    },
+    {
+      "path": "captures/operations-customer-dark-compact.png",
+      "sha256": "513bef69248112647618a22bfef5a1e1e6d2ac537e538ae43f8c487251e32412"
+    },
+    {
+      "path": "captures/operations-customer-dark-touch.png",
+      "sha256": "7514cda6a71f41def9443ffaf93b0515eecb899abb6fa1d6438bca3d531b98f5"
+    },
+    {
+      "path": "captures/operations-customer-light-comfortable.png",
+      "sha256": "ad2ab13fa144479b2795cd458acd591d9ffc96b8dba07d63c6f2c76b272f817f"
+    },
+    {
+      "path": "captures/operations-customer-light-compact.png",
+      "sha256": "7da095784bd2fc31ec34a118af3ffe8f95863837ec33683dea3c081aceede82d"
+    },
+    {
+      "path": "captures/operations-customer-light-touch.png",
+      "sha256": "5ecc685a6cab5d569ea7658b091db016928809843286b0388cc61b3d3d947e6f"
+    },
+    {
+      "path": "captures/operations-discount-dark-comfortable.png",
+      "sha256": "71af0df68474fb58f9141fa2e303e992c215e170649ebd347604f374e6d506d3"
+    },
+    {
+      "path": "captures/operations-discount-dark-compact.png",
+      "sha256": "84e61ecf9502b7dadf961caca528ce3b285a8ff29ef7a76e9b29863c3026a7ed"
+    },
+    {
+      "path": "captures/operations-discount-dark-touch.png",
+      "sha256": "4989cc4219ba7d5ccd97829e6e2df5a1d54070a269e12872adb6c22ef9785034"
+    },
+    {
+      "path": "captures/operations-discount-light-comfortable.png",
+      "sha256": "c410a3733b7f2ad82e9a6ba562c368857a01b9c87a77e5c382e00ba183ff0eeb"
+    },
+    {
+      "path": "captures/operations-discount-light-compact.png",
+      "sha256": "e05a45a51788b902cb3c85884b027beb747feb126690b6702b3e0eefa4eceb04"
+    },
+    {
+      "path": "captures/operations-discount-light-touch.png",
+      "sha256": "5edee68d3b568d98dfaf732591b5317a075c71e15cd132cd0a80e3f277b4ba78"
+    },
+    {
+      "path": "captures/operations-lot-dark-comfortable.png",
+      "sha256": "e216b226ab212bee5969b0e4f1889467f8992d55fdbec85823c822d1dd33a906"
+    },
+    {
+      "path": "captures/operations-lot-dark-compact.png",
+      "sha256": "7875cccff566ecd1a58951975eabd002212abba18da7f5a5397ddabd3cf46c51"
+    },
+    {
+      "path": "captures/operations-lot-dark-touch.png",
+      "sha256": "eae4afa1900c842d74b5d5cc8394d80837f07d24785a469de4f91036a8fb1d88"
+    },
+    {
+      "path": "captures/operations-lot-light-comfortable.png",
+      "sha256": "f2f279cb292f05ae40180ff0a6ea1b78a1cbb373cd25bd6b6845f92428a91940"
+    },
+    {
+      "path": "captures/operations-lot-light-compact.png",
+      "sha256": "d8714123d13dffc95d6079534774e290bb7b5829ef342f6a545394c2dc292546"
+    },
+    {
+      "path": "captures/operations-lot-light-touch.png",
+      "sha256": "2320313e0827cb9281cb46a2cd175265c7fa379919f503bcd3dbd8c196511208"
+    },
+    {
+      "path": "captures/operations-movement-dark-comfortable.png",
+      "sha256": "940381546453d998eacc0212d7ab9c776aad1a0be8dd3fbf96a6a989f90bfc64"
+    },
+    {
+      "path": "captures/operations-movement-dark-compact.png",
+      "sha256": "a9835c85551543e41cd29562ba40b2f1af8f8d668c4c02c47ce42ead4f2440ac"
+    },
+    {
+      "path": "captures/operations-movement-dark-touch.png",
+      "sha256": "3c31a7041662a7310d696f526de1a2b4cdbfead9e65143110fadc72ab3c6a4eb"
+    },
+    {
+      "path": "captures/operations-movement-light-comfortable.png",
+      "sha256": "69e4c3fa34a06c9a51a0b6aaabdafb93ebe73f8ae44adf3e07905e284dae7ebf"
+    },
+    {
+      "path": "captures/operations-movement-light-compact.png",
+      "sha256": "2f8236deebc645b322d6c2c87e1ebcb74336fa1d9891b2843dbe566fa04542c4"
+    },
+    {
+      "path": "captures/operations-movement-light-touch.png",
+      "sha256": "f57a41a58ee1437bfa29ddf815b9552120cfd2ec3cbb689d6a604217a54c14e0"
+    },
+    {
+      "path": "captures/operations-payment-dark-comfortable.png",
+      "sha256": "f94a64c697617da6ec8d54f918f926cab1093b6020c02467bf979e2faa0d945c"
+    },
+    {
+      "path": "captures/operations-payment-dark-compact.png",
+      "sha256": "a717f17769a1d01e0a465bd8df82cabe4ab671570b35f56daedabb86b47338c7"
+    },
+    {
+      "path": "captures/operations-payment-dark-touch.png",
+      "sha256": "ba794f097ca8a383e6b02d4065c7e5666947e51f7dd6cd306bbf3ba5f0624103"
+    },
+    {
+      "path": "captures/operations-payment-light-comfortable.png",
+      "sha256": "6c7e5e7dd86119f02c3ee59f5cb18b272d76a25daf905f9d4f8fe78c9380811b"
+    },
+    {
+      "path": "captures/operations-payment-light-compact.png",
+      "sha256": "d0e041fb9af9bb34e84b9c0beabfd1c84b528de145c6faf7cc316b873f77cb19"
+    },
+    {
+      "path": "captures/operations-payment-light-touch.png",
+      "sha256": "c9710ce691da581d1b67948d4667f759d7195bef5c6e4a306245d806fa2e294f"
+    },
+    {
+      "path": "captures/operations-weight-dark-comfortable.png",
+      "sha256": "57578b2b241e1c27501c9d95b87eef092a5ac97e34d1e3010d17228c79d76a0a"
+    },
+    {
+      "path": "captures/operations-weight-dark-compact.png",
+      "sha256": "df9b0178d703b86b5b039231954190513f83026b2bf192c7f914cefa8865c954"
+    },
+    {
+      "path": "captures/operations-weight-dark-touch.png",
+      "sha256": "b9fe82ac8115e3a8b98c19b617e6ef71eb6130d1e135704693e587ef47994849"
+    },
+    {
+      "path": "captures/operations-weight-light-comfortable.png",
+      "sha256": "01c9f93c4d4a23770cb215f91dcc8376bff7088d9c36de488a4546db85d1cfb6"
+    },
+    {
+      "path": "captures/operations-weight-light-compact.png",
+      "sha256": "7499a065f40db57a12788f064c0870d31ef94e7ca3cdf0deca3311dba5c10783"
+    },
+    {
+      "path": "captures/operations-weight-light-touch.png",
+      "sha256": "fea919b3d639b1e26db4ba6dab85ece7444783ca905805f661317276ae94d60b"
+    },
+    {
+      "path": "captures/operations-zones-dark-comfortable.png",
+      "sha256": "fbffc0be23ffafbd275123fe3c358128f7e585636d19917e42bc3068474b368f"
+    },
+    {
+      "path": "captures/operations-zones-dark-compact.png",
+      "sha256": "b64768f2c08d1fdb99e5b79ab769411d6ad53d462fc17e80688e792e16337cb0"
+    },
+    {
+      "path": "captures/operations-zones-dark-touch.png",
+      "sha256": "1697fc38e51998011f35c5fa35f388a72ae96e72bf272568014b1f4a3a8302c0"
+    },
+    {
+      "path": "captures/operations-zones-light-comfortable.png",
+      "sha256": "3d2256083f261f486cf415803cec5afecdff9ada00b1d48f4d0b7439fe3ba039"
+    },
+    {
+      "path": "captures/operations-zones-light-compact.png",
+      "sha256": "a719b8ba0fc1cffe4dc1a34e900358b3392974886f7bc4a4a2fa82985cb42e65"
+    },
+    {
+      "path": "captures/operations-zones-light-touch.png",
+      "sha256": "a9e3a928e538d1a09b5141c5df5c54012749d4f8e3c68cd715aad13ac0258d7d"
+    },
+    {
+      "path": "captures/products-dark-comfortable-640x480.png",
+      "sha256": "6527fbc1ce693b0721e5f79efc7bccdb15da20aacac6861fee10f3103bf68939"
+    },
+    {
+      "path": "captures/products-dark-compact-640x480.png",
+      "sha256": "ba981adc0ae7877ef329da708cf4599c39ddf06c7142cd3f9ec62e0c2598d1cf"
+    },
+    {
+      "path": "captures/products-dark-touch-640x480.png",
+      "sha256": "c7898f6219e0a2ad63d1be66656eb3867e52a4f76a5cd13fbb878f2333c79f59"
+    },
+    {
+      "path": "captures/products-light-comfortable-640x480.png",
+      "sha256": "01da366b017304042d0ae5df824b0d3ad331dc70e6876fbd4b80bc6a51efc83f"
+    },
+    {
+      "path": "captures/products-light-compact-640x480.png",
+      "sha256": "8abb992e6ec99bd88c84017240774159455ce0bfaa3f5227627a419d0175ed31"
+    },
+    {
+      "path": "captures/products-light-touch-640x480.png",
+      "sha256": "033500228181302746952142c4e18f32e338f94b40fe4859efcd684807858c0a"
+    }
+  ],
+  "limits": [
+    "Results span October 9–13. Current sources preserve concurrent edits outside this UI task.",
+    "The initial mixed test run reported 53 missing-fixture errors; all affected cases passed in the later UI segment.",
+    "Two global guardrails still fail on existing unrelated visual debt and a stale CRM allowlist path.",
+    "Images use Qt offscreen with real fonts and simulated work areas, not physical mixed-DPI hardware.",
+    "Native file pickers and QMessageBox alerts are outside the custom dialog ownership rule."
+  ]
+}

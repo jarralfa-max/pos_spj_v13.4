@@ -5,6 +5,94 @@ documentarse aquí antes del commit.
 
 ---
 
+## 334 — Auditoría directa de Compras d9f2bca (PUR-AUD) — 2026-10-14
+
+Respuesta a la auditoría externa del módulo de Compras (27 hallazgos, 31
+escenarios). Detalle por hallazgo en `docs/refactor/PUR-AUD_auditoria_d9f2bca.md`.
+
+**334_procurement_audit_d9f2bca.** Sólo agrega; no reescribe datos. Llama a
+`create_procurement_schema`, que ahora agrega con ALTER protegido:
+
+- `supplier_invoice_lines.purchase_nature` (DEFAULT `'INVENTORY'`): la naturaleza
+  de la línea facturada se perdía al guardar (C04); las filas existentes quedan
+  como inventario, que era lo único que el sistema sabía tratar.
+- `goods_receipt_lines.direct_purchase_line_id`: remanente por línea de la compra
+  directa para recepciones parciales (C10). Filas anteriores quedan NULL (eran
+  recepciones completas).
+
+Sin migración, en el arranque de Finanzas (`_ensure_late_additions`, también en
+la ruta de siembra): perfil de contabilización `PURCHASE_RETURN`
+(2101/1150/1140/1170) y rol de cuenta `supplier_advance_account_id`, para la nota
+de crédito de devoluciones y el anticipo a proveedor del excedente (C12).
+
+Verificada sobre copia de la base real: aplica limpia y es idempotente.
+
+---
+
+## 332/333 — Auditoría directa de Finanzas d9f2bca (FIN-AUD) — 2026-10-10
+
+Respuesta a la auditoría externa del módulo de Finanzas (26 hallazgos, 30
+escenarios). Detalle por hallazgo en `docs/refactor/FIN-AUD_auditoria_d9f2bca.md`.
+
+**332_finance_audit_d9f2bca.** Sólo agrega; no reescribe datos. Toda la DDL vive
+en `finance_schema.upgrade_finance_schema()` / `hr_schema.upgrade_hr_schema()`,
+que también llama el esquema base, así una base nueva y una migrada quedan
+iguales (SQLite no tiene `ADD COLUMN IF NOT EXISTS`: se consulta `PRAGMA
+table_info` antes de cada `ALTER`).
+- `receivable_charges` (F03): cada pago a crédito de una venta con la identidad
+  del pago. La deuda sigue siendo UNA por venta (el esquema exige un documento
+  por origen); los cargos la suman y repetir uno no la cambia.
+- `expense_requests` (F15): la solicitud de gasto con identidad, estado
+  COMMITTED/ACCRUED/RELEASED, quién y con qué documento o motivo.
+- `finance_close_exceptions` (F16): diferencias materiales por periodo
+  (OPEN/RESOLVED/AUTHORIZED); una abierta bloquea el cierre de su periodo.
+- `row_version` en `receivables`, `payables`, `financial_documents`, `budgets`
+  (F18): control optimista; una escritura obsoleta lanza `ConcurrencyConflictError`.
+- `reconciliation_matches.active/reverted_at/reverted_by` + índices únicos
+  parciales `WHERE active = 1` sobre línea del mayor y línea del estado (F07/F08):
+  un match revertido queda como historia y libera la línea.
+- `reconciliations.difference_reason` (F08), `supplier_payments.executed_by /
+  execution_reference` (F13), `finance_outbox.attempts/last_error` y
+  `hr_outbox.attempts/last_error` (F21).
+Verificada sobre copia de la base real: idempotente, sin cambios de datos.
+
+**333_seed_finance_granular_permissions.** Vocabulario `FINANZAS.<accion>`
+(`backend/application/finance/permissions.py`, 24 acciones, derivadas al
+catálogo). Se siembra SÓLO en `system_owner` y `admin`: hoy ningún otro rol
+tiene `FINANZAS.ver` (el sembrado base otorga `FINANZAS_UNIFICADAS`, que el
+menú no usa), así que la migración no cambia quién entra a Finanzas; sólo hace
+que dentro del módulo cada comando exija su permiso. Abrirlo a gerente u otros
+roles queda como decisión del negocio desde la matriz de permisos.
+
+---
+
+## 330/331 — Exigencias para activar y cola de WhatsApp de Productos (PROD-22) — 2026-10-10
+
+**330_products_activation_requirements.** Sincroniza con el catálogo gobernado
+cinco parámetros nuevos: `products.require.meat_classification`,
+`products.require.shelf_life_for_perishables`,
+`products.require.quality_profile_for_meat`, `products.require.catch_weight_range`
+(booleanos, apagados) y `products.yield.default_tolerance_pct` (porcentaje, 0).
+Decisión del usuario: «sólo endurecer» — las prohibiciones del §7 siguen fijas y
+no tienen clave; estas exigencias, encendidas, **bloquean la activación** (y el
+desbloqueo); el borrador sí se guarda. Apagadas = comportamiento actual.
+
+**331_product_whatsapp_outbox.** Tabla `product_whatsapp_outbox` (teléfono,
+mensaje, alerta, producto, estado PENDING/SENT/FAILED, intentos, último error,
+siguiente intento). Decisión del usuario: «cola en el ERP» — la alerta ya no hace
+una petición directa: se encola y la drena un servicio de fondo de la shell cada
+60 s con espera creciente (1 → 240 min, 8 intentos). Un mensaje FAILED se
+reintenta desde Productos → Notificaciones (exige `PRODUCTOS.whatsapp.gestionar`,
+queda en auditoría).
+
+Sin migración, en el microservicio WhatsApp: todo `float` sustituido por
+`Decimal` (dinero, cantidades, existencias, pesos, porcentajes, puntajes) o por
+enteros (tiempos y plazos); el JSON hacia el ERP, Mercado Pago y Ollama lleva el
+Decimal como número exacto y el estado persistido se relee como Decimal. Una guarda
+(`whatsapp_service/tests/test_no_float_guardrail.py`) impide reintroducirlo.
+
+---
+
 ## 326-329 — Pendientes de PROD-22 — 2026-10-10
 
 **326_product_meat_classification.** Tabla `product_meat_classifications`

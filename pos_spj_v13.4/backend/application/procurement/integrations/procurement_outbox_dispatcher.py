@@ -5,6 +5,15 @@ transaction as the state change. This dispatcher publishes the pending rows onto
 the EventBus AFTER commit and marks them dispatched, so a crash between commit
 and publish never loses an event (it is retried) and never double-applies it
 (downstream handlers are idempotent by event_id).
+
+Auditoría Compras d9f2bca C01: antes se publicaba en modo NO estricto y se
+marcaba entregado siempre — un consumidor que fallaba o un bus sin suscriptores
+dejaban la fila DISPATCHED con cero fallos. Ahora se publica en modo estricto y
+los eventos con efecto económico (``REQUIRES_CONSUMER``) exigen al menos un
+consumidor que los atienda; si no, la fila queda PENDING con su error y
+reintento (DEAD_LETTER tras ``max_attempts``). Los eventos derivados conservan
+su identidad entre reintentos (``derived_uuidv7``), así que reentregar no
+duplica lo que ya aplicó un consumidor.
 """
 
 from __future__ import annotations
@@ -18,6 +27,17 @@ from backend.infrastructure.db.repositories.procurement.support_repositories imp
 )
 
 logger = logging.getLogger("spj.procurement.outbox_dispatcher")
+
+#: Eventos cuya entrega es OBLIGATORIA: mueven existencias o dinero.
+REQUIRES_CONSUMER = frozenset({
+    "GOODS_RECEIPT_COMPLETED",
+    "DIRECT_PURCHASE_RECEIVED",
+    "ACCOUNT_PAYABLE_CREATE_REQUESTED",
+    "PURCHASE_PAYMENT_REQUESTED",
+    "GOODS_RECEIPT_REVERSED",
+    "DIRECT_PURCHASE_REVERSED",
+    "PURCHASE_RETURN_CONFIRMED",
+})
 
 
 def dispatch_procurement_outbox(connection, bus, *, limit: int = 100,
@@ -33,11 +53,20 @@ def dispatch_procurement_outbox(connection, bus, *, limit: int = 100,
             if not isinstance(payload, dict):
                 raise ValueError("outbox payload must be a JSON object")
             _validate_payload(row, payload)
-            _publish(bus, row["event_name"], payload)
+            handled = _publish(bus, row["event_name"], payload)
+            if row["event_name"] in REQUIRES_CONSUMER and not handled:
+                raise RuntimeError(
+                    f"{row['event_name']} no tiene consumidor registrado; queda pendiente")
             outbox.mark_dispatched(row["id"])
+            # Uno a uno: un fallo posterior no se lleva lo ya entregado.
+            connection.commit()
             dispatched += 1
         except Exception as exc:  # keep row PENDING for retry
             failed += 1
+            try:
+                connection.rollback()
+            except Exception:
+                pass
             attempts = int(row.get("attempt_count") or 0) + 1
             delay_seconds = min(300, 2 ** min(attempts, 8))
             next_attempt = (datetime.now(timezone.utc) + timedelta(
@@ -51,11 +80,15 @@ def dispatch_procurement_outbox(connection, bus, *, limit: int = 100,
     return {"pending": len(pending), "dispatched": dispatched, "failed": failed}
 
 
-def _publish(bus, event_name: str, payload: dict) -> None:
+def _publish(bus, event_name: str, payload: dict) -> int:
     publish = getattr(bus, "publish", None)
     if publish is None:
         raise RuntimeError("El bus no expone publish()")
-    publish(event_name, payload, async_=False)
+    try:
+        handled = publish(event_name, payload, async_=False, strict=True)
+    except TypeError:
+        handled = publish(event_name, payload)
+    return int(handled or 0)
 
 
 def _validate_payload(row: dict, payload: dict) -> None:

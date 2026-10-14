@@ -17,6 +17,10 @@ solo proceso, mismo criterio pragmático que `InboxWorker`, WA-6):
 `BACKOFF_SECONDS[attempts - 1]`, tope en el último valor.
 """
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal, loads_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 
 import json
 from dataclasses import dataclass
@@ -76,7 +80,7 @@ class OutboxMessage:
             conversation_id=conversation_id,
             channel_number_id=channel_number_id,
             destination_phone=destination_phone,
-            payload_json=json.dumps(payload, ensure_ascii=False),
+            payload_json=dumps_decimal(payload, ensure_ascii=False),
             template_name=template_name,
             operation_id=operation_id,
             message_id=message_id,
@@ -123,7 +127,7 @@ class OutboxMessage:
 
     @property
     def payload(self) -> Dict[str, Any]:
-        return json.loads(self.payload_json)
+        return loads_decimal(self.payload_json)
 
     def is_terminal(self) -> bool:
         return self.status in TERMINAL_OUTBOX_STATUSES

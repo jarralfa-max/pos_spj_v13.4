@@ -1,5 +1,10 @@
 # Punto 9 — StandardDialog
 
+**Actualización del 13 de octubre:** la adopción de los diálogos restantes del
+shell y las capturas breves está documentada en
+[StandardDialog en los módulos del shell](standard_dialog_shell_adoption.md).
+Los resultados siguientes conservan la evidencia de la primera entrega.
+
 Implementación y validación: 7–9 de octubre de 2026. Continúa el
 [punto 8 — StandardWindow](standard_window_phase_8.md).
 

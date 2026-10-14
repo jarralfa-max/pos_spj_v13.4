@@ -31,7 +31,7 @@ def _utcnow() -> datetime:
 #: Lo que un llamador puede entregar como cantidad o precio. Los flujos
 #: conversacionales parsean texto del usuario y las pruebas usan int/float por
 #: comodidad, así que el borde acepta las tres formas y normaliza a Decimal.
-Money = Union[Decimal, int, str, float]
+Money = Union[Decimal, int, str]
 
 _CENTS = Decimal("0.01")
 

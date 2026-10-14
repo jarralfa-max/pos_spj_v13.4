@@ -16,6 +16,11 @@ REGLA CRÍTICA:
 FEATURE FLAG: whatsapp_advanced_enabled (module_toggles en BD)
 """
 from __future__ import annotations
+from decimal import Decimal
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 
 import hashlib
 import logging
@@ -161,7 +166,7 @@ class BusinessOrchestrator:
         anticipo = self.erp.calcular_anticipo_rules(cliente_id, total)
         if anticipo["requiere"]:
             self._idempotency().run_once(
-                action_key=f"register_advance:{venta_id}:{float(anticipo['monto']):.2f}",
+                action_key=f"register_advance:{venta_id}:{to_decimal(anticipo['monto']):.2f}",
                 phone=f"cliente:{cliente_id}",
                 action_type="register_advance",
                 callback=lambda: {"anticipo_id": self.erp.registrar_anticipo(venta_id, anticipo["monto"])},
@@ -186,7 +191,7 @@ class BusinessOrchestrator:
 
     # ── 6.3: Pedido directo ───────────────────────────────────────────────────
 
-    def procesar_pedido_wa(self, venta_id: int, folio: str, total: float,
+    def procesar_pedido_wa(self, venta_id: int, folio: str, total: Decimal,
                             cliente_id: int, items: List[Dict],
                             tipo_entrega: str = "sucursal",
                             direccion: str = "",
@@ -218,7 +223,7 @@ class BusinessOrchestrator:
             anticipo = self.erp.calcular_anticipo_rules(cliente_id, total, items)
             if anticipo["requiere"]:
                 self._idempotency().run_once(
-                    action_key=f"register_advance:{venta_id}:{float(anticipo['monto']):.2f}",
+                    action_key=f"register_advance:{venta_id}:{to_decimal(anticipo['monto']):.2f}",
                     phone=f"cliente:{cliente_id}",
                     action_type="register_advance",
                     callback=lambda: {"anticipo_id": self.erp.registrar_anticipo(venta_id, anticipo["monto"])},
@@ -269,7 +274,7 @@ class BusinessOrchestrator:
 
     # ── 6.3: Confirmar pago de anticipo ──────────────────────────────────────
 
-    def confirmar_anticipo(self, venta_id: int, monto: float,
+    def confirmar_anticipo(self, venta_id: int, monto: Decimal,
                             referencia: str = "",
                             metodo: str = "mercadopago") -> bool:
         """
@@ -302,7 +307,7 @@ class BusinessOrchestrator:
 
     # ── 6.7: Forecast ─────────────────────────────────────────────────────────
 
-    def registrar_demanda_forecast(self, producto_id: int, cantidad: float,
+    def registrar_demanda_forecast(self, producto_id: int, cantidad: Decimal,
                                     periodo: str = "") -> None:
         """
         Emite FORECAST_DEMAND_UPDATED sin ejecutar ninguna acción.

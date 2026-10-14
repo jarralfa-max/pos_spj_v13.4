@@ -1,0 +1,258 @@
+[
+  {
+    "path": "frontend/desktop/modules/finance/dialogs/commercial_posting_profile_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "b6c00d935ed882da331d",
+    "count": 1,
+    "line": 14,
+    "expression": "class CommercialPostingProfileDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/finance/dialogs/journal_entry_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "5e33f8238d31436efb26",
+    "count": 1,
+    "line": 10,
+    "expression": "class JournalEntryDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/finance/suppliers/dialogs/supplier_dialogs.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "f3dbc680af32750ec179",
+    "count": 1,
+    "line": 64,
+    "expression": "class _SupplierDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/finance/suppliers/pages/supplier_detail_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "19626600d7f688c43573",
+    "count": 1,
+    "line": 40,
+    "expression": "class SupplierDetailDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/inventory/dialogs.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "25bd69e70bc35b24b95f",
+    "count": 1,
+    "line": 385,
+    "expression": "class ManageZonesDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/inventory/dialogs.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "3101fcd5642bc1cc957c",
+    "count": 1,
+    "line": 450,
+    "expression": "class MovementDetailDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/inventory/dialogs.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "6de7841063600794dbc0",
+    "count": 1,
+    "line": 882,
+    "expression": "class WeightHistoryDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/inventory/dialogs.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "83a59fdcf5ec4e2dea7e",
+    "count": 1,
+    "line": 678,
+    "expression": "class LotDetailDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "3146dbd735f0cc923609",
+    "count": 1,
+    "line": 147,
+    "expression": "class AttributeOptionsDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "b07665d7eae12d41675d",
+    "count": 1,
+    "line": 33,
+    "expression": "class AttributeFormDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "f8d0b9ea2f1f2d81c916",
+    "count": 1,
+    "line": 95,
+    "expression": "class _OptionEditor(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/brand_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "9d504388f64e3f630dba",
+    "count": 1,
+    "line": 20,
+    "expression": "class BrandFormDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/bundle_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "2a265dce3906b7022bdc",
+    "count": 1,
+    "line": 38,
+    "expression": "class BundleFormDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/bundle_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "d7b3423a985953d16b3a",
+    "count": 1,
+    "line": 140,
+    "expression": "class _ComponentEditor(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/bundles_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "feb6550310bc9b624e99",
+    "count": 1,
+    "line": 27,
+    "expression": "class BundlesDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/category_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "6d4c98a6b0698fe93cc9",
+    "count": 1,
+    "line": 23,
+    "expression": "class CategoryFormDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/category_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "f4e3e8b02b45c53b7b77",
+    "count": 1,
+    "line": 92,
+    "expression": "class MoveCategoryDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/cutting_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "70f7ed5277059b7b2a8f",
+    "count": 1,
+    "line": 27,
+    "expression": "class CuttingSchemesDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/cutting_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "70caf02cde7e449504db",
+    "count": 1,
+    "line": 163,
+    "expression": "class _OutputEditor(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/cutting_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "ca70273444f146792acf",
+    "count": 1,
+    "line": 49,
+    "expression": "class CuttingSchemeFormDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/product_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "11b013f4633e4b4ea584",
+    "count": 1,
+    "line": 56,
+    "expression": "class ProductFormDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "70caf02cde7e449504db",
+    "count": 1,
+    "line": 258,
+    "expression": "class _OutputEditor(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "926ef4421587b93b0ef4",
+    "count": 1,
+    "line": 73,
+    "expression": "class RecipeFormDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "d7b3423a985953d16b3a",
+    "count": 1,
+    "line": 214,
+    "expression": "class _ComponentEditor(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/recipes_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "6509d9416aad8fc1c5e5",
+    "count": 1,
+    "line": 28,
+    "expression": "class RecipesDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/variant_generator_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "41dc21c625b3a1364d71",
+    "count": 1,
+    "line": 23,
+    "expression": "class VariantGeneratorDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/yield_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "70caf02cde7e449504db",
+    "count": 1,
+    "line": 223,
+    "expression": "class _OutputEditor(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/yield_form_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "7c31d37ab76b689a5b4c",
+    "count": 1,
+    "line": 57,
+    "expression": "class YieldProfileFormDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/yields_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "1b91b4b3a545c96f81fd",
+    "count": 1,
+    "line": 27,
+    "expression": "class YieldProfilesDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/sales_pos/dialogs/discount_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "2126a3460e741063cbfe",
+    "count": 1,
+    "line": 17,
+    "expression": "class DiscountDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/sales_pos/dialogs/payment_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "5d7e6e0dec8fe0f8cde1",
+    "count": 1,
+    "line": 67,
+    "expression": "class PaymentDialog(QDialog)"
+  },
+  {
+    "path": "frontend/desktop/modules/sales_pos/dialogs/quick_customer_dialog.py",
+    "rule": "noncanonical_dialog",
+    "fingerprint": "031ad4516aea1891b878",
+    "count": 1,
+    "line": 14,
+    "expression": "class QuickCustomerDialog(QDialog)"
+  }
+]

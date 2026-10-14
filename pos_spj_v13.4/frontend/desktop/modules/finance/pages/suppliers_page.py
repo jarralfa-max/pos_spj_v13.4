@@ -23,8 +23,12 @@ class SuppliersPage(QWidget):
         self._loaded = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        supplier_presenter = build_supplier_presenter(
-            finance_presenter.connection(), finance_presenter.session_context())
+        # Auditoría F26: el presentador de proveedores se compone en
+        # finance_routes; la página ya no recibe la conexión cruda.
+        supplier_presenter = finance_presenter.embedded_presenter("suppliers")
+        if supplier_presenter is None:
+            supplier_presenter = build_supplier_presenter(
+                finance_presenter.connection(), finance_presenter.session_context())
         self._view = SuppliersView(supplier_presenter, self)
         layout.addWidget(self._view)
 

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QInputDialog, QMessageBox
+from PyQt5.QtWidgets import QMessageBox
 
 from frontend.desktop.components.tables import ColumnSpec
+from frontend.desktop.components.dialogs import FormDialog
 from frontend.desktop.modules.finance.pages._page_base import FinancePage
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
 
@@ -12,6 +13,8 @@ from frontend.desktop.components.buttons import create_primary_button, create_se
 class AccountsReceivablePage(FinancePage):
     title = "Cuentas por cobrar"
     subtitle = "Saldos abiertos con clientes"
+    searchable = True  # por folio o nombre del cliente (F24)
+    _customer_filter: str | None = None
     columns = [
         ColumnSpec("Documento", "date"),
         ColumnSpec("Cliente", "date"),
@@ -44,7 +47,7 @@ class AccountsReceivablePage(FinancePage):
         self.header.add_action(crm_btn)
 
     def _show_crm_summary(self) -> None:
-        cliente_id, ok = QInputDialog.getText(
+        cliente_id, ok = FormDialog.get_text(
             self, "Resumen CRM", "ID de cliente (legacy):")
         if not ok or not cliente_id.strip():
             return
@@ -55,8 +58,11 @@ class AccountsReceivablePage(FinancePage):
         already knowing WHICH customer — from Customer 360's "Ver CxC"
         action (`FinanceView.aplicar_contexto`) — instead of the cashier
         typing the legacy id by hand via `_show_crm_summary`'s
-        `QInputDialog`. Same underlying call, same result dialog; the only
+        `FormDialog`. Same underlying call, same result dialog; the only
         difference is how `cliente_id` was obtained."""
+        # F24: el enlace desde CRM además FILTRA la tabla por ese cliente.
+        self._customer_filter = cliente_id
+        self.reload()
         summary = self._presenter.crm_receivable_summary(cliente_id)
         if summary is None:
             self.notify(False, "No se encontró exposición CRM para ese cliente.")
@@ -81,4 +87,5 @@ class AccountsReceivablePage(FinancePage):
                 receivable_id=receivable_id, **data))
 
     def _load(self) -> None:
-        self.set_table(self._presenter.open_receivables())
+        self.set_table(self._presenter.open_receivables(
+            customer_id=self._customer_filter, search=self._search.query()))

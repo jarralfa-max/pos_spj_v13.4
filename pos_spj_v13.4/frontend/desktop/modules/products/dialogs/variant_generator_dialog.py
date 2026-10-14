@@ -8,29 +8,29 @@ variantes ya existentes.
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
-    QDialog,
     QDialogButtonBox,
     QLabel,
     QPushButton,
     QTreeWidget,
     QTreeWidgetItem,
-    QVBoxLayout,
 )
 
 
-class VariantGeneratorDialog(QDialog):
+class VariantGeneratorDialog(StandardDialog):
     def __init__(self, presenter, *, product_id: str, product_name: str,
                  parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=520)
         self._presenter = presenter
         self._product_id = product_id
         self.setObjectName("variantGeneratorDialog")
         self.setWindowTitle(f"Variantes de «{product_name}»")
         self.setMinimumSize(520, 460)
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         layout.addWidget(QLabel(
             "Marca las opciones de cada atributo. Se creará una variante por cada "
             "combinación (producto cartesiano)."))
@@ -63,7 +63,7 @@ class VariantGeneratorDialog(QDialog):
         buttons.addButton(self._btn_generate, QDialogButtonBox.AcceptRole)
         buttons.button(QDialogButtonBox.Cancel).setText("Cerrar")
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
         self._load_axes()
         self._refresh_existing()

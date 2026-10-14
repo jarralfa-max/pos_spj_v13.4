@@ -51,7 +51,7 @@ _TIMESTAMP_TOLERANCE_SECONDS = 120
 # corre en un solo proceso hoy (ver main.py); un despliegue multi-worker
 # necesitaría un store compartido (Redis, etc.) — fuera de alcance de esta
 # fase.
-_seen_nonces: Dict[str, float] = {}
+_seen_nonces: Dict[str, int] = {}
 
 
 def sign_request(service_id: str, timestamp: str, nonce: str, body: bytes, secret: str) -> str:
@@ -67,13 +67,13 @@ def sign_request(service_id: str, timestamp: str, nonce: str, body: bytes, secre
     return hmac.new(secret.encode("utf-8"), signed_string.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
-def _prune_expired_nonces(now: float) -> None:
+def _prune_expired_nonces(now: int) -> None:
     expired = [n for n, exp in _seen_nonces.items() if exp <= now]
     for n in expired:
         _seen_nonces.pop(n, None)
 
 
-def _is_replayed_nonce(nonce: str, now: float) -> bool:
+def _is_replayed_nonce(nonce: str, now: int) -> bool:
     """True si el nonce ya fue visto dentro de la ventana de tolerancia."""
     _prune_expired_nonces(now)
     if nonce in _seen_nonces:
@@ -128,7 +128,7 @@ async def require_service_auth(
         logger.warning("require_service_auth: X-Timestamp inválido: %r", x_timestamp)
         raise HTTPException(status_code=401, detail="Invalid timestamp")
 
-    now = time.time()
+    now = int(time.time())
     if abs(now - ts) > _TIMESTAMP_TOLERANCE_SECONDS:
         logger.warning(
             "require_service_auth: timestamp fuera de tolerancia (recibido=%s, servidor=%s)",

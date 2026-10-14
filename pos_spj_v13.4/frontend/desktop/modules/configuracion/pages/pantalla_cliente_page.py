@@ -272,8 +272,8 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
             self._reload_campaigns()
 
     def _ask_reason(self) -> tuple[str, bool]:
-        from PyQt5.QtWidgets import QInputDialog
-        reason, ok_pressed = QInputDialog.getText(self, "Rechazar campaña", "Motivo:")
+        from frontend.desktop.components.dialogs import FormDialog
+        reason, ok_pressed = FormDialog.get_text(self, "Rechazar campaña", "Motivo:")
         return reason.strip(), ok_pressed and bool(reason.strip())
 
     # ── Slots publicitarios ──────────────────────────────────────────────

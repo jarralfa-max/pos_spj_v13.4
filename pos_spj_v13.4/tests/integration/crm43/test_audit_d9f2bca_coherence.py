@@ -64,7 +64,8 @@ class TestF06Merge:
         merged = new_customer(owner, "Cremeria Sol", allow_duplicate=True)
         CreateReceivableUseCase().execute(
             conn, customer_id=merged, amount="300", document_number="F-1",
-            issue_date=datetime.now().date(), operation_id=new_uuid())
+            issue_date=datetime.now().date(), operation_id=new_uuid(),
+            source_module="sales")  # deuda de una venta (Ventas la reconoce, F11)
         self._merge(conn, owner, other_owner, master, merged)
         summary = CustomerAccountsReceivableSummaryQuery(conn).get_summary(master)
         assert summary.current_exposure == Decimal("300")

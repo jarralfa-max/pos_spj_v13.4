@@ -42,11 +42,21 @@ class CommercialReconciliationService:
         *,
         currency_code: str = "MXN",
         operation_id: str | None = None,
+        period_code: str | None = None,
     ) -> list[InstrumentReconciliationRow]:
         """``operational_balances``: {instrument_type: decimal-string outstanding}
-        reported by the owning modules (loyalty, promotions, …)."""
+        reported by the owning modules (loyalty, promotions, …).
+
+        Auditoría F16: cada diferencia material queda como excepción ABIERTA
+        del periodo (``period_code``, por omisión el mes en curso) y bloquea su
+        cierre; lo que deja de diferir al volver a medir se resuelve solo."""
+        from datetime import date as _date
+        from backend.application.services.finance.close_controls import CHECK_COMMERCIAL
+
+        period_code = period_code or _date.today().strftime("%Y-%m")
         threshold = Money.from_string(self._threshold, currency_code)
         rows: list[InstrumentReconciliationRow] = []
+        material_subjects: set[str] = set()
         with FinanceUnitOfWork(connection) as uow:
             for type_name, reported in operational_balances.items():
                 instrument_type = CommercialInstrumentType(type_name)
@@ -66,6 +76,12 @@ class CommercialReconciliationService:
                     is_material=is_material,
                 ))
                 if is_material:
+                    material_subjects.add(instrument_type.value)
+                    uow.close_exceptions.open_or_refresh(
+                        period_code=period_code, check_type=CHECK_COMMERCIAL,
+                        subject=instrument_type.value, expected=outstanding.to_string(),
+                        actual=operational.to_string(), difference=difference.to_string(),
+                        currency_code=currency_code)
                     uow.outbox.enqueue(
                         event_id=new_uuid(),
                         event_name=(EventName
@@ -79,6 +95,9 @@ class CommercialReconciliationService:
                         }),
                         operation_id=operation_id or new_uuid(),
                     )
+            uow.close_exceptions.resolve_missing(
+                period_code=period_code, check_type=CHECK_COMMERCIAL,
+                still_open_subjects=material_subjects)
         return rows
 
     @staticmethod

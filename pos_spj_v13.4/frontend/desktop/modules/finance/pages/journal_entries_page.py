@@ -10,6 +10,10 @@ from frontend.desktop.components.buttons import create_danger_button
 class JournalEntriesPage(FinancePage):
     title = "Asientos contables"
     subtitle = "Los asientos publicados son inmutables; toda corrección genera un reverso"
+    # Auditoría F24: más de 200 asientos siguen accesibles (paginación del
+    # servidor) y se encuentran por folio o descripción.
+    searchable = True
+    paginated = True
     columns = [
         ColumnSpec("Folio", "date"),
         ColumnSpec("Fecha", "date"),
@@ -35,4 +39,9 @@ class JournalEntriesPage(FinancePage):
             self.notify(*self._presenter.reverse_entry(entry_id, dialog.reason()))
 
     def _load(self) -> None:
-        self.set_table(self._presenter.journal_entries())
+        search = self._search.query() if self.searchable else ""
+        model = self._presenter.journal_entries(
+            search=search, limit=self.page_size, offset=self._page * self.page_size)
+        from frontend.desktop.modules.finance.finance_view_models import TableViewModel
+        self.set_table(TableViewModel(model.rows, model.row_ids,
+                                      total=self._presenter.journal_entries_count(search=search)))

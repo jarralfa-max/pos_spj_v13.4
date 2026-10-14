@@ -5,6 +5,7 @@ the widget never decides. Awarding is audited and emits its canonical event."""
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 
 from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
 from backend.application.procurement.permissions import PurchasePermissions
@@ -180,13 +181,44 @@ class AwardSupplierQuoteUseCase:
             if first_quote is None:
                 return ProcurementResult.fail("Cotización inexistente", "NOT_FOUND",
                                               operation_id=operation_id)
+            # Auditoría Compras C15: una RFQ se adjudica UNA vez; cambiar la
+            # decisión es una rescisión/reemplazo autorizado, no otra adjudicación.
+            if uow.rfqs.get_award_for_rfq(first_quote.rfq_id) is not None:
+                return ProcurementResult.fail(
+                    "La solicitud de cotización ya fue adjudicada", "ALREADY_AWARDED",
+                    operation_id=operation_id)
             award = PurchaseAward.create(first_quote.rfq_id, actor_user_id)
+            awarded_by_line: dict[str, Decimal] = {}
             try:
                 for raw in award_lines:
+                    owner = uow.connection.execute(
+                        "SELECT q.rfq_id, q.supplier_id FROM supplier_quote_lines l"
+                        " JOIN supplier_quotes q ON q.id = l.quote_id WHERE l.id=?",
+                        (raw["quote_line_id"],)).fetchone()
+                    found = uow.rfqs.get_quote_line(raw["quote_line_id"])
+                    if owner is None or found is None:
+                        return ProcurementResult.fail(
+                            "La línea adjudicada no existe", "NOT_FOUND",
+                            operation_id=operation_id)
+                    if owner[0] != first_quote.rfq_id:
+                        return ProcurementResult.fail(
+                            "La línea adjudicada pertenece a otra solicitud de cotización",
+                            "VALIDATION", operation_id=operation_id)
+                    if owner[1] != raw["supplier_id"]:
+                        return ProcurementResult.fail(
+                            "El proveedor adjudicado no es el que cotizó esa línea",
+                            "SUPPLIER_MISMATCH", operation_id=operation_id)
+                    quantity = Decimal(str(raw["awarded_quantity"]))
+                    awarded_by_line[raw["quote_line_id"]] = (
+                        awarded_by_line.get(raw["quote_line_id"], Decimal("0")) + quantity)
+                    if awarded_by_line[raw["quote_line_id"]] > found[1].quantity:
+                        return ProcurementResult.fail(
+                            f"Se adjudica más de lo cotizado ({found[1].quantity})",
+                            "OVER_AWARD", operation_id=operation_id)
                     award.lines.append(PurchaseAwardLine.create(
                         award.id, raw["quote_line_id"], raw["supplier_id"],
                         raw["awarded_quantity"], raw.get("justification", reason)))
-            except (ProcurementDomainError, KeyError) as exc:
+            except (ProcurementDomainError, KeyError, ArithmeticError) as exc:
                 return ProcurementResult.fail(str(exc), "VALIDATION",
                                               operation_id=operation_id)
             uow.rfqs.save_award(award, operation_id)

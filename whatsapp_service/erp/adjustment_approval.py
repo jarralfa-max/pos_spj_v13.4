@@ -7,6 +7,10 @@ El microservicio corre separado del ERP desktop, por eso este handler aplica la
 respuesta directamente sobre la BD del ERP.
 """
 from __future__ import annotations
+try:
+    from domain.money import quantize_money, to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import quantize_money, to_decimal
 
 import logging
 import sqlite3
@@ -77,8 +81,8 @@ class AdjustmentApprovalService:
         folio = data.get("folio") or f"DEL-{order_id}"
 
         if accepted:
-            pending_qty = float(data.get("pending_prepared_qty") or data.get("cantidad") or 0)
-            pending_subtotal = float(data.get("pending_subtotal") or (pending_qty * float(data.get("precio_unitario") or 0)))
+            pending_qty = to_decimal(data.get("pending_prepared_qty") or data.get("cantidad") or 0)
+            pending_subtotal = to_decimal(data.get("pending_subtotal") or (pending_qty * to_decimal(data.get("precio_unitario") or 0)))
             self.db.execute(
                 """
                 UPDATE delivery_items
@@ -105,7 +109,7 @@ class AdjustmentApprovalService:
             action = "rejected"
 
         # Recalcular total del pedido desde delivery_items; ventas se actualiza solo vía proyección controlada.
-        old_total = round(float(data.get("order_total") or 0), 2)
+        old_total = quantize_money(to_decimal(data.get("order_total") or 0))
         new_total = OrderTotalService(self.db).recalculate_order_total(order_id)
         SaleDeliveryProjectionService(self.db).project_total(venta_id, new_total)
         pending_left = self.db.execute(

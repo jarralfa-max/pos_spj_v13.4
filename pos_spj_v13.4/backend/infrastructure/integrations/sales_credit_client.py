@@ -45,7 +45,9 @@ from backend.application.customer_credit.use_cases.check_credit_sale_eligibility
     CheckCreditSaleEligibilityUseCase,
 )
 from backend.application.customers.authorization import CustomerAuthorizationPolicy
-from backend.application.use_cases.finance.receivable_use_cases import CreateReceivableUseCase
+from backend.application.use_cases.finance.receivable_use_cases import (
+    RegisterSaleCreditChargeUseCase,
+)
 
 
 class SalesCreditClient:
@@ -95,13 +97,14 @@ class SalesCreditClient:
 
     def register(
         self, *, customer_id: str, sale_id: str, folio: str, amount: Decimal,
-        branch_id: str,
+        branch_id: str, payment_id: str,
     ) -> None:
-        """Apunta la deuda de una venta cobrada a crédito.
+        """Apunta la deuda de un pago a crédito de una venta.
 
-        Idempotente por `operation_id`: derivado de la venta, así que reintentar
-        el cobro no duplica la cuenta por cobrar. Es la misma garantía que daba
-        el `INSERT OR IGNORE` del servicio anterior, pero explícita.
+        Idempotente por PAGO (auditoría de Finanzas F03): antes la clave era
+        sólo la venta, así que un segundo pago a crédito de la misma venta se
+        tomaba por reintento del primero y la deuda quedaba en el primer
+        importe. Ahora cada pago suma su cargo; reintentar un pago no lo duplica.
 
         `due_date` (auditoría CRM F23): el plazo pactado VIGENTE del perfil de
         crédito del cliente al momento de la venta, fijo en el documento. Si
@@ -109,12 +112,11 @@ class SalesCreditClient:
         vencimiento. Nunca un plazo inventado: sin perfil, no se fija.
         """
         today = date.today()
-        CreateReceivableUseCase().execute(
-            self._connection, customer_id=customer_id, amount=str(amount),
-            document_number=folio or sale_id, issue_date=today,
-            due_date=self._due_date(customer_id, today),
-            branch_id=branch_id, source_module="sales", source_document_id=sale_id,
-            operation_id=f"{sale_id}:receivable",
+        RegisterSaleCreditChargeUseCase().execute(
+            self._connection, customer_id=customer_id, sale_id=sale_id,
+            payment_id=payment_id, folio=folio or sale_id, amount=str(amount),
+            issue_date=today, due_date=self._due_date(customer_id, today),
+            branch_id=branch_id,
             # Se llama dentro de la transacción del cobro (SalesUnitOfWork): la
             # deuda vive o muere con la venta (auditoría CRM F01).
             owns_transaction=False,

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
-from PyQt5.QtWidgets import QDialog, QLabel, QVBoxLayout
+from PyQt5.QtWidgets import QLabel
 
 from frontend.desktop.components import (
     FormField,
@@ -25,18 +25,18 @@ from frontend.desktop.components import (
     StandardLineEdit,
     create_primary_button,
 )
+from frontend.desktop.components.dialogs import StandardDialog
 
 
-class DiscountDialog(QDialog):
+class DiscountDialog(StandardDialog):
     def __init__(self, presenter, *, sale_id: str, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title="Aplicar descuento")
         self.setObjectName("posDiscountDialog")
-        self.setWindowTitle("Aplicar descuento")
         self._presenter = presenter
         self._sale_id = sale_id
         self.applied = False
 
-        root = QVBoxLayout(self)
+        root = self.content_layout()
         form = StandardForm(self)
         self._amount = MoneyInput(self)
         form.add_field("discount_amount", FormField("Monto de descuento", self._amount, required=True))
@@ -58,7 +58,7 @@ class DiscountDialog(QDialog):
 
         submit = create_primary_button(self, "Aplicar")
         submit.clicked.connect(self._submit)
-        root.addWidget(submit)
+        self.add_footer_widget(submit)
 
     def _show_error(self, message: str) -> None:
         self._status.setProperty("state", "ERROR")

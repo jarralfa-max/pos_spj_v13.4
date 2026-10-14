@@ -2,11 +2,32 @@
 
 Query services never mutate state: no INSERT/UPDATE/DELETE, no commit.
 They feed the desktop UI and BI consumers with stable dict/DTO rows.
+
+Sumas monetarias (auditoría d9f2bca F20): ``decimal_sum`` es la única forma
+de agregar importes. Los importes se guardan como texto decimal exacto; SQLite
+los suma pasando por real binario (``SUM(CAST(... AS NUMERIC))``) y pierde
+centavos en importes grandes. Aquí se suman como ``Decimal``.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from decimal import Decimal, InvalidOperation
+from typing import Any, Iterable
+
+
+def decimal_sum(values: Iterable) -> Decimal:
+    total = Decimal("0")
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if not text:
+            continue
+        try:
+            total += Decimal(text)
+        except InvalidOperation:
+            continue
+    return total
 
 
 class FinanceQueryServiceBase:
@@ -26,3 +47,8 @@ class FinanceQueryServiceBase:
         row = self._conn.execute(sql, params).fetchone()
         value = row[0] if row and row[0] is not None else default
         return str(value)
+
+    def _money_sum(self, sql: str, params: tuple = ()) -> str:
+        """Suma exacta de la primera columna de ``sql`` como texto decimal."""
+        rows = self._conn.execute(sql, params).fetchall()
+        return format(decimal_sum(r[0] for r in rows).quantize(Decimal("0.01")), "f")

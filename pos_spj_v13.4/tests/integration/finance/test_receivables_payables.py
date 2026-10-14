@@ -27,6 +27,7 @@ from backend.domain.finance.exceptions import (
 )
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
 from backend.shared.ids import new_uuid
+from tests.integration.finance.conftest import account_id, register_supplier
 
 TODAY = date(2026, 7, 16)
 
@@ -41,9 +42,11 @@ def _treasury(conn, account_type=None):
 
 class TestCollections:
     def _receivable(self, conn, amount="1000.00"):
+        # F11: creada desde Finanzas, nace con su asiento (Dr Clientes / Cr ingreso).
         return CreateReceivableUseCase().execute(
             conn, customer_id=new_uuid(), amount=amount, document_number="F-100",
             issue_date=TODAY, operation_id=new_uuid(),
+            counterpart_account_id=account_id(conn, "4101"),
         )
 
     def test_partial_then_full_collection(self, bootstrapped_conn):
@@ -93,9 +96,11 @@ class TestCollections:
 
 class TestSupplierPaymentLifecycle:
     def _payable(self, conn, amount="2000.00"):
+        # F11: creada desde Finanzas, nace con su asiento; F13: proveedor real.
         return CreatePayableUseCase().execute(
-            conn, supplier_id=new_uuid(), amount=amount, document_number="FP-01",
+            conn, supplier_id=register_supplier(conn), amount=amount, document_number="FP-01",
             issue_date=TODAY, operation_id=new_uuid(),
+            counterpart_account_id=account_id(conn, "6130"),
         )
 
     def test_full_segregated_lifecycle(self, bootstrapped_conn):
@@ -114,7 +119,7 @@ class TestSupplierPaymentLifecycle:
             operation_id=new_uuid())
         ExecuteSupplierPaymentUseCase().execute(
             bootstrapped_conn, payment_id=payment.id, executed_date=TODAY,
-            operation_id=new_uuid())
+            operation_id=new_uuid(), execution_reference="SPEI-0001")
         with FinanceUnitOfWork(bootstrapped_conn) as uow:
             stored_payment = uow.supplier_payments.get(payment.id)
             stored_payable = uow.payables.get(payable.id)
@@ -174,9 +179,9 @@ class TestSupplierPaymentLifecycle:
             operation_id=new_uuid())
         uc = ExecuteSupplierPaymentUseCase()
         uc.execute(bootstrapped_conn, payment_id=payment.id, executed_date=TODAY,
-                   operation_id=new_uuid())
+                   operation_id=new_uuid(), execution_reference="SPEI-0001")
         uc.execute(bootstrapped_conn, payment_id=payment.id, executed_date=TODAY,
-                   operation_id=new_uuid())  # retry
+                   operation_id=new_uuid(), execution_reference="SPEI-0001")  # retry
         count = bootstrapped_conn.execute(
             "SELECT COUNT(*) FROM journal_entries WHERE posting_purpose='SUPPLIER_PAYMENT'"
         ).fetchone()[0]

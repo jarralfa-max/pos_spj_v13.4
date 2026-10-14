@@ -15,6 +15,7 @@ webhook. Este puerto cubre solo la parte que SÍ es del canal: pedir que
 se genere un link para poder mandarlo por chat.
 """
 from __future__ import annotations
+from decimal import Decimal
 
 from dataclasses import dataclass
 from typing import Protocol
@@ -28,5 +29,5 @@ class PaymentLinkRef:
 
 class PaymentProviderGateway(Protocol):
     async def create_preference(
-        self, *, amount: float, external_reference: str, description: str = ""
+        self, *, amount: Decimal, external_reference: str, description: str = ""
     ) -> PaymentLinkRef: ...

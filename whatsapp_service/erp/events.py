@@ -6,6 +6,10 @@ Cada evento incluye: sucursal_id, prioridad, timestamp.
 CORRECCIÓN (FASE WA): WAEventEmitter usa ERP's bus.publish(), NO emit().
 """
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal
 import json
 import logging
 import os
@@ -144,7 +148,7 @@ class WAEventEmitter:
             try:
                 # Serialize payload as real JSON (not str())
                 try:
-                    data_json = json.dumps(event_data, ensure_ascii=False,
+                    data_json = dumps_decimal(event_data, ensure_ascii=False,
                                            default=str)[:4000]
                 except Exception:
                     data_json = str(event_data)[:4000]

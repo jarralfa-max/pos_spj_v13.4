@@ -121,7 +121,8 @@ class RecordSalePaymentUseCase(_SalesBaseUseCase):
             if payment_method is PaymentMethod.CREDIT:
                 self._credit_client(connection, actor_user_id).register(
                     customer_id=sale.customer_id, sale_id=sale.id,
-                    folio=sale.sale_number or sale.id, amount=amount, branch_id=sale.branch_id)
+                    folio=sale.sale_number or sale.id, amount=amount, branch_id=sale.branch_id,
+                    payment_id=payment.id)
 
             uow.sales.save(sale)
             self._emit(uow, SaleEvents.PAYMENT_RECORDED, entity_id=sale.id,

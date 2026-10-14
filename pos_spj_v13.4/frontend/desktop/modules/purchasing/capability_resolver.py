@@ -53,6 +53,11 @@ def resolve_purchasing_capabilities(can: Callable[[str], bool]) -> PurchasingCap
         direct_authorize=can(P.OVERRIDE_FINANCIAL_LIMIT),
         direct_confirm=can(P.DIRECT_CONFIRM),
         direct_reverse=can(P.DIRECT_REVERSE),
+        returns_view=can(P.RETURN) or can(P.RECEIPT_REVERSE),
+        return_manage=can(P.RETURN),
+        receipt_reverse=can(P.RECEIPT_REVERSE),
+        order_close=can(P.ORDER_CLOSE),
+        invoice_cancel=can(P.INVOICE_CANCEL),
         view_costs=can(P.VIEW_COSTS),
         view_analytics=can(P.VIEW_ANALYTICS),
     )

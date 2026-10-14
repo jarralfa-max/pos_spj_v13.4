@@ -235,10 +235,20 @@ class HRPresenter:
             operation_id=new_uuid())
 
     def pay_payroll(self, payroll_run_id: str, *, payment_method: str = "CASH") -> tuple[bool, str]:
-        return self._run(
+        result = self._run(
             self._use_cases["pay_payroll"].execute, self._conn(),
             actor_user_id=self._actor(), payroll_run_id=payroll_run_id,
             payment_method=payment_method, operation_id=new_uuid())
+        if result[0]:
+            # Auditoría Finanzas F21: PAYROLL_PAID se entrega a contabilidad en
+            # el acto; si falla queda pendiente con su error y se reintenta.
+            dispatcher = self._use_cases.get("dispatch_outbox")
+            if dispatcher is not None:
+                try:
+                    dispatcher()
+                except Exception:
+                    logger.exception("despacho de hr_outbox fallido")
+        return result
 
     def cancel_payroll(self, payroll_run_id: str) -> tuple[bool, str]:
         return self._run(

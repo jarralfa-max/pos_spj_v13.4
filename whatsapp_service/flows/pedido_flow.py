@@ -8,6 +8,14 @@ Regla UX importante:
 - El cliente puede reabrirla escribiendo explícitamente: hola, menú, pedido, etc.
 """
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal
+try:
+    from domain.money import ZERO, to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import ZERO, to_decimal
 from models.context import ConversationContext, FlowState, PedidoItem
 from parser.intent_parser import ParsedIntent
 from flows.base_flow import BaseFlow, FlowResult
@@ -119,12 +127,12 @@ class PedidoFlow(BaseFlow):
         return FlowResult(FlowState.PEDIDO_PRODUCTO)
 
     async def _handle_cantidad(self, ctx, intent):
-        qty = 0.0
+        qty = ZERO
 
         # Botón de cantidad rápida: "qty_5"
         if intent.intent == "select_quantity" and intent.action_id:
             try:
-                qty = float(intent.action_id.split("_", 1)[1])
+                qty = to_decimal(intent.action_id.split("_", 1)[1])
             except (ValueError, IndexError):
                 pass
 
@@ -135,7 +143,7 @@ class PedidoFlow(BaseFlow):
         # Intentar parsear texto como número
         if not qty:
             try:
-                qty = float(intent.raw_text.replace(",", ".").strip())
+                qty = to_decimal(intent.raw_text.replace(",", ".").strip())
             except (ValueError, AttributeError):
                 pass
 
@@ -262,7 +270,7 @@ class PedidoFlow(BaseFlow):
             await self._apply_business_hours_policy(ctx)
             items = [i.to_dict() for i in ctx.pedido_items]
             cart_hash = hashlib.sha256(
-                json.dumps(items, sort_keys=True, ensure_ascii=False).encode("utf-8")
+                dumps_decimal(items, sort_keys=True, ensure_ascii=False).encode("utf-8")
             ).hexdigest()[:16]
             action_key = (
                 f"confirm_order:{ctx.phone}:{cart_hash}:{ctx.sucursal_id or 1}:{ctx.pedido_tipo_entrega}:{ctx.pedido_programado}:{ctx.pedido_fecha_entrega}"
@@ -300,7 +308,7 @@ class PedidoFlow(BaseFlow):
             ctx.last_venta_id = venta_id
 
             anticipo_req = bool(result.get("anticipo_requerido", False))
-            anticipo_monto = float(result.get("anticipo_monto", 0.0) or 0.0)
+            anticipo_monto = to_decimal(result.get("anticipo_monto", 0) or 0)
 
             # Programar recordatorios
             if self.reminders and anticipo_req:

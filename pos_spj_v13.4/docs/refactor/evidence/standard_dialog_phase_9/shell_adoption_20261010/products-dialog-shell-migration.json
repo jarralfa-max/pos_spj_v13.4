@@ -1,0 +1,112 @@
+[
+  {
+    "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+    "class": "AttributeFormDialog",
+    "width": 420
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+    "class": "_OptionEditor",
+    "width": 360
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/attribute_form_dialog.py",
+    "class": "AttributeOptionsDialog",
+    "width": 480
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/brand_form_dialog.py",
+    "class": "BrandFormDialog",
+    "width": 420
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/bundle_form_dialog.py",
+    "class": "BundleFormDialog",
+    "width": 560
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/bundle_form_dialog.py",
+    "class": "_ComponentEditor",
+    "width": 420
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/bundles_dialog.py",
+    "class": "BundlesDialog",
+    "width": 640
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/category_form_dialog.py",
+    "class": "CategoryFormDialog",
+    "width": 420
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/category_form_dialog.py",
+    "class": "MoveCategoryDialog",
+    "width": 420
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/cutting_dialog.py",
+    "class": "CuttingSchemesDialog",
+    "width": 660
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/cutting_form_dialog.py",
+    "class": "CuttingSchemeFormDialog",
+    "width": 600
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/cutting_form_dialog.py",
+    "class": "_OutputEditor",
+    "width": 440
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/product_form_dialog.py",
+    "class": "ProductFormDialog",
+    "width": 460
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/purchase_units_dialog.py",
+    "class": "PurchaseUnitsDialog",
+    "width": 620
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+    "class": "RecipeFormDialog",
+    "width": 560
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+    "class": "_ComponentEditor",
+    "width": 420
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/recipe_form_dialog.py",
+    "class": "_OutputEditor",
+    "width": 420
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/recipes_dialog.py",
+    "class": "RecipesDialog",
+    "width": 640
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/variant_generator_dialog.py",
+    "class": "VariantGeneratorDialog",
+    "width": 520
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/yield_form_dialog.py",
+    "class": "YieldProfileFormDialog",
+    "width": 620
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/yield_form_dialog.py",
+    "class": "_OutputEditor",
+    "width": 440
+  },
+  {
+    "path": "frontend/desktop/modules/products/dialogs/yields_dialog.py",
+    "class": "YieldProfilesDialog",
+    "width": 640
+  }
+]

@@ -9,11 +9,12 @@ use cases (validan que la suma caiga dentro de la tolerancia de 100 %).
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from decimal import Decimal, InvalidOperation
 
 from PyQt5.QtWidgets import (
     QComboBox,
-    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
@@ -21,7 +22,6 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QVBoxLayout,
 )
 
 from frontend.desktop.components import (
@@ -54,10 +54,10 @@ def _dec(value, default="0") -> Decimal:
         return Decimal(default)
 
 
-class YieldProfileFormDialog(QDialog):
+class YieldProfileFormDialog(StandardDialog):
     def __init__(self, presenter, *, input_product_id: str, version=None,
                  parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=620)
         self._presenter = presenter
         self._input_product_id = input_product_id
         self._version = version or {}
@@ -69,7 +69,7 @@ class YieldProfileFormDialog(QDialog):
         self.setMinimumSize(620, 540)
         self._outputs: list[dict] = list(self._version.get("outputs", []))
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.name = QLineEdit(str(self._version.get("profile_name") or ""))
         self.tolerance = PercentInput()
@@ -137,7 +137,7 @@ class YieldProfileFormDialog(QDialog):
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
         self._refresh_table()
 
     # ── total en vivo (§16) ────────────────────────────────────────────────────
@@ -226,14 +226,14 @@ class YieldProfileFormDialog(QDialog):
             QMessageBox.warning(self, "No se pudo guardar", message)
 
 
-class _OutputEditor(QDialog):
+class _OutputEditor(StandardDialog):
     def __init__(self, presenter, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=440)
         self._presenter = presenter
         self._labels: dict = {}
         self.setWindowTitle("Output de rendimiento")
         self.setMinimumWidth(440)
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.product = EntitySearchInput(
             provider=_product_provider(presenter, self._labels),
@@ -259,9 +259,11 @@ class _OutputEditor(QDialog):
         self._error = QLabel(); self._error.setObjectName("textDanger")
         layout.addWidget(self._error)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Ok).setText("Aceptar")
+        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
     def _accept(self) -> None:
         if not self.product.selected_id():

@@ -1,0 +1,383 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="28" skipped="0" tests="60" time="9.959" timestamp="2026-10-10T05:35:03.660355+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[attribute_form_dialog.AttributeFormDialog]" time="0.106"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.attribute_form_dialog.AttributeFormDialog object at 0x000001F0C4AC74A0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C4B74B80&gt;
+presenter = &lt;Mock id='2133600582832'&gt;
+case = ('attribute_form_dialog', 'AttributeFormDialog', {})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C4B11480&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.attribute_form_dialog.AttributeFormDialog object at 0x000001F0C4AC74A0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[attribute_form_dialog._OptionEditor]" time="0.041"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.attribute_form_dialog._OptionEditor object at 0x000001F0C4AC7530&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C4FF3E20&gt;
+presenter = &lt;Mock id='2133603953904'&gt;
+case = ('attribute_form_dialog', '_OptionEditor', {'attribute_id': '019f327a-1694-7000-8000-000000000003'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C4668E90&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.attribute_form_dialog._OptionEditor object at 0x000001F0C4AC7530&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[attribute_form_dialog.AttributeOptionsDialog]" time="0.049"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.attribute_form_dialog.AttributeOptionsDialog object at 0x000001F0C4FF59A0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C5020180&gt;
+presenter = &lt;Mock id='2133609187712'&gt;
+case = ('attribute_form_dialog', 'AttributeOptionsDialog', {'attribute': {'id': '019f327a-1694-7000-8000-000000000003', 'name': 'Color', 'data_type': 'LIST'}})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C4B8F0B0&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.attribute_form_dialog.AttributeOptionsDialog object at 0x000001F0C4FF59A0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[brand_form_dialog.BrandFormDialog]" time="0.059"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.brand_form_dialog.BrandFormDialog object at 0x000001F0C4AC6DE0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C50204A0&gt;
+presenter = &lt;Mock id='2133609195440'&gt;
+case = ('brand_form_dialog', 'BrandFormDialog', {})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C4B2D590&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.brand_form_dialog.BrandFormDialog object at 0x000001F0C4AC6DE0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[bundle_form_dialog.BundleFormDialog]" time="0.077"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.bundle_form_dialog.BundleFormDialog object at 0x000001F0C4FF5E20&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C5020FE0&gt;
+presenter = &lt;Mock id='2133609137216'&gt;
+case = ('bundle_form_dialog', 'BundleFormDialog', {'product_id': '019f327a-1694-7000-8000-000000000001'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C4B2DAE0&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.bundle_form_dialog.BundleFormDialog object at 0x000001F0C4FF5E20&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[bundle_form_dialog._ComponentEditor]" time="0.046"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.bundle_form_dialog._ComponentEditor object at 0x000001F0C4FF68D0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C50216C0&gt;
+presenter = &lt;Mock id='2133609144608'&gt;
+case = ('bundle_form_dialog', '_ComponentEditor', {})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C4A4E850&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.bundle_form_dialog._ComponentEditor object at 0x000001F0C4FF68D0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[bundles_dialog.BundlesDialog]" time="0.198"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.bundles_dialog.BundlesDialog object at 0x000001F0C4FF6210&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C5021A80&gt;
+presenter = &lt;Mock id='2133609151664'&gt;
+case = ('bundles_dialog', 'BundlesDialog', {'product_id': '019f327a-1694-7000-8000-000000000001', 'product_name': 'Producto de prueba'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C4A4EB50&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.bundles_dialog.BundlesDialog object at 0x000001F0C4FF6210&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[category_form_dialog.CategoryFormDialog]" time="0.034"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.category_form_dialog.CategoryFormDialog object at 0x000001F0C4FF79B0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C5022480&gt;
+presenter = &lt;Mock id='2133609339536'&gt;
+case = ('category_form_dialog', 'CategoryFormDialog', {})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C5006210&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.category_form_dialog.CategoryFormDialog object at 0x000001F0C4FF79B0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[category_form_dialog.MoveCategoryDialog]" time="0.078"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.category_form_dialog.MoveCategoryDialog object at 0x000001F0C4FF7AD0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C50225C0&gt;
+presenter = &lt;Mock id='2133609346592'&gt;
+case = ('category_form_dialog', 'MoveCategoryDialog', {'category_id': '019f327a-1694-7000-8000-000000000003', 'category_name': 'Categoría'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C50066C0&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.category_form_dialog.MoveCategoryDialog object at 0x000001F0C4FF7AD0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[cutting_dialog.CuttingSchemesDialog]" time="0.046"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.cutting_dialog.CuttingSchemesDialog object at 0x000001F0C4FF7E30&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C5020F40&gt;
+presenter = &lt;Mock id='2133609345920'&gt;
+case = ('cutting_dialog', 'CuttingSchemesDialog', {'product_id': '019f327a-1694-7000-8000-000000000001', 'product_name': 'Producto de prueba'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C5047230&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.cutting_dialog.CuttingSchemesDialog object at 0x000001F0C4FF7E30&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[cutting_form_dialog.CuttingSchemeFormDialog]" time="0.057"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.cutting_form_dialog.CuttingSchemeFormDialog object at 0x000001F0C4FF7EC0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C50204A0&gt;
+presenter = &lt;Mock id='2133609337856'&gt;
+case = ('cutting_form_dialog', 'CuttingSchemeFormDialog', {'input_product_id': '019f327a-1694-7000-8000-000000000001'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C5046270&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.cutting_form_dialog.CuttingSchemeFormDialog object at 0x000001F0C4FF7EC0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[cutting_form_dialog._OutputEditor]" time="0.229"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.cutting_form_dialog._OutputEditor object at 0x000001F0C4FF63C0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C5022F20&gt;
+presenter = &lt;Mock id='2133609150656'&gt;
+case = ('cutting_form_dialog', '_OutputEditor', {})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C50BB1E0&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.cutting_form_dialog._OutputEditor object at 0x000001F0C4FF63C0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[product_form_dialog.ProductFormDialog]" time="0.438"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C4FF7890&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C5068FE0&gt;
+presenter = &lt;Mock id='2133609143264'&gt;
+case = ('product_form_dialog', 'ProductFormDialog', {})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C4FF90D0&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C4FF7890&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[purchase_units_dialog.PurchaseUnitsDialog]" time="0.421"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.purchase_units_dialog.PurchaseUnitsDialog object at 0x000001F0C4FF7D10&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C5068C20&gt;
+presenter = &lt;Mock id='2133609136208'&gt;
+case = ('purchase_units_dialog', 'PurchaseUnitsDialog', {'product_id': '019f327a-1694-7000-8000-000000000001', 'product_name': 'Producto de prueba'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C4FF8410&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.purchase_units_dialog.PurchaseUnitsDialog object at 0x000001F0C4FF7D10&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[recipe_form_dialog.RecipeFormDialog]" time="0.191"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.recipe_form_dialog.RecipeFormDialog object at 0x000001F0C50ADE20&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C5068E00&gt;
+presenter = &lt;Mock id='2133603947184'&gt;
+case = ('recipe_form_dialog', 'RecipeFormDialog', {'product_id': '019f327a-1694-7000-8000-000000000001'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C50C0260&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.recipe_form_dialog.RecipeFormDialog object at 0x000001F0C50ADE20&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[recipe_form_dialog._ComponentEditor]" time="0.035"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.recipe_form_dialog._ComponentEditor object at 0x000001F0C50AE600&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C5069F80&gt;
+presenter = &lt;Mock id='2133609011184'&gt;
+case = ('recipe_form_dialog', '_ComponentEditor', {})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C50C0310&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.recipe_form_dialog._ComponentEditor object at 0x000001F0C50AE600&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[recipe_form_dialog._OutputEditor]" time="0.048"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.recipe_form_dialog._OutputEditor object at 0x000001F0C50AF260&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C506AA20&gt;
+presenter = &lt;Mock id='2133609018240'&gt;
+case = ('recipe_form_dialog', '_OutputEditor', {})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C50694F0&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.recipe_form_dialog._OutputEditor object at 0x000001F0C50AF260&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[recipes_dialog.RecipesDialog]" time="0.039"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.recipes_dialog.RecipesDialog object at 0x000001F0C50AFBF0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C506B1A0&gt;
+presenter = &lt;Mock id='2133609631760'&gt;
+case = ('recipes_dialog', 'RecipesDialog', {'product_id': '019f327a-1694-7000-8000-000000000001', 'product_name': 'Producto de prueba'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C506A5D0&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.recipes_dialog.RecipesDialog object at 0x000001F0C50AFBF0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[variant_generator_dialog.VariantGeneratorDialog]" time="0.123"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.variant_generator_dialog.VariantGeneratorDialog object at 0x000001F0C6104200&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C506ADE0&gt;
+presenter = &lt;Mock id='2133609639152'&gt;
+case = ('variant_generator_dialog', 'VariantGeneratorDialog', {'product_id': '019f327a-1694-7000-8000-000000000001', 'product_name': 'Producto de prueba'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C4AC68D0&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.variant_generator_dialog.VariantGeneratorDialog object at 0x000001F0C6104200&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[yield_form_dialog.YieldProfileFormDialog]" time="0.438"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.yield_form_dialog.YieldProfileFormDialog object at 0x000001F0C61043B0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C506BEC0&gt;
+presenter = &lt;Mock id='2133626850336'&gt;
+case = ('yield_form_dialog', 'YieldProfileFormDialog', {'input_product_id': '019f327a-1694-7000-8000-000000000001'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C5036F50&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.yield_form_dialog.YieldProfileFormDialog object at 0x000001F0C61043B0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[yield_form_dialog._OutputEditor]" time="0.081"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.yield_form_dialog._OutputEditor object at 0x000001F0C61060F0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C6125800&gt;
+presenter = &lt;Mock id='2133626857392'&gt;
+case = ('yield_form_dialog', '_OutputEditor', {})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C4B6E350&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.yield_form_dialog._OutputEditor object at 0x000001F0C61060F0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_every_product_dialog_has_scroll_body_and_fixed_footer[yields_dialog.YieldProfilesDialog]" time="0.137"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.yields_dialog.YieldProfilesDialog object at 0x000001F0C6107380&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C506A200&gt;
+presenter = &lt;Mock id='2133626856720'&gt;
+case = ('yields_dialog', 'YieldProfilesDialog', {'product_id': '019f327a-1694-7000-8000-000000000001', 'product_name': 'Producto de prueba'})
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C502F0E0&gt;
+
+    @pytest.mark.parametrize("case", CASES, ids=CASE_IDS)
+    def test_every_product_dialog_has_scroll_body_and_fixed_footer(dialogs, presenter, case, qt_font_resources, monkeypatch):
+        dialog = dialogs(case, presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.yields_dialog.YieldProfilesDialog object at 0x000001F0C6107380&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:104: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[attribute_form_dialog.AttributeFormDialog]" time="0.130" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[attribute_form_dialog._OptionEditor]" time="0.095" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[attribute_form_dialog.AttributeOptionsDialog]" time="0.045" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[brand_form_dialog.BrandFormDialog]" time="0.069" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[bundle_form_dialog.BundleFormDialog]" time="0.085" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[bundle_form_dialog._ComponentEditor]" time="0.046" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[bundles_dialog.BundlesDialog]" time="0.247" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[category_form_dialog.CategoryFormDialog]" time="0.122" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[category_form_dialog.MoveCategoryDialog]" time="0.036" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[cutting_dialog.CuttingSchemesDialog]" time="0.151" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[cutting_form_dialog.CuttingSchemeFormDialog]" time="0.105" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[cutting_form_dialog._OutputEditor]" time="0.248" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[product_form_dialog.ProductFormDialog]" time="0.135" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[purchase_units_dialog.PurchaseUnitsDialog]" time="0.116" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[recipe_form_dialog.RecipeFormDialog]" time="0.105" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[recipe_form_dialog._ComponentEditor]" time="0.089" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[recipe_form_dialog._OutputEditor]" time="0.194" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[recipes_dialog.RecipesDialog]" time="0.142" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[variant_generator_dialog.VariantGeneratorDialog]" time="0.039" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[yield_form_dialog.YieldProfileFormDialog]" time="0.147" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[yield_form_dialog._OutputEditor]" time="0.332" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_escape_rejects_each_product_dialog_without_writes[yields_dialog.YieldProfilesDialog]" time="0.184" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_catalog_validation_and_saved_payload_are_preserved[click-brand]" time="0.077" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_catalog_validation_and_saved_payload_are_preserved[click-category]" time="0.050" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_catalog_validation_and_saved_payload_are_preserved[click-attribute]" time="0.070" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_catalog_validation_and_saved_payload_are_preserved[click-option]" time="0.051" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_catalog_validation_and_saved_payload_are_preserved[enter-brand]" time="0.084" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_catalog_validation_and_saved_payload_are_preserved[enter-category]" time="0.076" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_catalog_validation_and_saved_payload_are_preserved[enter-attribute]" time="0.049" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_catalog_validation_and_saved_payload_are_preserved[enter-option]" time="0.069" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_product_save_failure_keeps_capture_and_success_accepts_once" time="0.176" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_variant_generate_retains_nonclosing_behavior" time="0.093" /><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_product_long_form_scroll_keeps_footer_and_capture[compact-light]" time="0.105"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C4AC70B0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C6138F40&gt;
+presenter = &lt;Mock id='2133609136880'&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C502C4B0&gt;
+theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_product_long_form_scroll_keeps_footer_and_capture(dialogs, presenter, qt_font_resources, monkeypatch, theme, density):
+        manager = ThemeManager.instance()
+        manager.apply(qt_font_resources, theme, density=density)
+        dialog = dialogs(CASES[12], presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C4AC70B0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:220: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_product_long_form_scroll_keeps_footer_and_capture[compact-dark]" time="0.204"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C6104F80&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C6139940&gt;
+presenter = &lt;Mock id='2133603949200'&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C502F460&gt;
+theme = 'dark', density = 'compact'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_product_long_form_scroll_keeps_footer_and_capture(dialogs, presenter, qt_font_resources, monkeypatch, theme, density):
+        manager = ThemeManager.instance()
+        manager.apply(qt_font_resources, theme, density=density)
+        dialog = dialogs(CASES[12], presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C6104F80&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:220: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_product_long_form_scroll_keeps_footer_and_capture[comfortable-light]" time="0.146"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C61057F0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C6139120&gt;
+presenter = &lt;Mock id='2133603946512'&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C60C4A60&gt;
+theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_product_long_form_scroll_keeps_footer_and_capture(dialogs, presenter, qt_font_resources, monkeypatch, theme, density):
+        manager = ThemeManager.instance()
+        manager.apply(qt_font_resources, theme, density=density)
+        dialog = dialogs(CASES[12], presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C61057F0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:220: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_product_long_form_scroll_keeps_footer_and_capture[comfortable-dark]" time="0.125"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C50AC4D0&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C6139760&gt;
+presenter = &lt;Mock id='2133609010512'&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C60C5390&gt;
+theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_product_long_form_scroll_keeps_footer_and_capture(dialogs, presenter, qt_font_resources, monkeypatch, theme, density):
+        manager = ThemeManager.instance()
+        manager.apply(qt_font_resources, theme, density=density)
+        dialog = dialogs(CASES[12], presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C50AC4D0&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:220: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_product_long_form_scroll_keeps_footer_and_capture[touch-light]" time="0.449"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C50AC290&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C6139800&gt;
+presenter = &lt;Mock id='2133609144272'&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C60C62E0&gt;
+theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_product_long_form_scroll_keeps_footer_and_capture(dialogs, presenter, qt_font_resources, monkeypatch, theme, density):
+        manager = ThemeManager.instance()
+        manager.apply(qt_font_resources, theme, density=density)
+        dialog = dialogs(CASES[12], presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C50AC290&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:220: AssertionError</failure></testcase><testcase classname="tests.ui.test_products_standard_dialog_adoption" name="test_product_long_form_scroll_keeps_footer_and_capture[touch-dark]" time="0.068"><failure message="assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C4FF6B10&gt;, StandardDialog)">dialogs = &lt;function dialogs.&lt;locals&gt;.build at 0x000001F0C613A020&gt;
+presenter = &lt;Mock id='2133627117520'&gt;
+qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000001F0C4AC6BA0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001F0C60C67B0&gt;
+theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    def test_product_long_form_scroll_keeps_footer_and_capture(dialogs, presenter, qt_font_resources, monkeypatch, theme, density):
+        manager = ThemeManager.instance()
+        manager.apply(qt_font_resources, theme, density=density)
+        dialog = dialogs(CASES[12], presenter)
+&gt;       assert isinstance(dialog, StandardDialog)
+E       assert False
+E        +  where False = isinstance(&lt;frontend.desktop.modules.products.dialogs.product_form_dialog.ProductFormDialog object at 0x000001F0C4FF6B10&gt;, StandardDialog)
+
+tests\ui\test_products_standard_dialog_adoption.py:220: AssertionError</failure></testcase></testsuite></testsuites>

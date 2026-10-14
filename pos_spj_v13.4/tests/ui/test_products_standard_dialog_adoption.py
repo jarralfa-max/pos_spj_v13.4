@@ -62,6 +62,7 @@ def presenter():
         getattr(result, name).return_value = []
     result.list_units.return_value = [{"id": UNIT_ID, "code": "KG", "name": "Kilogramo"}]
     result.preview_code.return_value = "PR-000001"
+    result.settings.defaults.return_value = {}
     result.purchase_unit_profile.return_value = None
     result.product_search_reason.return_value = ""
     for name in ("can_override_code", "can_manage_images"):

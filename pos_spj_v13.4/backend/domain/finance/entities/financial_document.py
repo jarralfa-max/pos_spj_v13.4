@@ -38,6 +38,7 @@ class FinancialDocument:
     supplier_id: str | None = None
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
+    row_version: int = 0  # control optimista (auditoría F18)
 
     @classmethod
     def create(
@@ -71,6 +72,19 @@ class FinancialDocument:
     @property
     def currency_code(self) -> str:
         return self.total_amount.currency_code
+
+    def increase_total(self, amount: Money) -> None:
+        """Un cargo adicional al mismo documento (auditoría F03)."""
+        if self.status is FinancialDocumentStatus.CANCELLED:
+            raise FinanceDomainError("A cancelled document cannot be charged")
+        if not amount.is_positive():
+            raise FinanceDomainError("Charge amount must be positive")
+        self.total_amount = self.total_amount.add(amount)
+        self.outstanding_amount = self.outstanding_amount.add(amount)
+        self.status = (FinancialDocumentStatus.OPEN
+                       if self.outstanding_amount.amount == self.total_amount.amount
+                       else FinancialDocumentStatus.PARTIALLY_SETTLED)
+        self.updated_at = _utcnow()
 
     def apply_settlement(self, amount: Money) -> None:
         """Reduce the outstanding amount; never below zero."""

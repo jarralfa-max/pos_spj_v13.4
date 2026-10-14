@@ -4,6 +4,13 @@ The sale event must present the settlement breakdown (§19): the sum of
 settlements must equal the net total. Non-cash instruments (points, coupons,
 vouchers, gift cards, store credit) settle against their recognized commercial
 obligation — never against cash.
+
+Audit d9f2bca F09: the business key of the WHOLE effect is the sale. The lines
+are built first without touching any aggregate; the entry is posted (the engine
+returns the existing one only if the content is identical, F10); and the side
+effects (instrument redemptions, prepaid-voucher obligations, receivable) are
+applied ONLY when this call created the entry. Reissuing the same sale with a
+new event_id no longer redeems a voucher twice.
 """
 
 from __future__ import annotations
@@ -74,8 +81,12 @@ class SaleCompletedHandler(FinanceEventHandler):
                 f"no coincide con el total a cubrir {net.to_string()}"
             )
 
-        profile = self.resolve_profile(uow, "SALE", entry_date)
+        profile = self.resolve_profile(uow, "SALE", entry_date, branch_id=branch_id)
+        already_posted = uow.journal_entries.find_by_posting_reference(
+            "sales", sale_id, PostingPurpose.SALE_REVENUE) is not None
         lines: list[LineSpec] = []
+        redemptions: list[tuple] = []
+        prepaid: list[tuple] = []
         credit_amount = Money.zero(currency)
 
         for settlement in settlements:
@@ -97,8 +108,10 @@ class SaleCompletedHandler(FinanceEventHandler):
                 lines.append(LineSpec(profile.account_for("clearing_account_id"),
                                       debit=amount, description=f"Tarjeta/procesador venta {folio}"))
             elif settlement_type in _INSTRUMENT_SETTLEMENTS:
-                lines.append(self._instrument_settlement_line(
-                    uow, settlement, settlement_type, amount, entry_date, folio))
+                line, obligation = self._instrument_settlement_line(
+                    uow, settlement, settlement_type, amount, entry_date, folio, branch_id)
+                lines.append(line)
+                redemptions.append((obligation, amount))
             else:
                 raise FinanceDomainError(f"Tipo de liquidación no soportado: {settlement_type}")
 
@@ -113,15 +126,9 @@ class SaleCompletedHandler(FinanceEventHandler):
             if not importe.is_positive():
                 continue
             tipo = CommercialInstrumentType(str(pasivo["instrument_type"]))
-            perfil = self.resolve_profile(uow, tipo.value, entry_date, instrument_type=tipo)
-            from backend.application.services.finance.commercial_instrument_processor import (
-                CommercialInstrumentProcessor,
-            )
-            CommercialInstrumentProcessor().register_obligation(
-                uow, instrument_type=tipo, source_module="commercial_instruments",
-                source_instrument_id=str(pasivo["instrument_id"]), amount=importe,
-                on_date=entry_date, operation_id=new_uuid(),
-                customer_id=payload.get("customer_id"), branch_id=branch_id)
+            perfil = self.resolve_profile(uow, tipo.value, entry_date, instrument_type=tipo,
+                                          branch_id=branch_id)
+            prepaid.append((tipo, str(pasivo["instrument_id"]), importe))
             lines.append(LineSpec(perfil.account_for("liability_account_id"), credit=importe,
                                   description=f"Vale prepagado vendido {folio}"))
             revenue = revenue.subtract(importe)
@@ -139,9 +146,23 @@ class SaleCompletedHandler(FinanceEventHandler):
             lines, currency_code=currency, branch_id=branch_id,
         )
 
-        if credit_amount.is_positive():
-            self._create_receivable(uow, payload, sale_id, folio, credit_amount,
-                                    entry_date, branch_id, currency)
+        if not already_posted:
+            for obligation, amount in redemptions:
+                obligation.redeem(amount)
+                uow.commercial_obligations.update(obligation)
+            if prepaid:
+                from backend.application.services.finance.commercial_instrument_processor import (
+                    CommercialInstrumentProcessor,
+                )
+                for tipo, instrument_id, importe in prepaid:
+                    CommercialInstrumentProcessor().register_obligation(
+                        uow, instrument_type=tipo, source_module="commercial_instruments",
+                        source_instrument_id=instrument_id, amount=importe,
+                        on_date=entry_date, operation_id=new_uuid(),
+                        customer_id=payload.get("customer_id"), branch_id=branch_id)
+            if credit_amount.is_positive():
+                self._create_receivable(uow, payload, sale_id, folio, credit_amount,
+                                        entry_date, branch_id, currency)
 
         cogs = self.money(payload, "cogs_total", currency, required=False)
         if cogs.is_positive():
@@ -159,8 +180,10 @@ class SaleCompletedHandler(FinanceEventHandler):
         return entry
 
     # ── helpers ───────────────────────────────────────────────────────────
-    def _instrument_settlement_line(self, uow, settlement: dict,
-                                    settlement_type, amount, entry_date, folio) -> LineSpec:
+    def _instrument_settlement_line(self, uow, settlement: dict, settlement_type, amount,
+                                    entry_date, folio, branch_id=None):
+        """Línea de canje y la obligación que liquida. NO la modifica: el canje
+        se aplica sólo si este evento crea el asiento (F09)."""
         instrument_id = str(settlement.get("instrument_id") or "")
         if not instrument_id:
             raise FinanceDomainError(
@@ -178,10 +201,9 @@ class SaleCompletedHandler(FinanceEventHandler):
                 f"{instrument_id} (venta {folio}); Finanzas no puede liquidar un "
                 "instrumento no reconocido"
             )
-        obligation.redeem(amount)
-        uow.commercial_obligations.update(obligation)
         instrument_profile = self.resolve_profile(
             uow, instrument_type.value, entry_date, instrument_type=instrument_type,
+            branch_id=branch_id,
         )
         if obligation.recognition_basis is RecognitionBasis.NO_INITIAL_RECOGNITION:
             role = "contra_revenue_account_id"
@@ -192,8 +214,9 @@ class SaleCompletedHandler(FinanceEventHandler):
             role = "promotional_balance_account_id"
         else:
             role = "liability_account_id"
-        return LineSpec(instrument_profile.account_for(role), debit=amount,
-                        description=f"Canje {instrument_type.value} venta {folio}")
+        return (LineSpec(instrument_profile.account_for(role), debit=amount,
+                         description=f"Canje {instrument_type.value} venta {folio}"),
+                obligation)
 
     def _create_receivable(self, uow, payload, sale_id, folio, credit_amount,
                            entry_date, branch_id, currency) -> None:
@@ -206,8 +229,24 @@ class SaleCompletedHandler(FinanceEventHandler):
         # (`SalesCreditClient.register`, que además alimenta el límite de
         # crédito). Crearla otra vez aquí duplicaría la deuda del cliente; este
         # manejador sólo aporta el ASIENTO, que aquélla no hace (Fase 6).
-        if any(doc.document_type is FinancialDocumentType.SALES_INVOICE
-               for doc in uow.financial_documents.find_by_source("sales", sale_id)):
+        for doc in uow.financial_documents.find_by_source("sales", sale_id):
+            if doc.document_type is not FinancialDocumentType.SALES_INVOICE:
+                continue
+            existing = uow.receivables.find_by_document(doc.id)
+            if existing is not None and existing.original_amount.amount != credit_amount.amount:
+                # Auditoría F03: exposición (auxiliar) y contabilización deben
+                # coincidir. Si no, la diferencia queda como excepción del
+                # periodo y bloquea su cierre; la venta no se pierde.
+                from backend.application.services.finance.close_controls import (
+                    CHECK_SALE_CREDIT,
+                )
+                uow.close_exceptions.open_or_refresh(
+                    period_code=entry_date.strftime("%Y-%m"), check_type=CHECK_SALE_CREDIT,
+                    subject=f"{folio}:{sale_id}",
+                    expected=credit_amount.to_string(),
+                    actual=existing.original_amount.to_string(),
+                    difference=credit_amount.subtract(existing.original_amount).to_string(),
+                    currency_code=currency)
             return
         document = FinancialDocument.create(
             FinancialDocumentType.SALES_INVOICE, folio, entry_date, credit_amount,

@@ -335,6 +335,9 @@ MIGRATIONS = [
     _Migration("329",  "migrations.standalone.329_products_settings_catalog"),
     _Migration("330",  "migrations.standalone.330_products_activation_requirements"),
     _Migration("331",  "migrations.standalone.331_product_whatsapp_outbox"),
+    _Migration("332",  "migrations.standalone.332_finance_audit_d9f2bca"),
+    _Migration("333",  "migrations.standalone.333_seed_finance_granular_permissions"),
+    _Migration("334",  "migrations.standalone.334_procurement_audit_d9f2bca"),
 ]
 
 def _ensure_tracking_table(conn):

@@ -28,9 +28,17 @@ class BankTransferDialog(FinanceFormDialog):
         self.form.addRow("Importe:", self.amount_input)
         self.form.addRow("Referencia:", self.reference_input)
 
+    def _validation_error(self) -> str | None:
+        if not self.source_combo.currentData() or not self.target_combo.currentData():
+            return "Elija la cuenta de origen y la de destino."
+        if self.source_combo.currentData() == self.target_combo.currentData():
+            return "El origen y el destino deben ser cuentas distintas."
+        if self.amount_input.decimal_value() <= 0:
+            return "El importe debe ser mayor que cero."
+        return None
+
     def _is_valid(self) -> bool:
-        return (self.amount_input.decimal_value() > 0
-                and self.source_combo.currentData() != self.target_combo.currentData())
+        return self._validation_error() is None
 
     def data(self) -> dict:
         return {

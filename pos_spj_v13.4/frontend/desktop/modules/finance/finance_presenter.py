@@ -1,8 +1,14 @@
 """FinancePresenter — the only gateway between the finance UI and the backend.
 
-The presenter receives ALREADY-CONSTRUCTED query services and use cases (wired
-in ``finance_routes``). It never touches SQL, connections or the app
-container, and returns display-ready view models to the pages.
+The presenter receives ALREADY-CONSTRUCTED query services and the authorized
+command service (wired in ``finance_routes``). It never touches SQL,
+connections or the app container, and returns display-ready view models to the
+pages.
+
+Auditoría d9f2bca F02: los comandos ya no llaman casos de uso directamente.
+Pasan por ``FinanceCommandService``, que exige actor autenticado y el permiso
+``FINANZAS.<accion>`` de cada operación. Sin servicio de comandos (o sin
+sesión), todo comando se rechaza: nunca hay un actor "desktop" por omisión.
 """
 
 from __future__ import annotations
@@ -26,18 +32,38 @@ logger = logging.getLogger("spj.finance.presenter")
 
 class FinancePresenter:
     def __init__(self, *, connection_provider, query_services: dict, use_cases: dict,
-                 session_context=None) -> None:
+                 session_context=None, commands=None, embedded_presenters: dict | None = None,
+                 ) -> None:
         """``connection_provider``: zero-arg callable owned by the composition
-        root; the presenter forwards it to use cases without inspecting it."""
+        root, used only for read-side summaries. ``commands``: the authorized
+        ``FinanceCommandService``; ``use_cases`` is kept for callers that only
+        read (it is never used to bypass authorization)."""
         self._conn = connection_provider
         self._queries = query_services
         self._use_cases = use_cases
         self._session = session_context
+        self._commands = commands
+        self._embedded = embedded_presenters or {}
 
     # ── sub-module wiring (suppliers is a page inside Finanzas) ────────────
     def connection(self):
-        """Expose the connection for embedded sub-modules (e.g. suppliers)."""
+        """Compatibilidad: la página de proveedores recibe ya su presentador
+        construido (``embedded_presenter``, auditoría F26). Se conserva para
+        llamadores antiguos."""
         return self._conn()
+
+    def embedded_presenter(self, name: str):
+        """Presentador de un submódulo compuesto en ``finance_routes`` (se
+        construye la primera vez que se pide)."""
+        value = self._embedded.get(name)
+        if callable(value) and not hasattr(value, "ensure_loaded"):
+            try:
+                value = value()
+            except Exception:
+                logger.exception("No se pudo componer el submódulo %s", name)
+                return None
+            self._embedded[name] = value
+        return value
 
     def session_context(self):
         return self._session
@@ -53,9 +79,15 @@ class FinancePresenter:
             logger.exception("FinancePresenter: unexpected error")
             return False, "Error inesperado; revise el log."
 
-    def _actor(self) -> str:
-        user_id = getattr(self._session, "user_id", None)
-        return str(user_id) if user_id else "desktop"
+    def _command(self, name: str, *args, **kwargs) -> tuple[bool, str]:
+        if self._commands is None:
+            return False, "Finanzas no tiene servicio de comandos autorizado; operación rechazada."
+        return self._run(getattr(self._commands, name), *args, **kwargs)
+
+    def can(self, permission: str) -> bool:
+        """Para habilitar/deshabilitar acciones en pantalla (la decisión real
+        la vuelve a tomar el servicio de comandos)."""
+        return bool(self._commands is not None and self._commands.can(permission))
 
     @staticmethod
     def _month_bounds(today: date | None = None) -> tuple[str, str]:
@@ -87,9 +119,14 @@ class FinancePresenter:
             ids.append(account["id"])
         return TableViewModel(rows, ids)
 
-    def journal_entries(self, *, status: str | None = None) -> TableViewModel:
+    def journal_entries_count(self, *, status: str | None = None, search: str = "") -> int:
+        return self._queries["journal"].count_entries(status=status, search=search or None)
+
+    def journal_entries(self, *, status: str | None = None, search: str = "",
+                        limit: int = 200, offset: int = 0) -> TableViewModel:
         rows, ids = [], []
-        for entry in self._queries["journal"].list_entries(status=status):
+        for entry in self._queries["journal"].list_entries(
+                status=status, search=search or None, limit=limit, offset=offset):
             rows.append([entry["entry_number"], entry["entry_date"],
                          entry["description"], entry["journal_type"],
                          money_display(entry["total"]), status_es(entry["status"])])
@@ -134,15 +171,51 @@ class FinancePresenter:
         return TableViewModel(rows, ids)
 
     # ── receivables / collections ─────────────────────────────────────────
-    def open_receivables(self) -> TableViewModel:
+    def open_receivables(self, *, customer_id: str | None = None,
+                         search: str = "") -> TableViewModel:
+        """CxC abiertas. ``customer_id`` filtra (el enlace desde CRM ya no sólo
+        abre un resumen: filtra la tabla, F24); el cliente se muestra por
+        nombre, no por un UUID truncado."""
         rows, ids = [], []
-        for receivable in self._queries["receivables"].open_receivables():
-            rows.append([receivable["document_number"], receivable["customer_id"][:8],
+        names = self._customer_names()
+        needle = (search or "").strip().lower()
+        for receivable in self._queries["receivables"].open_receivables(customer_id=customer_id):
+            name = names.get(receivable["customer_id"]) or receivable["customer_id"][:8]
+            if needle and needle not in receivable["document_number"].lower() \
+                    and needle not in name.lower():
+                continue
+            rows.append([receivable["document_number"], name,
                          receivable["issue_date"], receivable["due_date"] or "",
                          money_display(receivable["original_amount"]),
                          money_display(receivable["outstanding_amount"]),
                          status_es(receivable["status"])])
             ids.append(receivable["id"])
+        return TableViewModel(rows, ids)
+
+    def _customer_names(self) -> dict:
+        resolver = self._queries.get("customer_names")
+        if resolver is None:
+            return {}
+        try:
+            return resolver()
+        except Exception:
+            logger.debug("customer names unavailable", exc_info=True)
+            return {}
+
+    def collection_history(self, *, search: str = "", limit: int = 200,
+                           offset: int = 0) -> TableViewModel:
+        """Historial de cobros (F23): permanece aunque la factura se liquide."""
+        rows, ids = [], []
+        names = self._customer_names()
+        for row in self._queries["receivables"].collection_history(
+                search=search or None, limit=limit, offset=offset):
+            rows.append([row["collection_date"], row["reference"] or "",
+                         row["document_number"],
+                         names.get(row["customer_id"]) or row["customer_id"][:8],
+                         money_display(row["amount"]), row["currency_code"],
+                         row["treasury_account_name"] or "", row["entry_number"] or "",
+                         status_es(row["receivable_status"])])
+            ids.append(row["id"])
         return TableViewModel(rows, ids)
 
     def crm_receivable_summary(self, cliente_id: str) -> dict | None:
@@ -175,13 +248,9 @@ class FinancePresenter:
 
     def register_collection(self, *, receivable_id: str, amount: str,
                             treasury_account_id: str, reference: str) -> tuple[bool, str]:
-        return self._run(
-            self._use_cases["register_collection"].execute, self._conn(),
-            receivable_id=receivable_id, amount=amount,
-            treasury_account_id=treasury_account_id,
-            collection_date=date.today(), reference=reference,
-            operation_id=new_uuid(),
-        )
+        return self._command("register_collection", receivable_id=receivable_id,
+                             amount=amount, treasury_account_id=treasury_account_id,
+                             reference=reference)
 
     # ── payables / payments ───────────────────────────────────────────────
     def open_payables(self) -> TableViewModel:
@@ -208,46 +277,40 @@ class FinancePresenter:
     def schedule_supplier_payment(self, *, payable_id: str, amount: str,
                                   treasury_account_id: str, scheduled_date: date,
                                   reference: str) -> tuple[bool, str]:
-        return self._run(
-            self._use_cases["schedule_payment"].execute, self._conn(),
-            payable_id=payable_id, amount=amount, scheduled_date=scheduled_date,
-            treasury_account_id=treasury_account_id, scheduled_by=self._actor(),
-            reference=reference, operation_id=new_uuid(),
-        )
+        return self._command("schedule_payment", payable_id=payable_id, amount=amount,
+                             treasury_account_id=treasury_account_id,
+                             scheduled_date=scheduled_date, reference=reference)
 
     def authorize_supplier_payment(self, payment_id: str) -> tuple[bool, str]:
-        return self._run(
-            self._use_cases["authorize_payment"].execute, self._conn(),
-            payment_id=payment_id, authorized_by=self._actor(), operation_id=new_uuid(),
-        )
+        return self._command("authorize_payment", payment_id)
 
-    def execute_supplier_payment(self, payment_id: str) -> tuple[bool, str]:
-        return self._run(
-            self._use_cases["execute_payment"].execute, self._conn(),
-            payment_id=payment_id, executed_date=date.today(), operation_id=new_uuid(),
-        )
+    def execute_supplier_payment(self, payment_id: str, *,
+                                 execution_reference: str = "") -> tuple[bool, str]:
+        return self._command("execute_payment", payment_id,
+                             execution_reference=execution_reference)
 
     # ── treasury ──────────────────────────────────────────────────────────
     def treasury_position(self) -> TableViewModel:
         rows, ids = [], []
         for account in self._queries["treasury"].treasury_position():
-            rows.append([account["name"], account["account_type"],
-                         money_display(account["balance"]), account["currency_code"]])
+            balance = money_display(account["balance"])
+            if account.get("shared_mirror"):
+                balance = f"{balance} (saldo colectivo: espejo compartido)"
+            rows.append([account["name"], account["account_type"], balance,
+                         account["currency_code"]])
             ids.append(account["id"])
         return TableViewModel(rows, ids)
 
     def treasury_accounts(self) -> list[tuple[str, str]]:
-        return [(row["id"], row["name"])
+        """Para los selectores: nombre, saldo y moneda visibles (F24)."""
+        return [(row["id"],
+                 f"{row['name']} — {money_display(row['balance'])} {row['currency_code']}")
                 for row in self._queries["treasury"].treasury_position()]
 
     def register_treasury_transfer(self, *, source_id: str, target_id: str,
                                    amount: str, reference: str) -> tuple[bool, str]:
-        return self._run(
-            self._use_cases["treasury_transfer"].execute, self._conn(),
-            source_treasury_account_id=source_id, target_treasury_account_id=target_id,
-            amount=amount, transfer_date=date.today(), reference=reference,
-            operation_id=new_uuid(),
-        )
+        return self._command("treasury_transfer", source_id=source_id, target_id=target_id,
+                             amount=amount, reference=reference)
 
     # ── reconciliation ────────────────────────────────────────────────────
     def reconciliations(self) -> TableViewModel:
@@ -257,6 +320,61 @@ class FinancePresenter:
                          row["completed_by"] or "", row["completed_at"] or ""])
             ids.append(row["id"])
         return TableViewModel(rows, ids)
+
+    def reconciliation_status(self, reconciliation_id: str) -> str:
+        for row in self._queries["reconciliation"].list_reconciliations():
+            if row["id"] == reconciliation_id:
+                return str(row["status"])
+        return ""
+
+    def bank_statements(self, treasury_account_id: str) -> list[tuple[str, str]]:
+        return [(row["id"], f"{row['statement_date']} — saldo final "
+                            f"{money_display(row['closing_balance'])}")
+                for row in self._queries["treasury"].statements(treasury_account_id)]
+
+    def import_bank_statement(self, *, treasury_account_id: str, statement_date: date,
+                              opening_balance: str, closing_balance: str,
+                              lines: list[dict]) -> tuple[bool, str]:
+        return self._command("import_statement", treasury_account_id=treasury_account_id,
+                             statement_date=statement_date, opening_balance=opening_balance,
+                             closing_balance=closing_balance, lines=lines)
+
+    def start_reconciliation(self, bank_statement_id: str) -> tuple[bool, str]:
+        return self._command("start_reconciliation", bank_statement_id)
+
+    def reconciliation_candidates(self, reconciliation_id: str) -> dict:
+        """``{"statement": TableViewModel, "ledger": TableViewModel}`` lado a lado."""
+        empty = {"statement": TableViewModel([], []), "ledger": TableViewModel([], [])}
+        if self._commands is None:
+            return empty
+        try:
+            data = self._commands.reconciliation_candidates(reconciliation_id)
+        except FinanceDomainError:
+            return empty
+        statement = TableViewModel(
+            [[l["transaction_date"], l["description"], money_display(l["amount"]),
+              l["external_reference"]] for l in data["statement_lines"]],
+            [l["id"] for l in data["statement_lines"]])
+        ledger = TableViewModel(
+            [[l["entry_date"], l["entry_number"], l["description"] or "",
+              money_display(l["debit_amount"]), money_display(l["credit_amount"])]
+             for l in data["ledger_lines"]],
+            [l["journal_line_id"] for l in data["ledger_lines"]])
+        return {"statement": statement, "ledger": ledger}
+
+    def match_reconciliation(self, *, reconciliation_id: str, bank_statement_line_id: str,
+                             journal_line_id: str) -> tuple[bool, str]:
+        return self._command("match", reconciliation_id=reconciliation_id,
+                             bank_statement_line_id=bank_statement_line_id,
+                             journal_line_id=journal_line_id)
+
+    def complete_reconciliation(self, reconciliation_id: str, *,
+                                difference_reason: str = "") -> tuple[bool, str]:
+        return self._command("complete_reconciliation", reconciliation_id,
+                             difference_reason=difference_reason or None)
+
+    def revert_reconciliation(self, reconciliation_id: str, reason: str) -> tuple[bool, str]:
+        return self._command("revert_reconciliation", reconciliation_id, reason=reason)
 
     # ── budgets / expenses ───────────────────────────────────────────────
     def budgets(self) -> TableViewModel:
@@ -278,11 +396,7 @@ class FinancePresenter:
         return TableViewModel(rows, [])
 
     def register_expense_request(self, *, account_id: str, amount: str) -> tuple[bool, str]:
-        return self._run(
-            self._use_cases["expense_request"].execute, self._conn(),
-            account_id=account_id, amount=amount, request_date=date.today(),
-            operation_id=new_uuid(),
-        )
+        return self._command("expense_request", account_id=account_id, amount=amount)
 
     def postable_expense_accounts(self) -> list[tuple[str, str]]:
         return [
@@ -294,12 +408,8 @@ class FinancePresenter:
     # ── capital / assets ──────────────────────────────────────────────────
     def register_capital_contribution(self, *, amount: str, treasury_account_id: str,
                                       contributor: str) -> tuple[bool, str]:
-        return self._run(
-            self._use_cases["capital_contribution"].execute, self._conn(),
-            amount=amount, contribution_date=date.today(),
-            treasury_account_id=treasury_account_id, contributor=contributor,
-            operation_id=new_uuid(),
-        )
+        return self._command("capital_contribution", amount=amount,
+                             treasury_account_id=treasury_account_id, contributor=contributor)
 
     def fixed_assets(self) -> TableViewModel:
         rows, ids = [], []
@@ -313,10 +423,7 @@ class FinancePresenter:
         return TableViewModel(rows, ids)
 
     def run_depreciation(self, year: int, month: int) -> tuple[bool, str]:
-        return self._run(
-            self._use_cases["run_depreciation"].execute, self._conn(),
-            year=year, month=month, operation_id=new_uuid(),
-        )
+        return self._command("run_depreciation", year, month)
 
     # ── commercial instruments ───────────────────────────────────────────
     def commercial_obligations(self) -> TableViewModel:
@@ -378,18 +485,10 @@ class FinancePresenter:
 
     # ── periods / manual entries ─────────────────────────────────────────
     def close_period(self, year: int, month: int, *, soft: bool) -> tuple[bool, str]:
-        return self._run(
-            self._use_cases["close_period"].execute, self._conn(), year, month,
-            closed_by=self._actor(), operation_id=new_uuid(), soft=soft,
-        )
+        return self._command("close_period", year, month, soft=soft)
 
     def reopen_period(self, year: int, month: int, reason: str) -> tuple[bool, str]:
-        return self._run(
-            self._use_cases["reopen_period"].execute, self._conn(), year, month,
-            reason=reason, operation_id=new_uuid(),
-        )
+        return self._command("reopen_period", year, month, reason=reason)
 
     def reverse_entry(self, journal_entry_id: str, reason: str) -> tuple[bool, str]:
-        return self._run(
-            self._use_cases["reverse_entry"], journal_entry_id, reason,
-        )
+        return self._command("reverse_entry", journal_entry_id, reason=reason)

@@ -18,6 +18,11 @@ constantes de `config.settings`), mientras que solo el costo de abrir SQLite
 se cachea.
 """
 from __future__ import annotations
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
+from decimal import Decimal
 
 import logging
 import sqlite3
@@ -26,7 +31,7 @@ from typing import Callable, Dict, Tuple
 
 logger = logging.getLogger("wa.secrets")
 
-DEFAULT_TTL_SECONDS = 30.0
+DEFAULT_TTL_SECONDS = 30
 
 
 class SecretStore:
@@ -35,11 +40,11 @@ class SecretStore:
     def __init__(
         self,
         db_path_getter: Callable[[], str],
-        ttl_seconds: float = DEFAULT_TTL_SECONDS,
+        ttl_seconds: int | Decimal | str = DEFAULT_TTL_SECONDS,
     ) -> None:
         self._db_path_getter = db_path_getter
-        self._ttl = ttl_seconds
-        self._cache: Dict[str, Tuple[str, float]] = {}
+        self._ttl_ns = int(to_decimal(ttl_seconds) * 1_000_000_000)
+        self._cache: Dict[str, Tuple[str, int]] = {}
 
     def _read_erp_config(self, key: str) -> str:
         """Lee `configuraciones.wa_<key>` desde la BD del ERP.
@@ -69,9 +74,9 @@ class SecretStore:
 
     def get(self, key: str, env_fallback: str = "") -> str:
         """Devuelve el secreto: BD (cacheada por TTL) primero, env después."""
-        now = time.monotonic()
+        now = time.monotonic_ns()
         cached = self._cache.get(key)
-        if cached is not None and (now - cached[1]) < self._ttl:
+        if cached is not None and (now - cached[1]) < self._ttl_ns:
             db_value = cached[0]
         else:
             db_value = self._read_erp_config(key)

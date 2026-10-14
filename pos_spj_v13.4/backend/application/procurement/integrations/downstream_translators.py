@@ -17,21 +17,34 @@ from backend.application.procurement.integrations.downstream_events import (
     SUPPLIER_PAYMENT_SCHEDULED,
     SUPPLIER_PERFORMANCE_RECORDED,
 )
-from backend.shared.ids import new_uuid
+from backend.shared.ids import derived_uuidv7, new_uuid
 
 logger = logging.getLogger("spj.procurement.translators")
 
 
-def _publish(bus, event_name: str, payload: dict) -> None:
+#: Derivados con efecto económico: sin consumidor que los atienda, la entrega
+#: del evento de Compras que los originó NO se da por buena (C01).
+REQUIRED_DOWNSTREAM = frozenset({PURCHASE_STOCK_ENTRY_REGISTERED, PAYABLE_CREATED,
+                                 SUPPLIER_PAYMENT_SCHEDULED})
+
+
+def _publish(bus, event_name: str, payload: dict) -> int:
     publish = getattr(bus, "publish", None)
     if publish is None:
         raise RuntimeError("El bus no expone publish()")
-    publish(event_name, payload, async_=False)
+    try:
+        handled = publish(event_name, payload, async_=False, strict=True)
+    except TypeError:
+        handled = publish(event_name, payload)
+    return int(handled or 0)
 
 
-def _child_event_id() -> str:
-    """Mint an independent canonical UUIDv7 for every derived event."""
-    return new_uuid()
+def _child_event_id(source: dict | None = None, target: str = "") -> str:
+    """Identidad del evento derivado. Determinista respecto al evento origen
+    (C01): reentregar el mismo origen produce el mismo derivado, y un
+    consumidor idempotente por ``event_id`` no aplica dos veces."""
+    source_id = str((source or {}).get("event_id") or "")
+    return derived_uuidv7(source_id, target) if source_id else new_uuid()
 
 
 def _event_lineage(source: dict) -> dict:
@@ -56,7 +69,7 @@ class ProcurementDownstreamTranslators:
         if not lines:
             return
         self._safe_publish(PURCHASE_STOCK_ENTRY_REGISTERED, {
-            "event_id": _child_event_id(),
+            "event_id": _child_event_id(payload, PURCHASE_STOCK_ENTRY_REGISTERED),
             **_event_lineage(payload),
             "operation_id": payload.get("operation_id"),
             # the receiving actor must travel so the canonical receipt handler's
@@ -89,7 +102,7 @@ class ProcurementDownstreamTranslators:
     # accounts payable --------------------------------------------------------
     def on_payable_created(self, payload: dict) -> None:
         self._safe_publish(PAYABLE_CREATED, {
-            "event_id": _child_event_id(),
+            "event_id": _child_event_id(payload, PAYABLE_CREATED),
             **_event_lineage(payload),
             "operation_id": payload.get("operation_id"),
             "source_module": "procurement",
@@ -121,7 +134,7 @@ class ProcurementDownstreamTranslators:
                          payload.get("document_id"))
             return
         self._safe_publish(SUPPLIER_PAYMENT_SCHEDULED, {
-            "event_id": _child_event_id(),
+            "event_id": _child_event_id(payload, SUPPLIER_PAYMENT_SCHEDULED),
             **_event_lineage(payload),
             "operation_id": payload.get("operation_id"),
             "source_module": "procurement",
@@ -143,7 +156,7 @@ class ProcurementDownstreamTranslators:
     # supplier performance ----------------------------------------------------
     def on_receipt_for_performance(self, payload: dict) -> None:
         self._safe_publish(SUPPLIER_PERFORMANCE_RECORDED, {
-            "event_id": _child_event_id(),
+            "event_id": _child_event_id(payload, SUPPLIER_PERFORMANCE_RECORDED),
             **_event_lineage(payload),
             "operation_id": payload.get("operation_id"),
             "source_module": "procurement",
@@ -156,7 +169,9 @@ class ProcurementDownstreamTranslators:
     # helper ------------------------------------------------------------------
     def _safe_publish(self, event_name: str, payload: dict) -> None:
         try:
-            _publish(self._bus, event_name, payload)
+            handled = _publish(self._bus, event_name, payload)
         except Exception:
             logger.exception("procurement translator failed for %s", event_name)
             raise
+        if event_name in REQUIRED_DOWNSTREAM and not handled:
+            raise RuntimeError(f"{event_name} no tiene consumidor registrado")

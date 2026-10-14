@@ -14,13 +14,13 @@ import logging
 
 from PyQt5.QtWidgets import (
     QLabel,
-    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from frontend.desktop.components import SideNav
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.inventory.navigation import INVENTORY_NAV
 
@@ -38,7 +38,7 @@ class InventoryView(QWidget):
         self._built: dict[int, bool] = {}
 
         self.nav = SideNav()
-        self.stack = QStackedWidget()
+        self.stack = PageStack()
         icons_by_title = {entry.title: entry.icon for entry in INVENTORY_NAV}
         for _factory, title in self._specs:
             self.nav.add_section(title, icons_by_title.get(title, Icons.FILE))

@@ -20,6 +20,7 @@ garantía de entrega eventual (reintento/backoff) sigue cubierta si el
 intento inmediato falla.
 """
 from __future__ import annotations
+from decimal import Decimal
 
 from domain.whatsapp.entities.outbox_message import OutboxMessage
 
@@ -39,7 +40,7 @@ class NotificationService:
         body = f"✅ ¡Tu pedido *{folio}* está listo para recoger{suffix}! 🛍️"
         return await self._enqueue_and_attempt(phone=phone, body=body, operation_id=f"order_ready:{folio}:{phone}")
 
-    async def notify_advance_required(self, *, phone: str, folio: str, amount: float) -> OutboxMessage:
+    async def notify_advance_required(self, *, phone: str, folio: str, amount: Decimal) -> OutboxMessage:
         body = (
             f"💳 Tu pedido *{folio}* requiere un anticipo de *${amount:.2f}*.\n"
             "Responde con el método de pago para continuar."
@@ -48,7 +49,7 @@ class NotificationService:
             phone=phone, body=body, operation_id=f"advance_required:{folio}:{phone}",
         )
 
-    async def notify_quote_ready(self, *, phone: str, folio: str, total: float) -> OutboxMessage:
+    async def notify_quote_ready(self, *, phone: str, folio: str, total: Decimal) -> OutboxMessage:
         body = (
             f"📋 Tu cotización *{folio}* está lista.\n"
             f"Total estimado: *${total:.2f}*\n"

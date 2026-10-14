@@ -10,17 +10,23 @@ from frontend.desktop.modules.purchasing.enterprise_presenter import (
 
 def test_alerts_are_calculated_in_query_service_not_ui():
     connection = sqlite3.connect(":memory:")
+    # Auditoría Compras C27: una tabla ausente es un error, no un cero; el
+    # fixture trae las columnas que el alcance (C24) consulta.
     connection.executescript("""
-        CREATE TABLE purchase_orders (status TEXT);
-        CREATE TABLE supplier_invoices (status TEXT);
-        INSERT INTO purchase_orders VALUES ('PENDING_APPROVAL');
-        INSERT INTO purchase_orders VALUES ('SENT');
-        INSERT INTO supplier_invoices VALUES ('WITH_DIFFERENCES');
+        CREATE TABLE purchase_orders (id TEXT, status TEXT, branch_id TEXT, created_at TEXT);
+        CREATE TABLE direct_purchases (id TEXT, branch_id TEXT, created_at TEXT);
+        CREATE TABLE supplier_invoices (status TEXT, purchase_order_id TEXT,
+                                        direct_purchase_id TEXT, created_at TEXT);
+        INSERT INTO purchase_orders VALUES ('po1', 'PENDING_APPROVAL', 'b1', '2026-10-01');
+        INSERT INTO purchase_orders VALUES ('po2', 'SENT', 'b1', '2026-10-01');
+        INSERT INTO supplier_invoices VALUES ('WITH_DIFFERENCES', 'po2', NULL, '2026-10-02');
     """)
     alerts = ProcurementAnalyticsService(connection).alerts()
     assert [(alert.code, alert.count) for alert in alerts] == [
         ("PENDING_APPROVAL", 1), ("INVOICE_DIFFERENCE", 1), ("OVERDUE_ORDER", 1),
     ]
+    # C24: con otra sucursal en el alcance, nada de esto le corresponde.
+    assert ProcurementAnalyticsService(connection).alerts(branch_id="b2") == ()
 
 
 def test_navigation_badges_are_prepared_by_presenter():

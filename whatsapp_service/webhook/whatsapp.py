@@ -4,6 +4,10 @@ GET  /webhook → Verificación de Meta
 POST /webhook → Recepción de mensajes
 """
 from __future__ import annotations
+try:
+    from domain.money import loads_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import loads_decimal
 import json
 import logging
 import hmac
@@ -93,7 +97,7 @@ async def receive_message(request: Request):
     # La mitigación real contra reprocesamiento es el dedupe por message_id
     # de abajo (_conversation_store.is_duplicate).
     try:
-        data = json.loads(body)
+        data = loads_decimal(body)
     except Exception:
         return {"status": "error", "detail": "invalid json"}
 

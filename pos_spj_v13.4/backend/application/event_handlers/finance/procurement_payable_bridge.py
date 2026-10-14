@@ -7,10 +7,12 @@ and ``CreatePayableUseCase`` was fully implemented and tested — but nothing
 subscribed it to this event. A matched supplier invoice therefore created no
 ``Payable``/``FinancialDocument`` at all in production; this closes that gap.
 
-Delegates entirely to ``CreatePayableUseCase``, which opens its own
-``FinanceUnitOfWork`` and is idempotent by ``operation_id`` (the same
-``operation_id`` Procurement used for the match/release), so no separate
-event-level dedup is needed here.
+The payable (``CreatePayableUseCase.create_in``) and its recognition entry are
+written in ONE ``FinanceUnitOfWork`` (audit d9f2bca F01): before, the use case
+committed the CxP in its own transaction and the entry was posted afterwards,
+so a posting failure (e.g. obligation 100 vs recognition 90) left a persisted
+CxP with zero journal entries. Now that failure leaves nothing. Idempotent by
+``operation_id`` (the same one Procurement used for the match/release).
 
 Also posts the recognition entry (Debit Inventario/Gasto/Activo per
 ``purchase_nature`` — Credit CxP) — CLAUDE.md §11 requires every financial
@@ -24,8 +26,11 @@ creation, never guessed into a journal entry.
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
 
+from backend.application.event_handlers.finance.procurement_posting_policy import (
+    purchase_debit_lines,
+    purchase_issue_date,
+)
 from backend.application.services.finance.posting_engine import PostingEngine
 from backend.application.use_cases.finance.payable_use_cases import CreatePayableUseCase
 from backend.domain.finance.enums import JournalType, PostingPurpose
@@ -34,16 +39,6 @@ from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.money import Money
 from backend.domain.finance.value_objects.posting_reference import PostingReference
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
-from backend.shared.business_dates import local_business_date
-
-#: purchase_nature -> posting-profile account role. SERVICE has no dedicated
-#: role in the chart of accounts; a purchased service is an operating expense.
-_NATURE_ACCOUNT_ROLE = {
-    "INVENTORY": "inventory_account_id",
-    "EXPENSE": "expense_account_id",
-    "ASSET": "asset_account_id",
-    "SERVICE": "expense_account_id",
-}
 
 
 class ProcurementPayableBridgeHandler:
@@ -66,63 +61,46 @@ class ProcurementPayableBridgeHandler:
                 "PAYABLE_CREATED (procurement) requiere supplier_id, document_number, "
                 "amount y operation_id")
         currency_code = str(payload.get("currency_code") or "MXN")
-        issue_date = _issue_date(payload)
-        payable = self._use_case.execute(
-            self._connection, supplier_id=supplier_id, amount=str(amount),
-            currency_code=currency_code,
-            document_number=document_number, issue_date=issue_date,
-            due_date=_due_date(issue_date, payload),
-            branch_id=payload.get("branch_id") or None, source_module="procurement",
-            source_document_id=payload.get("document_id"), operation_id=operation_id)
-        self._post_recognition_entry(
-            payload, document_number=document_number, amount=str(amount),
-            currency_code=currency_code, issue_date=issue_date, operation_id=operation_id)
-
-    def _post_recognition_entry(self, payload: dict, *, document_number: str, amount: str,
-                                currency_code: str, issue_date: date,
-                                operation_id: str) -> None:
-        nature_subtotals: dict = payload.get("nature_subtotals") or {}
-        if not nature_subtotals:
-            # payload predates the purchase_nature breakdown (or every line was
-            # captured before this fix) — never guess an account, just skip.
-            return
-        document_id = str(payload.get("document_id") or "")
+        issue_date = purchase_issue_date(payload)
+        branch_id = payload.get("branch_id") or None
         with FinanceUnitOfWork(self._connection) as uow:
-            profile = uow.posting_profiles.find_effective("PURCHASE", issue_date)
-            if profile is None:
-                raise FinanceDomainError(
-                    f"No hay perfil contable PURCHASE vigente en {issue_date.isoformat()}")
-            lines: list[LineSpec] = []
-            debited = Decimal("0")
-            for nature, subtotal in nature_subtotals.items():
-                money = Money.from_string(str(subtotal), currency_code)
-                if not money.is_positive():
-                    continue
-                role = _NATURE_ACCOUNT_ROLE.get(nature, "expense_account_id")
-                lines.append(LineSpec(profile.account_for(role), debit=money,
-                                      description=f"CxP {document_number} ({nature})"))
-                debited += money.amount
-            tax_total = Money.from_string(str(payload.get("tax_total") or "0"), currency_code)
-            if tax_total.is_positive():
-                lines.append(LineSpec(profile.account_for("tax_account_id"), debit=tax_total,
-                                      description=f"IVA acreditable {document_number}"))
-                debited += tax_total.amount
-            if not lines:
-                return
-            total = Money.from_string(amount, currency_code)
-            if debited != total.amount:
-                raise FinanceDomainError(
-                    f"CxP {document_number}: subtotales por naturaleza + impuesto "
-                    f"({debited}) != total de la factura ({total.amount})")
-            lines.append(LineSpec(profile.account_for("payable_account_id"), credit=total,
-                                  description=f"CxP proveedor {document_number}"))
-            self._engine.post(
-                uow, JournalType.PURCHASES, issue_date,
-                f"Reconocimiento de CxP {document_number}",
-                PostingReference("procurement", document_id, PostingPurpose.SUPPLIER_INVOICE,
-                                 operation_id),
-                lines, currency_code=currency_code, branch_id=payload.get("branch_id") or None,
-            )
+            self._use_case.create_in(
+                uow, supplier_id=supplier_id, amount=str(amount), currency_code=currency_code,
+                document_number=document_number, issue_date=issue_date,
+                due_date=_due_date(issue_date, payload), branch_id=branch_id,
+                source_module="procurement", source_document_id=payload.get("document_id"),
+                operation_id=operation_id)
+            self._post_recognition_entry(
+                uow, payload, document_number=document_number, amount=str(amount),
+                currency_code=currency_code, issue_date=issue_date,
+                operation_id=operation_id, branch_id=branch_id)
+
+    def _post_recognition_entry(self, uow, payload: dict, *, document_number: str, amount: str,
+                                currency_code: str, issue_date: date, operation_id: str,
+                                branch_id: str | None) -> None:
+        if not payload.get("nature_subtotals"):
+            # payload predates the purchase_nature breakdown — never guess an
+            # account. The ledger-vs-subledger close control reports the gap.
+            return
+        profile = uow.posting_profiles.find_effective("PURCHASE", issue_date,
+                                                     branch_id=branch_id)
+        if profile is None:
+            raise FinanceDomainError(
+                f"No hay perfil contable PURCHASE vigente en {issue_date.isoformat()}")
+        total = Money.from_string(amount, currency_code)
+        lines = purchase_debit_lines(profile, payload, currency_code=currency_code,
+                                     label=f"CxP {document_number}", total=total)
+        if not lines:
+            return
+        lines.append(LineSpec(profile.account_for("payable_account_id"), credit=total,
+                              description=f"CxP proveedor {document_number}"))
+        self._engine.post(
+            uow, JournalType.PURCHASES, issue_date,
+            f"Reconocimiento de CxP {document_number}",
+            PostingReference("procurement", str(payload.get("document_id") or ""),
+                             PostingPurpose.SUPPLIER_INVOICE, operation_id),
+            lines, currency_code=currency_code, branch_id=branch_id,
+        )
 
 
 def _due_date(issue_date: date, payload: dict) -> date | None:
@@ -140,7 +118,5 @@ def _due_date(issue_date: date, payload: dict) -> date | None:
         return None
 
 
-def _issue_date(payload: dict) -> date:
-    # Día LOCAL del negocio, no el de UTC (el último día del mes, el asiento
-    # caía en el periodo siguiente).
-    return local_business_date(payload.get("timestamp"))
+#: Compatibilidad: algunos llamadores importaban el nombre privado.
+_issue_date = purchase_issue_date

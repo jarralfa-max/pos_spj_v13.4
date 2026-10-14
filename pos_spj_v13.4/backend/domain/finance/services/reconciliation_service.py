@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from backend.domain.finance.entities.bank_statement import BankStatement, BankStatementLine
 from backend.domain.finance.entities.reconciliation import Reconciliation
+from backend.domain.finance.exceptions import ReconciliationError
 from backend.domain.finance.policies.reconciliation_policy import ReconciliationPolicy
 from backend.domain.finance.value_objects.money import Money
 
@@ -29,10 +30,31 @@ class ReconciliationDomainService:
 
     def match(self, reconciliation: Reconciliation, statement_line: BankStatementLine,
               movement: LedgerMovement, matched_by: str) -> None:
+        if statement_line.reconciled:
+            raise ReconciliationError("La partida del estado ya está conciliada")
         self._policy.enforce_match_amount(statement_line, movement.amount)
         reconciliation.add_match(statement_line.id, movement.journal_line_id, matched_by)
         statement_line.matched_journal_line_id = movement.journal_line_id
         statement_line.reconciled = True
+
+    def complete(self, reconciliation: Reconciliation, statement: BankStatement,
+                 completed_by: str, *, difference_reason: str | None = None) -> None:
+        unmatched = sum(1 for line in statement.lines if not line.reconciled)
+        reconciliation.complete(completed_by, unmatched_lines=unmatched,
+                                difference_reason=difference_reason)
+
+    def revert(self, reconciliation: Reconciliation, statement: BankStatement,
+               reverted_by: str, reason: str) -> list[BankStatementLine]:
+        """Revierte y devuelve las partidas del estado que quedan libres."""
+        released_ids = {m.bank_statement_line_id for m in reconciliation.active_matches()}
+        reconciliation.revert(reverted_by, reason)
+        released = []
+        for line in statement.lines:
+            if line.id in released_ids:
+                line.reconciled = False
+                line.matched_journal_line_id = None
+                released.append(line)
+        return released
 
     def suggest_matches(self, statement: BankStatement,
                         movements: list[LedgerMovement]) -> list[tuple[BankStatementLine, LedgerMovement]]:

@@ -22,6 +22,11 @@ class ReconciliationMatch:
     journal_line_id: str
     matched_by: str
     matched_at: str = field(default_factory=_utcnow)
+    #: Un match revertido se conserva como historia pero deja de ser una
+    #: asignación vigente (auditoría F08).
+    active: bool = True
+    reverted_at: str | None = None
+    reverted_by: str | None = None
 
     @classmethod
     def create(cls, reconciliation_id: str, bank_statement_line_id: str,
@@ -44,6 +49,8 @@ class Reconciliation:
     completed_at: str | None = None
     reverted_by: str | None = None
     revert_reason: str | None = None
+    #: Diferencia aceptada al completar con partidas sin conciliar (F08).
+    difference_reason: str | None = None
     matches: list[ReconciliationMatch] = field(default_factory=list)
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
@@ -55,10 +62,14 @@ class Reconciliation:
             bank_statement_id=bank_statement_id, operation_id=operation_id,
         )
 
+    def active_matches(self) -> list[ReconciliationMatch]:
+        return [match for match in self.matches if match.active]
+
     def add_match(self, bank_statement_line_id: str, journal_line_id: str, matched_by: str) -> ReconciliationMatch:
-        if self.status is ReconciliationStatus.COMPLETED:
-            raise ReconciliationError("Cannot add matches to a completed reconciliation")
-        for match in self.matches:
+        if self.status in (ReconciliationStatus.COMPLETED, ReconciliationStatus.REVERTED):
+            raise ReconciliationError(
+                f"Cannot add matches to a {self.status.value.lower()} reconciliation")
+        for match in self.active_matches():
             if match.bank_statement_line_id == bank_statement_line_id:
                 raise ReconciliationError("Statement line is already matched")
             if match.journal_line_id == journal_line_id:
@@ -69,11 +80,20 @@ class Reconciliation:
         self.updated_at = _utcnow()
         return match
 
-    def complete(self, completed_by: str) -> None:
+    def complete(self, completed_by: str, *, unmatched_lines: int = 0,
+                 difference_reason: str | None = None) -> None:
+        """COMPLETED acredita conciliación total (auditoría F08): con partidas
+        del estado sin conciliar sólo se completa declarando el motivo de la
+        diferencia aceptada (quien llama exige el permiso para aceptarla)."""
         if self.status not in (ReconciliationStatus.OPEN, ReconciliationStatus.IN_PROGRESS):
             raise ReconciliationError(f"Cannot complete reconciliation in status {self.status.value}")
-        if not self.matches:
+        if not self.active_matches() and not (difference_reason or "").strip():
             raise ReconciliationError("Cannot complete a reconciliation without matches")
+        if unmatched_lines and not (difference_reason or "").strip():
+            raise ReconciliationError(
+                f"Quedan {unmatched_lines} partidas del estado sin conciliar; "
+                "concílielas o declare el motivo de la diferencia")
+        self.difference_reason = (difference_reason or "").strip() or None
         self.status = ReconciliationStatus.COMPLETED
         self.completed_by = completed_by
         self.completed_at = _utcnow()
@@ -85,7 +105,14 @@ class Reconciliation:
             raise ReconciliationError("Only completed reconciliations can be reverted")
         if not reverted_by or not reason or not reason.strip():
             raise ReconciliationError("Reverting a reconciliation requires user and reason")
+        now = _utcnow()
+        # Revertir inactiva las asignaciones: las líneas vuelven a estar
+        # disponibles para conciliarse, y el historial (quién, cuándo) queda.
+        for match in self.active_matches():
+            match.active = False
+            match.reverted_at = now
+            match.reverted_by = reverted_by
         self.status = ReconciliationStatus.REVERTED
         self.reverted_by = reverted_by
         self.revert_reason = reason.strip()
-        self.updated_at = _utcnow()
+        self.updated_at = now

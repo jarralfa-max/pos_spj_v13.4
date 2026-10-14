@@ -31,8 +31,15 @@ class SupplierPaymentDialog(FinanceFormDialog):
         self.form.addRow("Fecha programada:", self.date_input)
         self.form.addRow("Referencia:", self.reference_input)
 
+    def _validation_error(self) -> str | None:
+        if not self.account_combo.currentData():
+            return "Elija la cuenta de tesorería desde la que se pagará."
+        if self.amount_input.decimal_value() <= 0:
+            return "El importe del pago debe ser mayor que cero."
+        return None
+
     def _is_valid(self) -> bool:
-        return self.amount_input.decimal_value() > 0 and self.account_combo.currentData()
+        return self._validation_error() is None
 
     def data(self) -> dict:
         qdate = self.date_input.date()

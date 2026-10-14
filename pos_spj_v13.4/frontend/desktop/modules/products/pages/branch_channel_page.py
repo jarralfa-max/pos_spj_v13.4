@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from PyQt5.QtWidgets import (
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -23,6 +22,7 @@ from frontend.desktop.components import (
     SearchInput,
     StandardTable,
 )
+from frontend.desktop.components.dialogs import FormDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.themes.tokens import Spacing
 
@@ -180,11 +180,11 @@ class BranchChannelPage(QWidget):
         channels = self._presenter.list_channels()
         if not channels:
             return
-        name, ok = QInputDialog.getText(self, "Nuevo surtido", "Nombre del surtido:")
+        name, ok = FormDialog.get_text(self, "Nuevo surtido", "Nombre del surtido:")
         if not ok or not name.strip():
             return
         labels = [c["label"] for c in channels]
-        label, ok = QInputDialog.getItem(self, "Canal", "Canal:", labels, 0, False)
+        label, ok = FormDialog.get_item(self, "Canal", "Canal:", labels, 0, False)
         if not ok:
             return
         channel = next(c["value"] for c in channels if c["label"] == label)

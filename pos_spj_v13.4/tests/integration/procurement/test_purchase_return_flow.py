@@ -38,12 +38,16 @@ class _Checker:
 def return_conn():
     """A clean in-memory DB with the canonical procurement schema (migration 120)
     PLUS purchase_returns/purchase_return_lines (migration 205) — proves 205 is
-    additive and does not require re-running 120."""
+    additive and does not require re-running 120.
+
+    Auditoría Compras C13: toda devolución sale de una recepción COMPLETADA del
+    mismo proveedor; el fixture siembra una (10 aceptadas de p1)."""
     conn = sqlite3.connect(":memory:")
     conn.execute("PRAGMA foreign_keys = ON")
     create_procurement_schema(conn)
     create_purchase_returns_schema(conn)
     create_document_numbering_schema(conn)
+    _seed_receipt_and_order(conn)
     yield conn
     conn.close()
 
@@ -54,6 +58,7 @@ def _lines():
 
 def _create(conn, *, actor="u1", op="op-1", auth=None, **kw):
     uc = CreatePurchaseReturnUseCase(auth)
+    kw.setdefault("goods_receipt_id", "gr-1")
     return uc.execute(conn, actor_user_id=actor, operation_id=op, supplier_id="sup-1",
                       branch_id="br-1", warehouse_id="wh-1", reason="DAMAGED",
                       lines=_lines(), **kw)
@@ -67,13 +72,21 @@ def _seed_receipt_and_order(conn, *, goods_receipt_id="gr-1", purchase_order_id=
         " warehouse_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
         (purchase_order_id, "OC-2026-000001", "sup-1", "br-1", "wh-1", "t", "t"))
     conn.execute(
+        "INSERT INTO purchase_order_lines (id, purchase_order_id, product_id,"
+        " ordered_quantity, unit_price, purchase_nature) VALUES (?,?,?,?,?,?)",
+        ("pol-1", purchase_order_id, "p1", "10", "100", "INVENTORY"))
+    conn.execute(
         "INSERT INTO goods_receipts (id, document_number, supplier_id, branch_id,"
-        " warehouse_id, purchase_order_id, created_at) VALUES (?,?,?,?,?,?,?)",
-        (goods_receipt_id, "REC-2026-000001", "sup-1", "br-1", "wh-1", purchase_order_id, "t"))
+        " warehouse_id, purchase_order_id, status, created_at) VALUES (?,?,?,?,?,?,?,?)",
+        (goods_receipt_id, "REC-2026-000001", "sup-1", "br-1", "wh-1", purchase_order_id,
+         "COMPLETED", "t"))
+    conn.execute(
+        "INSERT INTO goods_receipt_lines (id, goods_receipt_id, product_id, ordered_quantity,"
+        " received_quantity, accepted_quantity, purchase_order_line_id)"
+        " VALUES (?,?,?,?,?,?,?)", ("grl-1", goods_receipt_id, "p1", "10", "10", "10", "pol-1"))
 
 
 def test_create_persists_confirms_and_records_audit_and_outbox(return_conn):
-    _seed_receipt_and_order(return_conn)
     created = _create(return_conn, goods_receipt_id="gr-1", purchase_order_id="po-1")
     assert created.success
     assert created.data["status"] == PurchaseReturnStatus.DRAFT.value
@@ -140,7 +153,7 @@ def test_empty_lines_rejected(return_conn):
     uc = CreatePurchaseReturnUseCase()
     result = uc.execute(return_conn, actor_user_id="u1", operation_id="op-empty",
                         supplier_id="sup-1", branch_id="br-1", warehouse_id="wh-1",
-                        reason="DAMAGED", lines=[])
+                        reason="DAMAGED", lines=[], goods_receipt_id="gr-1")
     assert not result.success
     assert result.error_code == "EMPTY"
 
@@ -149,7 +162,7 @@ def test_invalid_reason_rejected(return_conn):
     uc = CreatePurchaseReturnUseCase()
     result = uc.execute(return_conn, actor_user_id="u1", operation_id="op-bad-reason",
                         supplier_id="sup-1", branch_id="br-1", warehouse_id="wh-1",
-                        reason="NOT_A_REAL_REASON", lines=_lines())
+                        reason="NOT_A_REAL_REASON", lines=_lines(), goods_receipt_id="gr-1")
     assert not result.success
     assert result.error_code == "VALIDATION"
 

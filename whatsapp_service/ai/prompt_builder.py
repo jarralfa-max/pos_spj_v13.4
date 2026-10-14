@@ -20,7 +20,7 @@ def build_ai_prompt_context(message_text: str, ctx, *, allowed_intents: list[str
         "business_rules": {
             "scheduled_orders_require_date": True,
             "delivery_requires_address": True,
-            "weight_adjustment_tolerance_units": 0.2,
+            "weight_adjustment_tolerance_units": "0.2",
             "global_number_requires_branch": True,
         },
         "now_utc": datetime.now(timezone.utc).isoformat(),

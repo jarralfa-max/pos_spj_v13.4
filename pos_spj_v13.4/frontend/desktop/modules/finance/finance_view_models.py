@@ -67,6 +67,8 @@ class TableViewModel:
 
     rows: list[list[str]] = field(default_factory=list)
     row_ids: list[str] = field(default_factory=list)
+    #: Total de resultados del servidor cuando la tabla es una página (F24).
+    total: int | None = None
 
 
 @dataclass(frozen=True)

@@ -3,6 +3,10 @@
 Mismo flujo que pedido pero crea cotización en vez de venta.
 """
 from __future__ import annotations
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 from models.context import ConversationContext, FlowState, PedidoItem
 from parser.intent_parser import ParsedIntent
 from flows.base_flow import BaseFlow, FlowResult
@@ -59,7 +63,7 @@ class CotizacionFlow(BaseFlow):
 
         if aid and aid.startswith("qty_"):
             try:
-                qty = float(aid.split("_", 1)[1])
+                qty = to_decimal(aid.split("_", 1)[1])
             except (ValueError, IndexError):
                 qty = 0
             if qty > 0 and ctx._producto_temp:
@@ -249,7 +253,7 @@ class CotizacionFlow(BaseFlow):
                 }, sucursal_id=ctx.sucursal_id or "")
             await send_text(
                 ctx.phone,
-                f"✅ Cotización aceptada y convertida a venta.\nFolio venta: *{result.get('folio','')}*\nTotal: *${float(result.get('total',0)):.2f}*"
+                f"✅ Cotización aceptada y convertida a venta.\nFolio venta: *{result.get('folio','')}*\nTotal: *${to_decimal(result.get('total',0)):.2f}*"
             )
             ctx.reset_flow()
             await interactive.send_menu_principal(ctx.phone, ctx.cliente_nombre)

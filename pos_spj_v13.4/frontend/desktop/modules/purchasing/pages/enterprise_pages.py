@@ -362,7 +362,20 @@ class OrdersPage(_ListPageBase):
         self._detail.acknowledge_button.clicked.connect(self._acknowledge)
         self._detail.receive_button.clicked.connect(self._receive)
         self._detail.change_button.clicked.connect(self._change)
+        self._detail.close_remainder_button.clicked.connect(self._close_remainder)
         return self._detail
+
+    def _close_remainder(self):
+        order_id = self._selected()
+        if not order_id:
+            return
+        from PyQt5.QtWidgets import QInputDialog
+        reason, accepted = QInputDialog.getText(
+            self, "Cerrar faltante", "El proveedor no repondrá lo faltante. Motivo:")
+        if accepted and reason.strip():
+            ok, msg, _ = self._presenter.close_order_remainder(order_id, reason.strip())
+            self._notify(ok, msg)
+            self.reload()
 
     def _selection_changed(self):
         super()._selection_changed()
@@ -456,9 +469,9 @@ class InvoicesPage(_ListPageBase):
     empty_message = "No hay facturas"
 
     _ACTIONS_BY_STATUS = {
-        "CAPTURED": {"Conciliar"},
-        "WITH_DIFFERENCES": {"Liberar diferencia"},
-        "BLOCKED": {"Liberar diferencia"},
+        "CAPTURED": {"Conciliar", "Cancelar factura"},
+        "WITH_DIFFERENCES": {"Liberar diferencia", "Cancelar factura"},
+        "BLOCKED": {"Liberar diferencia", "Cancelar factura"},
     }
 
     def _create_detail_panel(self):
@@ -473,7 +486,12 @@ class InvoicesPage(_ListPageBase):
         self._release_button = create_warning_button(panel, "Liberar diferencia")
         self._release_button.setVisible(capabilities.invoice_release_variance)
         self._release_button.clicked.connect(self._release)
-        for b in (self._match_button, self._release_button):
+        # Auditoría C22/C26: una factura errónea se cancela con motivo antes de
+        # generar deuda y libera la cantidad que reservaba.
+        self._cancel_invoice_button = create_warning_button(panel, "Cancelar factura")
+        self._cancel_invoice_button.setVisible(capabilities.invoice_cancel)
+        self._cancel_invoice_button.clicked.connect(self._cancel_invoice)
+        for b in (self._match_button, self._release_button, self._cancel_invoice_button):
             commands_row.addWidget(b)
         commands_row.addStretch(1)
         self._invoice_commands.setVisible(False)
@@ -514,6 +532,8 @@ class InvoicesPage(_ListPageBase):
         self._match_button.setVisible(capabilities.invoice_match and "Conciliar" in allowed)
         self._release_button.setVisible(capabilities.invoice_release_variance
                                         and "Liberar diferencia" in allowed)
+        self._cancel_invoice_button.setVisible(capabilities.invoice_cancel
+                                               and "Cancelar factura" in allowed)
         self._invoice_commands.setVisible(bool(allowed))
         comparisons = {line["source_line_id"]: line for line in detail.comparison}
         rows = []
@@ -539,6 +559,18 @@ class InvoicesPage(_ListPageBase):
             + ("" if resultado == estado else f" · {resultado}"))
         self._invoice_finance.setText(invoice_finance_text(detail))
 
+    def _cancel_invoice(self):
+        invoice_id = self._selected()
+        if not invoice_id:
+            return
+        from frontend.desktop.components.dialogs import FormDialog
+        reason, accepted = FormDialog.get_text(self, "Cancelar factura",
+                                                "Motivo de la cancelación:")
+        if accepted and reason.strip():
+            ok, msg, _ = self._presenter.cancel_invoice(invoice_id, reason.strip())
+            self._notify(ok, msg)
+            self.reload()
+
     def _build_actions(self):
         capabilities = self._presenter.capabilities()
         new = create_primary_button(self, "Capturar factura")
@@ -555,15 +587,13 @@ class InvoicesPage(_ListPageBase):
             self, document_provider=self._presenter.invoice_document_options,
             document_profile=self._presenter.invoice_document_profile,
             product_provider=self._presenter.product_options,
-            empty_reason_provider=self._presenter.product_search_reason)
-        if not dialog.exec_():
-            return
-        values = dialog.values()
-        if not values["supplier_id"] or not values["invoice_number"]:
-            self._notify(False, "Captura proveedor y número de factura.")
-            return
-        ok, msg, _ = self._presenter.capture_invoice(**values)
-        self._notify(ok, msg)
+            empty_reason_provider=self._presenter.product_search_reason,
+            on_submit=lambda values, operation_id: self._presenter.capture_invoice(
+                operation_id=operation_id, **values))
+        if dialog.exec_() and dialog.result_data:
+            ok, msg, _ = dialog.result_data
+            self._notify(ok, msg)
+            self.reload()
 
     def start_create(self):
         self._create()

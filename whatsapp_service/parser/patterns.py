@@ -3,6 +3,11 @@
 Nivel 2 del motor NLP: regex + keywords.
 Solo se usa cuando el mensaje es texto libre (no botón interactivo).
 """
+from decimal import Decimal
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 import re
 from typing import List, Tuple
 
@@ -78,15 +83,15 @@ NUMBER_PATTERN = re.compile(r'^(\d+(?:[.,]\d+)?)\s*(?:kg|kilos?|pzas?|piezas?)?$
 SELECTION_PATTERN = re.compile(r'^(\d{1,2})$')
 
 
-def detect_intent(text: str) -> Tuple[str, float]:
+def detect_intent(text: str) -> Tuple[str, Decimal]:
     """Detecta la intención del texto. Retorna (intent, confidence)."""
     text_lower = text.lower().strip()
 
     for intent, patterns in INTENT_KEYWORDS.items():
         for pattern in patterns:
             if re.search(pattern, text_lower):
-                return intent, 0.85
-    return "unknown", 0.0
+                return intent, Decimal("0.85")
+    return "unknown", Decimal("0")
 
 
 def extract_product_mentions(text: str) -> List[dict]:
@@ -106,7 +111,7 @@ def extract_product_mentions(text: str) -> List[dict]:
             else:
                 name, qty_str = groups[0], groups[1]
 
-            qty = float(qty_str.replace(",", "."))
+            qty = to_decimal(qty_str.replace(",", "."))
             name = name.strip()
 
             # Filtrar palabras comunes que no son productos
@@ -122,12 +127,12 @@ def extract_product_mentions(text: str) -> List[dict]:
     return results
 
 
-def extract_number(text: str) -> float:
+def extract_number(text: str) -> Decimal:
     """Extrae un número del texto. Retorna 0 si no encuentra."""
     m = NUMBER_PATTERN.match(text.strip())
     if m:
-        return float(m.group(1).replace(",", "."))
-    return 0.0
+        return to_decimal(m.group(1).replace(",", "."))
+    return Decimal("0")
 
 
 def extract_selection(text: str) -> int:

@@ -284,9 +284,29 @@ CREATE INDEX IF NOT EXISTS idx_hr_outbox_status ON hr_outbox (status);
 """
 
 
+#: Auditoría de Finanzas F21 (2026-10-10): la entrega de PAYROLL_PAID a
+#: Finanzas deja intentos y último error visibles en vez de fallar en silencio.
+_UPGRADE_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    ("hr_outbox", "attempts", "INTEGER NOT NULL DEFAULT 0"),
+    ("hr_outbox", "last_error", "TEXT"),
+)
+
+
+def upgrade_hr_schema(conn) -> list[str]:
+    """Columnas agregadas después del esquema base. Idempotente."""
+    added: list[str] = []
+    for table, column, ddl in _UPGRADE_COLUMNS:
+        existing = {str(r[1]) for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        if existing and column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+            added.append(f"{table}.{column}")
+    return added
+
+
 def create_hr_schema(conn) -> None:
     """Create the complete HR schema. Idempotent (IF NOT EXISTS)."""
     conn.executescript(_DDL)
+    upgrade_hr_schema(conn)
 
 
 def drop_legacy_hr_tables(conn) -> list[str]:

@@ -68,12 +68,25 @@ def _nature_subtotals(lines) -> dict[str, str]:
     `supplier_invoice_use_cases.py::_nature_subtotals`, so the Finance-side
     immediate-payment bridge can recognize the right debit account
     (Inventario/Gasto/Activo) instead of guessing one."""
+    # Auditoría C05: NETO de descuento. Con el bruto, una compra de 100 con 10
+    # de descuento pedía un asiento de 100 contra un pago de 90 y Finanzas lo
+    # rechazaba después de confirmada la compra.
     from decimal import Decimal
     totals: dict[str, Decimal] = {}
     for line in lines:
         nature = line.purchase_nature.value
-        totals[nature] = totals.get(nature, Decimal("0")) + line.line_subtotal().amount
+        totals[nature] = totals.get(nature, Decimal("0")) + line.net_subtotal().amount
     return {nature: str(amount) for nature, amount in totals.items()}
+
+
+def _posting_problem(dp) -> str | None:
+    """Antes de confirmar: naturalezas netas + impuesto deben dar el total que
+    se paga, o el asiento no podrá cuadrar (C05)."""
+    natures = sum((Decimal(v) for v in _nature_subtotals(dp.lines).values()), Decimal("0"))
+    if natures + dp.tax_total().amount != dp.total().amount:
+        return (f"La distribución contable ({natures} + impuesto {dp.tax_total().amount}) "
+                f"no cuadra con el total {dp.total().amount}")
+    return None
 
 
 def _eligibility_problem(dp, *, product_catalog=None,
@@ -123,7 +136,8 @@ class _BaseDirectPurchaseUseCase:
                         "quantity": str(ln.inventory_quantity()),
                         "unit_cost": str(_inventory_unit_cost(ln)),
                         "inventory_unit": ln.inventory_unit}
-                       for ln in dp.lines])
+                       # C04: un gasto o servicio no entra al almacén.
+                       for ln in dp.lines if ln.enters_stock()])
 
     def _emit(self, uow: ProcurementUnitOfWork, event_name: str, *, document_id: str,
               operation_id: str, actor_user_id: str | None = None, **extra) -> None:
@@ -166,11 +180,21 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                 origin_supplier_address_id: str | None = None) -> ProcurementResult:
         try:
             self._auth.require(actor_user_id, PurchasePermissions.DIRECT_CREATE)
+            self._auth.require_branch(actor_user_id, branch_id)
         except PurchasePermissionDeniedError as exc:
             return ProcurementResult.fail(str(exc), "PERMISSION_DENIED",
                                           operation_id=operation_id)
         with ProcurementUnitOfWork(connection) as uow:
             existing = uow.direct_purchases.get_by_operation(operation_id)
+            if existing is not None and (
+                    existing.supplier_id, existing.branch_id, existing.warehouse_id,
+                    sorted(ln.product_id for ln in existing.lines)) != (
+                    supplier_id, branch_id, warehouse_id,
+                    sorted(str(raw.get("product_id")) for raw in lines)):
+                # Auditoría C19: misma clave, otra compra → conflicto, no éxito.
+                return ProcurementResult.fail(
+                    "La operación ya registró otra compra; use una clave nueva",
+                    "IDEMPOTENCY_CONFLICT", operation_id=operation_id)
             if existing is not None:
                 return ProcurementResult.ok("Compra directa ya registrada",
                                             entity_id=existing.id, operation_id=operation_id,
@@ -228,12 +252,21 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                 return ProcurementResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
 
             user_limit = uow.limits.get_user_limit(actor_user_id, currency_code)
-            evaluation = self._limits.evaluate(dp.total(), user_limit)
+            day_total = month_total = None
+            if user_limit is not None:
+                from datetime import datetime, timezone
+                now = datetime.now(timezone.utc)
+                day_total = uow.limits.committed_direct_total(
+                    actor_user_id, currency_code, now.strftime("%Y-%m-%d"))
+                month_total = uow.limits.committed_direct_total(
+                    actor_user_id, currency_code, now.strftime("%Y-%m-01"))
+            evaluation = self._limits.evaluate(dp.total(), user_limit, day_total=day_total,
+                                               month_total=month_total)
             requires_auth = evaluation is not LimitEvaluation.WITHIN
             if requires_auth:
                 dp.request_authorization(
                     "Supera el límite del usuario" if evaluation is LimitEvaluation.EXCEEDS
-                    else "Supera el umbral de autorización")
+                    else "Supera el umbral de autorización o el acumulado del día/mes")
 
             uow.direct_purchases.save(dp)
             uow.direct_purchases.set_operation_id(dp.id, operation_id)
@@ -394,6 +427,11 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
             if dp is None:
                 return ProcurementResult.fail("Compra directa inexistente", "NOT_FOUND",
                                               operation_id=operation_id)
+            try:
+                self._auth.require_branch(actor_user_id, dp.branch_id)
+            except PurchasePermissionDeniedError as exc:
+                return ProcurementResult.fail(str(exc), "PERMISSION_DENIED",
+                                              operation_id=operation_id)
             if dp.status is DocumentStatus.CONFIRMED or dp.status is DocumentStatus.RECEIVED:
                 return ProcurementResult.ok("Compra ya confirmada", entity_id=dp.id,
                                             operation_id=operation_id, status=dp.status.value,
@@ -433,6 +471,10 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
             if problema_compra is not None:
                 return ProcurementResult.fail(problema_compra[1], problema_compra[0],
                                               operation_id=operation_id)
+            problema_asiento = _posting_problem(dp)
+            if problema_asiento is not None:
+                return ProcurementResult.fail(problema_asiento, "PAYMENT_NOT_BOOKABLE",
+                                              operation_id=operation_id)
             try:
                 dp.confirm()
             except ProcurementDomainError as exc:
@@ -447,6 +489,11 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
 
             receipt_id = None
             if dp.is_immediate_receipt():
+                problema = _traceability_problem(self._product_catalog, dp, None)
+                if problema is not None:
+                    return ProcurementResult.fail(
+                        f"{problema}: confirme con recepción pendiente y capture lo recibido",
+                        "TRACEABILITY_REQUIRED", operation_id=operation_id)
                 gr = _build_receipt(dp, actor_user_id, uow.sequences.next_number("REC", _year()))
                 gr.complete()
                 dp.mark_received()
@@ -530,10 +577,16 @@ class ReceiveDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
             if dp is None:
                 return ProcurementResult.fail("Compra directa inexistente", "NOT_FOUND",
                                               operation_id=operation_id)
+            try:
+                self._auth.require_branch(actor_user_id, dp.branch_id)
+            except PurchasePermissionDeniedError as exc:
+                return ProcurementResult.fail(str(exc), "PERMISSION_DENIED",
+                                              operation_id=operation_id)
             if dp.status is DocumentStatus.RECEIVED:
                 return ProcurementResult.fail("La compra ya se recibió", "INVALID_STATE",
                                               operation_id=operation_id)
-            if dp.status is not DocumentStatus.CONFIRMED or dp.is_immediate_receipt():
+            if (dp.status not in (DocumentStatus.CONFIRMED, DocumentStatus.PARTIALLY_RECEIVED)
+                    or dp.is_immediate_receipt()):
                 return ProcurementResult.fail(
                     "Sólo se recibe una compra confirmada con recepción pendiente",
                     "INVALID_STATE", operation_id=operation_id)
@@ -544,8 +597,25 @@ class ReceiveDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                                               operation_id=operation_id)
             number = uow.sequences.next_number("REC", _year())
             inventory_lines = None
+            # C10: lo ya aceptado por línea en recepciones anteriores.
+            prior = _accepted_by_direct_line(uow, dp)
             if receipt_lines is None:
-                gr = _build_receipt(dp, actor_user_id, number)
+                gr = _build_receipt(dp, actor_user_id, number, prior=prior)
+                if not gr.lines:
+                    return ProcurementResult.fail("No queda nada pendiente de recibir",
+                                                  "INVALID_STATE", operation_id=operation_id)
+                # C10: entra a inventario sólo lo que ESTA recepción cubre.
+                by_line = {ln.id: ln for ln in dp.lines}
+                inventory_lines = [
+                    {"product_id": gl.product_id, "quantity": str(gl.accepted_quantity),
+                     "unit_cost": str(_inventory_unit_cost(by_line[gl.direct_purchase_line_id])),
+                     "inventory_unit": by_line[gl.direct_purchase_line_id].inventory_unit}
+                    for gl in gr.lines
+                    if by_line[gl.direct_purchase_line_id].enters_stock()]
+                problema = _traceability_problem(self._product_catalog, dp, None)
+                if problema is not None:
+                    return ProcurementResult.fail(problema, "VALIDATION",
+                                                  operation_id=operation_id)
             else:
                 lines = {ln.id: ln for ln in dp.lines}
                 for raw in receipt_lines:
@@ -558,15 +628,22 @@ class ReceiveDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                     if problema is not None:
                         return ProcurementResult.fail(problema, "VALIDATION",
                                                       operation_id=operation_id)
+                problema = _traceability_problem(self._product_catalog, dp, receipt_lines)
+                if problema is not None:
+                    return ProcurementResult.fail(problema, "VALIDATION",
+                                                  operation_id=operation_id)
                 try:
                     gr, inventory_lines = _counted_receipt(dp, actor_user_id, number,
-                                                           receipt_lines)
+                                                           receipt_lines, prior=prior)
                 except (ProcurementDomainError, ValueError, ArithmeticError) as exc:
                     return ProcurementResult.fail(str(exc), "VALIDATION",
                                                   operation_id=operation_id)
             gr.shipment_id = shipment_id
             gr.complete()
-            dp.mark_received()
+            if _fully_received(dp, prior, gr):
+                dp.mark_received()
+            else:
+                dp.mark_partially_received()
             uow.receipts.save(gr)
             uow.receipts.set_operation_id(gr.id, operation_id)
             uow.direct_purchases.link_receipt(dp.id, gr.id)
@@ -577,7 +654,9 @@ class ReceiveDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                              branch_id=dp.branch_id)
             self._emit_received(uow, dp, gr.id, operation_id, actor_user_id,
                                 inventory_lines=inventory_lines)
-        return ProcurementResult.ok("Mercancía recibida", entity_id=dp.id,
+        return ProcurementResult.ok(
+            "Mercancía recibida" if dp.status is DocumentStatus.RECEIVED
+            else "Recepción parcial registrada; queda mercancía pendiente", entity_id=dp.id,
                                     operation_id=operation_id, status=dp.status.value,
                                     goods_receipt_id=gr.id,
                                     document_number=gr.document_number)
@@ -606,16 +685,24 @@ class ReverseDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
             if dp.status is DocumentStatus.REVERSED:
                 return ProcurementResult.ok("Compra ya reversada", entity_id=dp.id,
                                             operation_id=operation_id, status=dp.status.value)
-            was_received = dp.status is DocumentStatus.RECEIVED
+            was_received = dp.status in (DocumentStatus.RECEIVED,
+                                         DocumentStatus.PARTIALLY_RECEIVED)
+            # Auditoría C12: una compra ya facturada no se reversa por encima de
+            # su factura (la deuda o el soporte fiscal quedarían colgados).
+            if uow.invoices.invoiced_quantities(direct_purchase_id=dp.id):
+                return ProcurementResult.fail(
+                    "La compra tiene facturas registradas; cancele o corrija la factura "
+                    "antes de reversarla", "INVOICED_PURCHASE", operation_id=operation_id)
             try:
                 dp.reverse()
             except ProcurementDomainError as exc:
                 return ProcurementResult.fail(str(exc), "INVALID_STATE",
                                               operation_id=operation_id)
-            gr = uow.receipts.get_by_direct_purchase(dp.id)
-            if gr is not None and gr.status == "COMPLETED":
+            reversed_receipts = []
+            for gr in uow.receipts.completed_for_document(direct_purchase_id=dp.id):
                 gr.reverse()
                 uow.receipts.save(gr)
+                reversed_receipts.append(gr.id)
             uow.direct_purchases.save(dp)
             uow.audit.record(action=ProcurementEvents.DIRECT_PURCHASE_REVERSED,
                              actor_user_id=actor_user_id, document_id=dp.id,
@@ -626,6 +713,10 @@ class ReverseDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                        supplier_id=dp.supplier_id, branch_id=dp.branch_id,
                        reversed_inventory=was_received,
                        warehouse_id=dp.warehouse_id,
+                       # Inventario compensa CADA recepción (puede haber varias).
+                       goods_receipt_ids=reversed_receipts,
+                       payment_condition=dp.payment_condition.value,
+                       reason=reason.strip(),
                        inventory_lines=[{"product_id": ln.product_id,
                                          "quantity": str(ln.inventory_quantity())}
                                         for ln in dp.lines] if was_received else [])
@@ -669,8 +760,68 @@ def _line_from_dict(raw: dict, currency_code: str) -> DirectPurchaseLine:
         **kwargs)
 
 
+def _accepted_by_direct_line(uow, dp) -> dict[str, Decimal]:
+    """Aceptado (unidad de inventario) por línea de la compra en recepciones
+    COMPLETADAS. Las recepciones antiguas sin línea se reparten por producto."""
+    from backend.domain.procurement.receiving_matching_policies import (
+        allocate_accepted_quantities,
+    )
+    by_line, unlinked = uow.receipts.accepted_by_source(direct_purchase_id=dp.id)
+    return allocate_accepted_quantities(
+        [(ln.id, ln.product_id, ln.inventory_quantity()) for ln in dp.lines],
+        by_line, unlinked)
+
+
+def _fully_received(dp, prior: dict[str, Decimal], gr) -> bool:
+    accepted = dict(prior)
+    for line in gr.lines:
+        if line.direct_purchase_line_id:
+            accepted[line.direct_purchase_line_id] = (
+                accepted.get(line.direct_purchase_line_id, Decimal("0"))
+                + line.accepted_quantity)
+    return all(accepted.get(ln.id, Decimal("0")) >= ln.inventory_quantity()
+               for ln in dp.lines)
+
+
+def _traceability_problem(product_catalog, dp, counted: list[dict] | None) -> str | None:
+    """Auditoría C14: el MISMO perfil de Productos que la recepción de una orden
+    (lote, caducidad, temperatura, peso real) rige la recepción directa. Sin
+    captura (recepción completa o inmediata), un producto que lo exige no se
+    recibe por esta vía: hay que capturarlo."""
+    profile_of = getattr(product_catalog, "purchase_profile", None)
+    if profile_of is None:
+        return None
+    captured = {}
+    for raw in counted or []:
+        line_id = raw.get("direct_purchase_line_id") or raw.get("purchase_order_line_id")
+        captured[line_id] = raw
+    for ln in dp.lines:
+        if counted is not None and ln.id not in captured:
+            continue
+        raw = captured.get(ln.id, {})
+        if counted is not None and not Decimal(str(raw.get("accepted_quantity",
+                                                           raw.get("received_quantity")
+                                                           or "0") or "0")) > 0:
+            continue
+        profile = profile_of(ln.product_id)
+        if profile is None:
+            continue
+        name = profile.name or ln.description or "El producto"
+        if profile.lot_controlled and not raw.get("lot"):
+            return f"{name} requiere lote al recibir"
+        if profile.expiration_controlled and not raw.get("expiration"):
+            return f"{name} requiere caducidad al recibir"
+        if getattr(profile, "temperature_tracked", False) and \
+                raw.get("temperature") in (None, ""):
+            return f"{name} requiere temperatura al recibir"
+        if profile.catch_weight and not (raw.get("net_weight") or ln.net_weight):
+            return f"{name} se maneja por peso variable: captura el peso real"
+    return None
+
+
 def _counted_receipt(dp: DirectPurchase, actor_user_id: str, document_number,
-                     counted: list[dict]) -> tuple[GoodsReceipt, list[dict]]:
+                     counted: list[dict], *, prior: dict[str, Decimal] | None = None
+                     ) -> tuple[GoodsReceipt, list[dict]]:
     """Recepción con lo CONTADO (cantidades en unidad de compra, como se
     cargaron). Se guarda en unidad de inventario, igual que la recepción
     inmediata; con peso variable que entra por peso, entra el peso contado."""
@@ -696,16 +847,24 @@ def _counted_receipt(dp: DirectPurchase, actor_user_id: str, document_number,
         else:
             received_inventory = received * ln.conversion_factor
         accepted_inventory = received_inventory * accepted / received
+        pending = ln.inventory_quantity() - (prior or {}).get(ln.id, Decimal("0"))
+        if accepted_inventory > pending:
+            raise ValueError(
+                f"Se acepta más de lo pendiente de {ln.description or ln.product_id} "
+                f"({accepted_inventory} contra {pending})")
         expiration = raw.get("expiration")
+        temperature = raw.get("temperature")
         receipt_line = GoodsReceiptLine.create(
             ln.product_id, ln.inventory_quantity(), received_inventory, accepted_inventory,
             lot=raw.get("lot") or None,
             expiration=(_date.fromisoformat(str(expiration)) if expiration else None),
-            net_weight=weight,
+            temperature=(Decimal(str(temperature)) if temperature not in (None, "")
+                         else None),
+            net_weight=weight, direct_purchase_line_id=ln.id,
             piece_count=int(raw["piece_count"]) if raw.get("piece_count") not in (None, "")
             else None)
         gr.add_line(receipt_line)
-        if accepted_inventory > 0:
+        if accepted_inventory > 0 and ln.enters_stock():
             inventory_lines.append({
                 "product_id": ln.product_id, "quantity": str(accepted_inventory),
                 "unit_cost": str(_inventory_unit_cost(ln)),
@@ -717,11 +876,16 @@ def _counted_receipt(dp: DirectPurchase, actor_user_id: str, document_number,
     return gr, inventory_lines
 
 
-def _build_receipt(dp: DirectPurchase, actor_user_id: str, document_number) -> GoodsReceipt:
+def _build_receipt(dp: DirectPurchase, actor_user_id: str, document_number, *,
+                   prior: dict[str, Decimal] | None = None) -> GoodsReceipt:
+    """Recepción de lo PENDIENTE de cada línea (todo, si es la primera)."""
     gr = GoodsReceipt.create(document_number, dp.supplier_id, dp.branch_id, dp.warehouse_id,
                              received_by_user_id=actor_user_id, direct_purchase_id=dp.id)
     for ln in dp.lines:
-        qty = ln.inventory_quantity()
-        gr.add_line(GoodsReceiptLine.create(ln.product_id, qty, qty, qty,
-                                            net_weight=ln.net_weight))
+        qty = ln.inventory_quantity() - (prior or {}).get(ln.id, Decimal("0"))
+        if qty <= 0:
+            continue
+        gr.add_line(GoodsReceiptLine.create(ln.product_id, ln.inventory_quantity(), qty, qty,
+                                            net_weight=ln.net_weight,
+                                            direct_purchase_line_id=ln.id))
     return gr

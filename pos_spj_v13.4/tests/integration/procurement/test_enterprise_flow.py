@@ -159,7 +159,8 @@ def test_order_create_approve_send_receive_inventory(proc_conn):
         proc_conn, actor_user_id="alm", purchase_order_id=created.entity_id, operation_id="r1",
         receipt_lines=[{"product_id": "p1", "received_quantity": "10", "accepted_quantity": "8"}])
     assert recv.success
-    assert recv.data["order_status"] == PurchaseOrderStatus.RECEIVED.value
+    # Auditoría C09: 2 rechazadas siguen pendientes (reposición o cierre explícito).
+    assert recv.data["order_status"] == PurchaseOrderStatus.PARTIALLY_RECEIVED.value
     assert recv.data["accepted"] == "8"
     assert "GOODS_RECEIPT_COMPLETED" in _pending(proc_conn)
 
@@ -173,7 +174,7 @@ def test_reverse_goods_receipt_reopens_order(proc_conn):
     recv = ReceivePurchaseOrderUseCase().execute(
         proc_conn, actor_user_id="alm", purchase_order_id=created.entity_id, operation_id="r",
         receipt_lines=[{"product_id": "p1", "received_quantity": "10", "accepted_quantity": "8"}])
-    assert recv.data["order_status"] == PurchaseOrderStatus.RECEIVED.value
+    assert recv.data["order_status"] == PurchaseOrderStatus.PARTIALLY_RECEIVED.value
 
     reversal = ReverseGoodsReceiptUseCase().execute(
         proc_conn, actor_user_id="jefe", goods_receipt_id=recv.entity_id,

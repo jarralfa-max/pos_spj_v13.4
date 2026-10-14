@@ -40,6 +40,10 @@ def wire_cross_context_events(connection) -> dict:
     from backend.application.sales.integrations.wiring import wire_sales
     from backend.application.quality.wiring import wire_quality
     from backend.application.customers.integrations.sales_wiring import wire_customers_sales
+    from backend.application.use_cases.hr.finance_wiring import (
+        dispatch_hr_outbox,
+        wire_hr_finance,
+    )
 
     bus = get_bus()
     summary = {
@@ -58,9 +62,24 @@ def wire_cross_context_events(connection) -> dict:
         # Calidad decide sobre lo producido; Procesamiento registra la decisión.
         "quality": wire_quality(bus, connection),
         "procurement_downstream_bridges": wire_procurement_downstream_bridges(bus, connection),
+        # Auditoría Finanzas F21 (2026-10-10): la nómina pagada llega al mayor.
+        "hr": wire_hr_finance(bus, connection),
     }
     for context, result in summary.items():
         logger.info("cross-context wiring: %s -> %d subscriptions", context, result["count"])
+    # Lo que RR. HH. dejó pendiente (p. ej. una nómina pagada con la app
+    # cerrándose) se entrega al arrancar. Nunca impide el arranque.
+    try:
+        dispatch_hr_outbox(connection, bus)
+    except Exception:
+        logger.exception("despacho inicial de hr_outbox fallido")
+    try:
+        from backend.application.services.finance.outbox_dispatcher import (
+            dispatch_finance_outbox,
+        )
+        dispatch_finance_outbox(connection, bus)
+    except Exception:
+        logger.exception("despacho inicial de finance_outbox fallido")
     return summary
 
 
@@ -124,6 +143,17 @@ def wire_procurement_downstream_bridges(bus, connection) -> dict:
         CanonicalPurchaseStockEntryHandler,
     )
 
+    from backend.application.event_handlers.finance.procurement_compensation_bridges import (
+        ProcurementImmediatePaymentReversalHandler,
+        ProcurementReturnCreditHandler,
+    )
+    from backend.application.event_handlers.inventory.goods_receipt_reversed_handler import (
+        GoodsReceiptReversedHandler,
+    )
+    from backend.application.event_handlers.inventory.supplier_return_handler import (
+        SupplierReturnHandler,
+    )
+
     payable_bridge = ProcurementPayableBridgeHandler(connection)
     immediate_payment_bridge = ProcurementImmediatePaymentBridgeHandler(connection)
     stock_entry = CanonicalPurchaseStockEntryHandler(connection)
@@ -138,12 +168,42 @@ def wire_procurement_downstream_bridges(bus, connection) -> dict:
     bus.subscribe(recipe_explosion.event_name, recipe_explosion.handle, priority=100,
                   label="procurement_purchase_recipe_explosion")
 
+    # Auditoría Compras d9f2bca C12: reversos y devoluciones COMPENSAN. Antes
+    # estos cuatro eventos no tenían consumidor: cambiar el documento dejaba
+    # existencias y dinero como si nada. La devolución mueve stock al
+    # CONFIRMARSE (no en el borrador). Idempotentes por operation_id.
+    receipt_reversal = GoodsReceiptReversedHandler(connection)
+    supplier_return = SupplierReturnHandler(connection)
+    payment_reversal = ProcurementImmediatePaymentReversalHandler(connection)
+    return_credit = ProcurementReturnCreditHandler(connection)
+
+    def _reverse_direct_purchase_receipts(payload: dict) -> None:
+        for receipt_id in payload.get("goods_receipt_ids") or []:
+            receipt_reversal.handle({**payload, "goods_receipt_id": receipt_id,
+                                     "operation_id": f"{payload.get('operation_id')}:{receipt_id}"})
+
+    bus.subscribe("GOODS_RECEIPT_REVERSED", receipt_reversal.handle, priority=100,
+                  label="procurement_receipt_reversal_inventory")
+    bus.subscribe("DIRECT_PURCHASE_REVERSED", _reverse_direct_purchase_receipts, priority=100,
+                  label="procurement_direct_reversal_inventory")
+    bus.subscribe("DIRECT_PURCHASE_REVERSED", payment_reversal.handle, priority=50,
+                  label="procurement_direct_reversal_finance")
+    bus.subscribe("PURCHASE_RETURN_CONFIRMED", supplier_return.handle, priority=100,
+                  label="procurement_return_inventory")
+    bus.subscribe("PURCHASE_RETURN_CONFIRMED", return_credit.handle, priority=50,
+                  label="procurement_return_finance")
+
     return {
         "subscribed": [
             f"{payable_bridge.event_name}->ProcurementPayableBridgeHandler",
             f"{immediate_payment_bridge.event_name}->ProcurementImmediatePaymentBridgeHandler",
             f"{stock_entry.event_name}->CanonicalPurchaseStockEntryHandler",
             f"{recipe_explosion.event_name}->CanonicalPurchaseRecipeExplosionHandler",
+            "GOODS_RECEIPT_REVERSED->GoodsReceiptReversedHandler",
+            "DIRECT_PURCHASE_REVERSED->GoodsReceiptReversedHandler",
+            "DIRECT_PURCHASE_REVERSED->ProcurementImmediatePaymentReversalHandler",
+            "PURCHASE_RETURN_CONFIRMED->SupplierReturnHandler",
+            "PURCHASE_RETURN_CONFIRMED->ProcurementReturnCreditHandler",
         ],
-        "count": 4,
+        "count": 9,
     }

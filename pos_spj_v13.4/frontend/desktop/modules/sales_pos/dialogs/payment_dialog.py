@@ -27,9 +27,8 @@ from __future__ import annotations
 from decimal import Decimal
 
 from PyQt5.QtWidgets import (
-    QComboBox, QDialog, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox, QVBoxLayout,
+    QComboBox, QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox, QWidget,
 )
-
 from frontend.desktop.components import (
     MoneyInput,
     StandardLineEdit,
@@ -37,6 +36,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import StandardDialog
 
 METHOD_LABELS = {
     "CASH": "Efectivo",
@@ -48,12 +48,11 @@ METHOD_LABELS = {
 }
 
 
-class PaymentDialog(QDialog):
+class PaymentDialog(StandardDialog):
     def __init__(self, presenter, *, sale_id: str, total_due: Decimal,
                  has_customer: bool = False, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title="Cobrar", width=640)
         self.setObjectName("posPaymentDialog")
-        self.setWindowTitle("Cobrar")
         self.setModal(True)
         self._presenter = presenter
         self._sale_id = sale_id
@@ -65,7 +64,7 @@ class PaymentDialog(QDialog):
         self._checkout_started = False
         self._recorded = 0
 
-        root = QVBoxLayout(self)
+        root = self.content_layout()
 
         self._lbl_total = QLabel(f"Total a pagar: ${self._total_due:,.2f}")
         self._lbl_total.setObjectName("posPaymentTotal")
@@ -80,23 +79,25 @@ class PaymentDialog(QDialog):
         self._lbl_change.setProperty("role", "amount")
         root.addWidget(self._lbl_change)
 
-        add_row = QHBoxLayout()
+        add_row = QGridLayout()
+        add_row.setColumnStretch(0, 1)
+        add_row.setColumnStretch(1, 1)
         self._method = QComboBox(self)
         self._method.setObjectName("posPaymentMethod")
         for code in presenter.payment_methods(has_customer=has_customer):
             self._method.addItem(METHOD_LABELS.get(code, code), code)
-        add_row.addWidget(self._method)
+        add_row.addWidget(self._method, 0, 0)
 
         self._amount = MoneyInput(self)
         self._amount.setObjectName("posPaymentAmount")
-        add_row.addWidget(self._amount)
+        add_row.addWidget(self._amount, 0, 1)
 
         self._reference = StandardLineEdit(self, placeholder="Referencia (opcional)")
-        add_row.addWidget(self._reference)
+        add_row.addWidget(self._reference, 1, 0)
 
         self._btn_add = create_secondary_button(self, "Agregar pago")
         self._btn_add.clicked.connect(self._add_line)
-        add_row.addWidget(self._btn_add)
+        add_row.addWidget(self._btn_add, 1, 1)
         root.addLayout(add_row)
 
         self._hint = QLabel("", self)
@@ -112,7 +113,9 @@ class PaymentDialog(QDialog):
         self._btn_remove.clicked.connect(self._remove_selected)
         root.addWidget(self._btn_remove)
 
-        actions = QHBoxLayout()
+        footer = QWidget(self)
+        actions = QHBoxLayout(footer)
+        actions.setContentsMargins(0, 0, 0, 0)
         btn_cancel = create_secondary_button(self, "Cancelar")
         btn_cancel.clicked.connect(self.reject)
         actions.addWidget(btn_cancel)
@@ -122,7 +125,7 @@ class PaymentDialog(QDialog):
         self._btn_confirm.setProperty("emphasis", "dominant")
         self._btn_confirm.clicked.connect(self._confirm)
         actions.addWidget(self._btn_confirm, stretch=1)
-        root.addLayout(actions)
+        self.add_footer_widget(footer)
 
         self._method.currentIndexChanged.connect(self._on_method_changed)
         self._on_method_changed()

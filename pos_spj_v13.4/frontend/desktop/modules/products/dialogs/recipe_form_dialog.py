@@ -9,9 +9,10 @@ presenter → use cases canónicos (validan Decimal, duplicados y ciclos).
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from PyQt5.QtWidgets import (
     QComboBox,
-    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
@@ -19,7 +20,6 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QVBoxLayout,
 )
 
 from frontend.desktop.components import (
@@ -70,10 +70,10 @@ def _unit_options(presenter) -> list[tuple]:
     return [(u["id"], f'{u["code"]} — {u["name"]}') for u in presenter.list_units()]
 
 
-class RecipeFormDialog(QDialog):
+class RecipeFormDialog(StandardDialog):
     def __init__(self, presenter, *, product_id: str, version=None,
                  parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=560)
         self._presenter = presenter
         self._product_id = product_id
         self._version = version or {}
@@ -85,7 +85,7 @@ class RecipeFormDialog(QDialog):
         self._components: list[dict] = list(self._version.get("components", []))
         self._outputs: list[dict] = list(self._version.get("outputs", []))
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.name = QLineEdit(str(self._version.get("recipe_name") or ""))
         self.recipe_type = QComboBox()
@@ -145,7 +145,7 @@ class RecipeFormDialog(QDialog):
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
         self._refresh_tables()
 
     # ── tablas ────────────────────────────────────────────────────────────────
@@ -211,14 +211,14 @@ class RecipeFormDialog(QDialog):
             QMessageBox.warning(self, "No se pudo guardar", message)
 
 
-class _ComponentEditor(QDialog):
+class _ComponentEditor(StandardDialog):
     def __init__(self, presenter, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=420)
         self._presenter = presenter
         self.setWindowTitle("Componente")
         self.setMinimumWidth(420)
         self._labels: dict = {}
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.product = EntitySearchInput(
             provider=_product_provider(presenter, self._labels),
@@ -234,9 +234,11 @@ class _ComponentEditor(QDialog):
         self._error = QLabel(); self._error.setObjectName("textDanger")
         layout.addWidget(self._error)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Ok).setText("Aceptar")
+        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
     def _accept(self) -> None:
         if not self.product.selected_id():
@@ -256,14 +258,14 @@ class _ComponentEditor(QDialog):
                 "unit_label": self.unit.currentText()}
 
 
-class _OutputEditor(QDialog):
+class _OutputEditor(StandardDialog):
     def __init__(self, presenter, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=420)
         self._presenter = presenter
         self.setWindowTitle("Output")
         self.setMinimumWidth(420)
         self._labels: dict = {}
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.product = EntitySearchInput(
             provider=_product_provider(presenter, self._labels),
@@ -285,9 +287,11 @@ class _OutputEditor(QDialog):
         self._error = QLabel(); self._error.setObjectName("textDanger")
         layout.addWidget(self._error)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Ok).setText("Aceptar")
+        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
     def _accept(self) -> None:
         if not self.product.selected_id():

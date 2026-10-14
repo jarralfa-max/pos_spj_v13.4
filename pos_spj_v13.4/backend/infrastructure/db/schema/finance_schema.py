@@ -488,9 +488,115 @@ CREATE INDEX IF NOT EXISTS idx_finance_outbox_status ON finance_outbox (status);
 """
 
 
+#: Auditoría de Finanzas d9f2bca (FIN-AUD, 2026-10-10). Tablas nuevas; las
+#: columnas nuevas de tablas existentes van en ``_UPGRADE_COLUMNS`` porque
+#: SQLite no tiene ``ADD COLUMN IF NOT EXISTS``.
+_UPGRADE_DDL = """
+-- F03: cada cargo a crédito de una venta, con su identidad estable (el pago).
+CREATE TABLE IF NOT EXISTS receivable_charges (
+    id TEXT NOT NULL PRIMARY KEY,
+    receivable_id TEXT NOT NULL REFERENCES receivables(id),
+    amount TEXT NOT NULL,
+    currency_code TEXT NOT NULL DEFAULT 'MXN',
+    source_module TEXT NOT NULL,
+    source_reference TEXT NOT NULL,
+    operation_id TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_receivable_charges_receivable
+    ON receivable_charges (receivable_id);
+
+-- F15: solicitud de gasto identificable (compromiso → devengo / liberación).
+CREATE TABLE IF NOT EXISTS expense_requests (
+    id TEXT NOT NULL PRIMARY KEY,
+    budget_id TEXT NOT NULL REFERENCES budgets(id),
+    account_id TEXT NOT NULL REFERENCES accounts(id),
+    period_code TEXT NOT NULL,
+    cost_center_id TEXT,
+    branch_id TEXT,
+    amount TEXT NOT NULL,
+    currency_code TEXT NOT NULL DEFAULT 'MXN',
+    status TEXT NOT NULL DEFAULT 'COMMITTED' CHECK (status IN (
+        'COMMITTED','ACCRUED','RELEASED')),
+    requested_by TEXT,
+    resolved_by TEXT,
+    resolution_reference TEXT,
+    resolution_reason TEXT,
+    operation_id TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- F16: excepciones de cierre (diferencias materiales) persistidas por periodo.
+CREATE TABLE IF NOT EXISTS finance_close_exceptions (
+    id TEXT NOT NULL PRIMARY KEY,
+    period_code TEXT NOT NULL,
+    check_type TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    expected_amount TEXT NOT NULL,
+    actual_amount TEXT NOT NULL,
+    difference TEXT NOT NULL,
+    currency_code TEXT NOT NULL DEFAULT 'MXN',
+    status TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','RESOLVED','AUTHORIZED')),
+    detected_at TEXT NOT NULL,
+    resolved_by TEXT,
+    resolved_at TEXT,
+    resolution_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_finance_close_exceptions_period
+    ON finance_close_exceptions (period_code, status);
+"""
+
+_UPGRADE_COLUMNS: tuple[tuple[str, str, str], ...] = (
+    # F18: control optimista de versión del auxiliar.
+    ("receivables", "row_version", "INTEGER NOT NULL DEFAULT 0"),
+    ("payables", "row_version", "INTEGER NOT NULL DEFAULT 0"),
+    ("financial_documents", "row_version", "INTEGER NOT NULL DEFAULT 0"),
+    ("budgets", "row_version", "INTEGER NOT NULL DEFAULT 0"),
+    # F07/F08: un match revertido se conserva como historia, inactivo.
+    ("reconciliation_matches", "active", "INTEGER NOT NULL DEFAULT 1"),
+    ("reconciliation_matches", "reverted_at", "TEXT"),
+    ("reconciliation_matches", "reverted_by", "TEXT"),
+    ("reconciliations", "difference_reason", "TEXT"),
+    # F13: evidencia de la ejecución de un pago.
+    ("supplier_payments", "executed_by", "TEXT"),
+    ("supplier_payments", "execution_reference", "TEXT"),
+    # F21: entrega observable del outbox.
+    ("finance_outbox", "attempts", "INTEGER NOT NULL DEFAULT 0"),
+    ("finance_outbox", "last_error", "TEXT"),
+)
+
+_UPGRADE_INDEXES = """
+-- F07: una línea del mayor / del estado sólo puede tener UN match activo.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_reconciliation_matches_active_journal_line
+    ON reconciliation_matches (journal_line_id) WHERE active = 1;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_reconciliation_matches_active_statement_line
+    ON reconciliation_matches (bank_statement_line_id) WHERE active = 1;
+"""
+
+
+def _columns(conn, table: str) -> set[str]:
+    return {str(row[1]) for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def upgrade_finance_schema(conn) -> list[str]:
+    """Lleva un esquema de Finanzas existente al contrato de la auditoría
+    d9f2bca. Idempotente; devuelve las columnas que agregó."""
+    conn.executescript(_UPGRADE_DDL)
+    added: list[str] = []
+    for table, column, ddl in _UPGRADE_COLUMNS:
+        existing = _columns(conn, table)
+        if existing and column not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+            added.append(f"{table}.{column}")
+    conn.executescript(_UPGRADE_INDEXES)
+    return added
+
+
 def create_finance_schema(conn) -> None:
     """Create the complete finance schema. Idempotent (IF NOT EXISTS)."""
     conn.executescript(_DDL)
+    upgrade_finance_schema(conn)
 
 
 def drop_legacy_finance_tables(conn) -> list[str]:

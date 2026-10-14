@@ -60,6 +60,56 @@ def _nature_subtotals(lines) -> dict[str, str]:
     return {nature: str(amount) for nature, amount in totals.items()}
 
 
+def _source_problem(uow, *, supplier_id: str, currency_code: str,
+                    purchase_order_id: str | None, direct_purchase_id: str | None,
+                    lines: list[dict]) -> tuple[str, str] | None:
+    """Vínculo económico de la factura con su documento (auditoría C02/C04):
+    mismo proveedor, misma moneda, cada línea referida pertenece al documento,
+    es del mismo producto y conserva su naturaleza. ``(código, mensaje)``."""
+    if purchase_order_id:
+        source = uow.orders.get(purchase_order_id)
+        label = "la orden"
+    elif direct_purchase_id:
+        source = uow.direct_purchases.get(direct_purchase_id)
+        label = "la compra"
+    else:
+        return None
+    if source is None:
+        return "NOT_FOUND", f"No existe {label} de la factura"
+    if source.supplier_id != supplier_id:
+        return "SUPPLIER_MISMATCH", (f"La factura es de otro proveedor que {label}; una "
+                                     "factura sólo concilia contra su propio proveedor")
+    if str(source.currency_code).upper() != str(currency_code).upper():
+        return "CURRENCY_MISMATCH", (f"La factura está en {currency_code} y {label} en "
+                                     f"{source.currency_code}; no se comparan sin conversión")
+    by_id = {line.id: line for line in source.lines}
+    key = "purchase_order_line_id" if purchase_order_id else "direct_purchase_line_id"
+    for raw in lines:
+        source_line_id = raw.get(key)
+        if not source_line_id:
+            continue
+        source_line = by_id.get(source_line_id)
+        if source_line is None:
+            return "VALIDATION", f"Una línea de la factura no pertenece a {label}"
+        if source_line.product_id != raw["product_id"]:
+            return "PRODUCT_MISMATCH", ("Una línea de la factura cobra otro producto que la "
+                                        f"línea de {label} a la que apunta")
+        nature = raw.get("purchase_nature")
+        if nature and nature != source_line.purchase_nature.value:
+            return "NATURE_MISMATCH", (
+                f"La línea de {label} es {source_line.purchase_nature.value} y la factura la "
+                f"registra como {nature}; corrija el documento de origen")
+    return None
+
+
+def _source_natures(uow, purchase_order_id, direct_purchase_id) -> dict[str, str]:
+    source = (uow.orders.get(purchase_order_id) if purchase_order_id
+              else uow.direct_purchases.get(direct_purchase_id) if direct_purchase_id
+              else None)
+    return {} if source is None else {line.id: line.purchase_nature.value
+                                      for line in source.lines}
+
+
 #: Diferencias que un segundo usuario PUEDE liberar (decisión del usuario,
 #: 2026-09-18): precio, cantidad o impuesto, y la factura sin documento de
 #: compra — el §11 la pide como caso autorizado. Nunca una factura SIN
@@ -129,6 +179,7 @@ def _order_comparison(uow, po) -> dict[str, dict]:
     weights = (_accepted_weight_by_line(uow, po)
                if any(line.priced_by_weight() for line in po.lines) else {})
     return {line.id: {
+        "product_id": line.product_id,
         # A $/kg la factura cobra kg: se compara contra el PESO REAL aceptado.
         "accepted_quantity": (weights.get(line.id, Decimal("0")) if line.priced_by_weight()
                               else accepted.get(line.id, Decimal("0"))),
@@ -156,6 +207,7 @@ def _direct_comparison(uow, direct) -> dict[str, dict]:
         billable, inventory = line.billable_quantity(), line.inventory_quantity()
         accepted_inventory = accepted.get(line.id, Decimal("0"))
         result[line.id] = {
+            "product_id": line.product_id,
             "accepted_quantity": (accepted_inventory * billable / inventory
                                   if inventory > 0 else Decimal("0")),
             "unit_price": _net_unit_price(billable, line.unit_cost.amount,
@@ -164,6 +216,28 @@ def _direct_comparison(uow, direct) -> dict[str, dict]:
             "tax_per_unit": line.tax.amount / billable if billable > 0 else Decimal("0"),
         }
     return result
+
+
+def _grouped_invoice_lines(lines, source_key: str, previously) -> list[dict]:
+    """Auditoría C03: la cantidad facturada acumulada de una línea de origen
+    incluye lo aplicado por facturas anteriores Y todas las líneas de ESTA
+    factura que apuntan al mismo origen. Antes cada renglón se comparaba solo y
+    10 recibidas se facturaban dos veces en dos renglones de 10."""
+    this_invoice: dict[str, Decimal] = {}
+    for line in lines:
+        source_id = getattr(line, source_key) or ""
+        this_invoice[source_id] = this_invoice.get(source_id, Decimal("0")) + \
+            line.invoiced_quantity
+    prior = {source_id: previously(source_id) for source_id in this_invoice}
+    return [{
+        "purchase_order_line_id": getattr(line, source_key),
+        "product_id": line.product_id,
+        "invoiced_quantity": prior[getattr(line, source_key) or ""]
+        + this_invoice[getattr(line, source_key) or ""],
+        "this_quantity": line.invoiced_quantity,
+        "unit_price": line.unit_price.amount,
+        "tax": line.tax.amount,
+    } for line in lines]
 
 
 class CaptureSupplierInvoiceUseCase:
@@ -186,6 +260,14 @@ class CaptureSupplierInvoiceUseCase:
         with ProcurementUnitOfWork(connection) as uow:
             existing = uow.invoices.get_by_operation(operation_id)
             if existing is not None:
+                same = (existing.supplier_id == supplier_id
+                        and existing.invoice_number.strip() == invoice_number.strip()
+                        and existing.total.currency_code == str(currency_code).upper()
+                        and existing.total.amount == Decimal(str(total)))
+                if not same:
+                    return ProcurementResult.fail(
+                        "La operación ya capturó otra factura; use una clave nueva",
+                        "IDEMPOTENCY_CONFLICT", operation_id=operation_id)
                 return ProcurementResult.ok("Factura ya capturada", entity_id=existing.id,
                                             operation_id=operation_id, status=existing.status)
             if uow.invoices.exists_for_supplier(supplier_id, invoice_number.strip()):
@@ -203,6 +285,14 @@ class CaptureSupplierInvoiceUseCase:
                     return ProcurementResult.fail(
                         "La factura requiere líneas reales", "EMPTY_INVOICE_LINES",
                         operation_id=operation_id)
+                problem = _source_problem(
+                    uow, supplier_id=supplier_id, currency_code=currency_code,
+                    purchase_order_id=purchase_order_id,
+                    direct_purchase_id=direct_purchase_id, lines=lines)
+                if problem is not None:
+                    return ProcurementResult.fail(problem[1], problem[0],
+                                                  operation_id=operation_id)
+                natures = _source_natures(uow, purchase_order_id, direct_purchase_id)
                 inv = SupplierInvoice.create(
                     uow.sequences.next_number("FPR", _year()), supplier_id,
                     invoice_number.strip(),
@@ -214,8 +304,13 @@ class CaptureSupplierInvoiceUseCase:
                         inv.id, raw["product_id"], raw["invoiced_quantity"],
                         Money(str(raw["unit_price"]), currency_code),
                         Money(str(raw.get("tax", "0")), currency_code),
+                        # C04: la naturaleza viene del ORIGEN; sin origen, la
+                        # capturada (y sólo entonces INVENTORY por omisión).
                         purchase_nature=PurchaseNature(
-                            raw.get("purchase_nature", PurchaseNature.INVENTORY.value)),
+                            raw.get("purchase_nature")
+                            or natures.get(raw.get("purchase_order_line_id")
+                                           or raw.get("direct_purchase_line_id") or "")
+                            or PurchaseNature.INVENTORY.value),
                         purchase_order_line_id=raw.get("purchase_order_line_id"),
                         direct_purchase_line_id=raw.get("direct_purchase_line_id"),
                         receipt_line_id=raw.get("receipt_line_id")))
@@ -288,33 +383,30 @@ class MatchSupplierInvoiceUseCase:
                 po = uow.orders.get(inv.purchase_order_id)
             elif inv.direct_purchase_id:
                 direct = uow.direct_purchases.get(inv.direct_purchase_id)
+            source_doc = po if po is not None else direct
             if not has_document:
                 result = MatchResult.MISSING_PURCHASE_DOCUMENT
+            elif source_doc is not None and source_doc.supplier_id != inv.supplier_id:
+                result = MatchResult.SUPPLIER_MISMATCH
+            elif (source_doc is not None and str(source_doc.currency_code).upper()
+                  != inv.total.currency_code.upper()):
+                result = MatchResult.CURRENCY_MISMATCH
             elif not has_receipt:
                 result = MatchResult.MISSING_RECEIPT
             elif inv.purchase_order_id and po is not None:
                 result = matcher.match_lines(
                     ordered_lines=_order_comparison(uow, po),
-                    invoice_lines=[{
-                        "purchase_order_line_id": line.purchase_order_line_id,
-                        "invoiced_quantity": line.invoiced_quantity +
-                        uow.invoices.previously_invoiced_quantity(
-                            line.purchase_order_line_id or "", inv.id),
-                        "this_quantity": line.invoiced_quantity,
-                        "unit_price": line.unit_price.amount,
-                        "tax": line.tax.amount,
-                    } for line in inv.lines])
+                    invoice_lines=_grouped_invoice_lines(
+                        inv.lines, "purchase_order_line_id",
+                        lambda source_id: uow.invoices.previously_invoiced_quantity(
+                            source_id, inv.id)))
             elif inv.direct_purchase_id and direct is not None:
                 result = matcher.match_lines(
                     ordered_lines=_direct_comparison(uow, direct),
-                    invoice_lines=[{
-                        "purchase_order_line_id": line.direct_purchase_line_id,
-                        "invoiced_quantity": line.invoiced_quantity +
-                        uow.invoices.previously_invoiced_direct_quantity(
-                            line.direct_purchase_line_id or "", inv.id),
-                        "this_quantity": line.invoiced_quantity,
-                        "unit_price": line.unit_price.amount, "tax": line.tax.amount,
-                    } for line in inv.lines])
+                    invoice_lines=_grouped_invoice_lines(
+                        inv.lines, "direct_purchase_line_id",
+                        lambda source_id: uow.invoices.previously_invoiced_direct_quantity(
+                            source_id, inv.id)))
             else:
                 result = MatchResult.MISSING_PURCHASE_DOCUMENT
             inv.matched_by_user_id = actor_user_id
@@ -382,6 +474,9 @@ class ReleaseInvoiceVarianceUseCase:
             # recepción: generaba deuda por mercancía que no había llegado.
             if (inv.match_result or "") not in RELEASABLE_MATCH_RESULTS:
                 motivo = {
+                    "SUPPLIER_MISMATCH": "la factura es de otro proveedor que su documento",
+                    "CURRENCY_MISMATCH": "la factura está en otra moneda que su documento",
+                    "PRODUCT_MISMATCH": "la factura cobra otro producto que su documento",
                     "MISSING_RECEIPT": "no hay recepción de la mercancía; primero debe "
                                        "recibirse",
                     "DUPLICATE_INVOICE": "la factura está duplicada",

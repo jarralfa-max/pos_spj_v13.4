@@ -62,6 +62,25 @@ def new_uuidv7() -> str:
     return new_uuid()
 
 
+def derived_uuidv7(source_id: str, label: str) -> str:
+    """UUIDv7 DETERMINISTA derivado de otro id y una etiqueta.
+
+    Para eventos derivados que deben conservar su identidad al reentregarse
+    (auditoría Compras C01): reintentar la entrega del mismo evento origen
+    produce el MISMO evento derivado, así un consumidor idempotente por
+    ``event_id`` no aplica dos veces. Conserva el sello de tiempo del origen si
+    éste es UUIDv7; el resto sale de un hash."""
+    import hashlib
+
+    digest = hashlib.sha256(f"{source_id}|{label}".encode("utf-8")).digest()
+    head = (uuid.UUID(source_id).bytes[:6] if is_uuidv7(str(source_id))
+            else digest[16:22])
+    raw = bytearray(head + digest[:10])
+    raw[6] = (raw[6] & 0x0F) | 0x70
+    raw[8] = (raw[8] & 0x3F) | 0x80
+    return str(uuid.UUID(bytes=bytes(raw)))
+
+
 def is_uuidv7(value) -> bool:
     """True iff *value* is a canonical lowercase UUIDv7 string (version 7,
     RFC-4122 variant, hyphenated, lowercase). Non-raising probe."""

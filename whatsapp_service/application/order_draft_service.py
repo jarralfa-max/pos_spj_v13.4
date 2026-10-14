@@ -12,6 +12,7 @@ un precio, nunca aplica descuentos/reglas de crédito (eso es Pricing/
 Orders reales, fuera del canal, §6).
 """
 from __future__ import annotations
+from decimal import Decimal
 
 from dataclasses import dataclass
 from typing import Optional
@@ -55,7 +56,7 @@ class OrderDraftService:
         return draft
 
     async def add_product_by_search(
-        self, draft: OrderDraft, *, query: str, quantity: float
+        self, draft: OrderDraft, *, query: str, quantity: Decimal
     ) -> OrderDraftLine:
         """Capa "Product selection" (WA-10): busca en el catálogo real
         (WA-9) y agrega la primera coincidencia — el desambiguar entre
@@ -66,7 +67,7 @@ class OrderDraftService:
             raise ProductNotFoundError(f"Sin coincidencias de catálogo para {query!r}")
         return self.add_product(draft, product=results[0], quantity=quantity)
 
-    def add_product(self, draft: OrderDraft, *, product: ProductRef, quantity: float) -> OrderDraftLine:
+    def add_product(self, draft: OrderDraft, *, product: ProductRef, quantity: Decimal) -> OrderDraftLine:
         line = draft.add_line(
             product_external_id=product.external_id, product_name=product.name,
             quantity=quantity, unit=product.unit, unit_price=product.price,

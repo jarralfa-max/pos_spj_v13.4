@@ -25,8 +25,15 @@ class CapitalContributionDialog(FinanceFormDialog):
         self.form.addRow("Cuenta destino:", self.account_combo)
         self.form.addRow("Aportante:", self.contributor_input)
 
+    def _validation_error(self) -> str | None:
+        if not self.account_combo.currentData():
+            return "Elija la cuenta de tesorería que recibe la aportación."
+        if self.amount_input.decimal_value() <= 0:
+            return "El importe de la aportación debe ser mayor que cero."
+        return None
+
     def _is_valid(self) -> bool:
-        return self.amount_input.decimal_value() > 0
+        return self._validation_error() is None
 
     def data(self) -> dict:
         return {

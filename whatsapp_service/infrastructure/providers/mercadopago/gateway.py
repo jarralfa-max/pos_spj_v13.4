@@ -15,6 +15,11 @@ reemplazar/absorber la de `pago_flow.py` en una fase posterior con
 cobertura de test para ese flujo específico primero.
 """
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal
+from decimal import Decimal
 
 import logging
 from datetime import datetime, timedelta, timezone
@@ -38,7 +43,7 @@ class MercadoPagoGateway:
         self._back_url_failure = back_url_failure or "https://spjpos.com/pago/error"
 
     async def create_preference(
-        self, *, amount: float, external_reference: str, description: str = ""
+        self, *, amount: Decimal, external_reference: str, description: str = ""
     ) -> PaymentLinkRef:
         from config.settings import MP_ACCESS_TOKEN
 
@@ -63,9 +68,9 @@ class MercadoPagoGateway:
             "expires": True,
         }
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(
-                _PREFERENCES_URL, json=payload,
+                _PREFERENCES_URL, content=dumps_decimal(payload),
                 headers={"Authorization": f"Bearer {MP_ACCESS_TOKEN}", "Content-Type": "application/json"},
             )
 

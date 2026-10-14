@@ -1,10 +1,12 @@
 """Inventory/POS dialog adoption preserves captures, permissions and checkout order."""
 from decimal import Decimal
+import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from PyQt5 import sip
-from PyQt5.QtCore import QPoint, QRect, Qt
+from PyQt5.QtCore import QPoint, QRect, QSettings, Qt
 from PyQt5.QtTest import QSignalSpy, QTest
 from PyQt5.QtWidgets import QDialog, QLabel, QMessageBox, QPushButton
 
@@ -14,6 +16,7 @@ from frontend.desktop.modules.sales_pos.dialogs.discount_dialog import DiscountD
 from frontend.desktop.modules.sales_pos.dialogs.payment_dialog import PaymentDialog
 from frontend.desktop.modules.sales_pos.dialogs.quick_customer_dialog import QuickCustomerDialog
 from frontend.desktop.themes.theme_manager import ThemeManager
+from frontend.desktop.themes.tokens import density_metrics
 
 
 SALE_ID = "019f327a-1694-7000-8000-000000000001"
@@ -269,11 +272,12 @@ def test_inventory_permissions_and_callbacks_remain_authoritative(qt_font_resour
 
 
 @pytest.mark.parametrize("kind", ["zones", "movement", "lot", "weight", "payment", "discount", "customer"])
-def test_operations_use_scroll_body_and_sticky_footer(qt_font_resources, dialogs, monkeypatch, kind):
+@pytest.mark.parametrize("size", [(1024, 600), (640, 480)])
+def test_operations_use_scroll_body_and_sticky_footer(qt_font_resources, dialogs, monkeypatch, kind, size):
     dialog = _build(kind)
     dialogs.append(dialog)
     assert isinstance(dialog, StandardDialog)
-    monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, 1024, 600))
+    monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, *size))
     for index in range(20):
         dialog.content_layout().addWidget(QLabel(f"Fila adicional {index}"))
     dialog.show()
@@ -289,3 +293,53 @@ def test_operations_use_scroll_body_and_sticky_footer(qt_font_resources, dialogs
     dialog.viewport.verticalScrollBar().setValue(dialog.viewport.verticalScrollBar().maximum())
     _settle(qt_font_resources)
     assert footer.mapTo(dialog, QPoint()) == previous
+
+
+@pytest.mark.parametrize("kind", ["zones", "movement", "lot", "weight", "payment", "discount", "customer"])
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+def test_operation_footer_buttons_fit_with_live_appearance(
+        qt_font_resources, ui_tmp_path, dialogs, monkeypatch, kind, theme, density):
+    app = qt_font_resources
+    manager = ThemeManager(QSettings(str(ui_tmp_path / "operations.ini"), QSettings.IniFormat))
+    monkeypatch.setattr(ThemeManager, "_instance", manager)
+    manager.apply(app, theme, density=density)
+    dialog = _build(kind)
+    monkeypatch.setattr(dialog, "available_geometry", lambda: QRect(0, 0, 1024, 600))
+    _show(dialog, dialogs, app)
+    captured = None
+    if kind == "payment":
+        captured = dialog._reference
+    elif kind == "discount":
+        captured = dialog._reason
+    elif kind == "customer":
+        captured = dialog._name
+    if captured is not None:
+        captured.setText("Captura pendiente")
+
+    for profile in ("comfortable" if density == "touch" else "touch", density):
+        manager.apply(app, theme, density=profile)
+        _settle(app)
+        assert dialog.available_geometry().contains(dialog.frameGeometry())
+        if captured is not None:
+            assert captured.text() == "Captura pendiente"
+        if kind == "payment":
+            dialog.viewport.verticalScrollBar().setValue(0)
+            view = dialog.viewport.viewport()
+            for control in (dialog._method, dialog._amount, dialog._reference, dialog._btn_add):
+                assert view.rect().contains(QRect(control.mapTo(view, QPoint()), control.size()))
+        for container in dialog._footer_widgets:
+            buttons = ([container] if isinstance(container, QPushButton)
+                       else container.findChildren(QPushButton))
+            for button in buttons:
+                assert button.isVisible()
+                assert not dialog.viewport.isAncestorOf(button)
+                assert dialog.rect().contains(QRect(button.mapTo(dialog, QPoint()), button.size()))
+                assert button.height() >= density_metrics().button_height
+                assert button.width() >= button.minimumSizeHint().width()
+
+    artifact_path = os.environ.get("SPJ_DIALOG_VISUAL_ARTIFACTS")
+    if artifact_path:
+        directory = Path(artifact_path)
+        directory.mkdir(parents=True, exist_ok=True)
+        assert dialog.grab().save(str(directory / f"operations-{kind}-{theme}-{density}.png"))

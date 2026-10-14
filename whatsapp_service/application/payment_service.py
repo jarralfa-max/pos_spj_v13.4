@@ -20,6 +20,7 @@ no puede cerrar del todo para Meta pero MercadoPago sí firma con
 timestamp) no deben confirmar el pago dos veces.
 """
 from __future__ import annotations
+from decimal import Decimal
 
 from dataclasses import dataclass
 from typing import Optional
@@ -43,7 +44,7 @@ class PaymentService:
     # ── Link (§38) ───────────────────────────────────────────────────────────
 
     async def create_payment_link(
-        self, *, order_external_id: str, amount: float, customer_phone: str
+        self, *, order_external_id: str, amount: Decimal, customer_phone: str
     ) -> PaymentLinkRef:
         external_reference = f"{order_external_id}:{customer_phone}"
         return await self._root.payment_provider.create_preference(
@@ -58,11 +59,11 @@ class PaymentService:
 
     # ── Confirmation + Duplicate webhook (§38, §19) ─────────────────────────
 
-    async def register_advance(self, *, order_external_id: str, amount: float, method: str = "mercadopago") -> str:
+    async def register_advance(self, *, order_external_id: str, amount: Decimal, method: str = "mercadopago") -> str:
         return await self._root.payments.register_advance(order_id=order_external_id, amount=amount, method=method)
 
     async def confirm_payment(
-        self, *, order_external_id: str, amount: float, payment_reference: str, method: str = "mercadopago"
+        self, *, order_external_id: str, amount: Decimal, payment_reference: str, method: str = "mercadopago"
     ) -> ConfirmPaymentResult:
         fingerprint = compute_fingerprint("CONFIRM_PAYMENT", order_external_id, payment_reference)
 

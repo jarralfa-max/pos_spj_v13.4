@@ -12,7 +12,11 @@ from datetime import date, timedelta
 
 import pytest
 
-from erp.catalog_sql import CATALOG_SELECT, OFFERABLE, catalog_params, product_category_name
+from decimal import Decimal
+
+from erp.catalog_sql import (
+    CATALOG_SELECT, OFFERABLE, catalog_params, catalog_row, product_category_name,
+)
 
 BRANCH = "suc-1"
 
@@ -53,7 +57,7 @@ def _price(db, pid, amount, *, lista="base", branch="", desde=None, hasta=None):
 def _catalog(db):
     rows = db.execute(CATALOG_SELECT + f" WHERE {OFFERABLE} ORDER BY p.name",
                       catalog_params(BRANCH)).fetchall()
-    return {r["nombre"]: dict(r) for r in rows}
+    return {r["nombre"]: catalog_row(r) for r in rows}
 
 
 def test_offers_active_sellable_products_with_unit_and_category(db):
@@ -92,7 +96,8 @@ def test_stock_is_available_minus_reserved_in_the_branch(db):
         INSERT INTO inventory_balances VALUES ('b2','p1','suc-1','4','0','QUARANTINE');
         INSERT INTO inventory_balances VALUES ('b3','p1','suc-2','50','0','AVAILABLE');
     """)
-    assert _catalog(db)["Pierna"]["stock"] == 7.5
+    stock = _catalog(db)["Pierna"]["stock"]
+    assert stock == Decimal("7.5") and isinstance(stock, Decimal)
 
 
 def test_category_name_lookup(db):

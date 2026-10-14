@@ -23,7 +23,7 @@ def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _age_seconds(oldest_iso: Optional[str]) -> Optional[float]:
+def _age_seconds(oldest_iso: Optional[str]) -> Optional[int]:
     if not oldest_iso:
         return None
     try:
@@ -32,7 +32,8 @@ def _age_seconds(oldest_iso: Optional[str]) -> Optional[float]:
         return None
     if oldest.tzinfo is None:
         oldest = oldest.replace(tzinfo=timezone.utc)
-    return (datetime.now(timezone.utc) - oldest).total_seconds()
+    delta = datetime.now(timezone.utc) - oldest
+    return delta.days * 86400 + delta.seconds
 
 
 class DiagnosticsService:

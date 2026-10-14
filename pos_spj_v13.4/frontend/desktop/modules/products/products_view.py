@@ -14,13 +14,13 @@ import logging
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import (
     QLabel,
-    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from frontend.desktop.components import SideNav
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.products.navigation import PRODUCTS_NAV
 
@@ -48,7 +48,7 @@ class ProductsView(QWidget):
             raise ValueError("Each product section must have one icon.")
 
         self.nav = SideNav()
-        self.stack = QStackedWidget()
+        self.stack = PageStack()
         for (_factory, title), icon in zip(self._specs, icons):
             self.nav.add_section(title, icon)
             slot = QWidget()

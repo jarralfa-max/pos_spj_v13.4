@@ -18,12 +18,12 @@ logger = logging.getLogger("wa.ratelimit")
 class RateLimiter:
     def __init__(self, max_per_minute: int = MAX_MESSAGES_PER_MINUTE):
         self.max_per_minute = max_per_minute
-        self._timestamps: dict[str, list[float]] = defaultdict(list)
+        self._timestamps: dict[str, list[int]] = defaultdict(list)
 
     def is_allowed(self, phone: str) -> bool:
         """Retorna True si el teléfono puede enviar otro mensaje."""
-        now = time.time()
-        window = now - 60
+        now = time.time_ns()
+        window = now - 60 * 1_000_000_000
 
         # Limpiar timestamps viejos
         self._timestamps[phone] = [

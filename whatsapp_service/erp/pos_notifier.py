@@ -15,6 +15,15 @@ Este módulo no envía WhatsApp al staff. Las alertas de nuevo pedido deben vers
 en el ERP, tal como se definió en el flujo de negocio.
 """
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal
+from decimal import Decimal
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 
 import json
 import logging
@@ -46,7 +55,7 @@ class POSNotifier:
         folio: str,
         cliente_id: int,
         cliente_nombre: str,
-        total: float,
+        total: Decimal,
         sucursal_id: int,
         tipo_entrega: str,
         direccion: str = "",
@@ -61,7 +70,7 @@ class POSNotifier:
             "folio": folio,
             "cliente_id": cliente_id,
             "cliente": cliente_nombre or "Cliente WhatsApp",
-            "total": float(total or 0),
+            "total": to_decimal(total or 0),
             "sucursal_id": sucursal_id,
             "tipo_entrega": tipo_entrega or "sucursal",
             "direccion": direccion or "",
@@ -91,7 +100,7 @@ class POSNotifier:
             titulo=f"📲 Nuevo pedido WhatsApp {folio}",
             cuerpo=(
                 f"Cliente: {payload['cliente']}\n"
-                f"Total: ${float(total or 0):.2f}\n"
+                f"Total: ${to_decimal(total or 0):.2f}\n"
                 f"Entrega: {payload['tipo_entrega']}\n"
                 "Atiéndelo desde Ventas/Delivery."
             ),
@@ -108,7 +117,7 @@ class POSNotifier:
         folio: str,
         cliente_id: int,
         cliente_nombre: str,
-        total: float,
+        total: Decimal,
         sucursal_id: int,
         tipo_entrega: str,
         scheduled_at: str,
@@ -122,7 +131,7 @@ class POSNotifier:
             "folio": folio,
             "cliente_id": cliente_id,
             "cliente": cliente_nombre or "Cliente WhatsApp",
-            "total": float(total or 0),
+            "total": to_decimal(total or 0),
             "sucursal_id": sucursal_id,
             "tipo_entrega": tipo_entrega or "sucursal",
             "scheduled_at": scheduled_at,
@@ -148,7 +157,7 @@ class POSNotifier:
             cuerpo=(
                 f"Cliente: {payload['cliente']}\n"
                 f"Programado: {scheduled_at}\n"
-                f"Total: ${float(total or 0):.2f}\n"
+                f"Total: ${to_decimal(total or 0):.2f}\n"
                 "Revisa Programados para activación."
             ),
             datos=payload,
@@ -189,7 +198,7 @@ class POSNotifier:
             """, (
                 _new_event_id(),
                 event_type,
-                json.dumps(payload, ensure_ascii=False, default=str),
+                dumps_decimal(payload, ensure_ascii=False, default=str),
                 sucursal_id,
                 prioridad,
             ))
@@ -254,7 +263,7 @@ class POSNotifier:
         severity: str = "info",
         dedupe_key: str | None = None,
     ) -> None:
-        datos_json = json.dumps(datos, ensure_ascii=False, default=str)
+        datos_json = dumps_decimal(datos, ensure_ascii=False, default=str)
         cols = self._table_columns("notification_inbox")
         dedupe_value = f"{dedupe_key}:emp:{emp.get('id') or emp.get('usuario')}" if dedupe_key else None
         if dedupe_value and "dedupe_key" in cols:

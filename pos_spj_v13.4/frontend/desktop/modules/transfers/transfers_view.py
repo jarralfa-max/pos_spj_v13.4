@@ -1,8 +1,9 @@
 """Enterprise Transfers workspace: one sidebar and lazy canonical pages."""
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QStackedWidget, QWidget
+from PyQt5.QtWidgets import QWidget
 
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from .transfers_routes import build_page
 from .widgets.transfers_sidebar_widget import TransfersSidebarWidget
@@ -17,7 +18,7 @@ class TransfersView(QWidget):
         self._pages = {}
         self.sidebar = TransfersSidebarWidget(
             has_permission=has_permission, badges=badges, parent=self)
-        self.stack = QStackedWidget(self)
+        self.stack = PageStack(self)
         self.module_layout = ModuleLayout(
             self, title="Transferencias", icon=Icons.TRANSFERS,
             sidebar=self.sidebar, content=self.stack,

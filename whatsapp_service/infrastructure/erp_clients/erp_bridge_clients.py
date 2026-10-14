@@ -15,6 +15,11 @@ puertos del canal (WA-5/WA-8) — las llamadas internas a `ERPBridge`/
 `ERPBridge` ya aplica en el código que ya existía antes de esta fase.
 """
 from __future__ import annotations
+from decimal import Decimal
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 
 from typing import Any, Dict, List, Optional
 
@@ -58,8 +63,8 @@ class ProductMatcherCatalogApiClient:
             external_id=_str_or_empty(row.get("id")),
             name=row.get("nombre", "") or "",
             unit=row.get("unidad", "") or "",
-            price=float(row.get("precio", 0) or 0),
-            stock=float(row.get("stock", 0) or 0),
+            price=to_decimal(row.get("precio", 0) or 0),
+            stock=to_decimal(row.get("stock", 0) or 0),
         )
 
     async def search(self, query: str, *, max_results: int = 5) -> List[ProductRef]:
@@ -135,12 +140,12 @@ class ErpBridgePaymentsApiClient:
     def __init__(self, bridge) -> None:
         self._bridge = bridge
 
-    async def register_advance(self, *, order_id: str, amount: float, method: str = "mercadopago") -> str:
+    async def register_advance(self, *, order_id: str, amount: Decimal, method: str = "mercadopago") -> str:
         result = self._bridge.register_advance(order_id, amount, method)
         return _str_or_empty(result)
 
     async def confirm_payment(
-        self, *, order_id: str, amount: float, reference: str = "", method: str = "mercadopago"
+        self, *, order_id: str, amount: Decimal, reference: str = "", method: str = "mercadopago"
     ) -> bool:
         return bool(self._bridge.confirm_payment(order_id, amount, reference, method))
 

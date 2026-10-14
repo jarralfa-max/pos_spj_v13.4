@@ -7,13 +7,13 @@ por el presenter → use cases (autorización PRODUCTS_CUTTING_SCHEME_MANAGE).
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from PyQt5.QtWidgets import (
-    QDialog,
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QVBoxLayout,
 )
 
 from frontend.desktop.components import ColumnSpec, StandardTable
@@ -24,10 +24,10 @@ _STATUS_ES = {
 }
 
 
-class CuttingSchemesDialog(QDialog):
+class CuttingSchemesDialog(StandardDialog):
     def __init__(self, presenter, *, product_id: str, product_name: str,
                  species_id: str = "", parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=660)
         self._presenter = presenter
         self._product_id = product_id
         self._species_id = species_id
@@ -36,7 +36,7 @@ class CuttingSchemesDialog(QDialog):
         self.setMinimumSize(660, 460)
         can_manage = bool(getattr(self._presenter, "can_manage_cutting", False))
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         layout.addWidget(QLabel("Esquemas de despiece"))
         sbar = QHBoxLayout()
         self.btn_new = QPushButton("Nuevo esquema")
@@ -97,7 +97,7 @@ class CuttingSchemesDialog(QDialog):
         close.button(QDialogButtonBox.Close).setText("Cerrar")
         close.rejected.connect(self.reject)
         close.accepted.connect(self.accept)
-        layout.addWidget(close)
+        self.add_footer_widget(close)
         self.refresh_schemes()
 
     def refresh_schemes(self) -> None:

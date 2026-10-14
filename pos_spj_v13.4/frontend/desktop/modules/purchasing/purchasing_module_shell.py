@@ -9,7 +9,7 @@ provides the same module title and sidebar composition as Pricing.
 from __future__ import annotations
 
 from PyQt5.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QStackedWidget, QVBoxLayout, QWidget,
+    QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget,
 )
 
 from frontend.desktop.components import (
@@ -17,6 +17,7 @@ from frontend.desktop.components import (
     ViewState, create_primary_button, create_state_widget,
 )
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.purchasing.navigation import (
     PURCHASING_GROUP_ICONS, PurchasingRoutes, visible_routes,
@@ -100,7 +101,7 @@ class PurchasingModuleShell(QWidget):
         self._warehouse_notice.setWordWrap(True)
         self._warehouse_notice.setVisible(not session["warehouse_selected"])
         body_layout.addWidget(self._warehouse_notice)
-        self.content = QStackedWidget(self)
+        self.content = PageStack(self)
         body_layout.addWidget(self.content, stretch=1)
         self.module_layout = ModuleLayout(
             self, title="Compras",
@@ -148,6 +149,7 @@ class PurchasingModuleShell(QWidget):
             PurchasingRoutes.RECEIPTS: lambda: PurchaseHistoryPage(
                 self._presenter, self),
             PurchasingRoutes.INVOICES: lambda: InvoicesPage(self._presenter, self),
+            PurchasingRoutes.RETURNS: lambda: _returns_page(self._presenter, self),
         }
         current_group = None
         for definition in visible_routes(capabilities):
@@ -276,3 +278,8 @@ class PurchasingModuleShell(QWidget):
         if callable(reloader):
             reloader()
         self._loaded = True
+
+
+def _returns_page(presenter, parent):
+    from frontend.desktop.modules.purchasing.pages.returns_page import ReturnsPage
+    return ReturnsPage(presenter, parent)

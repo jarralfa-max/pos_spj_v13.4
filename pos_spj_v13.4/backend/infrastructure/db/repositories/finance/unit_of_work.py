@@ -9,6 +9,11 @@ from __future__ import annotations
 from typing import Any
 
 from backend.infrastructure.db.repositories.finance.account_repository import AccountRepository
+from backend.infrastructure.db.repositories.finance.audit_support_repositories import (
+    CloseExceptionRepository,
+    ExpenseRequestRepository,
+    ReceivableChargeRepository,
+)
 from backend.infrastructure.db.repositories.finance.budget_repository import BudgetRepository
 from backend.infrastructure.db.repositories.finance.collection_repository import CollectionRepository
 from backend.infrastructure.db.repositories.finance.commercial_obligation_repository import (
@@ -77,6 +82,9 @@ class FinanceUnitOfWork:
         self.commercial_obligations = CommercialObligationRepository(connection)
         self.processed_events = ProcessedEventRepository(connection)
         self.outbox = OutboxRepository(connection)
+        self.receivable_charges = ReceivableChargeRepository(connection)
+        self.expense_requests = ExpenseRequestRepository(connection)
+        self.close_exceptions = CloseExceptionRepository(connection)
         self._completed = False
 
     def __enter__(self) -> "FinanceUnitOfWork":

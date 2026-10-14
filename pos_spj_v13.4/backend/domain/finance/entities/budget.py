@@ -85,6 +85,7 @@ class Budget:
     lines: list[BudgetLine] = field(default_factory=list)
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
+    row_version: int = 0  # control optimista (auditoría F18)
 
     @classmethod
     def create(cls, name: str, fiscal_year: int, operation_id: str, *,

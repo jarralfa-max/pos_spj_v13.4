@@ -8,13 +8,13 @@ segregación de funciones). Sin SQL ni lógica de negocio.
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from PyQt5.QtWidgets import (
-    QDialog,
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QVBoxLayout,
 )
 
 from frontend.desktop.components import ColumnSpec, StandardTable
@@ -25,10 +25,10 @@ _STATUS_ES = {
 }
 
 
-class RecipesDialog(QDialog):
+class RecipesDialog(StandardDialog):
     def __init__(self, presenter, *, product_id: str, product_name: str,
                  parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=640)
         self._presenter = presenter
         self._product_id = product_id
         self.setObjectName("recipesDialog")
@@ -38,7 +38,7 @@ class RecipesDialog(QDialog):
         self._versions: list[dict] = []
         can_manage = bool(getattr(self._presenter, "can_manage_recipes", False))
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
 
         layout.addWidget(QLabel("Recetas"))
         rec_bar = QHBoxLayout()
@@ -88,7 +88,7 @@ class RecipesDialog(QDialog):
         close.button(QDialogButtonBox.Close).setText("Cerrar")
         close.rejected.connect(self.reject)
         close.accepted.connect(self.accept)
-        layout.addWidget(close)
+        self.add_footer_widget(close)
         self.refresh_recipes()
 
     # ── datos ────────────────────────────────────────────────────────────────

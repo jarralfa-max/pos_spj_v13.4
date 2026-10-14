@@ -125,11 +125,21 @@ class DirectPurchaseLine:
         return self.quantity * self.conversion_factor
 
     def inventory_unit_cost(self) -> Decimal:
-        """Costo por unidad de INVENTARIO: importe de la línea entre lo que entra."""
+        """Costo por unidad de INVENTARIO: importe NETO de descuento entre lo que
+        entra (auditoría C06: 10 a $10 con $10 de descuento entran a $9)."""
         quantity = self.inventory_quantity()
         if quantity <= 0:
             return Decimal("0")
-        return self.line_subtotal().amount / quantity
+        return self.net_subtotal().amount / quantity
+
+    def net_subtotal(self) -> Money:
+        """Subtotal antes de impuesto y DESPUÉS del descuento de la línea."""
+        return Money(self.line_subtotal().amount - self.discount.amount,
+                     self.unit_cost.currency_code)
+
+    def enters_stock(self) -> bool:
+        from backend.domain.procurement.enums import STOCK_NATURES
+        return self.purchase_nature in STOCK_NATURES
 
     def line_subtotal(self) -> Money:
         return Money(self.billable_quantity() * self.unit_cost.amount,
@@ -244,13 +254,28 @@ class DirectPurchase:
         self.updated_at = _utcnow()
 
     def mark_received(self) -> None:
-        if self.status is not DocumentStatus.CONFIRMED:
+        if self.status not in (DocumentStatus.CONFIRMED, DocumentStatus.PARTIALLY_RECEIVED):
             raise InvalidPurchaseStateError("Solo se recibe una compra confirmada")
         self.status = DocumentStatus.RECEIVED
         self.updated_at = _utcnow()
 
+    def mark_partially_received(self) -> None:
+        """Entregas divididas (auditoría C10): lo que falta queda pendiente."""
+        if self.status not in (DocumentStatus.CONFIRMED, DocumentStatus.PARTIALLY_RECEIVED):
+            raise InvalidPurchaseStateError("Solo se recibe una compra confirmada")
+        self.status = DocumentStatus.PARTIALLY_RECEIVED
+        self.updated_at = _utcnow()
+
+    def close_remainder(self) -> None:
+        """Cierre EXPLÍCITO de lo que no llegará (con motivo, en el caso de uso)."""
+        if self.status is not DocumentStatus.PARTIALLY_RECEIVED:
+            raise InvalidPurchaseStateError("Sólo se cierra el faltante de una compra parcial")
+        self.status = DocumentStatus.RECEIVED
+        self.updated_at = _utcnow()
+
     def reverse(self) -> None:
-        if self.status not in (DocumentStatus.CONFIRMED, DocumentStatus.RECEIVED):
+        if self.status not in (DocumentStatus.CONFIRMED, DocumentStatus.RECEIVED,
+                               DocumentStatus.PARTIALLY_RECEIVED):
             raise InvalidPurchaseStateError("Solo se revierte una compra confirmada/recibida")
         self.status = DocumentStatus.REVERSED
         self.updated_at = _utcnow()
@@ -704,21 +729,50 @@ class PurchaseOrder:
         self.updated_at = _utcnow()
         return exceptions
 
-    def register_receipt(self, quantities: dict[str, Decimal]) -> None:
-        """Update received quantities per line; recompute the order status."""
+    def register_receipt(self, quantities: dict[str, Decimal],
+                         accepted: dict[str, Decimal] | None = None) -> None:
+        """Update received quantities per line; recompute the order status.
+
+        Auditoría Compras C09: la orden se CUMPLE con lo ACEPTADO, no con lo
+        recibido. Una entrega rechazada completa deja la orden abierta para la
+        reposición (o para cerrar el faltante de forma explícita)."""
         if self.status not in (PurchaseOrderStatus.SENT, PurchaseOrderStatus.ACKNOWLEDGED,
                                PurchaseOrderStatus.PARTIALLY_RECEIVED, PurchaseOrderStatus.APPROVED):
             raise InvalidPurchaseStateError(
                 f"No se puede recibir sobre una orden {self.status.value}")
+        accepted = quantities if accepted is None else accepted
         for line in self.lines:
             if line.id in quantities:
-                line.received_quantity += _dec(quantities[line.id])
-        fully = all(ln.received_quantity >= ln.ordered_quantity for ln in self.lines)
-        self.status = (PurchaseOrderStatus.RECEIVED if fully
-                       else PurchaseOrderStatus.PARTIALLY_RECEIVED)
+                received = _dec(quantities[line.id])
+                taken = _dec(accepted.get(line.id, 0))
+                line.received_quantity += received
+                line.accepted_quantity += taken
+                line.rejected_quantity += received - taken
+        self._recompute_receipt_status()
         self.updated_at = _utcnow()
 
-    def unregister_receipt(self, quantities: dict[str, Decimal]) -> None:
+    def _recompute_receipt_status(self) -> None:
+        fully = all(ln.accepted_quantity >= ln.ordered_quantity for ln in self.lines)
+        anything = any(ln.received_quantity > 0 for ln in self.lines)
+        if fully:
+            self.status = PurchaseOrderStatus.RECEIVED
+        elif anything:
+            self.status = PurchaseOrderStatus.PARTIALLY_RECEIVED
+        else:
+            self.status = PurchaseOrderStatus.SENT
+
+    def close_remainder(self) -> None:
+        """Cierre EXPLÍCITO del faltante (C09): el proveedor no repondrá lo que
+        falta o se rechazó. Lo decide alguien, con motivo; no un rechazo."""
+        if self.status not in (PurchaseOrderStatus.PARTIALLY_RECEIVED,
+                               PurchaseOrderStatus.SENT, PurchaseOrderStatus.ACKNOWLEDGED):
+            raise InvalidPurchaseStateError(
+                f"No hay faltante que cerrar en una orden {self.status.value}")
+        self.status = PurchaseOrderStatus.CLOSED
+        self.updated_at = _utcnow()
+
+    def unregister_receipt(self, quantities: dict[str, Decimal],
+                           accepted: dict[str, Decimal] | None = None) -> None:
         """Symmetric undo of ``register_receipt`` for a reversed goods receipt
         (§41: compensating, never negative). Clamps at zero per line — a
         reversal never removes more than a line ever received."""
@@ -726,14 +780,24 @@ class PurchaseOrder:
                                PurchaseOrderStatus.PARTIALLY_RECEIVED):
             raise InvalidPurchaseStateError(
                 f"No hay recepción que reversar en una orden {self.status.value}")
+        # Auditoría Compras C11: la inversa EXACTA de lo registrado. Restar más
+        # de lo que la línea tiene es una inconsistencia que se reporta, no se
+        # recorta a cero para disimularla.
+        accepted = quantities if accepted is None else accepted
         for line in self.lines:
             if line.id in quantities:
-                line.received_quantity = max(
-                    Decimal("0"), line.received_quantity - _dec(quantities[line.id]))
-        if all(ln.received_quantity <= 0 for ln in self.lines):
-            self.status = PurchaseOrderStatus.SENT
-        else:
-            self.status = PurchaseOrderStatus.PARTIALLY_RECEIVED
+                received = _dec(quantities[line.id])
+                taken = _dec(accepted.get(line.id, 0))
+                remaining = line.received_quantity - received
+                remaining_accepted = line.accepted_quantity - taken
+                remaining_rejected = line.rejected_quantity - (received - taken)
+                if min(remaining, remaining_accepted, remaining_rejected) < 0:
+                    raise InvalidPurchaseStateError(
+                        "El reverso restaría más de lo recibido en una línea de la orden")
+                line.received_quantity = remaining
+                line.accepted_quantity = remaining_accepted
+                line.rejected_quantity = remaining_rejected
+        self._recompute_receipt_status()
         self.updated_at = _utcnow()
 
     def create_new_version(self, reason: str) -> None:
@@ -789,12 +853,20 @@ class GoodsReceiptLine:
     net_weight: Decimal | None = None
     piece_count: int | None = None
     purchase_order_line_id: str | None = None
+    #: Línea de la compra directa que esta recepción cubre (C10).
+    direct_purchase_line_id: str | None = None
 
     @classmethod
     def create(cls, product_id: str, ordered_quantity, received_quantity,
                accepted_quantity, **kwargs) -> "GoodsReceiptLine":
         received = _dec(received_quantity)
         accepted = _dec(accepted_quantity)
+        # Auditoría Compras C08: una recepción negativa no es un ajuste; los
+        # ajustes son reversos o devoluciones autorizados.
+        if not received.is_finite() or not accepted.is_finite():
+            raise ProcurementDomainError("Las cantidades recibidas deben ser números finitos")
+        if received < 0 or accepted < 0:
+            raise ProcurementDomainError("Las cantidades recibidas no pueden ser negativas")
         if accepted > received:
             raise ProcurementDomainError("Lo aceptado no puede exceder lo recibido")
         rejected = received - accepted

@@ -1,9 +1,10 @@
 """Enterprise Mermas workspace with persistent permission-aware sidebar."""
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QStackedWidget, QWidget
+from PyQt5.QtWidgets import QWidget
 
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.losses.losses_routes import build_page
 from frontend.desktop.modules.losses.widgets import LossesSidebarWidget
@@ -23,7 +24,7 @@ class LossesView(QWidget):
 
         self.sidebar = LossesSidebarWidget(
             has_permission=has_permission, badges=badges, parent=self)
-        self.stack = QStackedWidget(self)
+        self.stack = PageStack(self)
         self.module_layout = ModuleLayout(
             self, title="Mermas y Pérdidas", icon=Icons.WASTE,
             sidebar=self.sidebar, content=self.stack,

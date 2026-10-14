@@ -491,9 +491,11 @@ class EnterprisePurchasingPresenter:
             return {}
         lines = [dict(line, product_label=self.product_label(str(line["product_id"])))
                  for line in svc.billable_lines(resolved["document_type"], document_id)]
+        currency = lines[0]["currency_code"] if lines else "MXN"
         return {"supplier_id": resolved["supplier_id"],
                 "supplier_name": resolved["supplier_name"],
-                "document_type": resolved["document_type"], "lines": lines}
+                "document_type": resolved["document_type"], "lines": lines,
+                "currency_code": currency}
 
     def invoices(self, *, status=None, search="", page=0) -> TableViewModel:
         svc = self._reads["invoices"]
@@ -512,6 +514,60 @@ class EnterprisePurchasingPresenter:
 
     def capture_invoice(self, **fields) -> tuple[bool, str, dict]:
         return self._run("inv_capture", actor_user_id=self._actor(), **fields)
+
+    def cancel_invoice(self, invoice_id: str, reason: str) -> tuple[bool, str, dict]:
+        return self._run("inv_cancel", actor_user_id=self._actor(), invoice_id=invoice_id,
+                         reason=reason)
+
+    # ── devoluciones, reversos y faltantes (auditoría Compras C26) ─────────
+    def completed_receipts(self) -> TableViewModel:
+        rows = self._reads["returns"].completed_receipts(branch_id=self.default_branch())
+        data = [[r["document_number"], r["source_number"], r["supplier_name"],
+                 local_datetime_text(r["created_at"])] for r in rows]
+        return TableViewModel(data, [r["id"] for r in rows], total=len(rows))
+
+    def returnable_lines(self, goods_receipt_id: str) -> list[dict]:
+        return [dict(line, product_label=self.product_label(line["product_id"]))
+                for line in self._reads["returns"].returnable_lines(goods_receipt_id)]
+
+    def purchase_returns(self) -> TableViewModel:
+        rows = self._reads["returns"].returns(branch_id=self.default_branch())
+        data = [[r["document_number"], r["receipt_number"] or "—", r["reason"],
+                 r["status"], local_datetime_text(r["created_at"])] for r in rows]
+        return TableViewModel(data, [r["id"] for r in rows], total=len(rows))
+
+    def reverse_receipt(self, goods_receipt_id: str, reason: str) -> tuple[bool, str, dict]:
+        return self._run("gr_reverse", actor_user_id=self._actor(),
+                         goods_receipt_id=goods_receipt_id, reason=reason)
+
+    def create_return(self, *, goods_receipt_id: str, reason: str,
+                      lines: list[dict]) -> tuple[bool, str, dict]:
+        receipt = next((r for r in self._reads["returns"].completed_receipts(limit=500)
+                        if r["id"] == goods_receipt_id), None)
+        if receipt is None:
+            return False, "La recepción ya no está disponible", {}
+        return self._run("return_create", actor_user_id=self._actor(),
+                         supplier_id=receipt["supplier_id"], branch_id=receipt["branch_id"],
+                         warehouse_id=receipt["warehouse_id"], reason=reason, lines=lines,
+                         goods_receipt_id=goods_receipt_id)
+
+    def confirm_return(self, purchase_return_id: str) -> tuple[bool, str, dict]:
+        return self._run("return_confirm", actor_user_id=self._actor(),
+                         purchase_return_id=purchase_return_id)
+
+    def cancel_return(self, purchase_return_id: str, reason: str) -> tuple[bool, str, dict]:
+        return self._run("return_cancel", actor_user_id=self._actor(),
+                         purchase_return_id=purchase_return_id, reason=reason)
+
+    def close_order_remainder(self, purchase_order_id: str, reason: str
+                              ) -> tuple[bool, str, dict]:
+        return self._run("po_close_remainder", actor_user_id=self._actor(),
+                         purchase_order_id=purchase_order_id, reason=reason)
+
+    def close_direct_remainder(self, direct_purchase_id: str, reason: str
+                               ) -> tuple[bool, str, dict]:
+        return self._run("dp_close_remainder", actor_user_id=self._actor(),
+                         direct_purchase_id=direct_purchase_id, reason=reason)
 
     def match_invoice(self, invoice_id: str) -> tuple[bool, str, dict]:
         return self._run("inv_match", actor_user_id=self._actor(), invoice_id=invoice_id)
@@ -730,14 +786,16 @@ class EnterprisePurchasingPresenter:
         return TableViewModel(data, [r.document_number for r in rows], total=len(rows))
 
     # ── analytics ─────────────────────────────────────────────────────────────
+    # Auditoría Compras C24: las cifras responden al MISMO alcance que las
+    # listas (sucursal y periodo de la cabecera).
     def analytics_kpis(self):
-        return self._analytics.kpis()
+        return self._analytics.kpis(**self._scope())
 
     def analytics_charts(self):
-        return self._analytics.all_charts()
+        return self._analytics.all_charts(**self._scope())
 
     def analytics_alerts(self):
-        return self._analytics.alerts()
+        return self._analytics.alerts(**self._scope())
 
     def navigation_badges(self, kpis) -> dict[str, int]:
         return {

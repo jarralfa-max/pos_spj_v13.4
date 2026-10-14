@@ -101,6 +101,28 @@ que cierre el diálogo antes de validar. Sin callback, el botón acepta
 directamente. Conservar los contratos de captura y validación del módulo.
 Las bases de Finanzas y RR. HH. ya usan esta ruta.
 
+Para una botonera existente con acciones, permisos y conexiones propios, usar
+`dialog.add_footer_widget(button_box)` o un `QWidget` que contenga sus botones.
+Este método coloca las acciones fuera del scroll y aplica la densidad; conserva
+las conexiones, la acción predeterminada y los nombres accesibles existentes.
+No es necesario reconstruir la botonera ni conectarla otra vez.
+
+Las capturas breves también usan el contenedor canónico:
+
+```python
+reason, accepted = FormDialog.get_text(parent, "Motivo", "Motivo:")
+channel, accepted = FormDialog.get_item(
+    parent, "Canal", "Canal:", ["Mostrador", "Tienda"], 0, False
+)
+```
+
+Ambos devuelven `(texto, aceptado)`. El llamador conserva sus validaciones y
+decide qué hacer con texto vacío. `get_item` corresponde a catálogos cortos;
+la selección de entidades mantiene sus componentes de búsqueda.
+La [adopción en los módulos del shell](../../../docs/refactor/standard_dialog_shell_adoption.md)
+incluye los diálogos pendientes, el teclado numérico y las capturas breves.
+El guardrail `test_standard_dialog_ownership.py` protege esta ruta.
+
 Usar `ConfirmationDialog` y `DestructiveConfirmationDialog` para confirmaciones.
 La variante destructiva coloca foco y acción predeterminada en Cancelar.
 Escape conserva la ruta `reject()` de Qt; si un flujo requiere impedir el

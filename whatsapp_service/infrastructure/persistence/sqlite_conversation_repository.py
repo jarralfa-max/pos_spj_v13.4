@@ -7,6 +7,10 @@
 ni un `repr()` de Python (§14 del prompt maestro: prohibido guardar
 objetos serializados arbitrariamente)."""
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal, loads_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 
 import json
 from dataclasses import asdict
@@ -24,7 +28,7 @@ _CONVERSATION_COLUMNS = (
 
 
 def _context_from_json(raw: str, version: int) -> ConversationContext:
-    data = json.loads(raw) if raw else {}
+    data = loads_decimal(raw) if raw else {}
     data.pop("version", None)
     return ConversationContext(version=version, **data)
 
@@ -90,7 +94,7 @@ class SqliteWhatsAppConversationRepository:
                 conversation.channel_number_id,
                 conversation.branch_id,
                 conversation.state.value,
-                json.dumps(context_dict, ensure_ascii=False),
+                dumps_decimal(context_dict, ensure_ascii=False),
                 conversation.context.version,
                 conversation.current_session_id,
                 conversation.opened_at.isoformat(),

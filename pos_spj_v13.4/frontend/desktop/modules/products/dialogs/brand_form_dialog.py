@@ -5,21 +5,21 @@ UI-only: captura código, nombre y descripción; delega el guardado en el presen
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from PyQt5.QtWidgets import (
-    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPlainTextEdit,
-    QVBoxLayout,
 )
 
 
-class BrandFormDialog(QDialog):
+class BrandFormDialog(StandardDialog):
     def __init__(self, presenter, *, brand=None, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=420)
         self._presenter = presenter
         self._brand = brand or {}
         self._brand_id = self._brand.get("id")
@@ -27,7 +27,7 @@ class BrandFormDialog(QDialog):
         self.setWindowTitle("Editar marca" if self._brand_id else "Nueva marca")
         self.setMinimumWidth(420)
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.code = QLineEdit(str(self._brand.get("code") or ""))
         self.name = QLineEdit(str(self._brand.get("name") or ""))
@@ -48,7 +48,7 @@ class BrandFormDialog(QDialog):
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
     def _on_save(self) -> None:
         self._error.setText("")

@@ -90,7 +90,8 @@ class TestReadServices:
         overview = FinanceDashboardQueryService(bootstrapped_conn).overview(
             month_from=FROM, month_to=TO)
         assert overview["revenue"] == "435.17"
-        assert overview["open_payables"] == "1160"
+        # Suma exacta en Decimal, con el formato monetario canónico (F20).
+        assert overview["open_payables"] == "1160.00"
 
     def test_journal_query_lists_entries_and_lines(self, bootstrapped_conn):
         _seed_activity(bootstrapped_conn)

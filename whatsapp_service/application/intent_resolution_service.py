@@ -19,6 +19,11 @@ ejecuta una operación de negocio** — solo devuelve una `IntentResolution`;
 ejecutar lo que esa intención implica es trabajo de fases futuras (WA-9+).
 """
 from __future__ import annotations
+from decimal import Decimal
+try:
+    from domain.money import ONE, ZERO
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import ONE, ZERO
 
 from typing import Dict, Optional, Tuple
 
@@ -96,12 +101,12 @@ class IntentResolutionService:
             if intent is not None:
                 return IntentResolution(
                     intent=intent,
-                    confidence=1.0,
+                    confidence=ONE,
                     source=IntentResolutionSource.INTERACTIVE,
                     entities=(
                         IntentEntity(
                             name="interactive_id", value=incoming.interactive_id,
-                            normalized_value=incoming.interactive_id, confidence=1.0, source="interactive",
+                            normalized_value=incoming.interactive_id, confidence=ONE, source="interactive",
                         ),
                     ),
                 )
@@ -111,7 +116,7 @@ class IntentResolutionService:
         if expected:
             try:
                 return IntentResolution(
-                    intent=Intent(expected), confidence=0.9, source=IntentResolutionSource.EXPECTED_STATE
+                    intent=Intent(expected), confidence=Decimal("0.9"), source=IntentResolutionSource.EXPECTED_STATE
                 )
             except ValueError:
                 pass  # expected_intent no es un Intent válido — sigue a las demás capas.
@@ -122,7 +127,7 @@ class IntentResolutionService:
         if text:
             for intent, keywords in _RULE_KEYWORDS:
                 if any(keyword in text for keyword in keywords):
-                    return IntentResolution(intent=intent, confidence=0.7, source=IntentResolutionSource.RULE)
+                    return IntentResolution(intent=intent, confidence=Decimal("0.7"), source=IntentResolutionSource.RULE)
 
         # Capas 4-5 — clasificador / LLM (mismo puerto).
         if text:
@@ -138,7 +143,7 @@ class IntentResolutionService:
                 return ai_result
 
         # Capa 6 — human handoff (nunca se inventa una intención de bajo alcance).
-        return IntentResolution(intent=Intent.HUMAN_HANDOFF, confidence=0.0, source=IntentResolutionSource.UNRESOLVED)
+        return IntentResolution(intent=Intent.HUMAN_HANDOFF, confidence=ZERO, source=IntentResolutionSource.UNRESOLVED)
 
 
 # ── Puente hacia ConversationEngine (WA-7) ──────────────────────────────────

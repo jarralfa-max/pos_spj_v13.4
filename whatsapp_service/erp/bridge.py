@@ -23,6 +23,11 @@ GATEWAY INTERFACES:
   DeliveryGateway  — programación de entregas
 """
 from __future__ import annotations
+from decimal import Decimal
+try:
+    from domain.money import HUNDRED, JSON_HEADERS, ZERO, dumps_decimal, quantize_money, to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import HUNDRED, JSON_HEADERS, ZERO, dumps_decimal, quantize_money, to_decimal
 import os
 import sqlite3
 import logging
@@ -30,7 +35,9 @@ from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
 from config.settings import is_production
 from phone_number import possible_match_key
-from erp.catalog_sql import CATALOG_SELECT, OFFERABLE, catalog_params, product_category_name
+from erp.catalog_sql import (
+    CATALOG_SELECT, OFFERABLE, catalog_params, catalog_row, product_category_name,
+)
 from erp.gateways.api_client import ERPApiClient
 from erp.gateways.sqlite_connection import ERPSqliteConnection
 from erp.gateways.customer_gateway import CustomerGateway as CustomerWriteGateway
@@ -73,7 +80,7 @@ class CustomerGateway(ABC):
     @abstractmethod
     def create_minimal(self, nombre: str, telefono: str) -> int: ...
     @abstractmethod
-    def get_credit(self, cliente_id: str) -> float: ...
+    def get_credit(self, cliente_id: str) -> Decimal: ...
 
 
 class OrderGateway(ABC):
@@ -99,16 +106,16 @@ class QuoteGateway(ABC):
 
 class PaymentGateway(ABC):
     @abstractmethod
-    def needs_advance(self, cliente_id: str, total: float,
+    def needs_advance(self, cliente_id: str, total: Decimal,
                       programado: bool = False) -> bool: ...
     @abstractmethod
-    def register_advance(self, venta_id: str, monto: float,
+    def register_advance(self, venta_id: str, monto: Decimal,
                          metodo: str = "mercadopago") -> int: ...
     @abstractmethod
-    def confirm_payment(self, venta_id: str, monto: float,
+    def confirm_payment(self, venta_id: str, monto: Decimal,
                         referencia: str = "", metodo: str = "mercadopago") -> bool: ...
     @abstractmethod
-    def get_advance_rules(self, cliente_id: str, total: float,
+    def get_advance_rules(self, cliente_id: str, total: Decimal,
                           items: Optional[List[Dict]] = None) -> Dict: ...
 
 
@@ -116,7 +123,7 @@ class InventoryGateway(ABC):
     @abstractmethod
     def check_stock(self, items: List[Dict], sucursal_id: str) -> List[Dict]: ...
     @abstractmethod
-    def create_purchase_order(self, producto_id: str, cantidad: float,
+    def create_purchase_order(self, producto_id: str, cantidad: Decimal,
                               sucursal_id: str, notas: str = "") -> Optional[int]: ...
 
 
@@ -187,7 +194,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
             self._http = httpx.Client(
                 base_url=self._api_url,
                 headers={"X-API-Key": self._api_key},
-                timeout=10.0,
+                timeout=10,
             )
         return self._http
 
@@ -197,7 +204,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         return resp.json()
 
     def _api_post(self, path: str, body: dict) -> Any:
-        resp = self._client.post(path, json=body)
+        resp = self._client.post(path, content=dumps_decimal(body), headers=JSON_HEADERS)
         resp.raise_for_status()
         return resp.json()
 
@@ -257,7 +264,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
     def create_minimal(self, nombre: str, telefono: str) -> int:
         return self.create_cliente_minimo(nombre, telefono)
 
-    def get_credit(self, cliente_id: str) -> float:
+    def get_credit(self, cliente_id: str) -> Decimal:
         return self.get_credito_disponible(cliente_id)
 
     def find_cliente_by_phone(self, phone: str) -> Optional[Dict]:
@@ -347,12 +354,12 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
             logger.debug("get_crm_summary via API failed: %s", exc)
             return None
 
-    def get_credito_disponible(self, cliente_id: str) -> float:
+    def get_credito_disponible(self, cliente_id: str) -> Decimal:
         row = self.db.execute("""
             SELECT COALESCE(credit_limit,0) - COALESCE(credit_balance,0)
             FROM clientes WHERE id=?
         """, (cliente_id,)).fetchone()
-        return float(row[0]) if row else 0.0
+        return to_decimal(row[0]) if row else ZERO
 
     # ── Productos ─────────────────────────────────────────────────────────────
 
@@ -363,7 +370,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
             CATALOG_SELECT + f" WHERE {OFFERABLE} AND LOWER(pc.name) = LOWER(:categoria)"
             " ORDER BY p.name",
             catalog_params(sucursal_id, categoria=categoria)).fetchall()
-        return [dict(r) for r in rows]
+        return [catalog_row(r) for r in rows]
 
     def get_categorias(self, sucursal_id: str) -> List[str]:
         rows = self.db.execute(f"""
@@ -379,7 +386,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                      sucursal_id: str) -> Optional[Dict]:
         row = self.db.execute(CATALOG_SELECT + " WHERE p.id = :pid",
                               catalog_params(sucursal_id, pid=producto_id)).fetchone()
-        return dict(row) if row else None
+        return catalog_row(row) if row else None
 
     # ── Ventas / Pedidos ──────────────────────────────────────────────────────
 
@@ -426,8 +433,8 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                     {
                         "producto_id": it["producto_id"],
                         "nombre":      it.get("nombre", ""),
-                        "cantidad":    float(it["cantidad"]),
-                        "precio_unitario": float(it["precio_unitario"]),
+                        "cantidad":    to_decimal(it["cantidad"]),
+                        "precio_unitario": to_decimal(it["precio_unitario"]),
                     }
                     for it in items
                 ]
@@ -516,7 +523,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         )
         return {"venta_id": venta_id, "folio": folio, "total": total}
 
-    def _notify_pos_new_order(self, *, venta_id: str, folio: str, total: float,
+    def _notify_pos_new_order(self, *, venta_id: str, folio: str, total: Decimal,
                               cliente_id: str, sucursal_id: str, tipo_entrega: str,
                               direccion: str = "", items: Optional[List[Dict]] = None,
                               fecha_entrega: str = "") -> None:
@@ -573,7 +580,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                         branch_id=int(sucursal_id),
                         sale_id=int(venta_id),
                         folio=folio,
-                        total=float(total or 0),
+                        total=to_decimal(total or 0),
                     )
             except Exception:
                 pass
@@ -629,7 +636,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
         return {
             "venta_id": row["id"], "folio": row["folio"],
-            "total": float(row["total"]), "fecha": row["fecha"],
+            "total": to_decimal(row["total"]), "fecha": row["fecha"],
             "items": [dict(i) for i in items],
         }
 
@@ -664,8 +671,8 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                 api_items = [
                     {"producto_id": it["producto_id"],
                      "nombre":      it.get("nombre", ""),
-                     "cantidad":    float(it["cantidad"]),
-                     "precio_unitario": float(it["precio_unitario"])}
+                     "cantidad":    to_decimal(it["cantidad"]),
+                     "precio_unitario": to_decimal(it["precio_unitario"])}
                     for it in items
                 ]
                 data = self._api_post("/api/v1/cotizaciones", {
@@ -711,7 +718,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
     # ── Anticipos ─────────────────────────────────────────────────────────────
 
-    def requiere_anticipo(self, cliente_id: str, total: float,
+    def requiere_anticipo(self, cliente_id: str, total: Decimal,
                           programado: bool = False) -> bool:
         credito = self.get_credito_disponible(cliente_id)
         if credito < total:
@@ -721,27 +728,27 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         return False
 
     # PaymentGateway impl
-    def needs_advance(self, cliente_id: str, total: float,
+    def needs_advance(self, cliente_id: str, total: Decimal,
                       programado: bool = False) -> bool:
         return self.requiere_anticipo(cliente_id, total, programado)
 
-    def register_advance(self, venta_id: str, monto: float,
+    def register_advance(self, venta_id: str, monto: Decimal,
                          metodo: str = "mercadopago") -> int:
         return self.registrar_anticipo(venta_id, monto, metodo)
 
-    def confirm_payment(self, venta_id: str, monto: float,
+    def confirm_payment(self, venta_id: str, monto: Decimal,
                         referencia: str = "", metodo: str = "mercadopago") -> bool:
         return self.confirmar_pago_anticipo(venta_id, monto, referencia, metodo)
 
-    def get_advance_rules(self, cliente_id: str, total: float,
+    def get_advance_rules(self, cliente_id: str, total: Decimal,
                           items: Optional[List[Dict]] = None) -> Dict:
         return self.calcular_anticipo_rules(cliente_id, total, items)
 
-    def registrar_anticipo(self, venta_id: str, monto: float,
+    def registrar_anticipo(self, venta_id: str, monto: Decimal,
                            metodo: str = "mercadopago") -> int:
         return self.payment_gateway.register_advance(venta_id, monto, metodo)
 
-    def _registrar_anticipo_impl(self, venta_id: str, monto: float,
+    def _registrar_anticipo_impl(self, venta_id: str, monto: Decimal,
                                  metodo: str = "mercadopago") -> int:
         if self._use_api:
             try:
@@ -847,7 +854,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
     # ── Calcular anticipo según reglas del ERP ────────────────────────────────
 
-    def calcular_anticipo_rules(self, cliente_id: str, total: float,
+    def calcular_anticipo_rules(self, cliente_id: str, total: Decimal,
                                  items: Optional[List[Dict]] = None) -> Dict:
         credito = self.get_credito_disponible(cliente_id)
 
@@ -862,11 +869,11 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                             ORDER BY porcentaje DESC LIMIT 1
                         """, (product_category_name(self.db, prod_id),)).fetchone()
                         if regla:
-                            pct = float(regla[0]) / 100.0
+                            pct = to_decimal(regla[0]) / HUNDRED
                             return {"requiere": True,
-                                    "monto": round(total * pct, 2),
+                                    "monto": quantize_money(total * pct),
                                     "razon": "producto_especial"}
-            return {"requiere": False, "monto": 0.0, "razon": "credito_suficiente"}
+            return {"requiere": False, "monto": ZERO, "razon": "credito_suficiente"}
 
         regla_monto = self.db.execute("""
             SELECT porcentaje FROM anticipo_reglas
@@ -875,20 +882,20 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
             ORDER BY porcentaje DESC LIMIT 1
         """, (total,)).fetchone()
 
-        pct = float(regla_monto[0]) / 100.0 if regla_monto else 0.5
+        pct = to_decimal(regla_monto[0]) / HUNDRED if regla_monto else Decimal("0.5")
 
         return {"requiere": True,
-                "monto": round(total * pct, 2),
+                "monto": quantize_money(total * pct),
                 "razon": "sin_credito"}
 
     # ── Confirmar pago de anticipo ────────────────────────────────────────────
 
-    def confirmar_pago_anticipo(self, venta_id: str, monto: float,
+    def confirmar_pago_anticipo(self, venta_id: str, monto: Decimal,
                                  referencia: str = "",
                                  metodo: str = "mercadopago") -> bool:
         return self.payment_gateway.confirm_payment(venta_id, monto, referencia, metodo)
 
-    def _confirmar_pago_anticipo_impl(self, venta_id: str, monto: float,
+    def _confirmar_pago_anticipo_impl(self, venta_id: str, monto: Decimal,
                                       referencia: str = "",
                                       metodo: str = "mercadopago") -> bool:
         if self._use_api:
@@ -933,14 +940,14 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         resultado = []
         for it in items:
             prod_id = it.get("producto_id")
-            cantidad = float(it.get("cantidad", 0))
+            cantidad = to_decimal(it.get("cantidad", 0))
             if not prod_id:
                 continue
             stock_row = self.db.execute(
                 "SELECT stock FROM (" + CATALOG_SELECT + " WHERE p.id = :pid)",
                 catalog_params(sucursal_id, pid=prod_id)).fetchone()
-            stock_actual = float(stock_row[0]) if stock_row else 0.0
-            falta = max(0.0, cantidad - stock_actual)
+            stock_actual = to_decimal(stock_row[0]) if stock_row else ZERO
+            falta = max(ZERO, cantidad - stock_actual)
             resultado.append({**it, "stock_actual": stock_actual, "falta": falta})
         return resultado
 
@@ -948,16 +955,16 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
     def check_stock(self, items: List[Dict], sucursal_id: str) -> List[Dict]:
         return self.verificar_stock_items(items, sucursal_id)
 
-    def create_purchase_order(self, producto_id: str, cantidad: float,
+    def create_purchase_order(self, producto_id: str, cantidad: Decimal,
                               sucursal_id: str, notas: str = "") -> Optional[int]:
         return self.generar_orden_compra(producto_id, cantidad, sucursal_id, notas)
 
-    def generar_orden_compra(self, producto_id: str, cantidad: float,
+    def generar_orden_compra(self, producto_id: str, cantidad: Decimal,
                               sucursal_id: str,
                               notas: str = "OC automática desde WA") -> Optional[int]:
         return self.inventory_gateway.create_purchase_order(producto_id, cantidad, sucursal_id, notas)
 
-    def _generar_orden_compra_impl(self, producto_id: str, cantidad: float,
+    def _generar_orden_compra_impl(self, producto_id: str, cantidad: Decimal,
                                    sucursal_id: str,
                                    notas: str = "OC automática desde WA") -> Optional[int]:
         if self._use_api:

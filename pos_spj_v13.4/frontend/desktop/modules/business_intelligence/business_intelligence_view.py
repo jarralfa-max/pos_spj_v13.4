@@ -9,9 +9,10 @@ for why.
 """
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QStackedWidget, QWidget
+from PyQt5.QtWidgets import QWidget
 
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.business_intelligence.business_intelligence_routes import build_page
 from frontend.desktop.modules.business_intelligence.widgets import BusinessIntelligenceSidebarWidget
@@ -37,7 +38,7 @@ class BusinessIntelligenceView(QWidget):
 
         self.sidebar = BusinessIntelligenceSidebarWidget(
             has_permission=has_permission, badges=badges, parent=self)
-        self.stack = QStackedWidget(self)
+        self.stack = PageStack(self)
         self.module_layout = ModuleLayout(
             self, title="Inteligencia de Negocios", icon=Icons.ANALYTICS,
             sidebar=self.sidebar, content=self.stack,

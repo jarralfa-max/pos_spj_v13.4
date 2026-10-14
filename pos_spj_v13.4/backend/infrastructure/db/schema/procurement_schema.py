@@ -567,6 +567,15 @@ def create_procurement_schema(conn) -> None:
     for column in ("net_weight", "piece_count", "purchase_order_line_id"):
         if not _column_exists(conn, "goods_receipt_lines", column):
             conn.execute(f"ALTER TABLE goods_receipt_lines ADD COLUMN {column} TEXT")
+    # Auditoría Compras d9f2bca (migración 334): la naturaleza de cada línea
+    # de factura se GUARDA (C04: se rehidrataba como INVENTORY y un activo
+    # terminaba reconocido como inventario) y la línea recibida de una compra
+    # directa sabe a qué línea de la compra corresponde (C10: recepción parcial).
+    if not _column_exists(conn, "supplier_invoice_lines", "purchase_nature"):
+        conn.execute("ALTER TABLE supplier_invoice_lines ADD COLUMN purchase_nature"
+                     " TEXT NOT NULL DEFAULT 'INVENTORY'")
+    if not _column_exists(conn, "goods_receipt_lines", "direct_purchase_line_id"):
+        conn.execute("ALTER TABLE goods_receipt_lines ADD COLUMN direct_purchase_line_id TEXT")
     # Una adjudicación genera UNA orden por proveedor (migración 278): la
     # idempotencia de "Generar órdenes" no depende sólo de la aplicación.
     conn.execute(

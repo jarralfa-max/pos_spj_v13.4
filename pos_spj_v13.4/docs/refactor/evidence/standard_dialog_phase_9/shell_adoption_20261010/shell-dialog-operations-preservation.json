@@ -1,0 +1,49 @@
+{
+  "method_preservation": {
+    "frontend/desktop/modules/inventory/dialogs.py": {
+      "unchanged_methods": 83,
+      "changed_methods": []
+    },
+    "frontend/desktop/modules/sales_pos/dialogs/payment_dialog.py": {
+      "unchanged_methods": 10,
+      "changed_methods": []
+    },
+    "frontend/desktop/modules/sales_pos/dialogs/discount_dialog.py": {
+      "unchanged_methods": 2,
+      "changed_methods": []
+    },
+    "frontend/desktop/modules/sales_pos/dialogs/quick_customer_dialog.py": {
+      "unchanged_methods": 1,
+      "changed_methods": []
+    }
+  },
+  "tests": {
+    "before": {
+      "tests": 23,
+      "failures": 7,
+      "errors": 0,
+      "skipped": 0
+    },
+    "after": {
+      "tests": 72,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "regression": {
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "payment_final": {
+      "tests": 12,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "capture_count": 42,
+  "target_class_methods_unchanged": 19,
+  "validation_note": "72 adoption cases passed; after the payment layout correction the affected 12 payment cases passed again. The 9 regression cases include 3 Escape cases already in the 72 adoption cases."
+}

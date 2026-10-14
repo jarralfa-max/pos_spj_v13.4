@@ -300,7 +300,7 @@ class InvoiceReadService(_Base):
                 # A $/kg (peso variable) se factura en kg: lo pactado son los kg
                 # nominales y lo aceptado, el PESO REAL de las recepciones.
                 "SELECT id source_line_id,product_id,description,ordered_quantity quantity,"
-                " unit_price,discount,tax,"
+                " unit_price,discount,tax,purchase_nature,currency_code,"
                 " CASE WHEN pricing_basis='PER_KILOGRAM' THEN 'KG' ELSE purchase_unit END"
                 "  purchase_unit,"
                 " CASE WHEN pricing_basis='PER_KILOGRAM'"
@@ -316,7 +316,9 @@ class InvoiceReadService(_Base):
                 # o el peso real); se factura lo facturable (cantidad o, con
                 # precio por kg, el peso real).
                 "SELECT id source_line_id,product_id,description,quantity,"
-                " unit_cost unit_price,discount,tax,"
+                " unit_cost unit_price,discount,tax,purchase_nature,"
+                " (SELECT currency_code FROM direct_purchases WHERE id=direct_purchase_id)"
+                "  currency_code,"
                 " CASE WHEN pricing_basis='PER_KILOGRAM' THEN 'KG' ELSE purchase_unit END"
                 "  purchase_unit,"
                 " CASE WHEN pricing_basis='PER_KILOGRAM' AND net_weight IS NOT NULL"
@@ -326,16 +328,16 @@ class InvoiceReadService(_Base):
                 "  inventory_quantity FROM direct_purchase_lines"
                 " WHERE direct_purchase_id=? ORDER BY id", (document_id,))
             receipt_filter, invoice_key = "g.direct_purchase_id=?", "direct_purchase_line_id"
-        by_line: dict[str, Decimal] = {}
-        unlinked: dict[str, Decimal] = {}
-        for r in self._query(
-                "SELECT r.product_id, r.purchase_order_line_id, r.accepted_quantity"
-                " FROM goods_receipt_lines r JOIN goods_receipts g ON g.id=r.goods_receipt_id"
-                f" WHERE {receipt_filter} AND g.status='COMPLETED'", (document_id,)):
-            key = r.get("purchase_order_line_id")
-            bucket = by_line if key else unlinked
-            key = key or r["product_id"]
-            bucket[key] = bucket.get(key, Decimal("0")) + dec(r["accepted_quantity"])
+        # Auditoría Compras C27: lo aceptado sale de la MISMA regla que usa la
+        # conciliación (repositorio de recepciones): liga líneas de orden y de
+        # compra directa y descuenta lo devuelto confirmado. Antes esta pantalla
+        # tenía su propia copia y prometía como facturable lo ya devuelto.
+        from backend.infrastructure.db.repositories.procurement.goods_receipt_repository import (
+            GoodsReceiptRepository,
+        )
+        by_line, unlinked = GoodsReceiptRepository(self._conn).accepted_by_source(
+            **({"purchase_order_id": document_id} if is_order
+               else {"direct_purchase_id": document_id}))
         def ratio(r) -> Decimal:
             """Unidades de inventario recibidas por cada unidad facturable."""
             billable = dec(r["billable_quantity"])
@@ -360,16 +362,25 @@ class InvoiceReadService(_Base):
         result = []
         for r in rows:
             quantity = dec(r["billable_quantity"])
-            invoiced = dec(self._scalar(
-                "SELECT SUM(CAST(l.invoiced_quantity AS NUMERIC)) FROM supplier_invoice_lines l"
+            # C22: APLICADO (conciliada/aprobada) frente a RESERVADO (capturada o
+            # con diferencias, aún sin deuda). Lo reservado se muestra aparte y
+            # se libera cancelando esa factura.
+            invoiced = sum((dec(x["invoiced_quantity"]) for x in self._query(
+                "SELECT l.invoiced_quantity FROM supplier_invoice_lines l"
                 " JOIN supplier_invoices i ON i.id=l.supplier_invoice_id"
-                f" WHERE l.{invoice_key}=? AND i.status<>'CANCELLED'",
-                (r["source_line_id"],), default=0))
+                f" WHERE l.{invoice_key}=? AND i.status IN ('MATCHED','APPROVED','POSTED')",
+                (r["source_line_id"],))), Decimal("0"))
+            reserved = sum((dec(x["invoiced_quantity"]) for x in self._query(
+                "SELECT l.invoiced_quantity FROM supplier_invoice_lines l"
+                " JOIN supplier_invoices i ON i.id=l.supplier_invoice_id"
+                f" WHERE l.{invoice_key}=? AND i.status IN"
+                " ('CAPTURED','PENDING_MATCH','WITH_DIFFERENCES','BLOCKED')",
+                (r["source_line_id"],))), Decimal("0"))
             if r.get("pricing_basis") == "PER_KILOGRAM":
                 line_accepted = weights.get(r["source_line_id"], Decimal("0"))
             else:
                 line_accepted = accepted.get(r["source_line_id"], Decimal("0")) / ratio(r)
-            pending = max(Decimal("0"), line_accepted - invoiced)
+            pending = max(Decimal("0"), line_accepted - invoiced - reserved)
             price = dec(r["unit_price"])
             net = (quantity * price - dec(r["discount"])) / quantity if quantity > 0 else price
             tax = dec(r["tax"])
@@ -384,7 +395,10 @@ class InvoiceReadService(_Base):
                 "tax_declared": declared,
                 "accepted_quantity": plain(line_accepted),
                 "invoiced_quantity": str(invoiced),
+                "reserved_quantity": str(reserved),
                 "pending_quantity": plain(pending),
+                "purchase_nature": r.get("purchase_nature") or "INVENTORY",
+                "currency_code": r.get("currency_code") or "MXN",
             })
         return result
 

@@ -1,4 +1,7 @@
 """Numeric capture used by POS keeps its data and actions inside the monitor."""
+import os
+from pathlib import Path
+
 import pytest
 from PyQt5 import sip
 from PyQt5.QtCore import QPoint, QRect, QSettings, Qt
@@ -36,6 +39,11 @@ def test_numeric_capture_fits_with_keyboard_and_preserves_value(
                 assert dialog.rect().contains(QRect(button.mapTo(dialog, QPoint()), button.size()))
                 assert button.height() >= density_metrics(density).button_height
                 assert not button.visibleRegion().isEmpty()
+            if artifact_path := os.environ.get("SPJ_DIALOG_VISUAL_ARTIFACTS"):
+                directory = Path(artifact_path)
+                directory.mkdir(parents=True, exist_ok=True)
+                state = "expanded" if expanded else "collapsed"
+                assert dialog.grab().save(str(directory / f"numeric-{theme}-{density}-{state}.png"))
         QTest.keyClick(dialog, Qt.Key_Return)
         assert dialog.result() == dialog.Accepted
         assert dialog.valor() == 12.5

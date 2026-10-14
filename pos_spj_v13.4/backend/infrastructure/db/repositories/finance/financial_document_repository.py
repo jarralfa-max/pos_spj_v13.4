@@ -13,7 +13,8 @@ from backend.infrastructure.db.repositories.finance.base import FinanceRepositor
 _COLUMNS = ("id, document_type, document_number, issue_date, due_date, currency_code,"
             " exchange_rate, subtotal, tax_amount, discount_amount, total_amount,"
             " outstanding_amount, status, branch_id, customer_id, supplier_id,"
-            " source_module, source_document_id, operation_id, created_at, updated_at")
+            " source_module, source_document_id, operation_id, created_at, updated_at,"
+            " row_version")
 
 
 def _money(value: str | None, currency: str) -> Money | None:
@@ -43,6 +44,7 @@ def _to_entity(row: dict) -> FinancialDocument:
         operation_id=row["operation_id"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        row_version=int(row["row_version"] or 0),
     )
 
 
@@ -50,7 +52,7 @@ class FinancialDocumentRepository(FinanceRepositoryBase):
     def save(self, document: FinancialDocument) -> None:
         self._execute(
             f"INSERT INTO financial_documents ({_COLUMNS})"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (document.id, document.document_type.value, document.document_number,
              document.issue_date.isoformat(),
              document.due_date.isoformat() if document.due_date else None,
@@ -61,15 +63,17 @@ class FinancialDocumentRepository(FinanceRepositoryBase):
              document.total_amount.to_string(), document.outstanding_amount.to_string(),
              document.status.value, document.branch_id, document.customer_id,
              document.supplier_id, document.source_module, document.source_document_id,
-             document.operation_id, document.created_at, document.updated_at),
+             document.operation_id, document.created_at, document.updated_at,
+             document.row_version),
         )
 
     def update(self, document: FinancialDocument) -> None:
-        self._execute(
-            "UPDATE financial_documents SET outstanding_amount=?, status=?, updated_at=?"
-            " WHERE id=?",
-            (document.outstanding_amount.to_string(), document.status.value,
-             document.updated_at, document.id),
+        self._execute_versioned(
+            "UPDATE financial_documents SET total_amount=?, outstanding_amount=?, status=?,"
+            " updated_at=?, row_version=row_version+1 WHERE id=? AND row_version=?",
+            (document.total_amount.to_string(), document.outstanding_amount.to_string(),
+             document.status.value, document.updated_at, document.id, document.row_version),
+            document, "El documento financiero",
         )
 
     def get(self, document_id: str) -> FinancialDocument | None:

@@ -7,7 +7,7 @@ convierte en una orden de procesamiento que nace aprobada, lista para preparar.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QInputDialog, QLabel, QMessageBox
+from PyQt5.QtWidgets import QDialog, QLabel, QMessageBox
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -17,6 +17,7 @@ from frontend.desktop.components import (
     create_secondary_button,
 )
 from frontend.desktop.components.date_input import DateInput
+from frontend.desktop.components.dialogs import FormDialog
 from frontend.desktop.components.pages import StandardPage
 
 COLUMNS = [
@@ -116,7 +117,7 @@ class ProductionPlanPage(StandardPage):
         if not fuentes:
             QMessageBox.information(self, "Plan", "No hay fuentes de sugerencias.")
             return
-        etiqueta, aceptado = QInputDialog.getItem(
+        etiqueta, aceptado = FormDialog.get_item(
             self, "Sugerir líneas", "Fuente:", [f[1] for f in fuentes], 0, False)
         if not aceptado:
             return

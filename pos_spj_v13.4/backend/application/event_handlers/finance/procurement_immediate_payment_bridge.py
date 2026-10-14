@@ -37,15 +37,18 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from decimal import Decimal
 
+from backend.application.event_handlers.finance.procurement_posting_policy import (
+    NATURE_ACCOUNT_ROLE as _NATURE_ACCOUNT_ROLE,
+    purchase_debit_lines,
+    purchase_issue_date,
+)
 from backend.application.services.finance.posting_engine import PostingEngine
 from backend.domain.finance.enums import JournalType, PostingPurpose, TreasuryAccountType
 from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.money import Money
 from backend.domain.finance.value_objects.posting_reference import PostingReference
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
-from backend.shared.business_dates import local_business_date
 
 logger = logging.getLogger("spj.finance.procurement_immediate_payment_bridge")
 
@@ -57,14 +60,6 @@ _UNAMBIGUOUS_SOURCE_TO_ACCOUNT_TYPE = {
     "MERCADO_PAGO": TreasuryAccountType.PAYMENT_PROCESSOR,
 }
 
-#: Mirrors `ProcurementPayableBridgeHandler`'s own mapping/fallback exactly —
-#: one shared convention for "which account recognizes this purchase_nature."
-_NATURE_ACCOUNT_ROLE = {
-    "INVENTORY": "inventory_account_id",
-    "EXPENSE": "expense_account_id",
-    "ASSET": "asset_account_id",
-    "SERVICE": "expense_account_id",
-}
 
 
 class ProcurementImmediatePaymentBridgeHandler:
@@ -98,7 +93,7 @@ class ProcurementImmediatePaymentBridgeHandler:
         if treasury_account is None:
             return  # already logged inside _resolve_treasury_account
 
-        issue_date = _issue_date(payload)
+        issue_date = purchase_issue_date(payload)
         # El libro diario muestra el FOLIO (CD-2026-000003), no el UUID interno.
         folio = str(payload.get("document_number") or "").strip() or document_id[:8]
         with FinanceUnitOfWork(self._connection) as uow:
@@ -107,34 +102,17 @@ class ProcurementImmediatePaymentBridgeHandler:
             if existing is not None:
                 return  # idempotent: already posted for this document
 
-            profile = uow.posting_profiles.find_effective("PURCHASE", issue_date)
+            profile = uow.posting_profiles.find_effective("PURCHASE", issue_date,
+                                                         branch_id=branch_id)
             if profile is None:
                 raise ValueError(
                     f"No hay perfil contable PURCHASE vigente en {issue_date.isoformat()}")
 
-            lines: list[LineSpec] = []
-            debited = Decimal("0")
-            for nature, subtotal in nature_subtotals.items():
-                money = Money.from_string(str(subtotal), currency_code)
-                if not money.is_positive():
-                    continue
-                role = _NATURE_ACCOUNT_ROLE.get(nature, "expense_account_id")
-                lines.append(LineSpec(profile.account_for(role), debit=money,
-                                      description=f"Compra de contado {folio} ({nature})"))
-                debited += money.amount
-            tax_total = Money.from_string(str(payload.get("tax_total") or "0"), currency_code)
-            if tax_total.is_positive():
-                lines.append(LineSpec(profile.account_for("tax_account_id"), debit=tax_total,
-                                      description=f"IVA acreditable {folio}"))
-                debited += tax_total.amount
+            total = Money.from_string(str(amount), currency_code)
+            lines = purchase_debit_lines(profile, payload, currency_code=currency_code,
+                                         label=f"Compra de contado {folio}", total=total)
             if not lines:
                 return
-
-            total = Money.from_string(str(amount), currency_code)
-            if debited != total.amount:
-                raise ValueError(
-                    f"Pago de contado {document_id}: subtotales por naturaleza + impuesto "
-                    f"({debited}) != monto total ({total.amount})")
             lines.append(LineSpec(treasury_account.ledger_account_id, credit=total,
                                   description=f"Pago de contado a proveedor {folio}"))
 
@@ -205,8 +183,3 @@ def purchase_posting_problem(connection, *, payment_source: str, branch_id: str 
             return f"no hay perfil contable de compras vigente al {fecha.isoformat()}"
     return None
 
-
-def _issue_date(payload: dict) -> date:
-    # Día LOCAL del negocio, no el de UTC (el último día del mes, el asiento
-    # caía en el periodo siguiente).
-    return local_business_date(payload.get("timestamp"))

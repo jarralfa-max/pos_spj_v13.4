@@ -4,6 +4,12 @@ Cada teléfono tiene un contexto que persiste entre mensajes.
 Estado de la conversación, sucursal, pedido en curso, etc.
 """
 from __future__ import annotations
+from decimal import Decimal
+
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -42,12 +48,12 @@ class PedidoItem:
     """Un item dentro del pedido en curso."""
     producto_id: str
     nombre: str
-    cantidad: float
+    cantidad: Decimal
     unidad: str = "kg"
-    precio_unitario: float = 0.0
+    precio_unitario: Decimal = Decimal("0")
 
     @property
-    def subtotal(self) -> float:
+    def subtotal(self) -> Decimal:
         return self.cantidad * self.precio_unitario
 
     def to_dict(self) -> dict:
@@ -61,7 +67,12 @@ class PedidoItem:
 
     @classmethod
     def from_dict(cls, d: dict) -> "PedidoItem":
-        return cls(**d)
+        # El contexto persistido puede traer números o texto (versiones previas
+        # guardaban float / `default=str`): se normaliza a Decimal al leer.
+        data = dict(d)
+        data["cantidad"] = to_decimal(data.get("cantidad"))
+        data["precio_unitario"] = to_decimal(data.get("precio_unitario"))
+        return cls(**data)
 
 
 @dataclass
@@ -111,7 +122,7 @@ class ConversationContext:
         self._producto_temp = None
         self.failed_intents = 0
 
-    def total_pedido(self) -> float:
+    def total_pedido(self) -> Decimal:
         return sum(i.subtotal for i in self.pedido_items)
 
     def resumen_pedido(self) -> str:

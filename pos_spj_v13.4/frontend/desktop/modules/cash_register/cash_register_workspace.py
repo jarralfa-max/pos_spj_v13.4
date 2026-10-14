@@ -11,12 +11,13 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QFrame, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFrame, QScrollArea, QVBoxLayout, QWidget
 
 from frontend.desktop.components.buttons import create_secondary_button
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.tooltip import apply_tooltip
@@ -73,7 +74,7 @@ class CashRegisterWorkspace(QWidget):
         self._nav.setProperty("role", "nav")
         self._nav.setAccessibleName("Navegacion de caja")
         self._nav.navigated.connect(self._on_navigated)
-        self._stack = QStackedWidget(self)
+        self._stack = PageStack(self)
         self._stack.setObjectName("cashRegisterStack")
         self._stack.setAccessibleName("Paginas del modulo de caja")
         self.module_layout = ModuleLayout(

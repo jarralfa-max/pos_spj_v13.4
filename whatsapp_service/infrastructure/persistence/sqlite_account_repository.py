@@ -4,6 +4,10 @@
 contra `whatsapp_business_accounts`/`whatsapp_provider_configurations`
 (migración 243)."""
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal, loads_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 
 import json
 from datetime import datetime
@@ -98,7 +102,7 @@ def _configuration_from_row(row) -> WhatsAppProviderConfiguration:
         account_id=row[1],
         provider=WhatsAppProvider(row[2]),
         api_version=row[3],
-        extra_settings=json.loads(row[4]) if row[4] else {},
+        extra_settings=loads_decimal(row[4]) if row[4] else {},
         created_at=datetime.fromisoformat(row[5]),
         updated_at=datetime.fromisoformat(row[6]),
     )
@@ -131,7 +135,7 @@ class SqliteWhatsAppProviderConfigurationRepository:
                 configuration.account_id,
                 configuration.provider.value,
                 configuration.api_version,
-                json.dumps(configuration.extra_settings, ensure_ascii=False),
+                dumps_decimal(configuration.extra_settings, ensure_ascii=False),
                 configuration.created_at.isoformat(),
                 configuration.updated_at.isoformat(),
             ),

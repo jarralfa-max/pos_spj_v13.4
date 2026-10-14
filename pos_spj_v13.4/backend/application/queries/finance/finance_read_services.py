@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from backend.application.queries.finance.base_finance_query_service import (
     FinanceQueryServiceBase,
+    decimal_sum,
 )
 
 
@@ -28,9 +29,7 @@ class AccountQueryService(FinanceQueryServiceBase):
 
 
 class JournalQueryService(FinanceQueryServiceBase):
-    def list_entries(self, *, status: str | None = None, journal_type: str | None = None,
-                     date_from: str | None = None, date_to: str | None = None,
-                     limit: int = 200, offset: int = 0) -> list[dict]:
+    def _entry_filters(self, *, status, journal_type, date_from, date_to, search):
         conditions = ["1=1"]
         params: list = []
         if status:
@@ -45,17 +44,46 @@ class JournalQueryService(FinanceQueryServiceBase):
         if date_to:
             conditions.append("je.entry_date <= ?")
             params.append(date_to)
+        if search:
+            conditions.append("(je.entry_number LIKE ? OR je.description LIKE ?)")
+            params.extend([f"%{search}%", f"%{search}%"])
+        return conditions, params
+
+    def list_entries(self, *, status: str | None = None, journal_type: str | None = None,
+                     date_from: str | None = None, date_to: str | None = None,
+                     search: str | None = None,
+                     limit: int = 200, offset: int = 0) -> list[dict]:
+        """Página de asientos (auditoría F24: con ``offset`` y ``count_entries``
+        los más de 200 siguen siendo accesibles)."""
+        conditions, params = self._entry_filters(
+            status=status, journal_type=journal_type, date_from=date_from,
+            date_to=date_to, search=search)
         params.extend([limit, offset])
-        return self._query(
+        rows = self._query(
             "SELECT je.id, je.entry_number, je.entry_date, je.description, je.status,"
             " j.journal_type, je.source_module, je.posting_purpose, je.branch_id,"
-            " (SELECT COALESCE(SUM(CAST(debit_amount AS NUMERIC)),0)"
-            "    FROM journal_lines WHERE journal_entry_id = je.id) AS total"
+            " je.currency_code, je.reversal_of_entry_id, je.reversed_by_entry_id"
             " FROM journal_entries je JOIN journals j ON j.id = je.journal_id"
             f" WHERE {' AND '.join(conditions)}"
             " ORDER BY je.entry_date DESC, je.entry_number DESC LIMIT ? OFFSET ?",
             tuple(params),
         )
+        for row in rows:
+            row["total"] = format(decimal_sum(
+                r[0] for r in self._conn.execute(
+                    "SELECT debit_amount FROM journal_lines WHERE journal_entry_id = ?",
+                    (row["id"],)).fetchall()), "f")
+        return rows
+
+    def count_entries(self, *, status: str | None = None, journal_type: str | None = None,
+                      date_from: str | None = None, date_to: str | None = None,
+                      search: str | None = None) -> int:
+        conditions, params = self._entry_filters(
+            status=status, journal_type=journal_type, date_from=date_from,
+            date_to=date_to, search=search)
+        return int(self._scalar(
+            "SELECT COUNT(*) FROM journal_entries je JOIN journals j ON j.id = je.journal_id"
+            f" WHERE {' AND '.join(conditions)}", tuple(params)))
 
     def entry_lines(self, journal_entry_id: str) -> list[dict]:
         return self._query(
@@ -92,7 +120,8 @@ class ReceivableQueryService(FinanceQueryServiceBase):
         return self._query(
             "SELECT r.id, r.customer_id, r.outstanding_amount, r.due_date,"
             " CASE"
-            "  WHEN r.due_date IS NULL OR r.due_date >= ? THEN 'CURRENT'"
+            "  WHEN r.due_date IS NULL THEN 'NO_DUE_DATE'"
+            "  WHEN r.due_date >= ? THEN 'CURRENT'"
             "  WHEN julianday(?) - julianday(r.due_date) <= 30 THEN '1-30'"
             "  WHEN julianday(?) - julianday(r.due_date) <= 60 THEN '31-60'"
             "  WHEN julianday(?) - julianday(r.due_date) <= 90 THEN '61-90'"
@@ -101,6 +130,68 @@ class ReceivableQueryService(FinanceQueryServiceBase):
             " FROM receivables r WHERE r.status IN ('OPEN','PARTIALLY_COLLECTED')",
             (as_of, as_of, as_of, as_of),
         )
+
+    def customer_display_names(self) -> dict[str, str]:
+        """Nombre visible de los clientes con CxC (F24): maestro canónico
+        (``customers``) y, si existe, el catálogo anterior (``clientes``).
+        Sólo lectura; sin maestro devuelve vacío y la UI muestra el id."""
+        ids = [r["customer_id"] for r in self._query(
+            "SELECT DISTINCT customer_id FROM receivables")]
+        if not ids:
+            return {}
+        names: dict[str, str] = {}
+        tables = {r["name"] for r in self._query(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+            " AND name IN ('customers','clientes')")}
+        placeholders = ",".join("?" for _ in ids)
+        if "clientes" in tables:
+            for row in self._query(
+                    f"SELECT CAST(id AS TEXT) AS id, nombre FROM clientes"
+                    f" WHERE CAST(id AS TEXT) IN ({placeholders})", tuple(ids)):
+                names[row["id"]] = row["nombre"]
+        if "customers" in tables:
+            for row in self._query(
+                    f"SELECT id, display_name FROM customers WHERE id IN ({placeholders})",
+                    tuple(ids)):
+                if row["display_name"]:
+                    names[row["id"]] = row["display_name"]
+        return names
+
+    def collection_history(self, *, customer_id: str | None = None,
+                           date_from: str | None = None, date_to: str | None = None,
+                           search: str | None = None,
+                           limit: int = 200, offset: int = 0) -> list[dict]:
+        """Historial de COBROS (auditoría F23): cada cobro registrado, también
+        los de facturas ya liquidadas — antes la pantalla «Cobros» mostraba la
+        deuda abierta y un cobro desaparecía al saldarse su factura."""
+        conditions = ["1=1"]
+        params: list = []
+        if customer_id:
+            conditions.append("c.customer_id = ?")
+            params.append(customer_id)
+        if date_from:
+            conditions.append("c.collection_date >= ?")
+            params.append(date_from)
+        if date_to:
+            conditions.append("c.collection_date <= ?")
+            params.append(date_to)
+        if search:
+            conditions.append("(fd.document_number LIKE ? OR c.reference LIKE ?)")
+            params.extend([f"%{search}%", f"%{search}%"])
+        params.extend([limit, offset])
+        return self._query(
+            "SELECT c.id, c.collection_date, c.reference, fd.document_number,"
+            " c.customer_id, c.amount, c.currency_code, ta.name AS treasury_account_name,"
+            " c.journal_entry_id, je.entry_number, je.status AS entry_status,"
+            " r.status AS receivable_status"
+            " FROM collections c"
+            " JOIN receivables r ON r.id = c.receivable_id"
+            " JOIN financial_documents fd ON fd.id = r.financial_document_id"
+            " LEFT JOIN treasury_accounts ta ON ta.id = c.treasury_account_id"
+            " LEFT JOIN journal_entries je ON je.id = c.journal_entry_id"
+            f" WHERE {' AND '.join(conditions)}"
+            " ORDER BY c.collection_date DESC, c.created_at DESC LIMIT ? OFFSET ?",
+            tuple(params))
 
     def collections_by_receivable(self, receivable_id: str) -> list[dict]:
         return self._query(
@@ -142,19 +233,47 @@ class PayableQueryService(FinanceQueryServiceBase):
 
 class TreasuryQueryService(FinanceQueryServiceBase):
     def treasury_position(self) -> list[dict]:
-        """Balance per treasury account computed from its POSTED ledger mirror."""
-        return self._query(
+        """Saldo por cuenta de tesorería desde su espejo contable.
+
+        Auditoría F05: sólo cuentan asientos CONTABILIZADOS de la moneda de la
+        cuenta (antes el filtro de estado estaba en el LEFT JOIN y un borrador
+        de 100 aparecía como saldo bancario). Si dos cuentas comparten el mismo
+        espejo, el mayor no distingue a cuál pertenece cada movimiento: esas
+        filas se marcan ``shared_mirror`` y su saldo es el COLECTIVO, que
+        ``treasury_total`` cuenta una sola vez."""
+        accounts = self._query(
             "SELECT ta.id, ta.name, ta.account_type, ta.currency_code, ta.branch_id,"
-            " COALESCE(SUM(CAST(jl.debit_amount AS NUMERIC)"
-            "   - CAST(jl.credit_amount AS NUMERIC)), 0) AS balance"
-            " FROM treasury_accounts ta"
-            " LEFT JOIN journal_lines jl ON jl.account_id = ta.ledger_account_id"
-            " LEFT JOIN journal_entries je ON je.id = jl.journal_entry_id"
-            "   AND je.status IN ('POSTED','REVERSED')"
-            " WHERE ta.active = 1"
-            " GROUP BY ta.id, ta.name, ta.account_type, ta.currency_code, ta.branch_id"
-            " ORDER BY ta.name"
-        )
+            " ta.ledger_account_id FROM treasury_accounts ta WHERE ta.active = 1"
+            " ORDER BY ta.name")
+        sharing: dict[str, int] = {}
+        for account in accounts:
+            sharing[account["ledger_account_id"]] = sharing.get(account["ledger_account_id"], 0) + 1
+        for account in accounts:
+            account["balance"] = format(self._mirror_balance(
+                account["ledger_account_id"], account["currency_code"]), "f")
+            account["shared_mirror"] = sharing[account["ledger_account_id"]] > 1
+        return accounts
+
+    def _mirror_balance(self, ledger_account_id: str, currency_code: str):
+        rows = self._conn.execute(
+            "SELECT jl.debit_amount, jl.credit_amount FROM journal_lines jl"
+            " JOIN journal_entries je ON je.id = jl.journal_entry_id"
+            " WHERE jl.account_id = ? AND je.status IN ('POSTED','REVERSED')"
+            " AND je.currency_code = ?", (ledger_account_id, currency_code)).fetchall()
+        return decimal_sum(r[0] for r in rows) - decimal_sum(r[1] for r in rows)
+
+    def treasury_total(self) -> dict[str, str]:
+        """Total por moneda contando cada espejo UNA vez (cuadra con el mayor)."""
+        seen: set[tuple[str, str]] = set()
+        totals: dict[str, object] = {}
+        for account in self.treasury_position():
+            key = (account["ledger_account_id"], account["currency_code"])
+            if key in seen:
+                continue
+            seen.add(key)
+            totals[account["currency_code"]] = decimal_sum(
+                [totals.get(account["currency_code"], 0), account["balance"]])
+        return {currency: format(total, "f") for currency, total in totals.items()}
 
     def statements(self, treasury_account_id: str) -> list[dict]:
         return self._query(
@@ -194,18 +313,21 @@ class ReconciliationQueryService(FinanceQueryServiceBase):
 class BudgetQueryService(FinanceQueryServiceBase):
     def budget_execution(self, fiscal_year: int) -> list[dict]:
         """BudgetExecutionQueryService rows: planned vs committed vs accrued."""
-        return self._query(
+        rows = self._query(
             "SELECT b.id AS budget_id, b.name, b.status, bl.period_code,"
             " a.code AS account_code, a.name AS account_name,"
-            " bl.planned_amount, bl.committed_amount, bl.accrued_amount,"
-            " CAST(bl.planned_amount AS NUMERIC) - CAST(bl.committed_amount AS NUMERIC)"
-            "   - CAST(bl.accrued_amount AS NUMERIC) AS available"
+            " bl.planned_amount, bl.committed_amount, bl.accrued_amount"
             " FROM budgets b JOIN budget_lines bl ON bl.budget_id = b.id"
             " JOIN accounts a ON a.id = bl.account_id"
             " WHERE b.fiscal_year = ? AND b.status = 'APPROVED'"
             " ORDER BY bl.period_code, a.code",
             (fiscal_year,),
         )
+        for row in rows:
+            row["available"] = format(
+                decimal_sum([row["planned_amount"]]) - decimal_sum([row["committed_amount"]])
+                - decimal_sum([row["accrued_amount"]]), "f")
+        return rows
 
     def list_budgets(self) -> list[dict]:
         return self._query(
@@ -216,13 +338,15 @@ class BudgetQueryService(FinanceQueryServiceBase):
 
 class FixedAssetQueryService(FinanceQueryServiceBase):
     def list_assets(self) -> list[dict]:
-        return self._query(
+        rows = self._query(
             "SELECT id, name, acquisition_cost, residual_value, accumulated_depreciation,"
-            " useful_life_months, status, capitalization_date, last_depreciated_period,"
-            " CAST(acquisition_cost AS NUMERIC) - CAST(accumulated_depreciation AS NUMERIC)"
-            "  AS net_book_value"
+            " useful_life_months, status, capitalization_date, last_depreciated_period"
             " FROM fixed_assets ORDER BY name"
         )
+        for row in rows:
+            row["net_book_value"] = format(decimal_sum([row["acquisition_cost"]])
+                                           - decimal_sum([row["accumulated_depreciation"]]), "f")
+        return rows
 
 
 class CommercialObligationQueryService(FinanceQueryServiceBase):
@@ -232,30 +356,42 @@ class CommercialObligationQueryService(FinanceQueryServiceBase):
         if instrument_type:
             conditions.append("instrument_type = ?")
             params.append(instrument_type)
-        return self._query(
+        rows = self._query(
             "SELECT id, instrument_type, source_module, source_instrument_id,"
             " recognition_basis, customer_id, branch_id, original_amount,"
             " recognized_amount, redeemed_amount, released_amount, status,"
-            " issued_at, expires_at,"
-            " CAST(recognized_amount AS NUMERIC) - CAST(redeemed_amount AS NUMERIC)"
-            "  - CAST(released_amount AS NUMERIC) AS outstanding"
+            " issued_at, expires_at"
             " FROM commercial_obligations"
             f" WHERE {' AND '.join(conditions)} ORDER BY issued_at",
             tuple(params),
         )
+        for row in rows:
+            row["outstanding"] = format(self._outstanding(row), "f")
+        return rows
+
+    @staticmethod
+    def _outstanding(row: dict):
+        return (decimal_sum([row["recognized_amount"]]) - decimal_sum([row["redeemed_amount"]])
+                - decimal_sum([row["released_amount"]]))
 
     def summary_by_instrument(self) -> list[dict]:
         """Reporte §18: emitido vs canjeado vs expirado vs pendiente por tipo."""
-        return self._query(
-            "SELECT instrument_type,"
-            " COUNT(*) AS instruments,"
-            " SUM(CAST(recognized_amount AS NUMERIC)) AS recognized,"
-            " SUM(CAST(redeemed_amount AS NUMERIC)) AS redeemed,"
-            " SUM(CAST(released_amount AS NUMERIC)) AS released,"
-            " SUM(CAST(recognized_amount AS NUMERIC) - CAST(redeemed_amount AS NUMERIC)"
-            "   - CAST(released_amount AS NUMERIC)) AS outstanding"
-            " FROM commercial_obligations GROUP BY instrument_type ORDER BY instrument_type"
-        )
+        grouped: dict[str, dict] = {}
+        for row in self._query(
+                "SELECT instrument_type, recognized_amount, redeemed_amount, released_amount"
+                " FROM commercial_obligations ORDER BY instrument_type"):
+            bucket = grouped.setdefault(row["instrument_type"], {
+                "instrument_type": row["instrument_type"], "instruments": 0,
+                "recognized": [], "redeemed": [], "released": [], "outstanding": []})
+            bucket["instruments"] += 1
+            for key, column in (("recognized", "recognized_amount"),
+                                ("redeemed", "redeemed_amount"),
+                                ("released", "released_amount")):
+                bucket[key].append(row[column])
+            bucket["outstanding"].append(self._outstanding(row))
+        return [{**b, **{k: format(decimal_sum(b[k]), "f")
+                         for k in ("recognized", "redeemed", "released", "outstanding")}}
+                for b in grouped.values()]
 
     def expired_without_posting(self) -> list[dict]:
         """Obligaciones vencidas por fecha que siguen abiertas (excepciones)."""
@@ -289,29 +425,30 @@ class FinanceDashboardQueryService(FinanceQueryServiceBase):
         posted = "('POSTED','REVERSED')"
 
         def _type_balance(account_types: str, natural_debit: bool) -> str:
-            sign = ("CAST(jl.debit_amount AS NUMERIC) - CAST(jl.credit_amount AS NUMERIC)"
-                    if natural_debit else
-                    "CAST(jl.credit_amount AS NUMERIC) - CAST(jl.debit_amount AS NUMERIC)")
-            return self._scalar(
-                f"SELECT COALESCE(SUM({sign}), 0) FROM journal_lines jl"
+            rows = self._conn.execute(
+                "SELECT jl.debit_amount, jl.credit_amount FROM journal_lines jl"
                 " JOIN journal_entries je ON je.id = jl.journal_entry_id"
                 " JOIN accounts a ON a.id = jl.account_id"
                 f" WHERE je.status IN {posted} AND a.account_type IN ({account_types})"
-                " AND je.entry_date BETWEEN ? AND ?",
+                " AND je.entry_date BETWEEN ? AND ? AND je.currency_code = 'MXN'",
                 (month_from, month_to),
-            )
+            ).fetchall()
+            debits = decimal_sum(r[0] for r in rows)
+            credits = decimal_sum(r[1] for r in rows)
+            return format(debits - credits if natural_debit else credits - debits, "f")
 
-        receivables = self._scalar(
-            "SELECT COALESCE(SUM(CAST(outstanding_amount AS NUMERIC)),0) FROM receivables"
+        receivables = self._money_sum(
+            "SELECT outstanding_amount FROM receivables"
             " WHERE status IN ('OPEN','PARTIALLY_COLLECTED')")
-        payables = self._scalar(
-            "SELECT COALESCE(SUM(CAST(outstanding_amount AS NUMERIC)),0) FROM payables"
+        payables = self._money_sum(
+            "SELECT outstanding_amount FROM payables"
             " WHERE status IN ('OPEN','SCHEDULED','PARTIALLY_PAID')")
-        obligations = self._scalar(
-            "SELECT COALESCE(SUM(CAST(recognized_amount AS NUMERIC)"
-            " - CAST(redeemed_amount AS NUMERIC) - CAST(released_amount AS NUMERIC)),0)"
-            " FROM commercial_obligations WHERE status IN"
-            " ('OPEN','PARTIALLY_REDEEMED','PENDING_RECOGNITION')")
+        obligations = format(sum(
+            (CommercialObligationQueryService._outstanding(r) for r in self._query(
+                "SELECT recognized_amount, redeemed_amount, released_amount"
+                " FROM commercial_obligations WHERE status IN"
+                " ('OPEN','PARTIALLY_REDEEMED','PENDING_RECOGNITION')")),
+            decimal_sum([])), "f")
         return {
             "revenue": _type_balance("'REVENUE'", natural_debit=False),
             "contra_revenue": _type_balance("'CONTRA_REVENUE'", natural_debit=True),
@@ -324,34 +461,38 @@ class FinanceDashboardQueryService(FinanceQueryServiceBase):
         }
 
     def branch_results(self, *, date_from: str, date_to: str) -> list[dict]:
-        """BranchFinancialResultQueryService rows for BI."""
-        return self._query(
-            "SELECT je.branch_id,"
-            " SUM(CASE WHEN a.account_type='REVENUE' THEN"
-            "  CAST(jl.credit_amount AS NUMERIC) - CAST(jl.debit_amount AS NUMERIC)"
-            "  ELSE 0 END) AS revenue,"
-            " SUM(CASE WHEN a.account_type IN ('COST_OF_SALES','EXPENSE','OTHER_EXPENSE',"
-            " 'CONTRA_REVENUE') THEN"
-            "  CAST(jl.debit_amount AS NUMERIC) - CAST(jl.credit_amount AS NUMERIC)"
-            "  ELSE 0 END) AS costs_and_expenses"
-            " FROM journal_lines jl"
-            " JOIN journal_entries je ON je.id = jl.journal_entry_id"
-            " JOIN accounts a ON a.id = jl.account_id"
-            " WHERE je.status IN ('POSTED','REVERSED') AND je.entry_date BETWEEN ? AND ?"
-            " GROUP BY je.branch_id",
-            (date_from, date_to),
-        )
+        """BranchFinancialResultQueryService rows for BI (sumas exactas, F20)."""
+        grouped: dict = {}
+        for row in self._query(
+                "SELECT je.branch_id, a.account_type, jl.debit_amount, jl.credit_amount"
+                " FROM journal_lines jl"
+                " JOIN journal_entries je ON je.id = jl.journal_entry_id"
+                " JOIN accounts a ON a.id = jl.account_id"
+                " WHERE je.status IN ('POSTED','REVERSED') AND je.entry_date BETWEEN ? AND ?",
+                (date_from, date_to)):
+            bucket = grouped.setdefault(row["branch_id"], {"revenue": decimal_sum([]),
+                                                           "costs": decimal_sum([])})
+            delta = decimal_sum([row["debit_amount"]]) - decimal_sum([row["credit_amount"]])
+            if row["account_type"] == "REVENUE":
+                bucket["revenue"] -= delta
+            elif row["account_type"] in ("COST_OF_SALES", "EXPENSE", "OTHER_EXPENSE",
+                                         "CONTRA_REVENUE"):
+                bucket["costs"] += delta
+        return [{"branch_id": branch, "revenue": format(v["revenue"], "f"),
+                 "costs_and_expenses": format(v["costs"], "f")}
+                for branch, v in grouped.items()]
 
     def cost_center_actuals(self, *, date_from: str, date_to: str) -> list[dict]:
-        """CostCenterActualsQueryService rows for BI."""
-        return self._query(
-            "SELECT jl.cost_center_id,"
-            " SUM(CAST(jl.debit_amount AS NUMERIC) - CAST(jl.credit_amount AS NUMERIC)) AS actuals"
-            " FROM journal_lines jl JOIN journal_entries je ON je.id = jl.journal_entry_id"
-            " JOIN accounts a ON a.id = jl.account_id"
-            " WHERE je.status IN ('POSTED','REVERSED')"
-            " AND a.account_type IN ('EXPENSE','COST_OF_SALES','OTHER_EXPENSE')"
-            " AND je.entry_date BETWEEN ? AND ? AND jl.cost_center_id IS NOT NULL"
-            " GROUP BY jl.cost_center_id",
-            (date_from, date_to),
-        )
+        """CostCenterActualsQueryService rows for BI (sumas exactas, F20)."""
+        grouped: dict = {}
+        for row in self._query(
+                "SELECT jl.cost_center_id, jl.debit_amount, jl.credit_amount"
+                " FROM journal_lines jl JOIN journal_entries je ON je.id = jl.journal_entry_id"
+                " JOIN accounts a ON a.id = jl.account_id"
+                " WHERE je.status IN ('POSTED','REVERSED')"
+                " AND a.account_type IN ('EXPENSE','COST_OF_SALES','OTHER_EXPENSE')"
+                " AND je.entry_date BETWEEN ? AND ? AND jl.cost_center_id IS NOT NULL",
+                (date_from, date_to)):
+            grouped[row["cost_center_id"]] = grouped.get(row["cost_center_id"], decimal_sum([]))                 + decimal_sum([row["debit_amount"]]) - decimal_sum([row["credit_amount"]])
+        return [{"cost_center_id": cc, "actuals": format(total, "f")}
+                for cc, total in grouped.items()]

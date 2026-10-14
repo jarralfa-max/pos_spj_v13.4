@@ -77,15 +77,16 @@ retira el esquema legacy. `scripts/verify_tables.py` ahora exige `products` e
 
 ## 4. Pendiente (honesto)
 
-- El microservicio WhatsApp sigue usando `float` para precio y existencia (deuda
-  previa del microservicio, no de esta consulta).
+- ~~El microservicio WhatsApp sigue usando `float` para precio y existencia~~ →
+  cerrado en §6.
 - La matriz de roles de la 324 es la misma política que Precios; si se quiere otra
   (p. ej. que almacén apruebe), se ajusta en Configuración → Permisos.
-- Las alertas por WhatsApp no se reintentan sin conexión (el cliente hace una
-  petición directa; ver `whatsapp_product_notifier.py`).
+- ~~Las alertas por WhatsApp no se reintentan sin conexión~~ → cerrado en §6
+  (cola en el ERP).
 - Los parámetros del §45 que son reglas de dominio obligatorias (especie requerida,
   aprobación de recetas, segregación) NO se volvieron configurables: el §7 las
-  prohíbe relajar. Sólo se agregaron parámetros que el código lee.
+  prohíbe relajar. Sólo se agregaron parámetros que el código lee. → §6: el
+  usuario decidió «sólo endurecer»; se agregaron exigencias que bloquean activar.
 
 ## 5. Pendientes cerrados (2026-10-10, migraciones 326-329)
 
@@ -103,3 +104,25 @@ Tests nuevos: `test_prod22_meat_product_and_approvals.py` (9),
 (10), más segregación en `test_product_cutting.py`, `test_product_bundles.py` y
 `test_external_catalog_use_cases.py` (cuyos casos «mismo usuario captura y aprueba»
 se corrigieron: eso es justo lo que el §39 prohíbe).
+
+## 6. Lo que se dejó deliberadamente y quedó cerrado (2026-10-10, migraciones 330-331)
+
+Decisiones del usuario: «sólo endurecer», «bloquear la activación», «cola en el
+ERP», «todo el microservicio a Decimal».
+
+| Tema | Qué quedó |
+|---|---|
+| Parámetros del §45 | Productos → Configuración → **Exigencias para activar**: clasificación cárnica, vida útil en perecederos, perfil de calidad en cárnicos y rango de peso variable. Encendidas, la activación (y el desbloqueo) se rechazan con «Faltan datos para activar: …»; la consulta de preparación y el caso de uso usan la MISMA regla. Sólo aplican donde tienen sentido (vida útil a perecederos; clasificación/calidad a cárnicos). Las prohibiciones del §7 no tienen clave. Tolerancia de rendimiento por omisión para perfiles nuevos (migr. 330). |
+| Reintentos de WhatsApp | `product_whatsapp_outbox` (migr. 331): la alerta se encola; el servicio de fondo `products.whatsapp_outbox` de la shell la drena cada 60 s con espera 1→240 min y 8 intentos; sección **Notificaciones → Cola de WhatsApp** con estado, intentos, último error y «Reintentar» (permiso + auditoría). |
+| `float` en el microservicio WhatsApp | `whatsapp_service/domain/money.py` (`to_decimal` vía texto, `quantize_money` HALF_UP, `dumps_decimal`/`loads_decimal`). 50+ archivos convertidos: precios, totales, anticipos, cantidades, existencias, pesos, porcentajes y puntajes de confianza/coincidencia en Decimal; tiempos y plazos en enteros (s/ns). El JSON hacia ERP, Mercado Pago y Ollama lleva Decimal como **número exacto**; el estado persistido (contexto, idempotencia, outbox, recordatorios) y los webhooks se leen con Decimal. El catálogo devuelve precio/existencia en texto → Decimal (`catalog_row`). Guarda por tokens: ningún `float` ni literal decimal en el código del servicio. |
+
+Límite honesto: SQLite sólo suma en doble precisión; la existencia agregada del
+catálogo se redondea a 4 decimales en texto antes de llegar a Python (las cantidades
+se guardan con ≤ 4). FastAPI serializa sus respuestas con su propio codificador.
+
+Verificación: `test_prod22_activation_requirements.py` (5),
+`test_prod22_whatsapp_outbox.py` (7), `test_prod22_settings_and_alerts.py` (10),
+composición de la shell (6); microservicio: 678 pasan, mismas 7 fallas y 9 errores
+de colección que antes del cambio (preexistentes: ciclo de vida, firma de servicio,
+imports `whatsapp_service.`), +5 de la guarda; pruebas WA del ERP idénticas a la
+línea base.

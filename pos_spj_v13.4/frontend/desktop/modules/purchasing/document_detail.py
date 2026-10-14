@@ -317,7 +317,9 @@ class OrderDetailPanel(SectionCard):
         "APPROVED": {"Enviar", "Nueva versión"},
         "SENT": {"Registrar confirmación", "Recibir", "Nueva versión"},
         "ACKNOWLEDGED": {"Recibir", "Nueva versión"},
-        "PARTIALLY_RECEIVED": {"Recibir"},
+        # Auditoría Compras C09/C26: lo rechazado o faltante se repone
+        # (Recibir) o se cierra explícitamente con motivo.
+        "PARTIALLY_RECEIVED": {"Recibir", "Cerrar faltante"},
     }
 
     def __init__(self, parent=None, capabilities=None) -> None:
@@ -328,9 +330,10 @@ class OrderDetailPanel(SectionCard):
         self.acknowledge_button = create_secondary_button(self, "Registrar confirmación")
         self.receive_button = create_secondary_button(self, "Recibir")
         self.change_button = create_warning_button(self, "Nueva versión")
+        self.close_remainder_button = create_warning_button(self, "Cerrar faltante")
         self._command_buttons = [
             self.approve_button, self.send_button, self.acknowledge_button,
-            self.receive_button, self.change_button,
+            self.receive_button, self.change_button, self.close_remainder_button,
         ]
         if capabilities is not None:
             self.approve_button.setVisible(capabilities.order_approve)
@@ -338,6 +341,7 @@ class OrderDetailPanel(SectionCard):
             self.acknowledge_button.setVisible(capabilities.order_acknowledge)
             self.receive_button.setVisible(capabilities.receipt_complete)
             self.change_button.setVisible(capabilities.order_change)
+            self.close_remainder_button.setVisible(getattr(capabilities, "order_close", False))
         self._commands = _command_bar(self, self._command_buttons)
         self.add(self._commands)
         self._summary = QLabel("Selecciona una orden para consultar líneas y trazabilidad.", self)

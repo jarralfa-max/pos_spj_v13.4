@@ -51,9 +51,11 @@ def _summary(conn, customer_id: str):
 
 def _register_credit_sale(conn, *, customer_id: str, amount: str, sale_id: str | None = None):
     sale_id = sale_id or new_uuid()
+    # Un pago a crédito por venta; reintentar la misma venta = reintentar el
+    # mismo pago (auditoría de Finanzas F03: la deuda se identifica por pago).
     SalesCreditClient(conn, actor_user_id=new_uuid()).register(
         customer_id=customer_id, sale_id=sale_id, folio=f"F-{sale_id[:8]}",
-        amount=Decimal(amount), branch_id=new_uuid())
+        amount=Decimal(amount), branch_id=new_uuid(), payment_id=f"{sale_id}:pago-1")
     return sale_id
 
 

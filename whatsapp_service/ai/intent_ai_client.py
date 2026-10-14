@@ -1,4 +1,9 @@
 from __future__ import annotations
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
+from decimal import Decimal
 import json
 import os
 import asyncio
@@ -41,27 +46,27 @@ class CloudIntentAIClient:
         return val or os.getenv(env_map.get(key, ""), default)
 
     async def parse(self, context: dict) -> AIClientResponse:
-        timeout_s = float(self._cfg("ai_timeout_seconds", "4") or "4")
+        timeout_s = int(to_decimal(self._cfg("ai_timeout_seconds", "4"), default="4"))
         provider = (self._cfg("ai_provider", "mock") or "mock").lower()
         model = self._cfg("ai_model", "mock-intent-v1")
         api_key = self._cfg("ai_api_key", "")
         if provider != "mock" and not api_key:
             return AIClientResponse(ok=False, error="missing_api_key")
         try:
-            await asyncio.wait_for(asyncio.sleep(0.01), timeout=timeout_s)
+            await asyncio.wait_for(asyncio.sleep(0), timeout=timeout_s)
             # mock/fake first phase: deterministic safe response
             text = str(context.get("message") or "").lower()
-            payload = {"intent": "unknown", "confidence": 0.1, "products": []}
+            payload = {"intent": "unknown", "confidence": Decimal("0.1"), "products": []}
             if "cotiz" in text:
-                payload.update({"intent": "create_quote", "confidence": 0.87})
+                payload.update({"intent": "create_quote", "confidence": Decimal("0.87")})
             elif "acepto" in text and "ajuste" in text:
-                payload.update({"intent": "accept_adjustment", "confidence": 0.95})
+                payload.update({"intent": "accept_adjustment", "confidence": Decimal("0.95")})
             elif "rechazo" in text and "ajuste" in text:
-                payload.update({"intent": "reject_adjustment", "confidence": 0.95})
+                payload.update({"intent": "reject_adjustment", "confidence": Decimal("0.95")})
             elif "quiero" in text:
-                payload.update({"intent": "create_order", "confidence": 0.86})
+                payload.update({"intent": "create_order", "confidence": Decimal("0.86")})
             _ = model  # keep model configurable for future provider
-            return AIClientResponse(ok=True, result=AIIntentResult.model_validate(json.loads(json.dumps(payload))))
+            return AIClientResponse(ok=True, result=AIIntentResult.model_validate(payload))
         except Exception as exc:
             err = str(exc).strip() or exc.__class__.__name__
             return AIClientResponse(ok=False, error=err)

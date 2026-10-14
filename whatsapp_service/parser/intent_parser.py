@@ -7,6 +7,11 @@ Nivel 3: DeepSeek/Ollama → entendimiento profundo (10%)
 El LLM solo se invoca si Nivel 1 y 2 fallan.
 """
 from __future__ import annotations
+from decimal import Decimal
+try:
+    from domain.money import ONE, ZERO, to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import ONE, ZERO, to_decimal
 
 import logging
 from typing import Dict, List, Optional
@@ -22,9 +27,9 @@ logger = logging.getLogger("wa.parser")
 class ParsedIntent:
     """Resultado del parsing de un mensaje."""
 
-    def __init__(self, intent: str, confidence: float = 1.0,
+    def __init__(self, intent: str, confidence: Decimal = Decimal("1.0"),
                  action_id: str = "", products: List[Dict] = None,
-                 number: float = 0.0, raw_text: str = "",
+                 number: Decimal = Decimal("0.0"), raw_text: str = "",
                  source: str = ""):
         self.intent = intent
         self.confidence = confidence
@@ -69,7 +74,7 @@ class IntentParser:
             return result
 
         # ── Tipo no soportado ─────────────────────────────────────────────
-        return ParsedIntent(intent="unknown", confidence=0.0,
+        return ParsedIntent(intent="unknown", confidence=ZERO,
                             raw_text=msg.text, source="fallback")
 
     def _parse_interactive(self, msg: IncomingMessage) -> ParsedIntent:
@@ -96,7 +101,7 @@ class IntentParser:
         intent = intent_map.get(prefix, "interactive_action")
 
         return ParsedIntent(
-            intent=intent, confidence=1.0,
+            intent=intent, confidence=ONE,
             action_id=action_id, raw_text=msg.interactive_title,
             source="button")
 
@@ -141,13 +146,13 @@ class IntentParser:
             products = []
             for p in result.get("products", []):
                 name = p.get("name", "")
-                qty = float(p.get("qty", 0))
+                qty = to_decimal(p.get("qty", 0))
                 if name:
                     match = self.matcher.match_single(name)
                     if match:
                         products.append({
                             **match,
-                            "cantidad_solicitada": qty or 1.0,
+                            "cantidad_solicitada": qty or 1,
                             "unidad_solicitada": p.get("unit", "kg"),
                         })
 
@@ -155,7 +160,7 @@ class IntentParser:
                         intent, len(products), text[:50])
 
             return ParsedIntent(
-                intent=intent, confidence=0.80,
+                intent=intent, confidence=Decimal("0.80"),
                 products=products, raw_text=text,
                 source="llm")
 

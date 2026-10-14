@@ -7,23 +7,23 @@ página con ``MoveCategoryDialog``. Delega el guardado en el presenter.
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from PyQt5.QtWidgets import (
     QComboBox,
-    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
     QSpinBox,
-    QVBoxLayout,
 )
 
 
-class CategoryFormDialog(QDialog):
+class CategoryFormDialog(StandardDialog):
     def __init__(self, presenter, *, category=None, default_parent_id=None,
                  parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=420)
         self._presenter = presenter
         self._category = category or {}
         self._category_id = self._category.get("id")
@@ -32,7 +32,7 @@ class CategoryFormDialog(QDialog):
                             else "Nueva categoría")
         self.setMinimumWidth(420)
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.code = QLineEdit(str(self._category.get("code") or ""))
         self.name = QLineEdit(str(self._category.get("name") or ""))
@@ -69,7 +69,7 @@ class CategoryFormDialog(QDialog):
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
     def _on_save(self) -> None:
         self._error.setText("")
@@ -89,19 +89,19 @@ class CategoryFormDialog(QDialog):
             QMessageBox.warning(self, "No se pudo guardar", message)
 
 
-class MoveCategoryDialog(QDialog):
+class MoveCategoryDialog(StandardDialog):
     """Elige un nuevo padre para una categoría existente (o la lleva a raíz)."""
 
     def __init__(self, presenter, *, category_id: str, category_name: str,
                  parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=420)
         self._presenter = presenter
         self._category_id = category_id
         self.setObjectName("moveCategoryDialog")
         self.setWindowTitle(f"Mover «{category_name}»")
         self.setMinimumWidth(420)
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.parent = QComboBox()
         self.parent.addItem("(Categoría raíz)", None)
@@ -123,7 +123,7 @@ class MoveCategoryDialog(QDialog):
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._on_move)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
     def _on_move(self) -> None:
         self._error.setText("")

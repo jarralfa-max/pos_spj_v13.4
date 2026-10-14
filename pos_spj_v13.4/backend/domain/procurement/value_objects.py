@@ -21,6 +21,13 @@ class Money:
             object.__setattr__(self, "amount", Decimal(str(self.amount)))
         except (InvalidOperation, ValueError):
             raise InvalidMoneyError(f"Monto inválido: {self.amount!r}")
+        # Auditoría Compras C23: «Infinity»/«NaN» no son importes.
+        if not self.amount.is_finite():
+            raise InvalidMoneyError(f"Monto no finito: {self.amount!r}")
+        code = str(self.currency_code or "").strip().upper()
+        if len(code) != 3 or not code.isalpha():
+            raise InvalidMoneyError(f"Moneda inválida: {self.currency_code!r}")
+        object.__setattr__(self, "currency_code", code)
 
     @classmethod
     def zero(cls, currency_code: str = "MXN") -> "Money":
@@ -33,6 +40,10 @@ class Money:
         return self.amount > 0
 
     def add(self, other: "Money") -> "Money":
+        """Sólo misma moneda (C23): 10 MXN + 10 USD no son 20 MXN."""
+        if other.currency_code != self.currency_code:
+            raise InvalidMoneyError(
+                f"No se suman {self.currency_code} y {other.currency_code} sin conversión")
         return Money(self.amount + other.amount, self.currency_code)
 
     def to_string(self) -> str:

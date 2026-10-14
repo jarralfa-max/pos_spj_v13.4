@@ -6,20 +6,18 @@ domain action actually accepts.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout
-
 from frontend.desktop.components import FormField, PhoneInput, StandardForm, StandardLineEdit, create_primary_button
+from frontend.desktop.components.dialogs import StandardDialog
 
 
-class QuickCustomerDialog(QDialog):
+class QuickCustomerDialog(StandardDialog):
     def __init__(self, presenter, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title="Cliente rápido")
         self.setObjectName("posQuickCustomerDialog")
-        self.setWindowTitle("Cliente rápido")
         self._presenter = presenter
         self.customer_id: str | None = None
 
-        root = QVBoxLayout(self)
+        root = self.content_layout()
         form = StandardForm(self)
         self._name = StandardLineEdit(self, placeholder="Nombre del cliente", required=True)
         form.add_field("display_name", FormField("Nombre", self._name, required=True))
@@ -29,7 +27,7 @@ class QuickCustomerDialog(QDialog):
 
         submit = create_primary_button(self, "Crear cliente")
         submit.clicked.connect(self._submit)
-        root.addWidget(submit)
+        self.add_footer_widget(submit)
 
     def _submit(self) -> None:
         if not self._name.is_valid():

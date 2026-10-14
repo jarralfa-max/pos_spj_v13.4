@@ -4,6 +4,7 @@ Envía notificaciones por WhatsApp cuando cambia el estado del pedido.
 Se conecta al EventBus del ERP para escuchar cambios.
 """
 from __future__ import annotations
+from decimal import Decimal
 import logging
 from messaging.sender import send_text
 from messaging.templates import send_event_template
@@ -11,7 +12,7 @@ from messaging.templates import send_event_template
 logger = logging.getLogger("wa.notif.customer")
 
 
-async def notificar_pedido_confirmado(phone: str, folio: str, total: float):
+async def notificar_pedido_confirmado(phone: str, folio: str, total: Decimal):
     await send_event_template(phone, "pedido_confirmado", {
         "folio": folio, "total": f"${total:.2f}"})
 
@@ -21,13 +22,13 @@ async def notificar_pedido_listo(phone: str, folio: str):
 
 
 async def notificar_anticipo_requerido(phone: str, folio: str,
-                                        monto: float, link_pago: str = ""):
+                                        monto: Decimal, link_pago: str = ""):
     await send_event_template(phone, "anticipo_requerido", {
         "folio": folio, "monto": f"${monto:.2f}",
         "link_pago": link_pago or "Contacta la sucursal"})
 
 
-async def notificar_pago_recibido(phone: str, folio: str, monto: float):
+async def notificar_pago_recibido(phone: str, folio: str, monto: Decimal):
     await send_event_template(phone, "pago_recibido", {
         "folio": folio, "monto": f"${monto:.2f}"})
 

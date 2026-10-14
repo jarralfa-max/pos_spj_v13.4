@@ -32,7 +32,7 @@ from frontend.desktop.components import (
 from frontend.desktop.components.cards import SectionCard
 from frontend.desktop.components.date_input import DateInput
 from frontend.desktop.components.decimal_input import DecimalInput
-from frontend.desktop.components.dialogs import FormDialog
+from frontend.desktop.components.dialogs import FormDialog, StandardDialog
 from frontend.desktop.components.entity_search_input import EntitySearchInput
 from frontend.desktop.components.text_inputs import StandardLineEdit, StandardTextArea
 from frontend.desktop.modules.inventory.view_models import (
@@ -413,7 +413,7 @@ class BlockReasonDialog(FormDialog):
         return self.reason_input.value()
 
 
-class ManageZonesDialog(QDialog):
+class ManageZonesDialog(StandardDialog):
     """Zonas del almacén seleccionado + alta de zona nueva (§24 "Zonas").
 
     Presentation-only like the rest of this module: receives the already
@@ -422,12 +422,10 @@ class ManageZonesDialog(QDialog):
 
     def __init__(self, parent=None, *, warehouse_label: str, table,
                  create_zone) -> None:
-        super().__init__(parent)
-        self.setWindowTitle(f"Zonas — {warehouse_label}")
-        self.resize(480, 360)
+        super().__init__(parent, title=f"Zonas — {warehouse_label}", width=480)
         self._create_zone = create_zone
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         actions = QHBoxLayout()
         actions.addStretch(1)
         self.create_button = create_primary_button(text="Nueva zona")
@@ -448,7 +446,7 @@ class ManageZonesDialog(QDialog):
         close_button = create_secondary_button(text="Cerrar")
         close_button.clicked.connect(self.accept)
         close_row.addWidget(close_button)
-        layout.addLayout(close_row)
+        self.add_footer_widget(_wrap(close_row))
 
     def set_rows(self, table) -> None:
         self._table.load_rows(table.rows, row_ids=table.row_ids)
@@ -478,7 +476,7 @@ class ReverseReasonDialog(FormDialog):
         return self.reason_input.value()
 
 
-class MovementDetailDialog(QDialog):
+class MovementDetailDialog(StandardDialog):
     """Detalle de un movimiento del ledger (§6 detalle/líneas/documento
     origen/auditoría/reverso).
 
@@ -490,12 +488,10 @@ class MovementDetailDialog(QDialog):
 
     def __init__(self, parent=None, *, header: dict, lines, source_document,
                  audit, can_reverse: bool, reverse) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Detalle del movimiento")
-        self.resize(640, 640)
+        super().__init__(parent, title="Detalle del movimiento", width=640)
         self._reverse = reverse
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
 
         info = SectionCard(self, title="Encabezado")
         form = QFormLayout()
@@ -558,7 +554,7 @@ class MovementDetailDialog(QDialog):
         close_button = create_secondary_button(text="Cerrar")
         close_button.clicked.connect(self.accept)
         actions.addWidget(close_button)
-        layout.addLayout(actions)
+        self.add_footer_widget(_wrap(actions))
 
     def set_audit_rows(self, table) -> None:
         self._audit_table.load_rows(table.rows, row_ids=table.row_ids)
@@ -706,7 +702,7 @@ class LotQualityStatusDialog(FormDialog):
         return self.reason_input.value()
 
 
-class LotDetailDialog(QDialog):
+class LotDetailDialog(StandardDialog):
     """Detalle de un lote (§26 detalle/stock/movimientos/trazabilidad) +
     acciones (editar, cambiar estado de calidad, imprimir etiqueta).
 
@@ -717,14 +713,12 @@ class LotDetailDialog(QDialog):
     def __init__(self, parent=None, *, header: dict, stock, movements, traceability,
                  can_edit: bool, can_change_status: bool, can_print: bool,
                  can_reprint: bool, edit, change_status, print_label) -> None:
-        super().__init__(parent)
-        self.setWindowTitle(f"Lote {header.get('lot_code') or ''}")
-        self.resize(640, 640)
+        super().__init__(parent, title=f"Lote {header.get('lot_code') or ''}", width=640)
         self._edit = edit
         self._change_status = change_status
         self._print_label = print_label
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
 
         info = SectionCard(self, title="Encabezado")
         form = QFormLayout()
@@ -780,18 +774,23 @@ class LotDetailDialog(QDialog):
         self.status_button.setVisible(can_change_status)
         self.status_button.clicked.connect(self._on_change_status)
         actions.addWidget(self.status_button)
+        print_actions = QHBoxLayout()
+        print_actions.addStretch(1)
         self.print_button = create_secondary_button(text="Imprimir etiqueta")
         self.print_button.setVisible(can_print)
         self.print_button.clicked.connect(lambda: self._print_label(False))
-        actions.addWidget(self.print_button)
+        print_actions.addWidget(self.print_button)
         self.reprint_button = create_secondary_button(text="Reimprimir")
         self.reprint_button.setVisible(can_reprint)
         self.reprint_button.clicked.connect(lambda: self._print_label(True))
-        actions.addWidget(self.reprint_button)
+        print_actions.addWidget(self.reprint_button)
         close_button = create_secondary_button(text="Cerrar")
         close_button.clicked.connect(self.accept)
-        actions.addWidget(close_button)
-        layout.addLayout(actions)
+        print_actions.addWidget(close_button)
+        footer = QVBoxLayout()
+        footer.addLayout(actions)
+        footer.addLayout(print_actions)
+        self.add_footer_widget(_wrap(footer))
 
     def _on_edit(self) -> None:
         self._edit()
@@ -910,17 +909,15 @@ class CaptureWeightDialog(FormDialog):
         return self.note_input.value()
 
 
-class WeightHistoryDialog(QDialog):
+class WeightHistoryDialog(StandardDialog):
     """Historial de capturas de peso (§28 "Ver historial"): ajustes con
     motivo ``WEIGHT_VARIANCE``, más recientes primero. Sólo lectura — el
     mismo patrón de ``ManageZonesDialog`` sin la acción de alta."""
 
     def __init__(self, parent=None, *, table) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Historial de capturas de peso")
-        self.resize(520, 360)
+        super().__init__(parent, title="Historial de capturas de peso", width=520)
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         self._table = StandardTable(columns=[
             ColumnSpec("Folio", "text"),
             ColumnSpec("Motivo", "text"),
@@ -936,7 +933,7 @@ class WeightHistoryDialog(QDialog):
         close_button = create_secondary_button(text="Cerrar")
         close_button.clicked.connect(self.accept)
         close_row.addWidget(close_button)
-        layout.addLayout(close_row)
+        self.add_footer_widget(_wrap(close_row))
 
 
 class RecordTemperatureReadingDialog(FormDialog):

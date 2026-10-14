@@ -4,6 +4,7 @@ Envía alertas clasificadas por severidad al personal vía WhatsApp.
 Escucha eventos del ERP: stock bajo, cancelaciones, forecast.
 """
 from __future__ import annotations
+from decimal import Decimal
 import logging
 from enum import Enum
 from typing import List
@@ -38,7 +39,7 @@ async def enviar_alerta(phones: List[str], titulo: str, mensaje: str,
 
 
 async def alerta_stock_bajo(phones: List[str], producto: str,
-                             stock_actual: float, sucursal: str):
+                             stock_actual: Decimal, sucursal: str):
     """Alerta de stock bajo."""
     sev = AlertSeverity.CRITICO if stock_actual <= 0 else AlertSeverity.IMPORTANTE
     await enviar_alerta(phones,

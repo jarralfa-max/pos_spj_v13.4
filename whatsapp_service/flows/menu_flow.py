@@ -4,6 +4,10 @@ Maneja: saludos, ayuda, menú, gracias, y unknown.
 Es el flow por defecto cuando no hay flujo activo.
 """
 from __future__ import annotations
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 from models.context import ConversationContext, FlowState
 from parser.intent_parser import ParsedIntent
 from flows.base_flow import BaseFlow, FlowResult
@@ -126,7 +130,7 @@ class MenuFlow(BaseFlow):
             await send_text(ctx.phone,
                 f"📦 Pedido *{resultado['folio']}*\n"
                 f"Estado: {estado_txt}\n"
-                f"Total: ${float(resultado['total']):.2f}\n"
+                f"Total: ${to_decimal(resultado['total']):.2f}\n"
                 f"Fecha: {resultado['fecha']}")
         else:
             await send_text(ctx.phone,

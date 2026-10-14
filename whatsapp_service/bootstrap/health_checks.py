@@ -13,6 +13,10 @@ ERP) se reportan explícitamente como UNKNOWN — nunca se fingen HEALTHY
 solo para que la lista quede completa.
 """
 from __future__ import annotations
+try:
+    from domain.money import ZERO
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import ZERO
 
 from dataclasses import dataclass
 from enum import Enum
@@ -166,7 +170,7 @@ def check_inbox_queue(root) -> HealthCheckResult:
     pending_count = row[0] or 0
     oldest_created_at = row[1]
 
-    age_seconds = 0.0
+    age_seconds = ZERO
     if oldest_created_at:
         from datetime import datetime, timezone
 
@@ -207,7 +211,7 @@ def check_outbox_queue(root) -> HealthCheckResult:
     pending_count = row[0] or 0
     oldest_created_at = row[1]
 
-    age_seconds = 0.0
+    age_seconds = ZERO
     if oldest_created_at:
         from datetime import datetime, timezone
 

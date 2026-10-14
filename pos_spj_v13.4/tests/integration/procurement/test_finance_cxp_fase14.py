@@ -133,8 +133,10 @@ class TestNetPriceAndDeclaredTax:
             "product_id": "p1", "purchase_order_line_id": line,
             "received_quantity": "20", "accepted_quantity": "20"}])
         (expected,) = compras.invoice_document_profile(po)["lines"]
-        assert (expected["invoiced_quantity"], expected["pending_quantity"], expected["tax"]) \
-            == ("30", "20", "128.00")
+        # Auditoría Compras C22: la factura A-1 aún no se concilia, así que
+        # RESERVA 30 (no aplicadas); lo pendiente sigue siendo 20.
+        assert (expected["invoiced_quantity"], expected["reserved_quantity"],
+                expected["pending_quantity"], expected["tax"]) == ("0", "30", "20", "128.00")
         ok, msg, inv = _capture(compras, po, line, "20", "40", "128", number="A-2")
         assert ok, msg
         assert gerente.match_invoice(inv)[2]["match_result"] == "MATCHED"

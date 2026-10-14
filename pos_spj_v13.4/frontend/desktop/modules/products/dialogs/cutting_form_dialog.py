@@ -8,9 +8,10 @@ auto-contención). En edición sólo cambia los outputs de la versión.
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from PyQt5.QtWidgets import (
     QComboBox,
-    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
@@ -18,7 +19,6 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QVBoxLayout,
 )
 
 from frontend.desktop.components import (
@@ -46,10 +46,10 @@ _TYPE_ES = dict(_OUTPUT_TYPES)
 _MEASURE_ES = dict(_MEASURE)
 
 
-class CuttingSchemeFormDialog(QDialog):
+class CuttingSchemeFormDialog(StandardDialog):
     def __init__(self, presenter, *, input_product_id: str, species_id: str = "",
                  version=None, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=600)
         self._presenter = presenter
         self._input_product_id = input_product_id
         self._version = version or {}
@@ -60,7 +60,7 @@ class CuttingSchemeFormDialog(QDialog):
         self.setMinimumSize(600, 480)
         self._outputs: list[dict] = list(self._version.get("outputs", []))
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.name = QLineEdit(str(self._version.get("scheme_name") or ""))
         # §18/§5.2: especie por catálogo canónico (guarda species.id, no texto).
@@ -112,7 +112,7 @@ class CuttingSchemeFormDialog(QDialog):
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
         self._refresh_table()
 
     def _refresh_table(self) -> None:
@@ -160,14 +160,14 @@ class CuttingSchemeFormDialog(QDialog):
             QMessageBox.warning(self, "No se pudo guardar", message)
 
 
-class _OutputEditor(QDialog):
+class _OutputEditor(StandardDialog):
     def __init__(self, presenter, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=440)
         self._presenter = presenter
         self._labels: dict = {}
         self.setWindowTitle("Output de despiece")
         self.setMinimumWidth(440)
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.product = EntitySearchInput(
             provider=_product_provider(presenter, self._labels),
@@ -191,9 +191,11 @@ class _OutputEditor(QDialog):
         self._error = QLabel(); self._error.setObjectName("textDanger")
         layout.addWidget(self._error)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Ok).setText("Aceptar")
+        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
     def _accept(self) -> None:
         if not self.product.selected_id():

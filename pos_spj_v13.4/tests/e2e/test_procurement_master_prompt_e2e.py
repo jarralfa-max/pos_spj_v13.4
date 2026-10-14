@@ -166,11 +166,11 @@ def _seed(conn) -> None:
                  (units["CAJA"], units["KG"]))
     product("p-chile", "ABA-CHI-001", "Chile seco")
     conversion("p-chile", "COSTAL", "25")
-    for sid, name in (("sup-1", "Carnes del Norte"), ("sup-2", "Abarrotes Querétaro")):
+    for sid, name in (("019a0000-0000-7000-8000-0000000000a1", "Carnes del Norte"), ("019a0000-0000-7000-8000-0000000000a2", "Abarrotes Querétaro")):
         conn.execute("INSERT INTO proveedores (id, nombre, activo) VALUES (?,?,1)", (sid, name))
     _263.run(conn)
     conn.execute("INSERT INTO supplier_addresses (id, supplier_id, address_type, line, city,"
-                 " state, label) VALUES ('addr-1', 'sup-1', 'WAREHOUSE', 'Carretera 57 km 3',"
+                 " state, label) VALUES ('addr-1', '019a0000-0000-7000-8000-0000000000a1', 'WAREHOUSE', 'Carretera 57 km 3',"
                  " 'San Juan del Río', 'Querétaro', 'Bodega Norte')")
     bootstrap_finance(conn)
     conn.commit()
@@ -189,7 +189,7 @@ def env(template, tmp_path):
 
 
 def _direct_purchase(env, line: CartLineVM, *, mode="DIRECT_WITH_IMMEDIATE_RECEIPT",
-                     payment="SUPPLIER_CREDIT", supplier="sup-1"):
+                     payment="SUPPLIER_CREDIT", supplier="019a0000-0000-7000-8000-0000000000a1"):
     direct = env.direct()
     ok, msg, data = direct.create(supplier_id=supplier, lines=[line], mode=mode,
                                   payment_condition=payment, branch_id=BRANCH,
@@ -200,7 +200,7 @@ def _direct_purchase(env, line: CartLineVM, *, mode="DIRECT_WITH_IMMEDIATE_RECEI
 
 def _sent_order(env, lines, **header):
     buyer, approver = env.buyer(), env.approver()
-    ok, msg, data = buyer.create_order(supplier_id=header.pop("supplier_id", "sup-1"),
+    ok, msg, data = buyer.create_order(supplier_id=header.pop("supplier_id", "019a0000-0000-7000-8000-0000000000a1"),
                                        branch_id=BRANCH, warehouse_id=WAREHOUSE,
                                        lines=lines, **header)
     assert ok, msg
@@ -260,7 +260,7 @@ def test_2_variable_weight_meat_is_charged_and_stocked_by_real_weight(env, app):
 def test_2b_variable_weight_without_real_weight_is_rejected_by_the_backend(env):
     direct = env.direct()
     ok, msg, data = direct.create(
-        supplier_id="sup-1", mode="DIRECT_WITH_IMMEDIATE_RECEIPT",
+        supplier_id="019a0000-0000-7000-8000-0000000000a1", mode="DIRECT_WITH_IMMEDIATE_RECEIPT",
         payment_condition="SUPPLIER_CREDIT", branch_id=BRANCH, warehouse_id=WAREHOUSE,
         lines=[CartLineVM("p-res", "Diezmillo", Decimal("5"), Decimal("95"),
                           purchase_unit="CAJA")])
@@ -288,12 +288,12 @@ def test_4_requisition_without_price_becomes_an_order(env):
     rid = data["entity_id"]
     assert buyer.submit_requisition(rid)[0] and approver.approve_requisition(rid)[0]
     lines = [{"product_id": "p-alas", "quantity": "30"}]            # la PR no traía precio
-    ok, msg, _ = buyer.create_order(supplier_id="sup-1", branch_id=BRANCH,
+    ok, msg, _ = buyer.create_order(supplier_id="019a0000-0000-7000-8000-0000000000a1", branch_id=BRANCH,
                                     warehouse_id=WAREHOUSE, requisition_id=rid,
                                     lines=lines)
     assert not ok and "precio" in msg.lower()
     lines[0]["unit_price"] = "41"                                   # completar precio
-    ok, msg, data = buyer.create_order(supplier_id="sup-1", branch_id=BRANCH,
+    ok, msg, data = buyer.create_order(supplier_id="019a0000-0000-7000-8000-0000000000a1", branch_id=BRANCH,
                                        warehouse_id=WAREHOUSE, requisition_id=rid,
                                        lines=lines)
     assert ok, msg
@@ -311,14 +311,14 @@ def test_5_split_award_generates_one_order_per_supplier(env):
                {"product_id": "p-chile", "quantity": "50"}])
     rid = data["entity_id"]
     assert buyer.submit_requisition(rid)[0] and approver.approve_requisition(rid)[0]
-    ok, msg, data = buyer.create_rfq_from_requisition(rid, ["sup-1", "sup-2"])
+    ok, msg, data = buyer.create_rfq_from_requisition(rid, ["019a0000-0000-7000-8000-0000000000a1", "019a0000-0000-7000-8000-0000000000a2"])
     assert ok, msg
     rfq = data["entity_id"]
-    for supplier, (alas, chile) in (("sup-1", ("40", "14")), ("sup-2", ("45", "12"))):
+    for supplier, (alas, chile) in (("019a0000-0000-7000-8000-0000000000a1", ("40", "14")), ("019a0000-0000-7000-8000-0000000000a2", ("45", "12"))):
         assert buyer.capture_quote(rfq_id=rfq, supplier_id=supplier, lines=[
             {"product_id": "p-alas", "quantity": "10", "unit_price": alas},
             {"product_id": "p-chile", "quantity": "50", "unit_price": chile}])[0]
-    best = {"p-alas": "sup-1", "p-chile": "sup-2"}
+    best = {"p-alas": "019a0000-0000-7000-8000-0000000000a1", "p-chile": "019a0000-0000-7000-8000-0000000000a2"}
     ok, msg, _ = buyer.award_quote(award_lines=[
         {"quote_line_id": r.quote_line_id, "supplier_id": r.supplier_id,
          "awarded_quantity": r.quantity, "justification": "mejor precio"}
@@ -331,7 +331,7 @@ def test_5_split_award_generates_one_order_per_supplier(env):
     orders = dict(env.conn.execute(
         "SELECT o.supplier_id, l.unit_price FROM purchase_orders o"
         " JOIN purchase_order_lines l ON l.purchase_order_id=o.id").fetchall())
-    assert orders == {"sup-1": "40", "sup-2": "12"}
+    assert orders == {"019a0000-0000-7000-8000-0000000000a1": "40", "019a0000-0000-7000-8000-0000000000a2": "12"}
 
 
 # ── 6 ─────────────────────────────────────────────────────────────────────────
@@ -457,13 +457,13 @@ def test_10_permissions_are_denied_in_the_screen_and_in_the_backend(env):
     direct = env.direct(permissions=viewer)
     assert not direct.capabilities().direct_create                  # la pantalla
     ok, msg, data = direct.create(
-        supplier_id="sup-1", mode="DIRECT_WITH_IMMEDIATE_RECEIPT",
+        supplier_id="019a0000-0000-7000-8000-0000000000a1", mode="DIRECT_WITH_IMMEDIATE_RECEIPT",
         payment_condition="SUPPLIER_CREDIT", branch_id=BRANCH, warehouse_id=WAREHOUSE,
         lines=[CartLineVM("p-alas", "Alas", Decimal("1"), Decimal("40"))])
     assert not ok and data["error_code"] == "PERMISSION_DENIED"     # el backend
     buyer = env.buyer(permissions=viewer)
     assert not buyer.capabilities().order_create
-    ok, msg, data = buyer.create_order(supplier_id="sup-1", branch_id=BRANCH,
+    ok, msg, data = buyer.create_order(supplier_id="019a0000-0000-7000-8000-0000000000a1", branch_id=BRANCH,
                                        warehouse_id=WAREHOUSE, lines=[
                                            {"product_id": "p-alas", "quantity": "1",
                                             "unit_price": "40"}])
@@ -489,7 +489,7 @@ def test_11_credit_purchase_ends_in_a_paid_payable(env):
     (expected,) = buyer.invoice_document_profile(order)["lines"]
     assert (expected["unit_price"], expected["tax"]) == ("40", "320.00")
     ok, msg, invoice = buyer.capture_invoice(
-        supplier_id="sup-1", invoice_number="F-900", total="2320", purchase_order_id=order,
+        supplier_id="019a0000-0000-7000-8000-0000000000a1", invoice_number="F-900", total="2320", purchase_order_id=order,
         lines=[{"product_id": "p-alas", "invoiced_quantity": "50", "unit_price": "40",
                 "tax": "320", "purchase_order_line_id": line}])
     assert ok, msg
@@ -499,6 +499,9 @@ def test_11_credit_purchase_ends_in_a_paid_payable(env):
     assert detail.payable["original_amount"] == "2320.00"
     bank = env.conn.execute("SELECT id FROM treasury_accounts WHERE account_type='BANK'"
                             ).fetchone()[0]
+    # Finanzas F13: un pago por banco necesita la cuenta del beneficiario.
+    env.conn.execute("UPDATE proveedores SET cuenta_bancaria='012180001234567897'"
+                     " WHERE id='019a0000-0000-7000-8000-0000000000a1'")
     payment = ScheduleSupplierPaymentUseCase().execute(
         env.conn, payable_id=env.conn.execute("SELECT id FROM payables").fetchone()[0],
         amount="2320.00", scheduled_date=date.today(), treasury_account_id=bank,
@@ -506,7 +509,8 @@ def test_11_credit_purchase_ends_in_a_paid_payable(env):
     AuthorizeSupplierPaymentUseCase().execute(env.conn, payment_id=payment.id,
                                               authorized_by="director", operation_id=new_uuid())
     ExecuteSupplierPaymentUseCase().execute(env.conn, payment_id=payment.id,
-                                            executed_date=date.today(), operation_id=new_uuid())
+                                            executed_date=date.today(), operation_id=new_uuid(),
+                                            execution_reference="SPEI-900")
     assert buyer.invoice_detail(invoice["entity_id"]).payable["status"] == "SETTLED"
     debit, credit = env.conn.execute(
         "SELECT SUM(CAST(debit_amount AS NUMERIC)), SUM(CAST(credit_amount AS NUMERIC))"

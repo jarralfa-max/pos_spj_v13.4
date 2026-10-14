@@ -80,7 +80,9 @@ class SaleReturnedHandler(FinanceEventHandler):
                 f"Devolución {folio}: el reembolso {refunded.to_string()} no coincide con "
                 f"el importe devuelto {amount.to_string()}")
 
-        profile = self.resolve_profile(uow, "SALE", entry_date)
+        profile = self.resolve_profile(uow, "SALE", entry_date, branch_id=branch_id)
+        already_posted = uow.journal_entries.find_by_posting_reference(
+            "sales", return_id, PostingPurpose.SALE_RETURN) is not None
         lines = [LineSpec(profile.account_for("revenue_account_id"), debit=gross.subtract(tax),
                           description=f"Devolución venta {folio}")]
         if tax.is_positive():
@@ -114,7 +116,8 @@ class SaleReturnedHandler(FinanceEventHandler):
                              str(payload["operation_id"])),
             lines, currency_code=currency, branch_id=branch_id)
 
-        if credito.is_positive():
+        # F09/F12: la nota de crédito se aplica una sola vez por devolución.
+        if credito.is_positive() and not already_posted:
             self._credit_note(uow, payload, sale_id, return_id, folio, credito, entry_date,
                               branch_id)
 
@@ -147,15 +150,21 @@ class SaleReturnedHandler(FinanceEventHandler):
     def _credit_note(self, uow, payload, sale_id, return_id, folio, amount, entry_date,
                      branch_id) -> None:
         receivable = None
+        invoice = None
         for document in uow.financial_documents.find_by_source("sales", sale_id):
             receivable = uow.receivables.find_by_document(document.id)
             if receivable is not None:
+                invoice = document
                 break
         if receivable is None:
             raise FinanceDomainError(
                 f"Devolución a crédito {folio}: la venta no tiene CxC que acreditar")
         receivable.apply_credit_note(amount)
         uow.receivables.update(receivable)
+        # Auditoría F12: la nota se APLICA al documento original, igual que un
+        # cobro. Antes la CxC bajaba a 80 y la factura seguía pendiente en 100.
+        invoice.apply_settlement(amount)
+        uow.financial_documents.update(invoice)
         uow.financial_documents.save(FinancialDocument.create(
             FinancialDocumentType.CREDIT_NOTE, f"NC-{folio}", entry_date, amount,
             "sales", return_id, new_uuid(), branch_id=branch_id,

@@ -7,10 +7,11 @@ componentes, duplicados y ciclos). En edición sólo cambia los componentes.
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QDialog,
     QDialogButtonBox,
     QFormLayout,
     QHBoxLayout,
@@ -18,7 +19,6 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QVBoxLayout,
 )
 
 from frontend.desktop.components import ColumnSpec, StandardTable
@@ -35,10 +35,10 @@ _BUNDLE_TYPES = (
 )
 
 
-class BundleFormDialog(QDialog):
+class BundleFormDialog(StandardDialog):
     def __init__(self, presenter, *, product_id: str, version=None,
                  parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=560)
         self._presenter = presenter
         self._product_id = product_id
         self._version = version or {}
@@ -49,7 +49,7 @@ class BundleFormDialog(QDialog):
         self.setMinimumSize(560, 440)
         self._components: list[dict] = list(self._version.get("components", []))
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.name = QLineEdit(str(self._version.get("bundle_name") or ""))
         self.bundle_type = QComboBox()
@@ -90,7 +90,7 @@ class BundleFormDialog(QDialog):
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
         self._refresh_table()
 
     def _refresh_table(self) -> None:
@@ -137,11 +137,11 @@ class BundleFormDialog(QDialog):
             QMessageBox.warning(self, "No se pudo guardar", message)
 
 
-class _ComponentEditor(QDialog):
+class _ComponentEditor(StandardDialog):
     def __init__(self, parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=420)
         self.setWindowTitle("Componente del combo")
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         form = QFormLayout()
         self.product = QLineEdit()
         self.quantity = QLineEdit()
@@ -155,9 +155,11 @@ class _ComponentEditor(QDialog):
         form.addRow("", self.substitutable)
         layout.addLayout(form)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Ok).setText("Aceptar")
+        buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
     def _accept(self) -> None:
         if self.product.text().strip() and self.quantity.text().strip() \

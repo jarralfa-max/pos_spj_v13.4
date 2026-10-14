@@ -68,6 +68,7 @@ def build_hr_presenter(connection, session_context=None) -> HRPresenter:
         "authorize_payroll": AuthorizePayrollRunUseCase(),
         "pay_payroll": PayPayrollRunUseCase(),
         "cancel_payroll": CancelPayrollRunUseCase(),
+        "dispatch_outbox": lambda: _dispatch_hr_outbox(connection),
     }
     return HRPresenter(
         connection_provider=lambda: connection,
@@ -75,6 +76,12 @@ def build_hr_presenter(connection, session_context=None) -> HRPresenter:
         use_cases=use_cases,
         session_context=session_context,
     )
+
+
+def _dispatch_hr_outbox(connection) -> dict:
+    from backend.application.use_cases.hr.finance_wiring import dispatch_hr_outbox
+    from backend.shared.events.application_bus import get_bus
+    return dispatch_hr_outbox(connection, get_bus())
 
 
 def create_hr_view(container, parent=None):

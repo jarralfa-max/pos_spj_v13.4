@@ -29,6 +29,7 @@ from backend.domain.procurement.entities import (
     PurchaseOrderLine,
     ReceiptDiscrepancy,
 )
+from backend.domain.procurement.enums import STOCK_NATURES
 from backend.domain.procurement.enums import (
     DiscrepancyType,
     PurchaseOrderStatus,
@@ -85,6 +86,7 @@ class CreatePurchaseOrderUseCase:
                 payment_terms: str | None = None, **header) -> ProcurementResult:
         try:
             self._auth.require(actor_user_id, PurchasePermissions.ORDER_CREATE)
+            self._auth.require_branch(actor_user_id, branch_id)
         except PurchasePermissionDeniedError as exc:
             return ProcurementResult.fail(str(exc), "PERMISSION_DENIED",
                                           operation_id=operation_id)
@@ -125,6 +127,13 @@ class CreatePurchaseOrderUseCase:
         llama ya lo hizo). Así «Generar órdenes» crea las de todos los
         proveedores en UNA transacción: o se generan todas o ninguna."""
         existing = uow.orders.get_by_operation(operation_id)
+        if existing is not None and not _same_order_request(
+                existing, supplier_id=supplier_id, branch_id=branch_id,
+                warehouse_id=warehouse_id, currency_code=currency_code, lines=lines):
+            # Auditoría C19: la misma clave con OTRO contenido es un conflicto.
+            return ProcurementResult.fail(
+                "La operación ya creó una orden con otro contenido; use una clave nueva",
+                "IDEMPOTENCY_CONFLICT", operation_id=operation_id)
         if existing is None and award_id:
             # Una orden por (adjudicación, proveedor): reintentar "Generar
             # órdenes" devuelve la que ya existe (índice único, migración 278).
@@ -430,6 +439,11 @@ class ReceivePurchaseOrderUseCase:
             if po is None:
                 return ProcurementResult.fail("Orden inexistente", "NOT_FOUND",
                                               operation_id=operation_id)
+            try:
+                self._auth.require_branch(actor_user_id, po.branch_id)
+            except PurchasePermissionDeniedError as exc:
+                return ProcurementResult.fail(str(exc), "PERMISSION_DENIED",
+                                              operation_id=operation_id)
             lines_by_id = {ln.id: ln for ln in po.lines}
             lines_by_product = {ln.product_id: ln for ln in po.lines}
             try:
@@ -440,13 +454,42 @@ class ReceivePurchaseOrderUseCase:
                     po.warehouse_id, received_by_user_id=actor_user_id,
                     purchase_order_id=po.id, shipment_id=shipment_id)
                 received_by_line: dict[str, Decimal] = {}
+                accepted_by_line: dict[str, Decimal] = {}
                 for raw in receipt_lines:
                     product_id = raw["product_id"]
-                    po_line = (lines_by_id.get(raw.get("purchase_order_line_id"))
-                               or lines_by_product.get(product_id))
-                    ordered = po_line.ordered_quantity if po_line else Decimal("0")
-                    received = Decimal(str(raw["received_quantity"]))
-                    accepted = Decimal(str(raw.get("accepted_quantity", raw["received_quantity"])))
+                    # Auditoría C08: la línea recibida corresponde a SU línea de
+                    # orden y a su producto; un producto ajeno no se recibe.
+                    source_line_id = raw.get("purchase_order_line_id")
+                    if source_line_id:
+                        po_line = lines_by_id.get(source_line_id)
+                        if po_line is None:
+                            return ProcurementResult.fail(
+                                "La línea recibida no pertenece a la orden", "VALIDATION",
+                                operation_id=operation_id)
+                        if po_line.product_id != product_id:
+                            return ProcurementResult.fail(
+                                "El producto recibido no es el de la línea de la orden",
+                                "PRODUCT_MISMATCH", operation_id=operation_id)
+                    else:
+                        po_line = lines_by_product.get(product_id)
+                        if po_line is None:
+                            return ProcurementResult.fail(
+                                "El producto recibido no está en la orden", "PRODUCT_MISMATCH",
+                                operation_id=operation_id)
+                    ordered = po_line.ordered_quantity
+                    try:
+                        received = Decimal(str(raw["received_quantity"]))
+                        accepted = Decimal(str(raw.get("accepted_quantity",
+                                                       raw["received_quantity"])))
+                    except ArithmeticError:
+                        return ProcurementResult.fail("Cantidad recibida inválida",
+                                                      "VALIDATION", operation_id=operation_id)
+                    if (not received.is_finite() or not accepted.is_finite()
+                            or received < 0 or accepted < 0):
+                        return ProcurementResult.fail(
+                            "Las cantidades recibidas deben ser finitas y no negativas; un "
+                            "ajuste se hace con reverso o devolución", "VALIDATION",
+                            operation_id=operation_id)
                     extra = _receipt_capture(raw)
                     problem = self._profile_problem(product_id, accepted, extra,
                                                     label=po_line.description if po_line else "")
@@ -457,10 +500,15 @@ class ReceivePurchaseOrderUseCase:
                     if problem is not None:
                         return ProcurementResult.fail(problem, "VALIDATION",
                                                       operation_id=operation_id)
-                    already = received_by_line.get(po_line.id, Decimal("0")) if po_line else \
-                        Decimal("0")
+                    # Auditoría C07: la tolerancia mide el ACUMULADO de la línea —
+                    # lo ya aceptado en recepciones anteriores (no reversadas) más
+                    # todo lo de este lote. Dividir una sobreentrega en dos
+                    # recepciones ya no evita la autorización. Lo rechazado no
+                    # cuenta: su reposición cabe en lo pedido (C09).
+                    already = received_by_line.get(po_line.id, Decimal("0"))
                     has_override = False
-                    total_received = already + received
+                    batch_received = already + received
+                    total_received = po_line.accepted_quantity + batch_received
                     if total_received > ordered and not self._tolerance.within(ordered, total_received):
                         try:
                             self._auth.require(
@@ -483,14 +531,18 @@ class ReceivePurchaseOrderUseCase:
                         gr.add_discrepancy(ReceiptDiscrepancy.create(
                             DiscrepancyType.QUALITY_FAILURE, received, accepted,
                             raw.get("rejection_reason") or "Rechazado en recepción"))
-                    if po_line is not None:
-                        # Acumulado: varias líneas recibidas (lotes distintos) para la
-                        # misma línea de OC. Antes la última pisaba a las anteriores.
-                        received_by_line[po_line.id] = total_received
-                        po_line.accepted_quantity += accepted
-                        po_line.rejected_quantity += received - accepted
+                    # Acumulado del lote: varias líneas recibidas (lotes distintos)
+                    # para la misma línea de OC.
+                    received_by_line[po_line.id] = batch_received
+                    accepted_by_line[po_line.id] = (accepted_by_line.get(po_line.id,
+                                                                         Decimal("0"))
+                                                    + accepted)
+                if not any(value > 0 for value in received_by_line.values()):
+                    return ProcurementResult.fail(
+                        "La recepción requiere al menos una cantidad recibida",
+                        "VALIDATION", operation_id=operation_id)
                 gr.complete()
-                po.register_receipt(received_by_line)
+                po.register_receipt(received_by_line, accepted_by_line)
             except ProcurementDomainError as exc:
                 code = ("SEGREGATION" if "Separación" in str(exc)
                         else "OVER_TOLERANCE" if "tolerancia" in str(exc).lower()
@@ -508,9 +560,13 @@ class ReceivePurchaseOrderUseCase:
                   purchase_order_id=po.id, warehouse_id=po.warehouse_id,
                   shipment_id=shipment_id, goods_receipt_id=gr.id,
                   document_number=gr.document_number,
-                  inventory_lines=[_receipt_inventory_line(
-                      ln, lines_by_id.get(ln.purchase_order_line_id)
-                      or lines_by_product.get(ln.product_id)) for ln in gr.lines])
+                  inventory_lines=[
+                      _receipt_inventory_line(ln, source)
+                      for ln, source in ((ln, lines_by_id.get(ln.purchase_order_line_id)
+                                          or lines_by_product.get(ln.product_id))
+                                         for ln in gr.lines)
+                      # C04: sólo lo que es mercancía entra al almacén.
+                      if source is None or source.purchase_nature in STOCK_NATURES])
             if gr.discrepancies:
                 _emit(uow, ProcurementEvents.GOODS_RECEIPT_DISCREPANCY, document_id=gr.id,
                       operation_id=operation_id, actor_user_id=actor_user_id,
@@ -580,19 +636,32 @@ class ReverseGoodsReceiptUseCase:
             if po is None:
                 return ProcurementResult.fail("Orden inexistente", "NOT_FOUND",
                                               operation_id=operation_id)
+            lines_by_id = {ln.id: ln for ln in po.lines}
             lines_by_product = {ln.product_id: ln for ln in po.lines}
+            # Auditoría C12: una recepción ya facturada no se reversa por debajo
+            # de la factura (la deuda quedaría sin mercancía): primero se
+            # cancela o corrige la factura.
+            if uow.invoices.invoiced_quantities(purchase_order_id=po.id):
+                return ProcurementResult.fail(
+                    "La orden ya tiene facturas registradas; cancele o corrija la factura "
+                    "antes de reversar la recepción", "INVOICED_RECEIPT",
+                    operation_id=operation_id)
             try:
+                # Auditoría C11: se agrupa por la línea de ORIGEN de cada renglón
+                # recibido y se suman TODOS sus lotes; el producto sólo se usa
+                # para recepciones antiguas sin línea de origen.
                 quantities: dict[str, Decimal] = {}
+                accepted: dict[str, Decimal] = {}
                 for gr_line in gr.lines:
-                    po_line = lines_by_product.get(gr_line.product_id)
+                    po_line = (lines_by_id.get(gr_line.purchase_order_line_id or "")
+                               or lines_by_product.get(gr_line.product_id))
                     if po_line is None:
                         continue
-                    po_line.accepted_quantity = max(
-                        Decimal("0"), po_line.accepted_quantity - gr_line.accepted_quantity)
-                    po_line.rejected_quantity = max(
-                        Decimal("0"), po_line.rejected_quantity - gr_line.rejected_quantity)
-                    quantities[po_line.id] = gr_line.received_quantity
-                po.unregister_receipt(quantities)
+                    quantities[po_line.id] = (quantities.get(po_line.id, Decimal("0"))
+                                              + gr_line.received_quantity)
+                    accepted[po_line.id] = (accepted.get(po_line.id, Decimal("0"))
+                                            + gr_line.accepted_quantity)
+                po.unregister_receipt(quantities, accepted)
                 gr.reverse()
             except ProcurementDomainError as exc:
                 return ProcurementResult.fail(str(exc), "INVALID_STATE",
@@ -606,6 +675,7 @@ class ReverseGoodsReceiptUseCase:
             _emit(uow, ProcurementEvents.GOODS_RECEIPT_REVERSED, document_id=gr.id,
                   operation_id=operation_id, actor_user_id=actor_user_id,
                   goods_receipt_id=gr.id, purchase_order_id=po.id,
+                  branch_id=gr.branch_id, warehouse_id=gr.warehouse_id,
                   reason=reason.strip())
         return ProcurementResult.ok("Recepción reversada", entity_id=gr.id,
                                     operation_id=operation_id, status=gr.status,
@@ -613,6 +683,24 @@ class ReverseGoodsReceiptUseCase:
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
+def _same_order_request(order, *, supplier_id, branch_id, warehouse_id, currency_code,
+                        lines) -> bool:
+    """Huella de la solicitud: encabezado + multiconjunto (producto, cantidad,
+    precio). Igual → la orden ya registrada; distinto → conflicto (C19)."""
+    if (order.supplier_id, order.branch_id, order.warehouse_id,
+            str(order.currency_code).upper()) != (supplier_id, branch_id, warehouse_id,
+                                                  str(currency_code).upper()):
+        return False
+    try:
+        requested = sorted((str(raw.get("product_id")), Decimal(str(raw.get("quantity"))),
+                            Decimal(str(raw.get("unit_price")))) for raw in lines)
+    except (ArithmeticError, ValueError, TypeError):
+        return False
+    stored = sorted((ln.product_id, ln.ordered_quantity, ln.unit_price.amount)
+                    for ln in order.lines)
+    return requested == stored
+
+
 def _apply_line_changes(po: PurchaseOrder, line_changes: list[dict]) -> None:
     by_id = {ln.id: ln for ln in po.lines}
     for change in line_changes:
@@ -636,20 +724,25 @@ def _receipt_inventory_line(receipt_line, order_line) -> dict:
         line["quantity"] = str(quantity)
         return _with_traceability(line, receipt_line)
     factor = order_line.conversion_factor or Decimal("1")
+    # Auditoría C06: el costo de adquisición es NETO del descuento pactado,
+    # repartido por unidad facturable.
+    billable = order_line.billable_quantity()
+    net_price = (order_line.unit_price.amount - order_line.discount / billable
+                 if billable > 0 else order_line.unit_price.amount)
     weight = accepted_weight(receipt_line)
     if order_line.priced_by_weight() and weight:
         # Se paga el PESO REAL aceptado a $/kg; entra el peso si la unidad de
         # inventario es de peso, si no las piezas, con el costo repartido.
         inventory_quantity = weight if order_line.inventory_by_weight else quantity * factor
-        amount = weight * order_line.unit_price.amount
+        amount = weight * net_price
         line["quantity"] = str(inventory_quantity)
         line["unit_cost"] = str(amount / inventory_quantity if inventory_quantity else
-                                order_line.unit_price.amount)
+                                net_price)
         if order_line.inventory_unit:
             line["inventory_unit"] = order_line.inventory_unit
         return _with_traceability(line, receipt_line)
     line["quantity"] = str(quantity * factor)
-    line["unit_cost"] = str(inventory_unit_cost(order_line.unit_price.amount, factor))
+    line["unit_cost"] = str(inventory_unit_cost(net_price, factor))
     if order_line.inventory_unit:
         line["inventory_unit"] = order_line.inventory_unit
     return _with_traceability(line, receipt_line)

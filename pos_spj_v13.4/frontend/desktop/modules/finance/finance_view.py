@@ -6,10 +6,11 @@ database, the app container, SQL or business rules. Validated at 1366×768.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QStackedWidget, QWidget
+from PyQt5.QtWidgets import QWidget
 
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.finance.pages.accounts_payable_page import AccountsPayablePage
 from frontend.desktop.modules.finance.pages.accounts_receivable_page import (
@@ -79,7 +80,7 @@ class FinanceView(QWidget):
         self._nav = SideNav(self)
         self._nav.setObjectName("financeNav")
 
-        self._stack = QStackedWidget(self)
+        self._stack = PageStack(self)
         self._pages: list = []
         self._build_navigation()
 

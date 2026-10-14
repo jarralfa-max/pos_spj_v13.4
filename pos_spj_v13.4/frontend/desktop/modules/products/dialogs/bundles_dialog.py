@@ -7,13 +7,13 @@ pasa por el presenter → use cases (autorización PRODUCTS_BUNDLES_MANAGE).
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from PyQt5.QtWidgets import (
-    QDialog,
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QVBoxLayout,
 )
 
 from frontend.desktop.components import ColumnSpec, StandardTable
@@ -24,10 +24,10 @@ _STATUS_ES = {
 }
 
 
-class BundlesDialog(QDialog):
+class BundlesDialog(StandardDialog):
     def __init__(self, presenter, *, product_id: str, product_name: str,
                  parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=640)
         self._presenter = presenter
         self._product_id = product_id
         self.setObjectName("bundlesDialog")
@@ -35,7 +35,7 @@ class BundlesDialog(QDialog):
         self.setMinimumSize(640, 460)
         can_manage = bool(getattr(self._presenter, "can_manage_bundles", False))
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         layout.addWidget(QLabel("Combos / Kits"))
         bbar = QHBoxLayout()
         self.btn_new = QPushButton("Nuevo combo")
@@ -84,7 +84,7 @@ class BundlesDialog(QDialog):
         close.button(QDialogButtonBox.Close).setText("Cerrar")
         close.rejected.connect(self.reject)
         close.accepted.connect(self.accept)
-        layout.addWidget(close)
+        self.add_footer_widget(close)
         self.refresh_bundles()
 
     def refresh_bundles(self) -> None:

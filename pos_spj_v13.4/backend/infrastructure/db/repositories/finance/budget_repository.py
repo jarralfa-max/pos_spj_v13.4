@@ -8,7 +8,7 @@ from backend.domain.finance.value_objects.money import Money
 from backend.infrastructure.db.repositories.finance.base import FinanceRepositoryBase
 
 _COLUMNS = ("id, name, fiscal_year, version, status, submitted_by, approved_by,"
-            " approved_at, branch_id, operation_id, created_at, updated_at")
+            " approved_at, branch_id, operation_id, created_at, updated_at, row_version")
 _LINE_COLUMNS = ("id, budget_id, account_id, period_code, planned_amount,"
                  " committed_amount, accrued_amount, currency_code, cost_center_id, branch_id")
 
@@ -16,20 +16,21 @@ _LINE_COLUMNS = ("id, budget_id, account_id, period_code, planned_amount,"
 class BudgetRepository(FinanceRepositoryBase):
     def save(self, budget: Budget) -> None:
         self._execute(
-            f"INSERT INTO budgets ({_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            f"INSERT INTO budgets ({_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (budget.id, budget.name, budget.fiscal_year, budget.version,
              budget.status.value, budget.submitted_by, budget.approved_by,
              budget.approved_at, budget.branch_id, budget.operation_id,
-             budget.created_at, budget.updated_at),
+             budget.created_at, budget.updated_at, budget.row_version),
         )
         self._sync_lines(budget)
 
     def update(self, budget: Budget) -> None:
-        self._execute(
+        self._execute_versioned(
             "UPDATE budgets SET status=?, submitted_by=?, approved_by=?, approved_at=?,"
-            " updated_at=? WHERE id=?",
+            " updated_at=?, row_version=row_version+1 WHERE id=? AND row_version=?",
             (budget.status.value, budget.submitted_by, budget.approved_by,
-             budget.approved_at, budget.updated_at, budget.id),
+             budget.approved_at, budget.updated_at, budget.id, budget.row_version),
+            budget, "El presupuesto",
         )
         self._sync_lines(budget)
 
@@ -93,6 +94,7 @@ class BudgetRepository(FinanceRepositoryBase):
             submitted_by=row["submitted_by"], approved_by=row["approved_by"],
             approved_at=row["approved_at"], branch_id=row["branch_id"],
             created_at=row["created_at"], updated_at=row["updated_at"],
+            row_version=int(row["row_version"] or 0),
         )
         for line_row in self._query(
             f"SELECT {_LINE_COLUMNS} FROM budget_lines WHERE budget_id=? ORDER BY period_code",

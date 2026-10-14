@@ -3,6 +3,7 @@
 Prioriza pedidos por: hora entrega, tipo cliente, urgencia.
 """
 from __future__ import annotations
+import time
 import heapq
 import logging
 from dataclasses import dataclass, field
@@ -15,7 +16,7 @@ logger = logging.getLogger("wa.queue")
 @dataclass(order=True)
 class PedidoEnCola:
     priority: int = field(compare=True)       # Menor = más urgente
-    timestamp: float = field(compare=True)
+    timestamp: int = field(compare=True)
     pedido_data: Dict[str, Any] = field(compare=False)
     phone: str = field(compare=False, default="")
     sucursal_id: int = field(compare=False, default=1)
@@ -45,7 +46,8 @@ class PedidoPriorityQueue:
         elif fecha_entrega:
             try:
                 fecha = datetime.fromisoformat(fecha_entrega)
-                horas_hasta = (fecha - datetime.now()).total_seconds() / 3600
+                _delta = fecha - datetime.now()
+                horas_hasta = (_delta.days * 86400 + _delta.seconds) // 3600
                 if horas_hasta <= 2:
                     base = self.PRIORIDAD_URGENTE
                 elif horas_hasta <= 24:
@@ -66,7 +68,7 @@ class PedidoPriorityQueue:
         """Agrega un pedido a la cola."""
         item = PedidoEnCola(
             priority=prioridad,
-            timestamp=datetime.now().timestamp(),
+            timestamp=time.time_ns(),
             pedido_data=pedido_data,
             phone=phone,
             sucursal_id=sucursal_id,

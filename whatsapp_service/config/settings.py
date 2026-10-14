@@ -1,3 +1,4 @@
+from decimal import Decimal
 # config/settings.py — WhatsApp Service for SPJ POS
 """
 Configuración central. Lee de variables de entorno o .env.
@@ -219,7 +220,7 @@ FUZZY_MATCH_THRESHOLD = int(os.getenv("FUZZY_MATCH_THRESHOLD", "2"))  # Max Leve
 # ── Ollama / DeepSeek local (Nivel 3 NLP) ────────────────────────────────────
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:8b")
-OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "15.0"))  # Segundos
+OLLAMA_TIMEOUT = int(Decimal(os.getenv("OLLAMA_TIMEOUT", "15") or "15"))  # Segundos
 
 
 # ── Environment helpers (FASE 2) ─────────────────────────────────────────────

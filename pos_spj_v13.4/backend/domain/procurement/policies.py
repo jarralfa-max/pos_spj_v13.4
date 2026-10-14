@@ -36,7 +36,13 @@ class LimitEvaluation(str, Enum):
 class UserPurchaseLimitPolicy:
     """Evaluates an amount against a configurable limit (never hardcoded)."""
 
-    def evaluate(self, amount: Money, limit: PurchaseLimit | None) -> LimitEvaluation:
+    def evaluate(self, amount: Money, limit: PurchaseLimit | None, *,
+                 day_total=None, month_total=None) -> LimitEvaluation:
+        """``day_total``/``month_total``: lo YA comprometido por el usuario en
+        el día y el mes (misma moneda, sin canceladas ni reversadas). Auditoría
+        Compras C17: los límites diario y mensual se guardaban y no se
+        aplicaban; dividir una compra los evitaba. Rebasarlos exige la
+        autorización en caliente."""
         if limit is None:
             return LimitEvaluation.WITHIN
         value = amount.amount
@@ -44,6 +50,12 @@ class UserPurchaseLimitPolicy:
         threshold = limit.requires_approval_above
         if cap is not None and value > cap:
             return LimitEvaluation.EXCEEDS
+        if (limit.maximum_per_day is not None and day_total is not None
+                and day_total + value > limit.maximum_per_day):
+            return LimitEvaluation.REQUIRES_APPROVAL
+        if (limit.maximum_per_month is not None and month_total is not None
+                and month_total + value > limit.maximum_per_month):
+            return LimitEvaluation.REQUIRES_APPROVAL
         if threshold is not None and value > threshold:
             return LimitEvaluation.REQUIRES_APPROVAL
         return LimitEvaluation.WITHIN

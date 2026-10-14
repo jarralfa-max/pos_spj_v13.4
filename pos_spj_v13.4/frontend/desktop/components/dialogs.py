@@ -245,3 +245,42 @@ class FormDialog(StandardDialog):
         self.form = QFormLayout()
         self.form.setSpacing(Spacing.SM)
         self._root.addLayout(self.form)
+
+    @staticmethod
+    def get_text(parent, title: str, label: str, *, text: str = "") -> tuple[str, bool]:
+        """Capture text with the shared shell; the caller keeps its validation."""
+        from frontend.desktop.components.text_inputs import StandardLineEdit
+
+        dialog = FormDialog(parent, title=title)
+        field = StandardLineEdit(dialog)
+        field.setText(text)
+        field.setAccessibleName(label)
+        dialog.form.addRow(label, field)
+        dialog.add_button_box()
+        field.setFocus()
+        try:
+            accepted = dialog.exec_() == QDialog.Accepted
+            return (field.text() if accepted else "", accepted)
+        finally:
+            dialog.deleteLater()
+
+    @staticmethod
+    def get_item(parent, title: str, label: str, items, current: int = 0,
+                 editable: bool = False) -> tuple[str, bool]:
+        """Select from a short catalog without bypassing the dialog policy."""
+        from frontend.desktop.components.selection_controls import StandardComboBox
+
+        dialog = FormDialog(parent, title=title)
+        field = StandardComboBox(dialog)
+        field.addItems(items)
+        field.setEditable(editable)
+        field.setCurrentIndex(current)
+        field.setAccessibleName(label)
+        dialog.form.addRow(label, field)
+        dialog.add_button_box()
+        field.setFocus()
+        try:
+            accepted = dialog.exec_() == QDialog.Accepted
+            return (field.currentText() if accepted else "", accepted)
+        finally:
+            dialog.deleteLater()

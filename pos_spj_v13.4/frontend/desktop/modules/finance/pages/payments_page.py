@@ -39,7 +39,17 @@ class PaymentsPage(FinancePage):
         if not payment_id:
             self.notify(False, "Seleccione un pago autorizado.")
             return
-        self.notify(*self._presenter.execute_supplier_payment(payment_id))
+        from frontend.desktop.modules.finance.dialogs.payment_execution_dialog import (
+            PaymentExecutionDialog,
+        )
+        row = self.table.selected_row_values() if hasattr(self.table, "selected_row_values") \
+            else None
+        summary = ("Pago " + " · ".join(str(v) for v in row[:4])) if row else \
+            "Confirme la salida del dinero con su evidencia."
+        dialog = PaymentExecutionDialog(self, summary)
+        if dialog.exec_():
+            self.notify(*self._presenter.execute_supplier_payment(
+                payment_id, execution_reference=dialog.reference()))
 
     def _load(self) -> None:
         self.set_table(self._presenter.supplier_payments())

@@ -1,4 +1,9 @@
 from __future__ import annotations
+from decimal import Decimal
+try:
+    from domain.money import ONE, ZERO, to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import ONE, ZERO, to_decimal
 from enum import Enum
 from typing import List
 from pydantic import BaseModel, Field, field_validator
@@ -46,14 +51,14 @@ class AIAdjustmentResponse(str, Enum):
 
 class AIParsedProduct(BaseModel):
     product_name: str = ""
-    quantity: float = 0
+    quantity: Decimal = 0
     unit: str = "kg"
     notes: str = ""
 
 
 class AIIntentResult(BaseModel):
     intent: AIIntentName = AIIntentName.UNKNOWN
-    confidence: float = 0.0
+    confidence: Decimal = Decimal("0.0")
     workflow_type: AIWorkflowType = AIWorkflowType.NONE
     delivery_type: AIDeliveryType = AIDeliveryType.NONE
     branch_reference: str = ""
@@ -67,6 +72,6 @@ class AIIntentResult(BaseModel):
 
     @field_validator("confidence")
     @classmethod
-    def _validate_confidence(cls, v: float) -> float:
-        return max(0.0, min(1.0, float(v or 0.0)))
+    def _validate_confidence(cls, v: Decimal) -> Decimal:
+        return max(ZERO, min(ONE, to_decimal(v or 0)))
 

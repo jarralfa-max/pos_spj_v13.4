@@ -26,7 +26,7 @@ class RegisterTreasuryTransferUseCase:
 
     def execute(self, connection, *, source_treasury_account_id: str,
                 target_treasury_account_id: str, amount: str, transfer_date: date,
-                reference: str = "", operation_id: str) -> str:
+                reference: str = "", operation_id: str, created_by: str | None = None) -> str:
         with FinanceUnitOfWork(connection) as uow:
             duplicate = uow.journal_entries.find_by_operation_id(operation_id)
             if duplicate is not None:
@@ -36,6 +36,11 @@ class RegisterTreasuryTransferUseCase:
             if source is None or target is None:
                 raise FinanceDomainError("Cuenta de tesorería inexistente")
             money = Money.from_string(amount, source.currency_code)
+            # Auditoría F14: la transferencia general mueve DINERO. Un monedero
+            # promocional (obligación comercial 2134) no es efectivo: su canje,
+            # reembolso o liberación tienen procesos propios.
+            self._domain.assert_not_promotional_cash(source)
+            self._domain.assert_not_promotional_cash(target)
             self._domain.validate_transfer(source, target, money)
             transfer_id = new_uuid()
             entry = self._engine.post(
@@ -49,6 +54,7 @@ class RegisterTreasuryTransferUseCase:
                     LineSpec(source.ledger_account_id, credit=money,
                              description=f"Salida por transferencia {reference}"),
                 ],
+                currency_code=money.currency_code, created_by=created_by,
             )
             uow.outbox.enqueue(
                 event_id=new_uuid(),

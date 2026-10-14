@@ -57,6 +57,17 @@ class PurchaseLimitRepository(ProcurementRepositoryBase):
             " AND active=1", (role_code, currency_code))
         return _limit_from_row(row) if row else None
 
+    def committed_direct_total(self, user_id: str, currency_code: str, since_iso: str):
+        """Total de compras directas del usuario desde ``since_iso`` que siguen
+        vigentes (sin canceladas ni reversadas), sumado en Decimal."""
+        from decimal import Decimal
+        rows = self._query(
+            "SELECT total FROM direct_purchases WHERE created_by_user_id=?"
+            " AND currency_code=? AND created_at>=?"
+            " AND status NOT IN ('CANCELLED','REVERSED')",
+            (user_id, currency_code, since_iso))
+        return sum((to_decimal(row["total"]) for row in rows), Decimal("0"))
+
     def branch_allows_direct(self, branch_id: str, currency_code: str = "MXN") -> bool:
         row = self._query_one(
             "SELECT allows_direct_purchase FROM branch_purchase_limits"

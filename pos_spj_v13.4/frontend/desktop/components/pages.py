@@ -1,12 +1,13 @@
 """Page structures sharing one overflow policy and sticky page actions."""
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QHBoxLayout, QSplitter, QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QSplitter, QVBoxLayout, QWidget
 
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
 from frontend.desktop.components.dashboard_grid import DashboardGrid
 from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.page_header import PageHeader
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.page_viewport import PageViewport
 from frontend.desktop.components.tabs import Tabs
 from frontend.desktop.components.toolbar import ContextBar
@@ -102,7 +103,7 @@ class WizardPage(StandardPage):
 
     def __init__(self, parent=None, **kwargs) -> None:
         super().__init__(parent, **kwargs)
-        self.steps = QStackedWidget(self.content)
+        self.steps = PageStack(self.content)
         self.add_content(self.steps, 1)
         self.previous_button = create_secondary_button(self, "Anterior")
         self.next_button = create_primary_button(self, "Siguiente")

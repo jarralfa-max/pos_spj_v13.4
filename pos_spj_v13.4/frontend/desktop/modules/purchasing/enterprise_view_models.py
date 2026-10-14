@@ -46,6 +46,12 @@ class PurchasingCapabilities:
     direct_authorize: bool = False
     direct_confirm: bool = False
     direct_reverse: bool = False
+    # Auditoría Compras C26: devoluciones, reversos y cierres explícitos.
+    returns_view: bool = False
+    return_manage: bool = False
+    receipt_reverse: bool = False
+    order_close: bool = False
+    invoice_cancel: bool = False
     view_costs: bool = False
     view_analytics: bool = False
 

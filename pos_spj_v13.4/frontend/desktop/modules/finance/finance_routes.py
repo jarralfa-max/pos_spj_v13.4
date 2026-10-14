@@ -7,8 +7,6 @@ AppContainer.
 
 from __future__ import annotations
 
-from datetime import date
-
 from backend.application.queries.finance.finance_read_services import (
     AccountQueryService,
     BudgetQueryService,
@@ -27,12 +25,17 @@ from backend.application.queries.finance.financial_statement_query_service impor
 from backend.application.queries.finance.general_ledger_query_service import (
     GeneralLedgerQueryService,
 )
+from backend.application.finance.authorization import (
+    FinanceAuthorizationPolicy,
+    FinanceSessionPermissionChecker,
+)
+from backend.application.finance.finance_commands import FinanceCommandService
 from backend.application.services.finance.finance_bootstrap import bootstrap_finance
-from backend.application.services.finance.posting_engine import PostingEngine
 from backend.application.use_cases.finance.budget_use_cases import (
     ApproveBudgetUseCase,
     CreateBudgetUseCase,
     RegisterExpenseRequestUseCase,
+    ResolveExpenseRequestUseCase,
     SubmitBudgetUseCase,
 )
 from backend.application.use_cases.finance.capital_and_asset_use_cases import (
@@ -41,9 +44,11 @@ from backend.application.use_cases.finance.capital_and_asset_use_cases import (
     RunDepreciationUseCase,
 )
 from backend.application.use_cases.finance.fiscal_period_use_cases import (
+    AuthorizeCloseExceptionUseCase,
     CloseFiscalPeriodUseCase,
     ReopenFiscalPeriodUseCase,
 )
+from backend.application.use_cases.finance.journal_use_cases import ReverseJournalEntryUseCase
 from backend.application.use_cases.finance.payable_use_cases import (
     AuthorizeSupplierPaymentUseCase,
     ExecuteSupplierPaymentUseCase,
@@ -56,24 +61,17 @@ from backend.application.use_cases.finance.reconcile_bank_statement_use_case imp
     ReconcileBankStatementUseCase,
 )
 from backend.application.use_cases.finance.treasury_use_cases import (
+    ImportBankStatementUseCase,
     RegisterTreasuryTransferUseCase,
 )
-from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
-from backend.shared.ids import new_uuid
 from frontend.desktop.modules.finance.finance_presenter import FinancePresenter
 
 
 def build_finance_presenter(connection, session_context=None) -> FinancePresenter:
+    """Compone el módulo. Los comandos pasan por ``FinanceCommandService`` con
+    la política de permisos sobre la sesión viva (auditoría F02): sin sesión,
+    o con una de sólo lectura, todo comando se rechaza."""
     bootstrap_finance(connection)
-
-    def _reverse_entry(journal_entry_id: str, reason: str) -> None:
-        engine = PostingEngine()
-        with FinanceUnitOfWork(connection) as uow:
-            entry = uow.journal_entries.get(journal_entry_id)
-            if entry is None:
-                from backend.domain.finance.exceptions import FinanceDomainError
-                raise FinanceDomainError("El asiento no existe")
-            engine.reverse(uow, entry, date.today(), reason, new_uuid())
 
     query_services = {
         "dashboard": FinanceDashboardQueryService(connection),
@@ -89,30 +87,57 @@ def build_finance_presenter(connection, session_context=None) -> FinancePresente
         "assets": FixedAssetQueryService(connection),
         "obligations": CommercialObligationQueryService(connection),
     }
+    query_services["customer_names"] = query_services["receivables"].customer_display_names
     use_cases = {
         "register_collection": RegisterCollectionUseCase(),
         "schedule_payment": ScheduleSupplierPaymentUseCase(),
         "authorize_payment": AuthorizeSupplierPaymentUseCase(),
         "execute_payment": ExecuteSupplierPaymentUseCase(),
         "treasury_transfer": RegisterTreasuryTransferUseCase(),
+        "import_statement": ImportBankStatementUseCase(),
         "reconcile": ReconcileBankStatementUseCase(),
         "create_budget": CreateBudgetUseCase(),
         "submit_budget": SubmitBudgetUseCase(),
         "approve_budget": ApproveBudgetUseCase(),
         "expense_request": RegisterExpenseRequestUseCase(),
+        "resolve_expense": ResolveExpenseRequestUseCase(),
         "capital_contribution": RegisterCapitalContributionUseCase(),
         "capitalize_asset": CapitalizeAssetUseCase(),
         "run_depreciation": RunDepreciationUseCase(),
         "close_period": CloseFiscalPeriodUseCase(),
         "reopen_period": ReopenFiscalPeriodUseCase(),
-        "reverse_entry": _reverse_entry,
+        "authorize_close_exception": AuthorizeCloseExceptionUseCase(),
+        "reverse_entry": ReverseJournalEntryUseCase(),
     }
+    commands = FinanceCommandService(
+        connection_provider=lambda: connection,
+        use_cases=use_cases,
+        authorization=FinanceAuthorizationPolicy(
+            FinanceSessionPermissionChecker(session_context)),
+        actor_provider=lambda: getattr(session_context, "user_id", None),
+        after_command=lambda: _dispatch_finance_outbox(connection),
+    )
+
+    def _suppliers():
+        from frontend.desktop.modules.finance.suppliers.supplier_routes import (
+            build_supplier_presenter,
+        )
+        return build_supplier_presenter(connection, session_context)
+
     return FinancePresenter(
         connection_provider=lambda: connection,
         query_services=query_services,
-        use_cases=use_cases,
+        use_cases={},
         session_context=session_context,
+        commands=commands,
+        embedded_presenters={"suppliers": _suppliers},
     )
+
+
+def _dispatch_finance_outbox(connection) -> dict:
+    from backend.application.services.finance.outbox_dispatcher import dispatch_finance_outbox
+    from backend.shared.events.application_bus import get_bus
+    return dispatch_finance_outbox(connection, get_bus())
 
 
 def create_finance_view(container, parent=None):

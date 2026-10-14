@@ -13,6 +13,8 @@ maestro, mismo folio, misma cobertura de la solicitud). Idempotente por
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
 from backend.application.procurement.permissions import PurchasePermissions
 from backend.application.procurement.result import ProcurementResult
@@ -39,7 +41,8 @@ class GeneratePurchaseOrdersFromAwardUseCase:
         self._auth = authorization or PurchaseAuthorizationPolicy()
 
     def execute(self, connection, *, actor_user_id: str, operation_id: str, award_id: str,
-                warehouse_id: str, payment_terms: str | None = None) -> ProcurementResult:
+                warehouse_id: str, payment_terms: str | None = None,
+                exchange_rate: str | None = None) -> ProcurementResult:
         try:
             self._auth.require(actor_user_id, PurchasePermissions.ORDER_CREATE)
         except PurchasePermissionDeniedError as exc:
@@ -59,29 +62,53 @@ class GeneratePurchaseOrdersFromAwardUseCase:
                         "La adjudicación no tiene una solicitud de origen",
                         "INVALID_REQUISITION", operation_id=operation_id)
                 by_supplier: dict[str, list[dict]] = {}
+                currency_by_supplier: dict[str, str] = {}
                 for award_line in award.lines:
                     found = uow.rfqs.get_quote_line(award_line.quote_line_id)
                     if found is None:
                         return ProcurementResult.fail(
                             "Una línea adjudicada ya no existe en la cotización", "NOT_FOUND",
                             operation_id=operation_id)
-                    _supplier, quote_line = found
+                    quote_supplier, quote_line = found
+                    # Auditoría C15: la orden va al proveedor que COTIZÓ la línea.
+                    if quote_supplier != award_line.supplier_id:
+                        return ProcurementResult.fail(
+                            "La adjudicación asigna una línea a un proveedor que no la cotizó",
+                            "SUPPLIER_MISMATCH", operation_id=operation_id)
+                    # Auditoría C16: la orden reproduce los términos cotizados —
+                    # moneda, descuento e impuesto proporcionales a lo adjudicado.
+                    share = (award_line.awarded_quantity / quote_line.quantity
+                             if quote_line.quantity > 0 else Decimal("1"))
+                    discount = (quote_line.discount.amount * share if quote_line.discount
+                                else Decimal("0"))
+                    tax = quote_line.tax.amount * share if quote_line.tax else Decimal("0")
+                    currency = quote_line.unit_price.currency_code
+                    if currency_by_supplier.setdefault(award_line.supplier_id, currency) \
+                            != currency:
+                        return ProcurementResult.fail(
+                            "Las líneas adjudicadas a un proveedor deben tener una sola moneda",
+                            "CURRENCY_MISMATCH", operation_id=operation_id)
                     by_supplier.setdefault(award_line.supplier_id, []).append({
                         "product_id": quote_line.product_id,
                         "quantity": str(award_line.awarded_quantity),
                         "unit_price": str(quote_line.unit_price.amount),
                         "purchase_nature": quote_line.purchase_nature.value,
+                        "discount": str(discount.quantize(Decimal("0.01"))),
+                        "tax": str(tax.quantize(Decimal("0.01"))),
                     })
                 orders = []
                 # Todas en la MISMA transacción: si la de un proveedor falla, se
                 # revierten las demás (antes quedaban creadas a medias).
                 for supplier_id in sorted(by_supplier):
+                    header = ({"exchange_rate": exchange_rate}
+                              if currency_by_supplier[supplier_id] != "MXN" else {})
                     result = self._create_order.create_in(
                         uow, actor_user_id=actor_user_id, operation_id=new_uuid(),
                         supplier_id=supplier_id, branch_id=requisition.branch_id,
                         warehouse_id=warehouse_id, lines=by_supplier[supplier_id],
                         requisition_id=requisition.id, rfq_id=rfq.id, award_id=award_id,
-                        payment_terms=payment_terms)
+                        payment_terms=payment_terms,
+                        currency_code=currency_by_supplier[supplier_id], **header)
                     if not result.success:
                         raise _GenerationAborted(supplier_id, result)
                     orders.append({"supplier_id": supplier_id, "entity_id": result.entity_id,

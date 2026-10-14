@@ -8,6 +8,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from backend.domain.procurement.entities import SupplierInvoice, SupplierInvoiceLine
+from backend.domain.procurement.enums import PurchaseNature
 from backend.domain.procurement.value_objects import Money
 from backend.infrastructure.db.repositories.procurement.base import (
     ProcurementRepositoryBase,
@@ -18,6 +19,12 @@ from backend.infrastructure.db.repositories.procurement.base import (
 from backend.shared.ids import new_uuid
 
 
+#: Estados en que una factura CONSUME cantidad facturable (auditoría C22): la
+#: conciliada o aprobada. Una capturada sin conciliar o con diferencias no
+#: aplica nada todavía; antes bastaba un borrador erróneo para bloquear al bueno.
+_APPLIED_STATUSES = "('MATCHED','APPROVED','POSTED')"
+
+
 class SupplierInvoiceRepository(ProcurementRepositoryBase):
     def save(self, inv: SupplierInvoice) -> None:
         self._execute(
@@ -26,8 +33,12 @@ class SupplierInvoiceRepository(ProcurementRepositoryBase):
             " direct_purchase_id, uuid_fiscal, status, match_result, captured_by_user_id,"
             " matched_by_user_id,released_by_user_id,payable_id,operation_id,created_at)"
             " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            # Auditoría C21: quién concilió / liberó se guarda en el encabezado,
+            # y el vínculo con la CxP NO se borra al volver a guardar.
             " ON CONFLICT(id) DO UPDATE SET status=excluded.status,"
-            " match_result=excluded.match_result, payable_id=excluded.payable_id",
+            " match_result=excluded.match_result,"
+            " matched_by_user_id=COALESCE(excluded.matched_by_user_id, matched_by_user_id),"
+            " released_by_user_id=COALESCE(excluded.released_by_user_id, released_by_user_id)",
             (inv.id, inv.document_number, inv.supplier_id, inv.invoice_number,
              dec_str(inv.subtotal.amount if inv.subtotal else 0),
              dec_str(inv.tax_total.amount if inv.tax_total else 0),
@@ -41,12 +52,14 @@ class SupplierInvoiceRepository(ProcurementRepositoryBase):
             self._execute(
                 "INSERT INTO supplier_invoice_lines"
                 " (id,supplier_invoice_id,product_id,invoiced_quantity,unit_price,tax,"
-                " currency_code,purchase_order_line_id,direct_purchase_line_id,receipt_line_id)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                " currency_code,purchase_order_line_id,direct_purchase_line_id,receipt_line_id,"
+                " purchase_nature)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                 (line.id, inv.id, line.product_id, dec_str(line.invoiced_quantity),
                  dec_str(line.unit_price.amount), dec_str(line.tax.amount),
                  line.unit_price.currency_code, line.purchase_order_line_id,
-                 line.direct_purchase_line_id, line.receipt_line_id))
+                 line.direct_purchase_line_id, line.receipt_line_id,
+                 line.purchase_nature.value))
 
     def set_operation_id(self, invoice_id: str, operation_id: str) -> None:
         self._execute("UPDATE supplier_invoices SET operation_id=? WHERE id=?",
@@ -93,7 +106,7 @@ class SupplierInvoiceRepository(ProcurementRepositoryBase):
             "SELECT l.invoiced_quantity FROM supplier_invoice_lines l"
             " JOIN supplier_invoices i ON i.id=l.supplier_invoice_id"
             " WHERE l.direct_purchase_line_id=? AND l.supplier_invoice_id<>?"
-            " AND i.status<>'CANCELLED'",
+            f" AND i.status IN {_APPLIED_STATUSES}",
             (direct_purchase_line_id, excluding_invoice_id))
         return sum((to_decimal(row["invoiced_quantity"]) for row in rows), Decimal("0"))
 
@@ -103,9 +116,26 @@ class SupplierInvoiceRepository(ProcurementRepositoryBase):
             "SELECT l.invoiced_quantity FROM supplier_invoice_lines l"
             " JOIN supplier_invoices i ON i.id=l.supplier_invoice_id"
             " WHERE l.purchase_order_line_id=? AND l.supplier_invoice_id<>?"
-            " AND i.status<>'CANCELLED'",
+            f" AND i.status IN {_APPLIED_STATUSES}",
             (purchase_order_line_id, excluding_invoice_id))
         return sum((to_decimal(row["invoiced_quantity"]) for row in rows), Decimal("0"))
+
+    def invoiced_quantities(self, *, purchase_order_id: str | None = None,
+                            direct_purchase_id: str | None = None) -> list[dict]:
+        """Recibido/aplicado/reservado por línea de origen, para que el operador
+        distinga qué cantidad está tomada y por qué factura (C22)."""
+        column = "purchase_order_line_id" if purchase_order_id else "direct_purchase_line_id"
+        owner = "purchase_order_id" if purchase_order_id else "direct_purchase_id"
+        return self._query(
+            f"SELECT l.{column} AS source_line_id, i.id AS invoice_id, i.document_number,"
+            " i.status, l.invoiced_quantity FROM supplier_invoice_lines l"
+            " JOIN supplier_invoices i ON i.id=l.supplier_invoice_id"
+            f" WHERE i.{owner}=? AND i.status<>'CANCELLED'",
+            (purchase_order_id or direct_purchase_id,))
+
+    def cancel(self, invoice_id: str) -> None:
+        self._execute("UPDATE supplier_invoices SET status='CANCELLED' WHERE id=?",
+                      (invoice_id,))
 
     def _hydrate(self, row: dict) -> SupplierInvoice:
         lines = [SupplierInvoiceLine(
@@ -116,7 +146,8 @@ class SupplierInvoiceRepository(ProcurementRepositoryBase):
             tax=Money(to_decimal(line["tax"]), line["currency_code"]),
             purchase_order_line_id=line["purchase_order_line_id"],
             direct_purchase_line_id=line["direct_purchase_line_id"],
-            receipt_line_id=line["receipt_line_id"])
+            receipt_line_id=line["receipt_line_id"],
+            purchase_nature=PurchaseNature(line.get("purchase_nature") or "INVENTORY"))
             for line in self._query(
                 "SELECT * FROM supplier_invoice_lines WHERE supplier_invoice_id=? ORDER BY id",
                 (row["id"],))]

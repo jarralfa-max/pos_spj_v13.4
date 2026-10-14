@@ -23,4 +23,20 @@ class DepreciationPolicy:
             )
         remaining = asset.remaining_depreciable()
         monthly = asset.monthly_depreciation()
+        # Auditoría F19: la cuota del ÚLTIMO mes de vida útil liquida el
+        # remanente (33.33 + 33.33 + 33.34 = 100 en tres meses). Antes el
+        # centavo de redondeo generaba un cuarto mes que la vida útil no tiene.
+        # Meses omitidos: no se recuperan a mitad de vida; el último mes (o
+        # cualquiera posterior) liquida lo que falte.
+        if self.life_month_index(asset, period_code) >= asset.useful_life_months:
+            return remaining
         return monthly if monthly <= remaining else remaining
+
+    @staticmethod
+    def life_month_index(asset: FixedAsset, period_code: str) -> int:
+        """Mes de vida útil (1 = mes de capitalización) que cae en ``period_code``."""
+        if asset.capitalization_date is None:
+            return 0
+        year, month = (int(part) for part in period_code.split("-"))
+        start = asset.capitalization_date
+        return (year - start.year) * 12 + (month - start.month) + 1

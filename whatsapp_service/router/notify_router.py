@@ -12,6 +12,7 @@ antes (ver whatsapp_security_audit.md S1/S2/S3). El secreto compartido sigue
 siendo el mismo (`configuraciones.wa_internal_api_key`, .env como respaldo).
 """
 from __future__ import annotations
+from decimal import Decimal
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -37,13 +38,13 @@ class PedidoListoRequest(BaseModel):
 class AnticipoRequest(BaseModel):
     phone: str
     folio: str
-    monto: float
+    monto: Decimal
 
 
 class CotizacionRequest(BaseModel):
     phone: str
     folio: str
-    total: float
+    total: Decimal
 
 
 class SendMessageRequest(BaseModel):

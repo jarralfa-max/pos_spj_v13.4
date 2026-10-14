@@ -956,10 +956,20 @@ class GenerateOrdersDialog(FormDialog):
 
 
 class InvoiceFormDialog(FormDialog):
+    """Auditoría Compras C25: moneda y naturaleza vienen del documento de origen
+    (antes el total iba fijo en MXN y toda línea salía INVENTORY), y con
+    ``on_submit`` el diálogo confirma DENTRO de sí mismo: un rechazo del backend
+    se muestra junto al formulario, con lo capturado intacto y la misma
+    ``operation_id`` para reintentar."""
+
     def __init__(self, parent=None, *, document_provider=None,
                  document_profile=None, product_provider=None,
-                 empty_reason_provider=None) -> None:
+                 empty_reason_provider=None, on_submit=None) -> None:
         super().__init__(parent, title="Capturar factura de proveedor", width=DialogMetrics.WIDTH_LG)
+        from backend.shared.ids import new_uuid
+        self._on_submit = on_submit
+        self.operation_id = new_uuid()
+        self.result_data = None
         self._profile_provider = document_profile or (lambda _id: {})
         self._profile = {}
         self._document = EntitySearchInput(
@@ -987,8 +997,32 @@ class InvoiceFormDialog(FormDialog):
         self._total_hint.setWordWrap(True)
         self._total_hint.setProperty("role", "muted")
         self.form.addRow("", self._total_hint)
+        self._error = QLabel("", self)
+        self._error.setProperty("role", "error")
+        self._error.setWordWrap(True)
+        self._error.setVisible(False)
+        self.form.addRow("", self._error)
         self._lines.changed.connect(self._propose_total)
         self.add_button_box(ok_text="Capturar")
+
+    def accept(self) -> None:
+        values = self.values()
+        if not values["supplier_id"] or not values["invoice_number"]:
+            self._error.setText("Elige el documento de origen y captura el número de factura.")
+            self._error.setVisible(True)
+            return
+        if self._on_submit is not None:
+            ok, message, data = self._on_submit(values, self.operation_id)
+            if not ok:
+                from frontend.desktop.modules.purchasing.direct_purchase_view_models import (
+                    error_text,
+                )
+                self._error.setText("No se capturó la factura: " + error_text(message, data))
+                self._error.setVisible(True)
+                return
+            self.result_data = (ok, message, data)
+        self._error.setVisible(False)
+        super().accept()
 
     def _propose_total(self) -> None:
         self._total.set_decimal(str(self._lines.invoice_total().quantize(Decimal("0.01"))))
@@ -996,6 +1030,12 @@ class InvoiceFormDialog(FormDialog):
     def _document_selected(self, document_id) -> None:
         self._profile = self._profile_provider(str(document_id))
         self._supplier.setText(self._profile.get("supplier_name") or "—")
+        currency = self._profile.get("currency_code") or "MXN"
+        self._total._suffix = currency
+        self._total.setToolTip(f"Valor en {currency}")
+        label = self.form.labelForField(self._total)
+        if label is not None:
+            label.setText(f"Total ({currency})")
         source_key = ("purchase_order_line_id" if self._profile.get("document_type") == "PURCHASE_ORDER"
                       else "direct_purchase_line_id")
         # Lo PENDIENTE de facturar (aceptado − ya facturado): prellenar todo lo
@@ -1010,7 +1050,8 @@ class InvoiceFormDialog(FormDialog):
             "product_label": line.get("product_label") or "Producto",
             "unit_label": line.get("purchase_unit") or "",
             "invoiced_quantity": str(pending(line)),
-            "purchase_nature": "INVENTORY", "unit_price": str(line["unit_price"]),
+            "purchase_nature": line.get("purchase_nature") or "INVENTORY",
+            "unit_price": str(line["unit_price"]),
             "tax": str(line.get("tax") or "0"), source_key: line["source_line_id"],
         } for line in self._profile.get("lines", ()) if pending(line) > 0])
 
@@ -1025,6 +1066,7 @@ class InvoiceFormDialog(FormDialog):
             "direct_purchase_id": self._document.selected_id()
             if self._profile.get("document_type") == "DIRECT_PURCHASE" else None,
             "uuid_fiscal": self._uuid.text().strip() or None,
+            "currency_code": self._profile.get("currency_code") or "MXN",
             "lines": self._lines.lines(),
         }
 

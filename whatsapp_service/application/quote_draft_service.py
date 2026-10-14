@@ -8,6 +8,7 @@ directamente mediante SQL" (§37): `accept()` SIEMPRE pasa por
 `QuotesApiClient.convert_to_order()`, nunca toca una tabla.
 """
 from __future__ import annotations
+from decimal import Decimal
 
 from dataclasses import dataclass
 from typing import Optional
@@ -56,13 +57,13 @@ class QuoteDraftService:
         self._root.quote_drafts.save(draft)
         return draft
 
-    async def add_product_by_search(self, draft: QuoteDraft, *, query: str, quantity: float) -> OrderDraftLine:
+    async def add_product_by_search(self, draft: QuoteDraft, *, query: str, quantity: Decimal) -> OrderDraftLine:
         results = await self._root.catalog.search(query, max_results=1)
         if not results:
             raise ProductNotFoundError(f"Sin coincidencias de catálogo para {query!r}")
         return self.add_product(draft, product=results[0], quantity=quantity)
 
-    def add_product(self, draft: QuoteDraft, *, product: ProductRef, quantity: float) -> OrderDraftLine:
+    def add_product(self, draft: QuoteDraft, *, product: ProductRef, quantity: Decimal) -> OrderDraftLine:
         line = draft.add_line(
             product_external_id=product.external_id, product_name=product.name,
             quantity=quantity, unit=product.unit, unit_price=product.price,

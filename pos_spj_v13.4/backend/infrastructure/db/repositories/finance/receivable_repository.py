@@ -11,7 +11,7 @@ from backend.infrastructure.db.repositories.finance.base import FinanceRepositor
 
 _COLUMNS = ("id, customer_id, financial_document_id, original_amount, outstanding_amount,"
             " currency_code, issue_date, due_date, branch_id, status, operation_id,"
-            " created_at, updated_at")
+            " created_at, updated_at, row_version")
 
 
 def _to_entity(row: dict) -> Receivable:
@@ -27,26 +27,30 @@ def _to_entity(row: dict) -> Receivable:
         branch_id=row["branch_id"],
         status=ReceivableStatus(row["status"]),
         created_at=row["created_at"], updated_at=row["updated_at"],
+        row_version=int(row["row_version"] or 0),
     )
 
 
 class ReceivableRepository(FinanceRepositoryBase):
     def save(self, receivable: Receivable) -> None:
         self._execute(
-            f"INSERT INTO receivables ({_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            f"INSERT INTO receivables ({_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (receivable.id, receivable.customer_id, receivable.financial_document_id,
              receivable.original_amount.to_string(), receivable.outstanding_amount.to_string(),
              receivable.original_amount.currency_code, receivable.issue_date.isoformat(),
              receivable.due_date.isoformat() if receivable.due_date else None,
              receivable.branch_id, receivable.status.value, receivable.operation_id,
-             receivable.created_at, receivable.updated_at),
+             receivable.created_at, receivable.updated_at, receivable.row_version),
         )
 
     def update(self, receivable: Receivable) -> None:
-        self._execute(
-            "UPDATE receivables SET outstanding_amount=?, status=?, updated_at=? WHERE id=?",
-            (receivable.outstanding_amount.to_string(), receivable.status.value,
-             receivable.updated_at, receivable.id),
+        self._execute_versioned(
+            "UPDATE receivables SET original_amount=?, outstanding_amount=?, status=?,"
+            " updated_at=?, row_version=row_version+1 WHERE id=? AND row_version=?",
+            (receivable.original_amount.to_string(), receivable.outstanding_amount.to_string(),
+             receivable.status.value, receivable.updated_at, receivable.id,
+             receivable.row_version),
+            receivable, "La cuenta por cobrar",
         )
 
     def get(self, receivable_id: str) -> Receivable | None:

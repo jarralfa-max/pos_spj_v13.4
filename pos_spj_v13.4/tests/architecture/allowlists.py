@@ -33,8 +33,9 @@ COMMIT_ROLLBACK_IN_UI_ALLOWLIST = {
 
 SCHEMA_CHANGES_OUTSIDE_MIGRATIONS_ALLOWLIST = {
     # DDL canónico del bounded context financiero (ejecutado solo por la
-    # migración 117):
-    'pos_spj_v13.4/backend/infrastructure/db/schema/finance_schema.py': 24,
+    # migración 117; +4 de la auditoría d9f2bca — 3 tablas y el ALTER guardado de
+    # upgrade_finance_schema — ejecutados por la migración 332):
+    'pos_spj_v13.4/backend/infrastructure/db/schema/finance_schema.py': 28,
     # Estado del puente Fidelidad → Finanzas (ejecutado solo por la migración 294):
     'pos_spj_v13.4/backend/infrastructure/db/schema/loyalty_finance_schema.py': 3,
     # Reglas de acumulación y combinación de beneficios (ejecutado solo por la 295):

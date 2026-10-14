@@ -121,7 +121,7 @@ class MetaCloudApiWhatsAppGateway:
         headers = _build_headers(token)
         meta_url = f"https://graph.facebook.com/{WA_API_VERSION}/{media_id}"
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=15) as client:
             meta_resp = await client.get(meta_url, headers=headers)
             meta_resp.raise_for_status()
             media_url = meta_resp.json()["url"]
@@ -161,7 +161,7 @@ class MetaCloudApiWhatsAppGateway:
             return False
 
         try:
-            with httpx.Client(timeout=5.0) as client:
+            with httpx.Client(timeout=5) as client:
                 resp = client.get(
                     f"https://graph.facebook.com/{WA_API_VERSION}/{phone_id}",
                     headers={"Authorization": f"Bearer {token}"},

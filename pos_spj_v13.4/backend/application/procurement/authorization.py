@@ -34,6 +34,17 @@ class PurchaseAuthorizationPolicy:
             raise PurchasePermissionDeniedError(
                 f"El usuario {user_id} no tiene el permiso {permission_code}")
 
+    def require_branch(self, user_id: str, branch_id: str | None) -> None:
+        """Alcance por sucursal del documento (C18). Un verificador que no
+        sabe de sucursales (dobles de prueba) no restringe; el de la sesión
+        real sí, y falla cerrado."""
+        can_access = getattr(self._checker, "can_access_branch", None)
+        if can_access is None:
+            return
+        if not can_access(user_id, str(branch_id or "")):
+            raise PurchasePermissionDeniedError(
+                "La sucursal del documento está fuera de tu alcance de Compras")
+
     def authorize_exception(self, authorizer_user_id: str, permission_code: str) -> None:
         """Validate a hot authorization: the authorizer must hold the permission."""
         if not authorizer_user_id:

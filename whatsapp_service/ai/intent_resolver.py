@@ -1,4 +1,8 @@
 from __future__ import annotations
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 
 import logging
 import os
@@ -47,7 +51,7 @@ class IntentResolver:
 
     async def resolve(self, msg, ctx):
         enabled = (self._get_cfg("ai_intent_enabled", "0") or "0").lower() in ("1", "true", "yes", "on")
-        min_conf = float(self._get_cfg("ai_min_confidence", "0.75") or "0.75")
+        min_conf = to_decimal(self._get_cfg("ai_min_confidence", "0.75") or "0.75")
         fallback_enabled = (self._get_cfg("ai_fallback_enabled", "1") or "1").lower() in ("1", "true", "yes", "on")
         if not enabled:
             self._set_cfg("ai_last_error", "IA desactivada")
@@ -77,7 +81,7 @@ class IntentResolver:
             parsed.source = "local"
             return self._enrich_products(parsed, msg)
 
-        if float(confidence_val) < min_conf:
+        if to_decimal(confidence_val) < min_conf:
             self._set_cfg("ai_last_error", "Fallback local: low_confidence")
             parsed = await self.parser.parse(msg)
             parsed.source = "local"
@@ -136,7 +140,7 @@ class IntentResolver:
             except Exception:
                 continue
             if product_id in merged:
-                merged[product_id]["cantidad_solicitada"] += float(prod.get("cantidad_solicitada", 0) or 0)
+                merged[product_id]["cantidad_solicitada"] += to_decimal(prod.get("cantidad_solicitada", 0) or 0)
             else:
                 merged[product_id] = prod
 

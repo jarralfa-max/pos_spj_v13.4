@@ -1,0 +1,20 @@
+2026-10-11 16:02:04,215 SPJ.Boot INFO =======================================================
+2026-10-11 16:02:04,371 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-11 16:02:04,375 SPJ.Boot INFO =======================================================
+2026-10-11 16:02:12,701 spj.migrations.334 INFO 334: esquema de Compras al contrato de la auditoría d9f2bca.
+2026-10-11 16:02:12,704 spj.migrations INFO Migración 334 ejecutada.
+2026-10-11 16:02:12,705 spj.migrations INFO Migraciones completadas: 1 ejecutadas.
+2026-10-11 16:02:17,673 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-11 16:02:17,673 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-11 16:02:19,650 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-11 16:02:20,695 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-11 16:02:21,142 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-11 16:02:21,202 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-11 16:02:21,236 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-11 16:02:21,237 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-11 16:02:21,239 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-11 16:02:21,240 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-11 16:02:21,240 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-11 16:02:21,242 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 9 subscriptions
+2026-10-11 16:02:21,242 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 1 subscriptions
+2026-10-11 16:03:30,741 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.

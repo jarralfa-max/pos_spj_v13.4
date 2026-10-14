@@ -13,6 +13,14 @@ Orden de decisión:
 8. Fallback → MenuFlow
 """
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal, loads_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 
 import json
 import logging
@@ -237,7 +245,7 @@ class MessageRouter:
                 await send_text(msg.from_number, "No encontré ajustes pendientes para este número.")
                 return True
             if accepted:
-                await send_text(msg.from_number, f"✅ Ajuste aceptado para tu pedido *{result['folio']}*.\nTotal actualizado: *${float(result['total']):.2f}*.")
+                await send_text(msg.from_number, f"✅ Ajuste aceptado para tu pedido *{result['folio']}*.\nTotal actualizado: *${to_decimal(result['total']):.2f}*.")
             else:
                 await send_text(msg.from_number, f"❌ Ajuste rechazado para tu pedido *{result['folio']}*.\nMantendremos el pedido con la cantidad original.")
             return True
@@ -289,7 +297,7 @@ class MessageRouter:
         self.store.db.execute(
             "INSERT INTO pending_intents(phone,payload_json,updated_at) VALUES(?,?,datetime('now')) "
             "ON CONFLICT(phone) DO UPDATE SET payload_json=excluded.payload_json, updated_at=excluded.updated_at",
-            (ctx.phone, json.dumps(payload, ensure_ascii=False, default=str)),
+            (ctx.phone, dumps_decimal(payload, ensure_ascii=False, default=str)),
         )
         self.store.db.commit()
 
@@ -301,13 +309,13 @@ class MessageRouter:
         self.store.db.commit()
         try:
             from parser.intent_parser import ParsedIntent
-            payload = json.loads(row[0] or "{}")
+            payload = loads_decimal(row[0] or "{}")
             parsed = ParsedIntent(
                 intent=payload.get("intent", "unknown"),
-                confidence=float(payload.get("confidence", 1.0) or 1.0),
+                confidence=to_decimal(payload.get("confidence", 1) or 1),
                 action_id=payload.get("action_id", ""),
                 products=payload.get("products", []),
-                number=float(payload.get("number", 0.0) or 0.0),
+                number=to_decimal(payload.get("number", 0) or 0),
                 raw_text=payload.get("raw_text", ""),
                 source=payload.get("source", "pending"),
             )
@@ -321,10 +329,10 @@ class MessageRouter:
     def _intent_to_payload(self, intent) -> Dict[str, Any]:
         payload = {
             "intent": getattr(intent, "intent", "unknown"),
-            "confidence": getattr(intent, "confidence", 1.0),
+            "confidence": getattr(intent, "confidence", 1),
             "action_id": getattr(intent, "action_id", ""),
             "products": getattr(intent, "products", []) or [],
-            "number": getattr(intent, "number", 0.0),
+            "number": getattr(intent, "number", 0),
             "raw_text": getattr(intent, "raw_text", ""),
             "source": getattr(intent, "source", ""),
             "extra": {},
@@ -349,9 +357,9 @@ class MessageRouter:
                 ctx.pedido_items.append(PedidoItem(
                     producto_id=int(prod["id"]),
                     nombre=prod["nombre"],
-                    cantidad=float(prod.get("cantidad_solicitada", 1.0) or 1.0),
+                    cantidad=to_decimal(prod.get("cantidad_solicitada", 1) or 1),
                     unidad=prod.get("unidad_solicitada") or prod.get("unidad", "kg"),
-                    precio_unitario=float(prod.get("precio", 0.0) or 0.0),
+                    precio_unitario=to_decimal(prod.get("precio", 0) or 0),
                 ))
             except Exception as exc:
                 logger.debug("Producto inválido ignorado en intención IA: %s (%s)", prod, exc)

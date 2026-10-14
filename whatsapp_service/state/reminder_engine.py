@@ -17,6 +17,11 @@ ARQUITECTURA:
   - Thread-safe: usa threading.Lock en operaciones de BD
 """
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal, loads_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
+from decimal import Decimal
 
 import logging
 import threading
@@ -111,7 +116,7 @@ class ReminderEngine:
             """).fetchall()
             for row in rows:
                 try:
-                    data = json.loads(row[3]) if row[3] else {}
+                    data = loads_decimal(row[3]) if row[3] else {}
                     at = datetime.fromisoformat(row[5])
                     reminder = Reminder(
                         tipo=row[1], event_type=row[2], data=data,
@@ -165,7 +170,7 @@ class ReminderEngine:
                         (tipo, event_type, data_json, phone, execute_at,
                          prioridad, sucursal_id, estado)
                     VALUES (?, ?, ?, ?, ?, ?, ?, 'pendiente')
-                """, (tipo, event_type, json.dumps(data, default=str),
+                """, (tipo, event_type, dumps_decimal(data, default=str),
                       phone, execute_at.isoformat(),
                       prioridad, sucursal_id))
                 try:
@@ -208,7 +213,7 @@ class ReminderEngine:
     # ── Helpers de dominio ────────────────────────────────────────────────────
 
     def programar_anticipo_pendiente(self, venta_id: int, folio: str,
-                                      monto: float, phone: str,
+                                      monto: Decimal, phone: str,
                                       sucursal_id: int = 1,
                                       delay_horas: int = 2) -> Optional[int]:
         """Recuerda al cliente que tiene un anticipo pendiente."""
@@ -312,7 +317,7 @@ class ReminderEngine:
         for row in rows:
             db_id, tipo, event_type, data_json, phone, _, prioridad, suc_id = row
             try:
-                data = json.loads(data_json) if data_json else {}
+                data = loads_decimal(data_json) if data_json else {}
                 data["phone"] = phone
 
                 # Emitir el evento al EventBus del ERP

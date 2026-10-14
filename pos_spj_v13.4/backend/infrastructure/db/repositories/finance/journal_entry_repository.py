@@ -95,21 +95,25 @@ class JournalEntryRepository(FinanceRepositoryBase):
     def get_posted_line(self, journal_line_id: str) -> dict | None:
         """One journal line of a POSTED entry (read-model for reconciliation)."""
         return self._query_one(
-            "SELECT jl.id, jl.debit_amount, jl.credit_amount, jl.currency_code"
+            "SELECT jl.id, jl.account_id, jl.debit_amount, jl.credit_amount, jl.currency_code"
             " FROM journal_lines jl JOIN journal_entries je ON je.id=jl.journal_entry_id"
             " WHERE jl.id=? AND je.status='POSTED'",
             (journal_line_id,),
         )
 
     def exists_unbalanced(self) -> bool:
-        row = self._query_one(
-            "SELECT COUNT(*) AS unbalanced FROM ("
-            "  SELECT journal_entry_id FROM journal_lines"
-            "  GROUP BY journal_entry_id"
-            "  HAVING SUM(CAST(debit_amount AS NUMERIC)) <> SUM(CAST(credit_amount AS NUMERIC))"
-            ")"
-        )
-        return bool(row and row["unbalanced"])
+        """Debe = haber por asiento, sumado en Decimal (auditoría F20: la suma de
+        SQLite pasa por real binario y podía ver desbalanceado lo que no lo está,
+        o al revés, en importes grandes)."""
+        from decimal import Decimal
+        totals: dict[str, Decimal] = {}
+        for row in self._query(
+                "SELECT journal_entry_id, debit_amount, credit_amount FROM journal_lines"):
+            delta = Decimal(str(row["debit_amount"] or "0")) \
+                - Decimal(str(row["credit_amount"] or "0"))
+            totals[row["journal_entry_id"]] = totals.get(row["journal_entry_id"],
+                                                         Decimal("0")) + delta
+        return any(value != 0 for value in totals.values())
 
     def _hydrate(self, row: dict) -> JournalEntry:
         lines = [

@@ -3,6 +3,11 @@
 Maneja selección de método de pago y registro de anticipos.
 """
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal
+from decimal import Decimal
 from models.context import ConversationContext, FlowState
 from parser.intent_parser import ParsedIntent
 from flows.base_flow import BaseFlow, FlowResult
@@ -27,7 +32,7 @@ class PagoFlow(BaseFlow):
 
         return FlowResult(handled=False)
 
-    async def iniciar_pago(self, ctx: ConversationContext, total: float):
+    async def iniciar_pago(self, ctx: ConversationContext, total: Decimal):
         """Inicia el flujo de selección de método de pago."""
         await interactive.send_metodo_pago(ctx.phone, total)
         ctx.state = FlowState.PAGO_METODO
@@ -105,10 +110,10 @@ class PagoFlow(BaseFlow):
                 "expiration_date_to": expiration,
                 "expires": True,
             }
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.post(
                     "https://api.mercadopago.com/checkout/preferences",
-                    json=payload,
+                    content=dumps_decimal(payload),
                     headers={
                         "Authorization": f"Bearer {MP_ACCESS_TOKEN}",
                         "Content-Type": "application/json",

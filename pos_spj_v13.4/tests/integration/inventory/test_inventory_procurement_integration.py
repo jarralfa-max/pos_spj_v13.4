@@ -157,7 +157,7 @@ class TestSupplierReturnAndReversal:
 
     def test_real_purchase_return_event_is_consumable_by_supplier_return_handler(self, conn):
         """Producer/consumer payload compatibility: CreatePurchaseReturnUseCase's
-        actual PURCHASE_RETURN_CREATED outbox payload — not a hand-written one —
+        actual PURCHASE_RETURN_CONFIRMED outbox payload — not a hand-written one —
         must be exactly what SupplierReturnHandler expects (resolve_ingress +
         per-line product_id/quantity/unit_cost/lot_id). Two separate connections,
         like the real outbox dispatcher would see: procurement never shares a
@@ -169,6 +169,7 @@ class TestSupplierReturnAndReversal:
             PurchaseAuthorizationPolicy,
         )
         from backend.application.procurement.use_cases.purchase_return_use_cases import (
+            ConfirmPurchaseReturnUseCase,
             CreatePurchaseReturnUseCase,
         )
         from backend.infrastructure.db.repositories.procurement.unit_of_work import (
@@ -186,33 +187,95 @@ class TestSupplierReturnAndReversal:
             def has_permission(self, user_id, permission_code):
                 return True
 
-        PurchaseReceiptHandler(conn).handle(_receipt_payload())
+        # Como en producción: la entrada vive en la ubicación de la sucursal y,
+        # por ser producto con lote, DENTRO de un lote.
+        PurchaseReceiptHandler(conn).handle(_receipt_payload(lines=[
+            {"product_id": "p1", "quantity": "10", "unit_cost": "25",
+             "to_location_id": "b1", "lot_code": "L-7"}]))
         assert _avail(conn) == Decimal("10")
 
         proc_conn = _sqlite3.connect(":memory:")
         create_procurement_schema(proc_conn)
         create_purchase_returns_schema(proc_conn)
         create_document_numbering_schema(proc_conn)
-        result = CreatePurchaseReturnUseCase(PurchaseAuthorizationPolicy(_AllowAll())).execute(
+        # Auditoría Compras C13: la devolución sale de una recepción COMPLETADA
+        # del mismo proveedor; C12: el stock se mueve al CONFIRMAR, no al crear.
+        proc_conn.execute(
+            "INSERT INTO purchase_orders (id, document_number, supplier_id, branch_id,"
+            " warehouse_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+            ("PO-1", "OC-1", "sup1", "b1", "w1", "t", "t"))
+        proc_conn.execute(
+            "INSERT INTO purchase_order_lines (id, purchase_order_id, product_id,"
+            " ordered_quantity, unit_price, purchase_nature) VALUES (?,?,?,?,?,?)",
+            ("pol-1", "PO-1", "p1", "10", "25", "INVENTORY"))
+        proc_conn.execute(
+            "INSERT INTO goods_receipts (id, document_number, supplier_id, branch_id,"
+            " warehouse_id, purchase_order_id, status, created_at)"
+            " VALUES (?,?,?,?,?,?,?,?)",
+            ("GR-1", "REC-1", "sup1", "b1", "w1", "PO-1", "COMPLETED", "t"))
+        proc_conn.execute(
+            "INSERT INTO goods_receipt_lines (id, goods_receipt_id, product_id,"
+            " ordered_quantity, received_quantity, accepted_quantity, purchase_order_line_id)"
+            " VALUES (?,?,?,?,?,?,?)", ("grl-1", "GR-1", "p1", "10", "10", "10", "pol-1"))
+        policy = PurchaseAuthorizationPolicy(_AllowAll())
+        result = CreatePurchaseReturnUseCase(policy).execute(
             proc_conn, actor_user_id="recv", operation_id="real-ret-1",
             supplier_id="sup1", branch_id="b1", warehouse_id="w1", reason="DAMAGED",
+            goods_receipt_id="GR-1",
             lines=[{"product_id": "p1", "quantity": "3", "unit_cost": "25"}])
         assert result.success
+        confirmed = ConfirmPurchaseReturnUseCase(policy).execute(
+            proc_conn, actor_user_id="recv", purchase_return_id=result.entity_id,
+            operation_id="real-ret-1-confirm")
+        assert confirmed.success
         with ProcurementUnitOfWork(proc_conn) as uow:
             outbox_row = next(
                 r for r in uow.outbox.list_pending(50)
-                if r["event_name"] == "PURCHASE_RETURN_CREATED")
+                if r["event_name"] == "PURCHASE_RETURN_CONFIRMED")
         payload = json.loads(outbox_row["payload_json"])
         proc_conn.close()
 
-        # Envelope-level fields (operation_id/branch_id/warehouse_id/user_id/
-        # document_id) and the per-line lot_id key line up correctly — this is
-        # as far as the handler gets before hitting a SEPARATE, real gap: an
-        # outbound SUPPLIER_RETURN movement requires a source location per line
-        # (§ "Un movimiento de salida requiere ubicación origen"), and
-        # PurchaseReturnLine has no location field at all to supply one. That's
-        # a genuine follow-up (add a location to PurchaseReturnLine), not a
-        # payload-key mismatch — document the current failure precisely rather
-        # than silently expanding PurchaseReturn's schema under this task.
-        with pytest.raises(RuntimeError, match="ubicación origen"):
-            SupplierReturnHandler(conn).handle(payload)
+        # La devolución no conoce el id del lote de Inventario: el manejador lo
+        # resuelve desde la recepción de origen (auditoría Compras C12). Antes
+        # la salida caía en el bucket sin lote → «inventario negativo».
+        SupplierReturnHandler(conn).handle(payload)
+        SupplierReturnHandler(conn).handle(payload)      # reentrega: un efecto
+        assert _avail(conn) == Decimal("7")
+        with InventoryUnitOfWork(conn) as uow:
+            moved = uow.ledger.list_for_document("PURCHASE_RETURN", result.entity_id)
+            lines = uow.ledger.get_lines(moved[0]["id"])
+            lot = uow.lots.get_by_code("p1", "L-7")
+        assert len(moved) == 1 and lines[0]["lot_id"] == lot.id
+
+
+class TestSupplierReturnLotResolution:
+    """Auditoría Compras C12: la salida por devolución sale del lote correcto."""
+
+    def _receive_two_lots(self, conn):
+        PurchaseReceiptHandler(conn).handle(_receipt_payload(lines=[
+            {"product_id": "p1", "quantity": "4", "unit_cost": "25",
+             "to_location_id": "b1", "lot_code": "L-A"},
+            {"product_id": "p1", "quantity": "6", "unit_cost": "25",
+             "to_location_id": "b1", "lot_code": "L-B"}]))
+
+    def _return(self, conn, **line):
+        SupplierReturnHandler(conn).handle(dict(
+            operation_id="ret-lot", branch_id="b1", warehouse_id="w1",
+            return_id="RET-L", goods_receipt_id="GR-1", user_id="recv",
+            lines=[dict({"product_id": "p1", "quantity": "2",
+                         "from_location_id": "b1"}, **line)]))
+
+    def test_explicit_lot_code_picks_that_lot(self, conn):
+        self._receive_two_lots(conn)
+        self._return(conn, lot_code="L-B")
+        with InventoryUnitOfWork(conn) as uow:
+            moved = uow.ledger.list_for_document("PURCHASE_RETURN", "RET-L")
+            line = uow.ledger.get_lines(moved[0]["id"])[0]
+            assert line["lot_id"] == uow.lots.get_by_code("p1", "L-B").id
+        assert _avail(conn) == Decimal("8")
+
+    def test_ambiguous_lot_is_refused_not_guessed(self, conn):
+        self._receive_two_lots(conn)
+        with pytest.raises(RuntimeError, match="qué lote"):
+            self._return(conn)
+        assert _avail(conn) == Decimal("10")

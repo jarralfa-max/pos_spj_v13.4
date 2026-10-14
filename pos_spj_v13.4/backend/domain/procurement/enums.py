@@ -42,6 +42,13 @@ class PurchaseNature(str, Enum):
     MAINTENANCE = "MAINTENANCE"
 
 
+#: Naturalezas que ENTRAN a existencias al recibirse (auditoría Compras C04).
+#: Un gasto, un servicio, un mantenimiento o un activo fijo se reciben como
+#: documento pero no son mercancía de almacén.
+STOCK_NATURES = frozenset({PurchaseNature.INVENTORY, PurchaseNature.CONSUMABLE,
+                           PurchaseNature.PACKAGING})
+
+
 class PurchaseRoutingDecision(str, Enum):
     DIRECT_ALLOWED = "DIRECT_ALLOWED"
     DIRECT_REQUIRES_AUTHORIZATION = "DIRECT_REQUIRES_AUTHORIZATION"

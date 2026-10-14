@@ -29,6 +29,9 @@ class Receivable:
     status: ReceivableStatus = ReceivableStatus.OPEN
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
+    #: Versión leída (control optimista, auditoría F18): el repositorio sólo
+    #: escribe si la fila sigue en esta versión.
+    row_version: int = 0
 
     @classmethod
     def create(cls, customer_id: str, financial_document_id: str, amount: Money,
@@ -45,6 +48,20 @@ class Receivable:
             issue_date=issue_date, operation_id=operation_id,
             due_date=due_date, branch_id=branch_id,
         )
+
+    def add_charge(self, amount: Money) -> None:
+        """Otro cargo a crédito sobre el mismo documento (auditoría F03): una
+        venta con dos pagos a crédito debe la suma de ambos, no el primero."""
+        if self.status in (ReceivableStatus.CANCELLED, ReceivableStatus.WRITTEN_OFF):
+            raise FinanceDomainError(f"Cannot charge a {self.status.value} receivable")
+        if not amount.is_positive():
+            raise FinanceDomainError("Charge amount must be positive")
+        self.original_amount = self.original_amount.add(amount)
+        self.outstanding_amount = self.outstanding_amount.add(amount)
+        self.status = (ReceivableStatus.OPEN
+                       if self.outstanding_amount.amount == self.original_amount.amount
+                       else ReceivableStatus.PARTIALLY_COLLECTED)
+        self.updated_at = _utcnow()
 
     def apply_collection(self, amount: Money) -> None:
         if self.status in (ReceivableStatus.CANCELLED, ReceivableStatus.WRITTEN_OFF):

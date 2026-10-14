@@ -29,8 +29,10 @@ from PyQt5.QtWidgets import (
     QPushButton, QWidget, QSizePolicy,
 )
 
+from frontend.desktop.components.dialogs import StandardDialog
 
-class NumericKeypadDialog(QDialog):
+
+class NumericKeypadDialog(StandardDialog):
     """Popup de captura numérica con teclado tipo calculadora (grande, desplegable)."""
 
     def __init__(
@@ -46,19 +48,16 @@ class NumericKeypadDialog(QDialog):
         inicial: float = 0.0,
         permitir_cero: bool = False,
     ) -> None:
-        super().__init__(parent)
+        super().__init__(parent, title=titulo, width=340)
         self._decimals = max(0, int(decimals))
         self._minimo = float(minimo)
         self._maximo = float(maximo)
         self._permitir_cero = bool(permitir_cero)
-        self.setWindowTitle(titulo)
         self.setModal(True)
         self.setObjectName("numericKeypadDialog")
         self.setMinimumWidth(340)
 
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(16, 16, 16, 16)
-        lay.setSpacing(10)
+        lay = self.content_layout()
 
         lbl = QLabel(mensaje)
         lbl.setWordWrap(True)
@@ -149,7 +148,9 @@ class NumericKeypadDialog(QDialog):
         lay.addWidget(self._keypad_panel)
 
         # ── Aceptar / Cancelar ──────────────────────────────────────────────────
-        acc = QHBoxLayout()
+        footer = QWidget(self)
+        acc = QHBoxLayout(footer)
+        acc.setContentsMargins(0, 0, 0, 0)
         self.btn_cancel = QPushButton("Cancelar")
         self.btn_cancel.setObjectName("secondaryBtn")
         self.btn_cancel.setMinimumHeight(40)
@@ -161,7 +162,7 @@ class NumericKeypadDialog(QDialog):
         self.btn_ok.clicked.connect(self._aceptar)
         acc.addWidget(self.btn_cancel, 1)
         acc.addWidget(self.btn_ok, 1)
-        lay.addLayout(acc)
+        self.add_footer_widget(footer)
 
         self.display.textChanged.connect(self._sync_ok_enabled)
         self._sync_ok_enabled()

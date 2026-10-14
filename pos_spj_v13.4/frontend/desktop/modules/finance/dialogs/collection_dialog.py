@@ -25,8 +25,15 @@ class CollectionDialog(FinanceFormDialog):
         self.form.addRow("Cuenta de tesorería:", self.account_combo)
         self.form.addRow("Referencia:", self.reference_input)
 
+    def _validation_error(self) -> str | None:
+        if not self.account_combo.currentData():
+            return "Elija la cuenta de tesorería que recibe el cobro."
+        if self.amount_input.decimal_value() <= 0:
+            return "El importe del cobro debe ser mayor que cero."
+        return None
+
     def _is_valid(self) -> bool:
-        return self.amount_input.decimal_value() > 0 and self.account_combo.currentData()
+        return self._validation_error() is None
 
     def data(self) -> dict:
         return {

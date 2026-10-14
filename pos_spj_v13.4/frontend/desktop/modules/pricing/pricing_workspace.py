@@ -20,9 +20,10 @@ a su vez llama al servicio de lectura de la capa de aplicación.
 from __future__ import annotations
 
 from PyQt5.QtCore import QSignalBlocker
-from PyQt5.QtWidgets import QStackedWidget, QWidget
+from PyQt5.QtWidgets import QWidget
 
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.view_states import ViewState, create_state_widget
@@ -54,7 +55,7 @@ class PricingWorkspace(QWidget):
         self._nav.setAccessibleName("Navegación de Precios y Costos")
         self._nav.navigated.connect(self._on_navigated)
 
-        self._stack = QStackedWidget(self)
+        self._stack = PageStack(self)
         self._stack.setObjectName("pricingStack")
         self._stack.setAccessibleName("Páginas del módulo de Precios y Costos")
         self.module_layout = ModuleLayout(

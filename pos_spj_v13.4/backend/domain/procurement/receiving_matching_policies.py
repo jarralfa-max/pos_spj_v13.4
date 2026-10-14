@@ -52,6 +52,11 @@ class MatchResult(str, Enum):
     MISSING_RECEIPT = "MISSING_RECEIPT"
     MISSING_ORDER = "MISSING_ORDER"
     MISSING_PURCHASE_DOCUMENT = "MISSING_PURCHASE_DOCUMENT"
+    # Auditoría Compras C02: identidades económicas que la igualdad numérica
+    # NUNCA sustituye. No son liberables: la factura se corrige o se cancela.
+    SUPPLIER_MISMATCH = "SUPPLIER_MISMATCH"
+    CURRENCY_MISMATCH = "CURRENCY_MISMATCH"
+    PRODUCT_MISMATCH = "PRODUCT_MISMATCH"
 
 
 #: Diferencia máxima atribuible al redondeo a centavos: un precio neto de
@@ -127,6 +132,9 @@ class InvoiceMatchingPolicy:
             ordered = ordered_lines.get(source_line_id or "")
             if ordered is None:
                 return MatchResult.MISSING_ORDER
+            if (ordered.get("product_id") and invoice_line.get("product_id")
+                    and ordered["product_id"] != invoice_line["product_id"]):
+                return MatchResult.PRODUCT_MISMATCH
             accepted = Decimal(str(ordered["accepted_quantity"]))
             invoiced = Decimal(str(invoice_line["invoiced_quantity"]))
             # Partial invoices are valid; only cumulative over-invoicing is a variance.

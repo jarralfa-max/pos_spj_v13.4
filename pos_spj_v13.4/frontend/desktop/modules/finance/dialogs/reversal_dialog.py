@@ -20,8 +20,13 @@ class ReversalDialog(FinanceFormDialog):
         self.reason_input.setMaximumHeight(90)
         self.form.addRow("Motivo (obligatorio):", self.reason_input)
 
+    def _validation_error(self) -> str | None:
+        if not self.reason_input.toPlainText().strip():
+            return "Escriba el motivo: queda en la auditoría del asiento de reversión."
+        return None
+
     def _is_valid(self) -> bool:
-        return bool(self.reason_input.toPlainText().strip())
+        return self._validation_error() is None
 
     def reason(self) -> str:
         return self.reason_input.toPlainText().strip()

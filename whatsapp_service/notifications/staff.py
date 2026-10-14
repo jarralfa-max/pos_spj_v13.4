@@ -1,11 +1,12 @@
 # notifications/staff.py — Notificaciones internas al personal
 from __future__ import annotations
+from decimal import Decimal
 from messaging.sender import send_text
 from typing import List
 
 
 async def notificar_nuevo_pedido_wa(phones: List[str], folio: str,
-                                     cliente: str, total: float,
+                                     cliente: str, total: Decimal,
                                      sucursal: str):
     """Notifica al staff que llegó un pedido nuevo por WhatsApp."""
     for phone in phones:
@@ -18,7 +19,7 @@ async def notificar_nuevo_pedido_wa(phones: List[str], folio: str,
 
 
 async def notificar_anticipo_recibido(phones: List[str], folio: str,
-                                       monto: float):
+                                       monto: Decimal):
     for phone in phones:
         await send_text(phone,
             f"💰 *Anticipo recibido*\n"

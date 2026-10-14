@@ -80,7 +80,7 @@ def test_warehouse_role_can_receive_but_not_order(env):
     caps = clerk.capabilities()
     assert caps.receipt_complete and caps.origin_receive
     assert not caps.order_create and not caps.invoice_capture
-    ok, msg, data = clerk.create_order(supplier_id="sup-1", branch_id=BRANCH,
+    ok, msg, data = clerk.create_order(supplier_id="019a0000-0000-7000-8000-0000000000a1", branch_id=BRANCH,
                                        warehouse_id=WAREHOUSE, lines=[
                                            {"product_id": "p-alas", "quantity": "1",
                                             "unit_price": "40"}])
@@ -144,14 +144,14 @@ def test_migration_284_keeps_the_list_called_base(env):
 def test_supplier_pickup_requires_origin_and_flows_through_origin_purchase(env):
     direct = env.direct()
     line = CartLineVM("p-alas", "Alas", Decimal("10"), Decimal("44"))
-    ok, msg, data = direct.create(supplier_id="sup-1", lines=[line], mode="",
+    ok, msg, data = direct.create(supplier_id="019a0000-0000-7000-8000-0000000000a1", lines=[line], mode="",
                                   fulfillment_mode="SUPPLIER_PICKUP",
                                   payment_condition="SUPPLIER_CREDIT", branch_id=BRANCH,
                                   warehouse_id=WAREHOUSE)
     assert not ok and data["error_code"] == "ORIGIN_REQUIRED"
-    assert direct.supplier_origin_options("sup-1") == [
+    assert direct.supplier_origin_options("019a0000-0000-7000-8000-0000000000a1") == [
         ("addr-1", "Bodega Norte · San Juan del Río, Querétaro")]
-    ok, msg, data = direct.create(supplier_id="sup-1", lines=[line], mode="",
+    ok, msg, data = direct.create(supplier_id="019a0000-0000-7000-8000-0000000000a1", lines=[line], mode="",
                                   fulfillment_mode="SUPPLIER_PICKUP",
                                   origin_supplier_address_id="addr-1",
                                   payment_condition="SUPPLIER_CREDIT", branch_id=BRANCH,
@@ -191,8 +191,10 @@ def test_supplier_pickup_requires_origin_and_flows_through_origin_purchase(env):
     ok, msg, detail = buyer.origin_receive_and_close(shipment)
     assert ok, msg                                   # antes: «todavía no está disponible»
     assert env.stock("p-alas") == Decimal("9")
+    # Auditoría Compras C09/C10: la pieza rechazada queda pendiente (reposición
+    # o cierre explícito del faltante); la compra no se da por recibida.
     assert env.conn.execute("SELECT status FROM direct_purchases WHERE id=?",
-                            (dp,)).fetchone()[0] == "RECEIVED"
+                            (dp,)).fetchone()[0] == "PARTIALLY_RECEIVED"
     lot = env.conn.execute("SELECT r.lot, r.rejected_quantity FROM goods_receipt_lines r"
                            " JOIN goods_receipts g ON g.id=r.goods_receipt_id"
                            " WHERE g.direct_purchase_id=?", (dp,)).fetchone()
@@ -201,7 +203,7 @@ def test_supplier_pickup_requires_origin_and_flows_through_origin_purchase(env):
 
 def test_immediate_receipt_is_still_the_default(env):
     direct = env.direct()
-    ok, msg, data = direct.create(supplier_id="sup-1", mode="DIRECT_WITH_IMMEDIATE_RECEIPT",
+    ok, msg, data = direct.create(supplier_id="019a0000-0000-7000-8000-0000000000a1", mode="DIRECT_WITH_IMMEDIATE_RECEIPT",
                                   payment_condition="SUPPLIER_CREDIT", branch_id=BRANCH,
                                   warehouse_id=WAREHOUSE,
                                   lines=[CartLineVM("p-alas", "Alas", Decimal("1"),
@@ -273,7 +275,7 @@ def test_variable_weight_order_pays_the_real_weight(env):
     assert (expected["purchase_unit"], expected["pending_quantity"], expected["unit_price"]) \
         == ("KG", "127.85", "95")
     ok, msg, invoice = buyer.capture_invoice(
-        supplier_id="sup-1", invoice_number="R-1", total="12145.75", purchase_order_id=order,
+        supplier_id="019a0000-0000-7000-8000-0000000000a1", invoice_number="R-1", total="12145.75", purchase_order_id=order,
         lines=[{"product_id": "p-res", "invoiced_quantity": "127.850", "unit_price": "95",
                 "tax": "0", "purchase_order_line_id": line}])
     assert ok, msg

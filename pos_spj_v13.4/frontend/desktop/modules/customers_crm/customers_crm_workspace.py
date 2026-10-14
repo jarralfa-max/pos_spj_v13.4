@@ -40,9 +40,10 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QFrame, QScrollArea, QStackedWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFrame, QScrollArea, QVBoxLayout, QWidget
 
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.components.tooltip import apply_tooltip
@@ -92,7 +93,7 @@ class CustomersCrmWorkspace(QWidget):
         self._nav.setProperty("role", "nav")
         self._nav.setAccessibleName("Navegacion de Clientes y CRM")
         self._nav.navigated.connect(self._on_navigated)
-        self._stack = QStackedWidget(self)
+        self._stack = PageStack(self)
         self._stack.setObjectName("customersCrmStack")
         self._stack.setAccessibleName("Paginas del modulo de Clientes y CRM")
         self.module_layout = ModuleLayout(

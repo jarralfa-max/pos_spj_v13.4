@@ -58,7 +58,7 @@ def verify_mp_signature(
         ts_ms = int(ts)
     except ValueError:
         return False
-    now_ms = int(time.time() * 1000)
+    now_ms = time.time_ns() // 1_000_000
     if abs(now_ms - ts_ms) > max_age_seconds * 1000:
         return False
 

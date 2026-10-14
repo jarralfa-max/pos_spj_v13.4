@@ -54,6 +54,9 @@ ACCOUNT_ROLES = (
     "depreciation_expense_account_id",
     "cash_over_short_account_id",
     "discount_account_id",
+    # Auditoría Compras C12: crédito del proveedor por devolución que ya no
+    # tiene CxP que acreditar (pagada o de contado).
+    "supplier_advance_account_id",
 )
 
 

@@ -104,7 +104,7 @@ def test_the_page_asks_for_a_reason_before_blocking(app, planta, monkeypatch):
     pagina = pag.PendingInspectionsPage(presentador)
     pagina.ensure_loaded()
     pagina.table.selectRow(0)
-    monkeypatch.setattr(pag.QInputDialog, "getText",
+    monkeypatch.setattr(pag.FormDialog, "get_text",
                         staticmethod(lambda *a, **k: ("Temperatura fuera de rango", True)))
     avisos = []
     monkeypatch.setattr(pag.QMessageBox, "information", lambda *a: avisos.append(a[2]))

@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="60" time="39.156" timestamp="2026-10-13T19:28:20.355290+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-compact-light-size0]" time="0.743" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-compact-light-size1]" time="1.476" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-compact-light-size2]" time="0.795" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-compact-light-size3]" time="0.543" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-compact-light-size4]" time="1.064" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-compact-dark-size0]" time="0.498" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-compact-dark-size1]" time="0.503" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-compact-dark-size2]" time="0.528" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-compact-dark-size3]" time="0.515" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-compact-dark-size4]" time="0.582" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-comfortable-light-size0]" time="0.546"><failure message="assert 6 == 0&#10; +  where 6 = &lt;built-in method maximum of QScrollBar object at 0x000002AB9080DAC0&gt;()&#10; +    where &lt;built-in method maximum of QScrollBar object at 0x000002AB9080DAC0&gt; = &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB9080DAC0&gt;.maximum&#10; +      where &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB9080DAC0&gt; = &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB9080C440&gt;()&#10; +        where &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB9080C440&gt; = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB9080C440&gt;.verticalScrollBar">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000002AB90722840&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-IglTgQ')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002AB907E10F0&gt;
+size = (1280, 720), theme = 'light', density = 'comfortable', scenario = 'form'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("scenario", ["form", "table"])
+    def test_page_viewport_composition_preserves_chrome_and_capture(
+            qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density, scenario):
+        app = qt_font_resources
+        settings = QSettings(str(ui_tmp_path / "viewport.ini"), QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        initial_density = "touch" if density != "touch" else "compact"
+        manager.apply(app, "dark" if theme == "light" else "light", density=initial_density)
+        screen = DesktopScreen(QRect(0, 0, *size))
+        monkeypatch.setattr(StandardWindow, "screen", lambda self: screen)
+        window = StandardWindow(title="JUANIS · PageViewport")
+        host, layout, navigation, page, captured, last, table, save = _workspace(settings, scenario)
+        window.setCentralWidget(host)
+        window.resize(*size)
+        expected_text = captured.text()
+        window.show()
+        settle(app)
+        try:
+            manager.apply(app, theme, density=density)
+            settle(app)
+            assert screen.availableGeometry().contains(window.frameGeometry())
+            assert captured.text() == expected_text
+            assert host.current_route_id == "viewport.workspace"
+            assert layout.viewport.page() is page
+            assert app.property("spjTheme") == theme
+            assert app.property("spjDensity") == density
+            _assert_no_scroll(host.page_viewport)
+&gt;           _assert_no_scroll(layout.viewport)
+
+tests\ui\test_page_viewport_visuals.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+viewport = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB9080C440&gt;
+
+    def _assert_no_scroll(viewport):
+        assert viewport.horizontalScrollBar().maximum() == 0
+&gt;       assert viewport.verticalScrollBar().maximum() == 0
+E       assert 6 == 0
+E        +  where 6 = &lt;built-in method maximum of QScrollBar object at 0x000002AB9080DAC0&gt;()
+E        +    where &lt;built-in method maximum of QScrollBar object at 0x000002AB9080DAC0&gt; = &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB9080DAC0&gt;.maximum
+E        +      where &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB9080DAC0&gt; = &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB9080C440&gt;()
+E        +        where &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB9080C440&gt; = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB9080C440&gt;.verticalScrollBar
+
+tests\ui\test_page_viewport_visuals.py:43: AssertionError</failure></testcase><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-comfortable-light-size1]" time="0.650" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-comfortable-light-size2]" time="0.541" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-comfortable-light-size3]" time="0.500" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-comfortable-light-size4]" time="0.549" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-comfortable-dark-size0]" time="0.841"><failure message="assert 6 == 0&#10; +  where 6 = &lt;built-in method maximum of QScrollBar object at 0x000002AB90C4C9E0&gt;()&#10; +    where &lt;built-in method maximum of QScrollBar object at 0x000002AB90C4C9E0&gt; = &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C4C9E0&gt;.maximum&#10; +      where &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C4C9E0&gt; = &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C4DA30&gt;()&#10; +        where &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C4DA30&gt; = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB90C4DA30&gt;.verticalScrollBar">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000002AB90722840&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-LSjspA')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002AB90C50100&gt;
+size = (1280, 720), theme = 'dark', density = 'comfortable', scenario = 'form'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("scenario", ["form", "table"])
+    def test_page_viewport_composition_preserves_chrome_and_capture(
+            qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density, scenario):
+        app = qt_font_resources
+        settings = QSettings(str(ui_tmp_path / "viewport.ini"), QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        initial_density = "touch" if density != "touch" else "compact"
+        manager.apply(app, "dark" if theme == "light" else "light", density=initial_density)
+        screen = DesktopScreen(QRect(0, 0, *size))
+        monkeypatch.setattr(StandardWindow, "screen", lambda self: screen)
+        window = StandardWindow(title="JUANIS · PageViewport")
+        host, layout, navigation, page, captured, last, table, save = _workspace(settings, scenario)
+        window.setCentralWidget(host)
+        window.resize(*size)
+        expected_text = captured.text()
+        window.show()
+        settle(app)
+        try:
+            manager.apply(app, theme, density=density)
+            settle(app)
+            assert screen.availableGeometry().contains(window.frameGeometry())
+            assert captured.text() == expected_text
+            assert host.current_route_id == "viewport.workspace"
+            assert layout.viewport.page() is page
+            assert app.property("spjTheme") == theme
+            assert app.property("spjDensity") == density
+            _assert_no_scroll(host.page_viewport)
+&gt;           _assert_no_scroll(layout.viewport)
+
+tests\ui\test_page_viewport_visuals.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+viewport = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB90C4DA30&gt;
+
+    def _assert_no_scroll(viewport):
+        assert viewport.horizontalScrollBar().maximum() == 0
+&gt;       assert viewport.verticalScrollBar().maximum() == 0
+E       assert 6 == 0
+E        +  where 6 = &lt;built-in method maximum of QScrollBar object at 0x000002AB90C4C9E0&gt;()
+E        +    where &lt;built-in method maximum of QScrollBar object at 0x000002AB90C4C9E0&gt; = &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C4C9E0&gt;.maximum
+E        +      where &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C4C9E0&gt; = &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C4DA30&gt;()
+E        +        where &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C4DA30&gt; = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB90C4DA30&gt;.verticalScrollBar
+
+tests\ui\test_page_viewport_visuals.py:43: AssertionError</failure></testcase><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-comfortable-dark-size1]" time="0.801" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-comfortable-dark-size2]" time="0.635" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-comfortable-dark-size3]" time="0.751" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-comfortable-dark-size4]" time="0.781" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-touch-light-size0]" time="0.679"><failure message="assert 16 == 0&#10; +  where 16 = &lt;built-in method maximum of QScrollBar object at 0x000002AB90C4CB00&gt;()&#10; +    where &lt;built-in method maximum of QScrollBar object at 0x000002AB90C4CB00&gt; = &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C4CB00&gt;.maximum&#10; +      where &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C4CB00&gt; = &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C4F380&gt;()&#10; +        where &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C4F380&gt; = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB90C4F380&gt;.verticalScrollBar">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000002AB90722840&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-MmebzB')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002AB907CB050&gt;
+size = (1280, 720), theme = 'light', density = 'touch', scenario = 'form'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("scenario", ["form", "table"])
+    def test_page_viewport_composition_preserves_chrome_and_capture(
+            qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density, scenario):
+        app = qt_font_resources
+        settings = QSettings(str(ui_tmp_path / "viewport.ini"), QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        initial_density = "touch" if density != "touch" else "compact"
+        manager.apply(app, "dark" if theme == "light" else "light", density=initial_density)
+        screen = DesktopScreen(QRect(0, 0, *size))
+        monkeypatch.setattr(StandardWindow, "screen", lambda self: screen)
+        window = StandardWindow(title="JUANIS · PageViewport")
+        host, layout, navigation, page, captured, last, table, save = _workspace(settings, scenario)
+        window.setCentralWidget(host)
+        window.resize(*size)
+        expected_text = captured.text()
+        window.show()
+        settle(app)
+        try:
+            manager.apply(app, theme, density=density)
+            settle(app)
+            assert screen.availableGeometry().contains(window.frameGeometry())
+            assert captured.text() == expected_text
+            assert host.current_route_id == "viewport.workspace"
+            assert layout.viewport.page() is page
+            assert app.property("spjTheme") == theme
+            assert app.property("spjDensity") == density
+            _assert_no_scroll(host.page_viewport)
+&gt;           _assert_no_scroll(layout.viewport)
+
+tests\ui\test_page_viewport_visuals.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+viewport = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB90C4F380&gt;
+
+    def _assert_no_scroll(viewport):
+        assert viewport.horizontalScrollBar().maximum() == 0
+&gt;       assert viewport.verticalScrollBar().maximum() == 0
+E       assert 16 == 0
+E        +  where 16 = &lt;built-in method maximum of QScrollBar object at 0x000002AB90C4CB00&gt;()
+E        +    where &lt;built-in method maximum of QScrollBar object at 0x000002AB90C4CB00&gt; = &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C4CB00&gt;.maximum
+E        +      where &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C4CB00&gt; = &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C4F380&gt;()
+E        +        where &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C4F380&gt; = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB90C4F380&gt;.verticalScrollBar
+
+tests\ui\test_page_viewport_visuals.py:43: AssertionError</failure></testcase><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-touch-light-size1]" time="0.739" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-touch-light-size2]" time="0.523" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-touch-light-size3]" time="0.573" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-touch-light-size4]" time="0.530" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-touch-dark-size0]" time="0.471"><failure message="assert 16 == 0&#10; +  where 16 = &lt;built-in method maximum of QScrollBar object at 0x000002AB90C2C9E0&gt;()&#10; +    where &lt;built-in method maximum of QScrollBar object at 0x000002AB90C2C9E0&gt; = &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C2C9E0&gt;.maximum&#10; +      where &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C2C9E0&gt; = &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C2C3B0&gt;()&#10; +        where &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C2C3B0&gt; = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB90C2C3B0&gt;.verticalScrollBar">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x000002AB90722840&gt;
+ui_tmp_path = WindowsPath('C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/pos_spj_v13.4/.test_tmp/qt-ui-rVJJWk')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000002AB907DB4D0&gt;
+size = (1280, 720), theme = 'dark', density = 'touch', scenario = 'form'
+
+    @pytest.mark.parametrize("size", ResponsiveBreakpoints.VALIDATION_SIZES)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
+    @pytest.mark.parametrize("scenario", ["form", "table"])
+    def test_page_viewport_composition_preserves_chrome_and_capture(
+            qt_font_resources, ui_tmp_path, monkeypatch, size, theme, density, scenario):
+        app = qt_font_resources
+        settings = QSettings(str(ui_tmp_path / "viewport.ini"), QSettings.IniFormat)
+        manager = ThemeManager(settings)
+        monkeypatch.setattr(ThemeManager, "_instance", manager)
+        initial_density = "touch" if density != "touch" else "compact"
+        manager.apply(app, "dark" if theme == "light" else "light", density=initial_density)
+        screen = DesktopScreen(QRect(0, 0, *size))
+        monkeypatch.setattr(StandardWindow, "screen", lambda self: screen)
+        window = StandardWindow(title="JUANIS · PageViewport")
+        host, layout, navigation, page, captured, last, table, save = _workspace(settings, scenario)
+        window.setCentralWidget(host)
+        window.resize(*size)
+        expected_text = captured.text()
+        window.show()
+        settle(app)
+        try:
+            manager.apply(app, theme, density=density)
+            settle(app)
+            assert screen.availableGeometry().contains(window.frameGeometry())
+            assert captured.text() == expected_text
+            assert host.current_route_id == "viewport.workspace"
+            assert layout.viewport.page() is page
+            assert app.property("spjTheme") == theme
+            assert app.property("spjDensity") == density
+            _assert_no_scroll(host.page_viewport)
+&gt;           _assert_no_scroll(layout.viewport)
+
+tests\ui\test_page_viewport_visuals.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+viewport = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB90C2C3B0&gt;
+
+    def _assert_no_scroll(viewport):
+        assert viewport.horizontalScrollBar().maximum() == 0
+&gt;       assert viewport.verticalScrollBar().maximum() == 0
+E       assert 16 == 0
+E        +  where 16 = &lt;built-in method maximum of QScrollBar object at 0x000002AB90C2C9E0&gt;()
+E        +    where &lt;built-in method maximum of QScrollBar object at 0x000002AB90C2C9E0&gt; = &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C2C9E0&gt;.maximum
+E        +      where &lt;PyQt5.QtWidgets.QScrollBar object at 0x000002AB90C2C9E0&gt; = &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C2C3B0&gt;()
+E        +        where &lt;built-in method verticalScrollBar of PageViewport object at 0x000002AB90C2C3B0&gt; = &lt;frontend.desktop.components.page_viewport.PageViewport object at 0x000002AB90C2C3B0&gt;.verticalScrollBar
+
+tests\ui\test_page_viewport_visuals.py:43: AssertionError</failure></testcase><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-touch-dark-size1]" time="0.575" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-touch-dark-size2]" time="0.521" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-touch-dark-size3]" time="0.713" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[form-touch-dark-size4]" time="0.690" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-compact-light-size0]" time="0.434" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-compact-light-size1]" time="0.419" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-compact-light-size2]" time="0.617" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-compact-light-size3]" time="0.463" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-compact-light-size4]" time="0.597" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-compact-dark-size0]" time="0.615" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-compact-dark-size1]" time="1.353" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-compact-dark-size2]" time="1.117" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-compact-dark-size3]" time="0.736" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-compact-dark-size4]" time="0.876" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-comfortable-light-size0]" time="0.576" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-comfortable-light-size1]" time="0.673" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-comfortable-light-size2]" time="0.569" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-comfortable-light-size3]" time="1.110" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-comfortable-light-size4]" time="0.739" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-comfortable-dark-size0]" time="0.550" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-comfortable-dark-size1]" time="0.433" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-comfortable-dark-size2]" time="0.690" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-comfortable-dark-size3]" time="0.697" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-comfortable-dark-size4]" time="0.502" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-touch-light-size0]" time="0.499" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-touch-light-size1]" time="0.557" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-touch-light-size2]" time="0.402" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-touch-light-size3]" time="0.432" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-touch-light-size4]" time="0.464" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-touch-dark-size0]" time="0.401" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-touch-dark-size1]" time="0.407" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-touch-dark-size2]" time="0.400" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-touch-dark-size3]" time="0.382" /><testcase classname="tests.ui.test_page_viewport_visuals" name="test_page_viewport_composition_preserves_chrome_and_capture[table-touch-dark-size4]" time="0.447" /></testsuite></testsuites>

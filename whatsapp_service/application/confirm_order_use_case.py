@@ -1,4 +1,9 @@
 from __future__ import annotations
+from decimal import Decimal
+try:
+    from domain.money import HUNDRED, ZERO, quantize_money, to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import HUNDRED, ZERO, quantize_money, to_decimal
 
 import logging
 from dataclasses import dataclass
@@ -22,9 +27,9 @@ class ConfirmWhatsAppOrderCommand:
 class ConfirmWhatsAppOrderResult:
     venta_id: int
     folio: str
-    total: float
+    total: Decimal
     anticipo_requerido: bool
-    anticipo_monto: float
+    anticipo_monto: Decimal
 
 
 class ConfirmWhatsAppOrderUseCase:
@@ -58,10 +63,10 @@ class ConfirmWhatsAppOrderUseCase:
 
         venta_id = int(order["venta_id"])
         folio = str(order["folio"])
-        total = float(order["total"])
+        total = to_decimal(order["total"])
 
         anticipo_requerido = False
-        anticipo_monto = 0.0
+        anticipo_monto = ZERO
 
         if self.orchestrator:
             orch = self.orchestrator.procesar_pedido_wa(
@@ -74,11 +79,11 @@ class ConfirmWhatsAppOrderUseCase:
                 direccion=cmd.direccion,
             )
             anticipo_requerido = bool(orch.get("anticipo_requerido", False))
-            anticipo_monto = float(orch.get("anticipo_monto", 0.0) or 0.0)
+            anticipo_monto = to_decimal(orch.get("anticipo_monto", 0) or 0)
         else:
             policy = self._evaluate_advance_policy(cmd, total)
             anticipo_requerido = bool(policy.get("requiere", False))
-            anticipo_monto = float(policy.get("monto", 0.0) or 0.0)
+            anticipo_monto = to_decimal(policy.get("monto", 0) or 0)
 
         return ConfirmWhatsAppOrderResult(
             venta_id=venta_id,
@@ -88,7 +93,7 @@ class ConfirmWhatsAppOrderUseCase:
             anticipo_monto=anticipo_monto,
         )
 
-    def _evaluate_advance_policy(self, cmd: ConfirmWhatsAppOrderCommand, total: float) -> Dict[str, Any]:
+    def _evaluate_advance_policy(self, cmd: ConfirmWhatsAppOrderCommand, total: Decimal) -> Dict[str, Any]:
         """Evalúa anticipo con el servicio oficial del ERP y fallbacks seguros.
 
         Orden:
@@ -103,7 +108,7 @@ class ConfirmWhatsAppOrderUseCase:
                     cmd.cliente_id, total, cmd.pedido_programado
                 ))
                 if not requiere:
-                    return {"requiere": False, "monto": 0.0, "razon": "politica_erp_exenta"}
+                    return {"requiere": False, "monto": ZERO, "razon": "politica_erp_exenta"}
         except Exception as exc:
             logger.warning("No se pudo evaluar requiere_anticipo; se usará política completa: %s", exc)
 
@@ -131,11 +136,11 @@ class ConfirmWhatsAppOrderUseCase:
         except Exception as exc:
             logger.warning("calcular_anticipo_rules legacy falló; se usará fallback defensivo: %s", exc)
 
-        pct = self._get_default_advance_pct(default=30.0)
+        pct = self._get_default_advance_pct(default=Decimal("30"))
         return {
             "requiere": pct > 0,
             "pct": pct,
-            "monto": round(total * pct / 100.0, 2),
+            "monto": quantize_money(total * pct / HUNDRED),
             "razon": "fallback_pct_default",
             "exento": pct <= 0,
         }
@@ -145,9 +150,9 @@ class ConfirmWhatsAppOrderUseCase:
         enriched: List[Dict] = []
         for item in items:
             row = dict(item)
-            cantidad = float(row.get("cantidad", 0) or 0)
-            precio = float(row.get("precio_unitario", 0) or 0)
-            row.setdefault("subtotal", round(cantidad * precio, 2))
+            cantidad = to_decimal(row.get("cantidad", 0) or 0)
+            precio = to_decimal(row.get("precio_unitario", 0) or 0)
+            row.setdefault("subtotal", quantize_money(cantidad * precio))
 
             if not row.get("categoria") and row.get("producto_id"):
                 try:
@@ -164,13 +169,13 @@ class ConfirmWhatsAppOrderUseCase:
             enriched.append(row)
         return enriched
 
-    def _get_default_advance_pct(self, default: float = 30.0) -> float:
+    def _get_default_advance_pct(self, default: Decimal = Decimal("30.0")) -> Decimal:
         try:
             row = self.erp.db.execute(
                 "SELECT valor FROM anticipo_config WHERE clave='pct_default' LIMIT 1"
             ).fetchone()
             if row and row[0] is not None:
-                return float(row[0])
+                return to_decimal(row[0])
         except Exception:
             pass
-        return float(default)
+        return to_decimal(default)

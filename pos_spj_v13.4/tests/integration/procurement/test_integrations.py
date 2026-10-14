@@ -32,13 +32,23 @@ class FakeBus:
         self.published: list[tuple[str, dict]] = []
         self._subs: dict[str, list] = {}
 
-    def publish(self, event_name, payload, async_=False):
+    def publish(self, event_name, payload, async_=False, strict=False):
+        """Como el bus real: devuelve cuántos consumidores lo atendieron."""
         self.published.append((event_name, payload))
-        for fn in self._subs.get(event_name, []):
+        handlers = self._subs.get(event_name, [])
+        for fn in handlers:
             fn(payload)
+        return len(handlers)
 
     def subscribe(self, event_name, handler, priority=50, label=""):
         self._subs.setdefault(event_name, []).append(handler)
+
+    def sink(self, *event_names):
+        """Consumidor de prueba para derivados obligatorios (auditoría C01: un
+        derivado con efecto económico sin consumidor NO se da por entregado)."""
+        for name in event_names:
+            self.subscribe(name, lambda _payload: None)
+        return self
 
     def names(self):
         return [n for n, _ in self.published]
@@ -79,7 +89,7 @@ def test_replenishment_intake_is_idempotent(proc_conn):
 
 # ── outbound translators via wiring ──────────────────────────────────────────
 def test_receipt_event_translates_to_inventory_and_supplier(proc_conn):
-    bus = FakeBus()
+    bus = FakeBus().sink("PURCHASE_STOCK_ENTRY_REGISTERED")
     wire_procurement(bus, proc_conn)
     bus.publish("GOODS_RECEIPT_COMPLETED", {
         "event_id": "e1", "operation_id": "op1", "supplier_id": "s1", "branch_id": "br-1",
@@ -98,10 +108,10 @@ def test_receipt_event_translates_to_inventory_and_supplier(proc_conn):
 
 def test_translator_failure_propagates_so_source_is_not_acknowledged(proc_conn):
     class FailingBus(FakeBus):
-        def publish(self, event_name, payload, async_=False):
+        def publish(self, event_name, payload, async_=False, strict=False):
             if event_name == "PURCHASE_STOCK_ENTRY_REGISTERED":
                 raise RuntimeError("inventory unavailable")
-            super().publish(event_name, payload, async_=async_)
+            return super().publish(event_name, payload, async_=async_, strict=strict)
 
     bus = FailingBus()
     wire_procurement(bus, proc_conn)
@@ -113,7 +123,7 @@ def test_translator_failure_propagates_so_source_is_not_acknowledged(proc_conn):
 
 
 def test_payable_event_translates_to_cxp(proc_conn):
-    bus = FakeBus()
+    bus = FakeBus().sink("PAYABLE_CREATED")
     wire_procurement(bus, proc_conn)
     bus.publish("ACCOUNT_PAYABLE_CREATE_REQUESTED", {
         "event_id": "e2", "operation_id": "op2", "supplier_id": "s1", "amount": "1000"})
@@ -147,7 +157,7 @@ def test_payable_created_reaches_finance_and_creates_real_payable():
                 " compras_habilitadas INTEGER, bloqueado_financiero INTEGER)")
     conn.execute("INSERT INTO proveedores VALUES ('s1','Proveedor Uno',1,1,0)")
 
-    bus = FakeBus()
+    bus = FakeBus().sink("PURCHASE_STOCK_ENTRY_REGISTERED")
     wire_procurement(bus, conn)
     bus.subscribe("PAYABLE_CREATED", ProcurementPayableBridgeHandler(conn).handle)
 
@@ -262,7 +272,7 @@ def test_payable_recognition_entry_routes_by_purchase_nature_and_splits_tax():
 
 
 def test_immediate_payment_never_from_pos_cash(proc_conn):
-    bus = FakeBus()
+    bus = FakeBus().sink("SUPPLIER_PAYMENT_SCHEDULED")
     wire_procurement(bus, proc_conn)
     bus.publish("PURCHASE_PAYMENT_REQUESTED", {
         "event_id": "e3", "operation_id": "op3", "supplier_id": "s1", "amount": "500",

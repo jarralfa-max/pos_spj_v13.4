@@ -44,7 +44,7 @@ class TestF01ReceivableJoinsTheSaleTransaction:
             with SalesUnitOfWork(conn):
                 SalesCreditClient(conn, actor_user_id=owner_id).register(
                     customer_id=customer, sale_id=new_uuid(), folio="V-1",
-                    amount=Decimal("500"), branch_id=branch_id(conn))
+                    amount=Decimal("500"), branch_id=branch_id(conn), payment_id=new_uuid())
                 raise RuntimeError("falló guardar la venta")
         assert _receivables(conn, customer) == []
 
@@ -55,12 +55,12 @@ class TestF01ReceivableJoinsTheSaleTransaction:
         owner, owner_id = presenter_for(conn, "system_owner")
         customer = new_customer(owner)
         _authorized(conn, customer, terms=15)
-        sale = new_uuid()
-        for _ in range(2):  # reintento: no duplica
+        sale, payment = new_uuid(), new_uuid()
+        for _ in range(2):  # reintento del mismo pago: no duplica
             with SalesUnitOfWork(conn):
                 SalesCreditClient(conn, actor_user_id=owner_id).register(
                     customer_id=customer, sale_id=sale, folio="V-2", amount=Decimal("500"),
-                    branch_id=branch_id(conn))
+                    branch_id=branch_id(conn), payment_id=payment)
         rows = _receivables(conn, customer)
         assert len(rows) == 1
         assert rows[0][1][:10] == (date.today() + timedelta(days=15)).isoformat()
@@ -126,7 +126,7 @@ class TestF23AgreedDueDate:
         with SalesUnitOfWork(conn):
             SalesCreditClient(conn, actor_user_id=owner_id).register(
                 customer_id=customer, sale_id=new_uuid(), folio="V-3", amount=Decimal("200"),
-                branch_id=branch_id(conn))
+                branch_id=branch_id(conn), payment_id=new_uuid())
         conn.execute("UPDATE customer_credit_profiles SET payment_terms_days=30"
                      " WHERE customer_id=?", (customer,))
         conn.commit()

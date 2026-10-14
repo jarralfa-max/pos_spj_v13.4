@@ -3,9 +3,10 @@ sidebar. Mirrors frontend/desktop/modules/losses/losses_view.py.
 """
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QStackedWidget, QWidget
+from PyQt5.QtWidgets import QWidget
 
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.meat_processing.meat_processing_routes import build_page
 from frontend.desktop.modules.meat_processing.widgets import MeatProcessingSidebarWidget
@@ -28,7 +29,7 @@ class MeatProcessingView(QWidget):
         self.sidebar = MeatProcessingSidebarWidget(
             has_permission=has_permission, badges=badges, has_feature=has_feature,
             parent=self)
-        self.stack = QStackedWidget(self)
+        self.stack = PageStack(self)
         self.module_layout = ModuleLayout(
             self, title="Producción", icon=Icons.PRODUCTION,
             sidebar=self.sidebar, content=self.stack,

@@ -17,10 +17,15 @@ def test_procurement_and_qr_legacy_runtime_is_absent():
 
 
 def test_navigation_has_one_canonical_purchasing_route():
-    loader = (ROOT / "core/ui/module_loader.py").read_text(encoding="utf-8")
-    assert '"compras":' in loader
-    for duplicate in ('"compras_pro":', '"compra_directa":', '"compras_enterprise":'):
-        assert duplicate not in loader
+    """El cargador legacy (core/ui/module_loader.py) ya no existe: la navegación
+    viva es la del menú de la shell. Compras tiene UNA entrada y ninguna ruta
+    paralela (auditoría Compras d9f2bca: prueba heredada actualizada)."""
+    assert not (ROOT / "core/ui/module_loader.py").exists()
+    navigation = (ROOT / "frontend/desktop/shell/sidebar/migrated_modules_navigation.py"
+                  ).read_text(encoding="utf-8")
+    assert navigation.count("module_id=PURCHASING_MODULE_ID") == 1
+    for duplicate in ("compras_pro", "compra_directa", "compras_enterprise"):
+        assert duplicate not in navigation
 
 
 def test_procurement_desktop_reads_logistics_without_owning_qr():

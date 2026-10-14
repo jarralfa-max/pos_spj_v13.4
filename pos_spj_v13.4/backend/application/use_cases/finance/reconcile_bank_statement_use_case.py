@@ -1,10 +1,23 @@
-"""Bank reconciliation use case — match, confirm, and authorized undo."""
+"""Bank reconciliation use case — match, confirm, and authorized undo.
+
+Auditoría d9f2bca (F07/F08):
+- sólo se concilia una línea contabilizada de la cuenta ESPEJO de la cuenta de
+  tesorería del estado, en su moneda (antes una línea de CxC 1130 se
+  conciliaba contra el banco 1110 sólo porque el importe coincidía);
+- una línea del mayor o del estado con un match ACTIVO en cualquier
+  conciliación no se reutiliza (antes la misma línea se concilió en dos
+  estados distintos);
+- completar exige todas las partidas del estado conciliadas, o un motivo de
+  diferencia aceptada (quien llama exige el permiso para aceptarla);
+- revertir inactiva los matches y libera las partidas, conservando historia.
+"""
 
 from __future__ import annotations
 
 import json
 
 from backend.domain.finance.entities.reconciliation import Reconciliation
+from backend.domain.finance.enums import ReconciliationStatus
 from backend.domain.finance.exceptions import FinanceDomainError, ReconciliationError
 from backend.domain.finance.services.reconciliation_service import (
     LedgerMovement,
@@ -50,7 +63,23 @@ class ReconcileBankStatementUseCase:
             ledger_row = uow.journal_entries.get_posted_line(journal_line_id)
             if ledger_row is None:
                 raise ReconciliationError("La línea contable no existe o no está contabilizada")
+            treasury_account = uow.treasury.get(statement.treasury_account_id)
+            if treasury_account is None:
+                raise ReconciliationError("La cuenta de tesorería del estado no existe")
+            if ledger_row["account_id"] != treasury_account.ledger_account_id:
+                raise ReconciliationError(
+                    "La línea contable no pertenece a la cuenta de tesorería del estado; "
+                    "sólo se concilian movimientos de su cuenta espejo")
             currency = ledger_row["currency_code"]
+            if currency != statement.opening_balance.currency_code:
+                raise ReconciliationError(
+                    f"La línea contable está en {currency} y el estado en "
+                    f"{statement.opening_balance.currency_code}")
+            if uow.reconciliations.journal_line_has_active_match(journal_line_id):
+                raise ReconciliationError(
+                    "La línea contable ya está conciliada en otra partida activa")
+            if uow.reconciliations.statement_line_has_active_match(bank_statement_line_id):
+                raise ReconciliationError("La partida del estado ya tiene un match activo")
             signed = (Money.from_string(ledger_row["debit_amount"], currency)
                       .subtract(Money.from_string(ledger_row["credit_amount"], currency)))
             movement = LedgerMovement(journal_line_id=journal_line_id, amount=signed)
@@ -68,12 +97,15 @@ class ReconcileBankStatementUseCase:
                 operation_id=new_uuid(),
             )
 
-    def complete(self, connection, *, reconciliation_id: str, completed_by: str) -> None:
+    def complete(self, connection, *, reconciliation_id: str, completed_by: str,
+                 difference_reason: str | None = None) -> None:
         with FinanceUnitOfWork(connection) as uow:
             reconciliation = uow.reconciliations.get(reconciliation_id)
             if reconciliation is None:
                 raise FinanceDomainError("La conciliación no existe")
-            reconciliation.complete(completed_by)
+            statement = uow.treasury.get_statement(reconciliation.bank_statement_id)
+            self._domain.complete(reconciliation, statement, completed_by,
+                                  difference_reason=difference_reason)
             uow.reconciliations.update(reconciliation)
 
     def revert(self, connection, *, reconciliation_id: str, reverted_by: str, reason: str) -> None:
@@ -81,5 +113,32 @@ class ReconcileBankStatementUseCase:
             reconciliation = uow.reconciliations.get(reconciliation_id)
             if reconciliation is None:
                 raise FinanceDomainError("La conciliación no existe")
-            reconciliation.revert(reverted_by, reason)
+            if reconciliation.status is not ReconciliationStatus.COMPLETED:
+                raise ReconciliationError("Sólo se revierte una conciliación completada")
+            statement = uow.treasury.get_statement(reconciliation.bank_statement_id)
+            for line in self._domain.revert(reconciliation, statement, reverted_by, reason):
+                uow.treasury.update_statement_line(line)
             uow.reconciliations.update(reconciliation)
+
+    def candidates(self, connection, *, reconciliation_id: str) -> dict:
+        """Partidas del estado pendientes y líneas del mayor elegibles (de la
+        cuenta espejo, contabilizadas, sin match activo) para la pantalla."""
+        with FinanceUnitOfWork(connection) as uow:
+            reconciliation = uow.reconciliations.get(reconciliation_id)
+            if reconciliation is None:
+                raise FinanceDomainError("La conciliación no existe")
+            statement = uow.treasury.get_statement(reconciliation.bank_statement_id)
+            account = uow.treasury.get(statement.treasury_account_id)
+        from backend.application.queries.finance.general_ledger_query_service import (
+            GeneralLedgerQueryService,
+        )
+        return {
+            "statement_lines": [
+                {"id": l.id, "transaction_date": l.transaction_date.isoformat(),
+                 "description": l.description, "amount": l.amount.to_string(),
+                 "external_reference": l.external_reference}
+                for l in statement.lines if not l.reconciled
+            ],
+            "ledger_lines": GeneralLedgerQueryService(connection).unmatched_treasury_lines(
+                account.ledger_account_id),
+        }

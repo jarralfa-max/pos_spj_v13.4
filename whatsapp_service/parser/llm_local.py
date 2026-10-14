@@ -12,6 +12,15 @@ El modelo recibe SOLO el mensaje + catálogo reducido.
 Responde SOLO JSON — sin explicaciones, sin markdown.
 """
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal, loads_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
+from decimal import Decimal
+try:
+    from domain.money import JSON_HEADERS, dumps_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import JSON_HEADERS, dumps_decimal
 
 import json
 import logging
@@ -51,7 +60,7 @@ class OllamaClient:
         if self._available is not None:
             return self._available
         try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
+            async with httpx.AsyncClient(timeout=3) as client:
                 resp = await client.get(f"{self.url}/api/tags")
                 self._available = resp.status_code == 200
                 if self._available:
@@ -100,14 +109,15 @@ class OllamaClient:
                 ],
                 "stream": False,
                 "options": {
-                    "temperature": 0.1,      # Más determinístico
+                    "temperature": Decimal("0.1"),      # Más determinístico
                     "num_predict": 200,       # Limitar respuesta
                 },
             }
 
             async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
                 resp = await client.post(
-                    f"{self.url}/api/chat", json=payload)
+                    f"{self.url}/api/chat", content=dumps_decimal(payload),
+                    headers=JSON_HEADERS)
 
             if resp.status_code != 200:
                 logger.warning("Ollama HTTP %d: %s",
@@ -133,7 +143,7 @@ class OllamaClient:
 
         # Intento 1: parsear directo
         try:
-            return json.loads(text)
+            return loads_decimal(text)
         except json.JSONDecodeError:
             pass
 
@@ -142,7 +152,7 @@ class OllamaClient:
         end = text.rfind("}") + 1
         if start >= 0 and end > start:
             try:
-                return json.loads(text[start:end])
+                return loads_decimal(text[start:end])
             except json.JSONDecodeError:
                 pass
 
@@ -151,7 +161,7 @@ class OllamaClient:
             if fence in text:
                 clean = text.split(fence)[-1].split("```")[0].strip()
                 try:
-                    return json.loads(clean)
+                    return loads_decimal(clean)
                 except json.JSONDecodeError:
                     pass
 

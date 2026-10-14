@@ -4,6 +4,10 @@ Guarda y recupera el estado de conversación en SQLite.
 Cada teléfono tiene un registro con su contexto serializado.
 """
 from __future__ import annotations
+try:
+    from domain.money import dumps_decimal, loads_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 import json
 import sqlite3
 import logging
@@ -85,7 +89,7 @@ class ConversationStore:
         ctx.cliente_nombre = row["cliente_nombre"] or ""
 
         try:
-            data = json.loads(row["data_json"] or "{}")
+            data = loads_decimal(row["data_json"] or "{}")
             ctx.pedido_items = [PedidoItem.from_dict(d) for d in data.get("pedido_items", [])]
             ctx.pedido_tipo_entrega = data.get("pedido_tipo_entrega", "")
             ctx.pedido_direccion = data.get("pedido_direccion", "")
@@ -128,7 +132,7 @@ class ConversationStore:
                 cliente_id=excluded.cliente_id, cliente_nombre=excluded.cliente_nombre,
                 data_json=excluded.data_json, last_activity=excluded.last_activity
         """, (ctx.phone, ctx.state.value, ctx.sucursal_id, ctx.sucursal_nombre,
-              ctx.cliente_id, ctx.cliente_nombre, json.dumps(data, default=str)))
+              ctx.cliente_id, ctx.cliente_nombre, dumps_decimal(data, default=str)))
         self.db.commit()
 
     def _insert(self, ctx: ConversationContext):

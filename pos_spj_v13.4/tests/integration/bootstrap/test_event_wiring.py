@@ -40,7 +40,9 @@ def test_wires_procurement_and_pricing_onto_the_live_bus(connection):
 
     assert summary["procurement"]["count"] > 0
     assert summary["pricing"]["count"] > 0
-    assert summary["procurement_downstream_bridges"]["count"] == 4
+    # 4 de entrada + 5 de compensación (auditoría Compras C12: reversos y
+    # devoluciones confirmadas compensan inventario y finanzas).
+    assert summary["procurement_downstream_bridges"]["count"] == 9
 
     bus = get_bus()
     assert bus.subscriptions_for(ProcurementEvents.GOODS_RECEIPT_COMPLETED)

@@ -1,4 +1,9 @@
 from __future__ import annotations
+from decimal import Decimal
+try:
+    from domain.money import to_decimal
+except ImportError:  # importado como paquete `whatsapp_service.`
+    from whatsapp_service.domain.money import to_decimal
 import hashlib
 
 
@@ -31,7 +36,7 @@ class AIIntentAuditLog:
         except Exception:
             pass
 
-    def write(self, *, phone: str, message: str, intent: str, confidence: float, source: str,
+    def write(self, *, phone: str, message: str, intent: str, confidence: Decimal, source: str,
               fallback_reason: str = "", needs_clarification: bool = False, latency_ms: int = 0,
               model: str = "", error: str = ""):
         try:
@@ -43,7 +48,7 @@ class AIIntentAuditLog:
                                           needs_clarification,latency_ms,model,error)
                 VALUES(?,?,?,?,?,?,?,?,?,?)
                 """,
-                (ph, preview, intent, float(confidence or 0), source, fallback_reason,
+                (ph, preview, intent, to_decimal(confidence or 0), source, fallback_reason,
                  1 if needs_clarification else 0, int(latency_ms or 0), model, (error or "")[:200])
             )
             self.db.commit()

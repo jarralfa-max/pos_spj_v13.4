@@ -3,6 +3,7 @@
 de un mensaje. Value objects inmutables: una resolución ya hecha no
 cambia, se vuelve a resolver."""
 from __future__ import annotations
+from decimal import Decimal
 
 from dataclasses import dataclass, field
 from enum import Enum
@@ -38,7 +39,7 @@ class IntentEntity:
     name: str
     value: str
     normalized_value: Optional[str] = None
-    confidence: float = 1.0
+    confidence: Decimal = Decimal("1.0")
     source: str = "rule"
     validation_status: EntityValidationStatus = EntityValidationStatus.UNVALIDATED
 
@@ -46,7 +47,7 @@ class IntentEntity:
 @dataclass(frozen=True)
 class IntentResolution:
     intent: Intent
-    confidence: float
+    confidence: Decimal
     source: IntentResolutionSource
     entities: Tuple[IntentEntity, ...] = field(default_factory=tuple)
 

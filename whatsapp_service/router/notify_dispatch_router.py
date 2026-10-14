@@ -17,6 +17,7 @@ Misma autenticación interna que el legacy: HMAC + identidad de servicio
 vía `middleware.service_auth.require_service_auth` (WA-1).
 """
 from __future__ import annotations
+from decimal import Decimal
 
 import logging
 
@@ -42,13 +43,13 @@ class PedidoListoRequest(BaseModel):
 class AnticipoRequest(BaseModel):
     phone: str
     folio: str
-    monto: float
+    monto: Decimal
 
 
 class CotizacionRequest(BaseModel):
     phone: str
     folio: str
-    total: float
+    total: Decimal
 
 
 class SendMessageRequest(BaseModel):

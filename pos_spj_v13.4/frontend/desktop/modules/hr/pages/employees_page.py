@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QInputDialog
+from frontend.desktop.components.dialogs import FormDialog
 
 from frontend.desktop.components.tables import ColumnSpec
 from frontend.desktop.modules.hr.dialogs.hr_dialogs import EmployeeDialog
@@ -44,7 +44,7 @@ class EmployeesPage(HRPage):
         if not employee_id:
             self.notify(False, "Seleccione un empleado.")
             return
-        reason, ok = QInputDialog.getText(self, "Dar de baja", "Motivo de la baja:")
+        reason, ok = FormDialog.get_text(self, "Dar de baja", "Motivo de la baja:")
         if not ok:
             return
         if not reason.strip():

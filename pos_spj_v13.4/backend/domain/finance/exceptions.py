@@ -93,3 +93,19 @@ class InsufficientOutstandingError(FinanceDomainError):
 
 class MaterialDifferenceError(FinanceDomainError):
     """Raised when closing a period with unjustified material differences."""
+
+
+class FinancePermissionDeniedError(FinanceDomainError):
+    """Raised when the actor lacks the FINANZAS.<accion> permission (fail closed)."""
+
+
+class FinanceConfigurationError(FinanceDomainError):
+    """Raised when a finance command is wired without its authorization policy."""
+
+
+class IdempotencyConflictError(FinanceDomainError):
+    """Raised when an operation key is reused with different economic content."""
+
+
+class ConcurrencyConflictError(FinanceDomainError):
+    """Raised when a stale aggregate version is written (optimistic concurrency)."""

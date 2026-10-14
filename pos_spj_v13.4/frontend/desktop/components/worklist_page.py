@@ -207,7 +207,8 @@ class WorklistPage(QWidget):
 
     # helpers -------------------------------------------------------------------
     def set_table(self, model) -> None:
-        self._total = getattr(model, "total", len(model.rows))
+        total = getattr(model, "total", None)
+        self._total = len(model.rows) if total is None else total
         self._table.load_rows(model.rows, row_ids=model.row_ids)
         self._has_rows = bool(model.rows)
 

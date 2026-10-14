@@ -12,15 +12,15 @@ compras registradas conservan su propio factor.
 
 from __future__ import annotations
 
+from frontend.desktop.components.dialogs import StandardDialog
+
 from decimal import Decimal, InvalidOperation
 
 from PyQt5.QtWidgets import (
-    QDialog,
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QVBoxLayout,
 )
 
 from frontend.desktop.components import (
@@ -39,10 +39,10 @@ def _plain(value: str) -> str:
         return str(value)
 
 
-class PurchaseUnitsDialog(QDialog):
+class PurchaseUnitsDialog(StandardDialog):
     def __init__(self, presenter, *, product_id: str, product_name: str,
                  parent=None) -> None:
-        super().__init__(parent)
+        super().__init__(parent, width=620)
         self._presenter = presenter
         self._product_id = product_id
         self.setObjectName("purchaseUnitsDialog")
@@ -50,7 +50,7 @@ class PurchaseUnitsDialog(QDialog):
         self.setMinimumSize(620, 440)
         can_manage = bool(getattr(presenter, "can_manage_purchase_units", False))
 
-        layout = QVBoxLayout(self)
+        layout = self.content_layout()
         self.base_label = QLabel("", self)
         self.base_label.setWordWrap(True)
         layout.addWidget(self.base_label)
@@ -103,8 +103,9 @@ class PurchaseUnitsDialog(QDialog):
         layout.addWidget(self.message)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Close, self)
+        buttons.button(QDialogButtonBox.Close).setText("Cerrar")
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        self.add_footer_widget(buttons)
 
         self._can_manage = can_manage
         self._retirable: dict[str, str] = {}

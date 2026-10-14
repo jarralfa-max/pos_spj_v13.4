@@ -1,4 +1,5 @@
 from __future__ import annotations
+from decimal import Decimal
 
 import logging
 
@@ -9,7 +10,7 @@ class PaymentGateway:
     def __init__(self, bridge):
         self._bridge = bridge
 
-    def register_advance(self, venta_id: int, monto: float, metodo: str = "mercadopago") -> int:
+    def register_advance(self, venta_id: int, monto: Decimal, metodo: str = "mercadopago") -> int:
         if self._bridge._use_api:
             try:
                 data = self._bridge._api_post("/api/v1/anticipos", {
@@ -27,7 +28,7 @@ class PaymentGateway:
         self._bridge.db.commit()
         return cursor.lastrowid
 
-    def confirm_payment(self, venta_id: int, monto: float, referencia: str = "", metodo: str = "mercadopago") -> bool:
+    def confirm_payment(self, venta_id: int, monto: Decimal, referencia: str = "", metodo: str = "mercadopago") -> bool:
         if self._bridge._use_api:
             try:
                 row = self._bridge.db.execute(
