@@ -9,12 +9,12 @@ import sqlite3
 
 import pytest
 
-from application.payment_service import PaymentService
+from whatsapp_service.application.payment_service import PaymentService
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.enums import IdempotencyStatus
-from domain.whatsapp.erp_ports import OrderRef
-from domain.whatsapp.payment_provider_ports import PaymentLinkRef
-from infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
+from whatsapp_service.domain.whatsapp.enums import IdempotencyStatus
+from whatsapp_service.domain.whatsapp.erp_ports import OrderRef
+from whatsapp_service.domain.whatsapp.payment_provider_ports import PaymentLinkRef
+from whatsapp_service.infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
 
 
 class _FakePaymentProvider:
@@ -141,7 +141,7 @@ class TestConfirmPaymentAndDuplicateWebhook:
         with pytest.raises(RuntimeError):
             _run(service.confirm_payment(order_external_id="order-1", amount=90.0, payment_reference="MP-123"))
 
-        from application.idempotency_fingerprint import compute_fingerprint
+        from whatsapp_service.application.idempotency_fingerprint import compute_fingerprint
 
         record = root.idempotency.get_by_fingerprint(
             compute_fingerprint("CONFIRM_PAYMENT", "order-1", "MP-123")

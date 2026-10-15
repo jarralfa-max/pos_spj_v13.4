@@ -106,7 +106,6 @@ DARK_HANDLERS = frozenset({
     "LoyaltyTransactionReversedHandler",
     # Finanzas — operación
     "InventoryAdjustmentHandler",
-    "PayrollPaidHandler",
     "PurchaseReceivedHandler",
     "WasteRegisteredHandler",
 })

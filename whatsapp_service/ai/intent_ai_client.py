@@ -1,8 +1,5 @@
 from __future__ import annotations
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
+from whatsapp_service.domain.money import to_decimal
 from decimal import Decimal
 import json
 import os
@@ -13,7 +10,7 @@ from typing import Optional
 try:
     from whatsapp_service.ai.intent_schema import AIIntentResult
 except Exception:  # pragma: no cover
-    from ai.intent_schema import AIIntentResult
+    from whatsapp_service.ai.intent_schema import AIIntentResult
 
 
 @dataclass

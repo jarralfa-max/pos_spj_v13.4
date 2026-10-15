@@ -11,13 +11,13 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from webhook import mercadopago as mp_webhook
-from webhook import whatsapp as wa_webhook
+from whatsapp_service.webhook import mercadopago as mp_webhook
+from whatsapp_service.webhook import whatsapp as wa_webhook
 
 
 def test_whatsapp_webhook_rejects_when_secret_missing_in_production(monkeypatch):
-    monkeypatch.setattr("config.settings.get_app_secret", lambda: "")
-    monkeypatch.setattr("config.settings.is_production", lambda: True)
+    monkeypatch.setattr("whatsapp_service.config.settings.get_app_secret", lambda: "")
+    monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: True)
     app = FastAPI()
     app.include_router(wa_webhook.router)
     client = TestClient(app)
@@ -28,8 +28,8 @@ def test_whatsapp_webhook_rejects_when_secret_missing_in_production(monkeypatch)
 
 
 def test_whatsapp_webhook_allows_with_warning_outside_production(monkeypatch):
-    monkeypatch.setattr("config.settings.get_app_secret", lambda: "")
-    monkeypatch.setattr("config.settings.is_production", lambda: False)
+    monkeypatch.setattr("whatsapp_service.config.settings.get_app_secret", lambda: "")
+    monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: False)
     app = FastAPI()
     app.include_router(wa_webhook.router)
     client = TestClient(app)
@@ -41,8 +41,8 @@ def test_whatsapp_webhook_allows_with_warning_outside_production(monkeypatch):
 
 
 def test_mercadopago_webhook_rejects_when_secret_missing_in_production(monkeypatch):
-    monkeypatch.setattr("config.settings.get_mp_webhook_secret", lambda: "")
-    monkeypatch.setattr("config.settings.is_production", lambda: True)
+    monkeypatch.setattr("whatsapp_service.config.settings.get_mp_webhook_secret", lambda: "")
+    monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: True)
     app = FastAPI()
     app.include_router(mp_webhook.router)
     client = TestClient(app)
@@ -56,8 +56,8 @@ def test_mercadopago_webhook_rejects_when_secret_missing_in_production(monkeypat
 
 
 def test_mercadopago_webhook_allows_with_warning_outside_production(monkeypatch):
-    monkeypatch.setattr("config.settings.get_mp_webhook_secret", lambda: "")
-    monkeypatch.setattr("config.settings.is_production", lambda: False)
+    monkeypatch.setattr("whatsapp_service.config.settings.get_mp_webhook_secret", lambda: "")
+    monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: False)
     app = FastAPI()
     app.include_router(mp_webhook.router)
     client = TestClient(app)

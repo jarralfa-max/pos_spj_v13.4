@@ -23,7 +23,7 @@ de WA-14 (consentimiento), aquí NO hace falta ningún puente hacia
 """
 from __future__ import annotations
 
-from domain.whatsapp.erp_ports import LoyaltySummaryRef
+from whatsapp_service.domain.whatsapp.erp_ports import LoyaltySummaryRef
 
 
 class LoyaltySnapshotApiClient:

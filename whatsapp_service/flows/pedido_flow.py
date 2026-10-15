@@ -8,24 +8,18 @@ Regla UX importante:
 - El cliente puede reabrirla escribiendo explícitamente: hola, menú, pedido, etc.
 """
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal
-try:
-    from domain.money import ZERO, to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import ZERO, to_decimal
-from models.context import ConversationContext, FlowState, PedidoItem
-from parser.intent_parser import ParsedIntent
-from flows.base_flow import BaseFlow, FlowResult
-from erp.events import WA_PEDIDO_CREADO, WA_ANTICIPO_REQUERIDO
-from messaging import interactive
-from messaging.sender import send_text
+from whatsapp_service.domain.money import dumps_decimal
+from whatsapp_service.domain.money import ZERO, to_decimal
+from whatsapp_service.models.context import ConversationContext, FlowState, PedidoItem
+from whatsapp_service.parser.intent_parser import ParsedIntent
+from whatsapp_service.flows.base_flow import BaseFlow, FlowResult
+from whatsapp_service.erp.events import WA_PEDIDO_CREADO, WA_ANTICIPO_REQUERIDO
+from whatsapp_service.messaging import interactive
+from whatsapp_service.messaging.sender import send_text
 import hashlib
 import json
-from state.business_idempotency import BusinessIdempotencyService
-from application.confirm_order_use_case import (
+from whatsapp_service.state.business_idempotency import BusinessIdempotencyService
+from whatsapp_service.application.confirm_order_use_case import (
     ConfirmWhatsAppOrderCommand,
     ConfirmWhatsAppOrderUseCase,
 )
@@ -116,7 +110,7 @@ class PedidoFlow(BaseFlow):
 
         # Texto libre: buscar producto
         if intent.raw_text:
-            from parser.product_matcher import ProductMatcher
+            from whatsapp_service.parser.product_matcher import ProductMatcher
             matcher = ProductMatcher(self.erp.db, ctx.sucursal_id)
             results = matcher.search(intent.raw_text, max_results=5)
             if results:
@@ -247,7 +241,7 @@ class PedidoFlow(BaseFlow):
         resumen = (f"{ctx.resumen_pedido()}\n\n"
                    f"Entrega: {entrega_txt}")
 
-        from messaging.sender import send_buttons
+        from whatsapp_service.messaging.sender import send_buttons
         await send_buttons(
             ctx.phone,
             body=f"📋 *Confirma tu pedido:*\n\n{resumen}",

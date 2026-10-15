@@ -11,7 +11,7 @@ import sqlite3
 
 import pytest
 
-from application.consent_service import ConsentService
+from whatsapp_service.application.consent_service import ConsentService
 from backend.infrastructure.db.schema.customers_crm_schema import create_customers_crm_schema
 
 

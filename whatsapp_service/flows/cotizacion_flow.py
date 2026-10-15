@@ -3,22 +3,19 @@
 Mismo flujo que pedido pero crea cotización en vez de venta.
 """
 from __future__ import annotations
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
-from models.context import ConversationContext, FlowState, PedidoItem
-from parser.intent_parser import ParsedIntent
-from flows.base_flow import BaseFlow, FlowResult
-from erp.events import (
+from whatsapp_service.domain.money import to_decimal
+from whatsapp_service.models.context import ConversationContext, FlowState, PedidoItem
+from whatsapp_service.parser.intent_parser import ParsedIntent
+from whatsapp_service.flows.base_flow import BaseFlow, FlowResult
+from whatsapp_service.erp.events import (
     WA_COTIZACION_CREADA,
     WHATSAPP_QUOTE_REJECTED,
     WHATSAPP_QUOTE_ACCEPTED,
     WHATSAPP_QUOTE_CONVERTED_TO_SALE,
 )
-from messaging import interactive
-from messaging.sender import send_text, send_buttons
-from state.business_idempotency import BusinessIdempotencyService
+from whatsapp_service.messaging import interactive
+from whatsapp_service.messaging.sender import send_text, send_buttons
+from whatsapp_service.state.business_idempotency import BusinessIdempotencyService
 
 
 class CotizacionFlow(BaseFlow):

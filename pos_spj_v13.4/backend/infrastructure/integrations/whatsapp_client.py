@@ -87,13 +87,19 @@ class WhatsAppClient:
     def __init__(
         self, *, connection=None, base_url: str = "", internal_key: str = "",
         timeout: int = DEFAULT_TIMEOUT_SECONDS,
+        secret_gateway=None, instance_id: str = "",
     ) -> None:
         self._connection = connection
+        self._secret_gateway = secret_gateway
+        self._instance_id = instance_id or os.getenv("WA_INTEGRATION_INSTANCE_ID", "")
         self._base_url = (base_url or self._setting("base_url", "WA_BASE_URL")
                           or DEFAULT_BASE_URL).rstrip("/")
-        self._secret = internal_key or self._setting(
-            "internal_api_key", "WA_INTERNAL_API_KEY", "INTERNAL_API_KEY")
+        self._explicit_secret = internal_key
         self._timeout = timeout
+
+    @property
+    def _secret(self):
+        return self._explicit_secret or self._setting("internal_api_key", "WA_INTERNAL_API_KEY", "INTERNAL_API_KEY")
 
     # ── configuración ────────────────────────────────────────────────────
     def _setting(self, key: str, *env_names: str) -> str:
@@ -104,14 +110,14 @@ class WhatsAppClient:
         desconcertante que un `.env` olvidado en la máquina lo anulara.
         """
         if self._connection is not None:
-            try:
-                row = self._connection.execute(
-                    "SELECT valor FROM configuraciones WHERE clave=? LIMIT 1",
-                    (f"wa_{key}",)).fetchone()
-                if row and str(row[0] or "").strip():
-                    return str(row[0]).strip()
-            except Exception as exc:
-                logger.debug("No se pudo leer wa_%s de la base: %s", key, exc)
+            from backend.infrastructure.integrations.whatsapp_credential_resolver import read_whatsapp_setting
+            if self._secret_gateway is None:
+                from backend.security.secrets.default_secret_store import build_default_secret_store
+                self._secret_gateway = build_default_secret_store()
+            value = read_whatsapp_setting(self._connection, key, self._secret_gateway,
+                                         instance_id=self._instance_id)
+            if value is not None:
+                return value
         for name in env_names:
             value = os.getenv(name, "").strip()
             if value:
@@ -127,7 +133,12 @@ class WhatsAppClient:
         rechaza, y el síntoma sería un 401 confuso en vez de "falta configurar
         la integración".
         """
-        if not self._secret:
+        try:
+            secret = self._secret
+        except Exception:
+            logger.error("WhatsApp credential store unavailable")
+            return False
+        if not secret:
             logger.warning(
                 "WhatsApp sin clave interna configurada (wa_internal_api_key); "
                 "no se envía %s", path)
@@ -144,7 +155,7 @@ class WhatsAppClient:
                 "X-Timestamp": timestamp,
                 "X-Nonce": nonce,
                 "X-Signature": sign_request(
-                    ERP_SERVICE_ID, timestamp, nonce, body, self._secret),
+                    ERP_SERVICE_ID, timestamp, nonce, body, secret),
                 # No participa en la firma; sólo sirve para correlacionar
                 # ambos lados en los registros.
                 "X-Correlation-Id": secrets.token_hex(8),

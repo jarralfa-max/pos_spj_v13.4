@@ -13,10 +13,7 @@ ERP) se reportan explícitamente como UNKNOWN — nunca se fingen HEALTHY
 solo para que la lista quede completa.
 """
 from __future__ import annotations
-try:
-    from domain.money import ZERO
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import ZERO
+from whatsapp_service.domain.money import ZERO
 
 from dataclasses import dataclass
 from enum import Enum
@@ -85,7 +82,7 @@ def check_secrets(root) -> HealthCheckResult:
     """Espeja el gate de arranque de producción (WA-1,
     `main.py::_assert_production_secrets_configured`) como un check de
     salud continuo, no solo un chequeo en el instante de arranque."""
-    from config.settings import (
+    from whatsapp_service.config.settings import (
         get_app_secret,
         get_internal_api_key,
         get_meta_access_token,
@@ -125,7 +122,7 @@ def check_provider_gateway(root) -> HealthCheckResult:
     revocado, phone_number_id incorrecto, sin red) — una señal
     genuinamente nueva que ningún otro check detecta.
     """
-    from config.settings import get_meta_access_token, get_meta_phone_number_id
+    from whatsapp_service.config.settings import get_meta_access_token, get_meta_phone_number_id
 
     if not (get_meta_access_token() and get_meta_phone_number_id()):
         return HealthCheckResult(
@@ -239,7 +236,7 @@ def check_erp_api(root) -> HealthCheckResult:
     hacer el smoke test de WA-17/WA-18: reporta si `CompositionRoot`
     resolvió un `ERPBridge` real (WA-9) o degradó a `UnavailableErpClient`
     (típico sin el esquema legacy — ver `_try_build_erp_bridge`)."""
-    from infrastructure.erp_clients.unavailable_client import UnavailableErpClient
+    from whatsapp_service.infrastructure.erp_clients.unavailable_client import UnavailableErpClient
 
     try:
         client = root.customers

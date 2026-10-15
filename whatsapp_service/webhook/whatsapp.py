@@ -4,18 +4,15 @@ GET  /webhook → Verificación de Meta
 POST /webhook → Recepción de mensajes
 """
 from __future__ import annotations
-try:
-    from domain.money import loads_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import loads_decimal
+from whatsapp_service.domain.money import loads_decimal
 import json
 import logging
 import hmac
 from fastapi import APIRouter, Request, Query, Response
 
-from middleware.hmac_validator import verify_signature
-from models.message import IncomingMessage
-from middleware.rate_limiter import RateLimiter
+from whatsapp_service.middleware.hmac_validator import verify_signature
+from whatsapp_service.models.message import IncomingMessage
+from whatsapp_service.middleware.rate_limiter import RateLimiter
 
 logger = logging.getLogger("wa.webhook")
 router = APIRouter()
@@ -46,7 +43,7 @@ async def verify_webhook(
     módulo WhatsApp en configuraciones.wa_verify_token y después desde .env
     como respaldo.
     """
-    from config.settings import get_verify_token
+    from whatsapp_service.config.settings import get_verify_token
 
     verify_token = get_verify_token()
 
@@ -66,7 +63,7 @@ async def verify_webhook(
 @router.post("/webhook")
 async def receive_message(request: Request):
     """Recibe mensajes entrantes de WhatsApp."""
-    from config.settings import get_app_secret, is_production
+    from whatsapp_service.config.settings import get_app_secret, is_production
     body = await request.body()
 
     app_secret = get_app_secret()

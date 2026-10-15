@@ -9,11 +9,11 @@ import sqlite3
 
 import pytest
 
-from application.handoff_service import HandoffCoordinator
+from whatsapp_service.application.handoff_service import HandoffCoordinator
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.entities.conversation import WhatsAppConversation
-from domain.whatsapp.enums import ConversationState
-from infrastructure.persistence.sqlite_handoff_request_repository import (
+from whatsapp_service.domain.whatsapp.entities.conversation import WhatsAppConversation
+from whatsapp_service.domain.whatsapp.enums import ConversationState
+from whatsapp_service.infrastructure.persistence.sqlite_handoff_request_repository import (
     SqliteWhatsAppHandoffRequestRepository,
 )
 

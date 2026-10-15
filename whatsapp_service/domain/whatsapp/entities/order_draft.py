@@ -19,9 +19,9 @@ from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional, Union
 
-from domain.whatsapp._ids import new_id
-from domain.whatsapp.enums import TERMINAL_ORDER_DRAFT_STATUSES, DeliveryMethod, OrderDraftStatus
-from domain.whatsapp.exceptions import WhatsAppDomainError
+from whatsapp_service.domain.whatsapp._ids import new_id
+from whatsapp_service.domain.whatsapp.enums import TERMINAL_ORDER_DRAFT_STATUSES, DeliveryMethod, OrderDraftStatus
+from whatsapp_service.domain.whatsapp.exceptions import WhatsAppDomainError
 
 
 def _utcnow() -> datetime:

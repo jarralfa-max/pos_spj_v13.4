@@ -1,6 +1,6 @@
 import asyncio
 
-from ai.intent_ai_client import CloudIntentAIClient
+from whatsapp_service.ai.intent_ai_client import CloudIntentAIClient
 
 
 class FakeDB:

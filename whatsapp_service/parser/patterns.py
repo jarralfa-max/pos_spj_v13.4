@@ -4,10 +4,7 @@ Nivel 2 del motor NLP: regex + keywords.
 Solo se usa cuando el mensaje es texto libre (no botón interactivo).
 """
 from decimal import Decimal
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
+from whatsapp_service.domain.money import to_decimal
 import re
 from typing import List, Tuple
 

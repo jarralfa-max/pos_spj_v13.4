@@ -133,9 +133,12 @@ def build_enterprise_presenter(connection, session_context=None, *,
     # que usan todas las demás operaciones). Antes la recepción en origen
     # publicaba por su cuenta en el bus global.
     presenter_ref: list = []
+    from backend.application.procurement.supplier_credit import SupplierCreditService
     receive_direct_uc = ReceiveDirectPurchaseUseCase(authorization,
                                                      warehouse_directory=warehouse_directory,
-                                                     product_catalog=product_catalog)
+                                                     product_catalog=product_catalog,
+                                                     credit_service=SupplierCreditService(
+                                                         connection))
 
     def _publish(result) -> None:
         dispatch = getattr(presenter_ref[0], "_dispatch", None) if presenter_ref else None

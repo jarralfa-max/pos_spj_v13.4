@@ -26,10 +26,16 @@ class DatabaseSettings:
     database_url: str
 
     @classmethod
-    def sqlite(cls, paths: AppPaths, filename: str = "spj.sqlite3") -> "DatabaseSettings":
+    def sqlite(cls, paths: AppPaths) -> "DatabaseSettings":
+        """The SAME database file the desktop uses (`AppPaths.database_path`).
+
+        Until 2026-10-14 this pointed at `<data>/db/spj.sqlite3`, a file no
+        other component ever wrote: an API built on it would have answered
+        from an empty database.
+        """
         return cls(
             dialect=DatabaseDialect.SQLITE,
-            database_url=f"sqlite:///{paths.sqlite_database_path(filename)}",
+            database_url=f"sqlite:///{paths.database_path}",
         )
 
 

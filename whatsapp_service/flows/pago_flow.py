@@ -3,18 +3,15 @@
 Maneja selección de método de pago y registro de anticipos.
 """
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal
+from whatsapp_service.domain.money import dumps_decimal
 from decimal import Decimal
-from models.context import ConversationContext, FlowState
-from parser.intent_parser import ParsedIntent
-from flows.base_flow import BaseFlow, FlowResult
-from erp.events import WA_ANTICIPO_PAGADO, PAYMENT_RECEIVED
-from messaging.sender import send_text, send_buttons
-from messaging import interactive
-from config.settings import MP_ACCESS_TOKEN
+from whatsapp_service.models.context import ConversationContext, FlowState
+from whatsapp_service.parser.intent_parser import ParsedIntent
+from whatsapp_service.flows.base_flow import BaseFlow, FlowResult
+from whatsapp_service.erp.events import WA_ANTICIPO_PAGADO, PAYMENT_RECEIVED
+from whatsapp_service.messaging.sender import send_text, send_buttons
+from whatsapp_service.messaging import interactive
+from whatsapp_service.config.settings import MP_ACCESS_TOKEN
 
 
 class PagoFlow(BaseFlow):

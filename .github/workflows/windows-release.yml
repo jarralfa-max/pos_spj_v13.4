@@ -1,0 +1,223 @@
+name: Windows release (installer + updater)
+
+# Builds the PyInstaller bundle, the external updater and the Inno Setup
+# installer ON WINDOWS, tests a silent install / repair / uninstall on the
+# runner with Python removed from PATH, and uploads hashed artifacts.
+# Publication is a separate job: tags v* only, protected `production`
+# environment (manual approval), and it creates a DRAFT GitHub release only
+# when the installer is Authenticode-signed AND the manifest is signed.
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Canal (stable | pilot)"
+        default: "stable"
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "pos_spj_v13.4/installer/**"
+      - "pos_spj_v13.4/scripts/release/**"
+      - "pos_spj_v13.4/backend/infrastructure/updater/**"
+      - "pos_spj_v13.4/backend/application/software_updates/**"
+      - "pos_spj_v13.4/backend/domain/software_distribution/**"
+      - "pos_spj_v13.4/backend/shared/**"
+      - ".github/workflows/windows-release.yml"
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: "1"
+  # Runtime the release targets (the project's desktop runtime is 3.13; the
+  # Linux CI still tests 3.11 for the backend packages).
+  PYTHON_VERSION: "3.13"
+  CHANNEL: ${{ github.event.inputs.channel || 'stable' }}
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    env:
+      # `secrets` cannot be read in a step `if:`; these flags can.
+      HAS_SIGNING_CERT: ${{ secrets.SPJ_SIGNING_CERT_PFX_B64 != '' }}
+      HAS_MANIFEST_KEY: ${{ secrets.SPJ_MANIFEST_SIGNING_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install pinned build environment
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r pos_spj_v13.4/installer/windows/requirements-release.txt
+          python -m pip freeze > build-environment.txt
+
+      - name: Updater tests (domain, infrastructure, guardrails)
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/unit/software_distribution tests/integration/software_distribution tests/architecture/test_installer_updater_guardrails.py -q
+
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          (Get-Item "C:\Program Files (x86)\Inno Setup 6\ISCC.exe").VersionInfo.ProductVersion | Tee-Object -FilePath inno-version.txt
+
+      - name: Read version
+        id: version
+        shell: pwsh
+        run: |
+          $v = python -c "import ast,pathlib;s=pathlib.Path('pos_spj_v13.4/backend/shared/app_version.py').read_text(encoding='utf-8');print([ast.literal_eval(n.value) for n in ast.parse(s).body if isinstance(n,ast.Assign) and getattr(n.targets[0],'id','')=='VERSION'][0])"
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Import code-signing certificate (only if configured)
+        if: env.HAS_SIGNING_CERT == 'true'
+        shell: pwsh
+        env:
+          PFX_B64: ${{ secrets.SPJ_SIGNING_CERT_PFX_B64 }}
+          PFX_PASSWORD: ${{ secrets.SPJ_SIGNING_CERT_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP "spj-signing.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_B64))
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString $env:PFX_PASSWORD -AsPlainText -Force)
+          Remove-Item $pfx
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
+          "SPJ_SIGNTOOL=`"$($signtool.FullName)`" sign /fd sha256 /tr http://timestamp.digicert.com /td sha256 /sha1 $($cert.Thumbprint)" >> $env:GITHUB_ENV
+          "SPJ_SIGN=1" >> $env:GITHUB_ENV
+
+      - name: Build bundle, updater and installer
+        shell: pwsh
+        run: |
+          $sign = if ($env:SPJ_SIGN -eq "1") { "--sign" } else { "" }
+          python pos_spj_v13.4/scripts/release/build_windows_release.py `
+            --channel $env:CHANNEL --build-number ${{ github.run_number }} `
+            --artifact-base-url "${{ vars.SPJ_ARTIFACT_BASE_URL || 'https://updates.example.invalid/spj' }}/$env:CHANNEL" `
+            --feed-url "${{ vars.SPJ_FEED_URL || '' }}" `
+            --allowed-hosts "${{ vars.SPJ_ALLOWED_HOSTS || '' }}" $sign
+
+      - name: Sign manifest (only if the signing key is configured)
+        if: env.HAS_MANIFEST_KEY == 'true'
+        shell: pwsh
+        env:
+          SPJ_MANIFEST_SIGNING_KEY: ${{ secrets.SPJ_MANIFEST_SIGNING_KEY }}
+        run: |
+          python pos_spj_v13.4/scripts/release/sign_manifest.py `
+            --payload build/windows/release/manifest.payload.json `
+            --key-id "${{ vars.SPJ_MANIFEST_KEY_ID }}" --key-env SPJ_MANIFEST_SIGNING_KEY `
+            --out build/windows/release/manifest.json
+
+      - name: Silent install, self-test without Python, repair, uninstall keeps data
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $python = (Get-Command python).Source
+          $installer = Get-ChildItem build/windows/release/SPJ-Setup-*.exe | Select-Object -First 1
+          $logs = New-Item -ItemType Directory -Force -Path build/windows/install-test
+          & $installer.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DATASCOPE=machine /TYPE=pos_essential "/LOG=$($logs.FullName)\install.log" | Out-Null
+          $app = "C:\Program Files\SPJ\SPJ ERP POS\SPJ.exe"
+          if (-not (Test-Path $app)) { throw "SPJ.exe no quedó instalado" }
+          # Run the installed app with NO Python on PATH.
+          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'Python|hostedtoolcache' }) -join ';'
+          $report = "$($logs.FullName)\self-test-1.json"
+          $p = Start-Process -FilePath $app -ArgumentList "--self-test","--json","--report",$report -Wait -PassThru
+          Get-Content $report
+          $r = Get-Content $report | ConvertFrom-Json
+          if (-not $r.ok) { throw "Autoprueba falló: $($r.detail)" }
+          if ($r.version -ne "${{ steps.version.outputs.version }}") { throw "Versión instalada $($r.version)" }
+          $config = Get-Content "C:\Program Files\SPJ\SPJ ERP POS\install_config.json" | ConvertFrom-Json
+          if ($config.profile -ne "pos_essential" -or $config.data_scope -ne "machine") { throw "install_config.json inesperado" }
+          $db = "C:\ProgramData\SPJ\SPJ ERP POS\db\spj_pos_database.db"
+          if (-not (Test-Path $db)) { throw "La base no quedó en ProgramData" }
+          # Data marker survives a repair (same installer again)…
+          $marker = "pos_spj_v13.4/scripts/release/ci_data_marker.py"
+          & $python $marker write $db
+          if ($LASTEXITCODE -ne 0) { throw "no se pudo escribir el marcador" }
+          & $installer.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/LOG=$($logs.FullName)\repair.log" | Out-Null
+          $p = Start-Process -FilePath $app -ArgumentList "--self-test","--json","--report","$($logs.FullName)\self-test-2.json" -Wait -PassThru
+          if (-not (Get-Content "$($logs.FullName)\self-test-2.json" | ConvertFrom-Json).ok) { throw "Autoprueba tras reparar falló" }
+          # …and an uninstall.
+          $uninstaller = Get-ChildItem "C:\Program Files\SPJ\SPJ ERP POS\unins*.exe" | Select-Object -First 1
+          & $uninstaller.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART | Out-Null
+          Start-Sleep -Seconds 5
+          if (Test-Path $app) { throw "La desinstalación dejó SPJ.exe" }
+          & $python $marker check $db
+          if ($LASTEXITCODE -ne 0) { throw "La desinstalación no conservó los datos" }
+          "OK: instalación, autoprueba sin Python, reparación y desinstalación con datos conservados" | Tee-Object "$($logs.FullName)\result.txt"
+
+      - name: Upgrade from the previous published release (when one exists)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $previous = gh release list --exclude-drafts --limit 1 --json tagName --jq ".[0].tagName" 2>$null
+          if (-not $previous) { "Sin release anterior publicado: prueba de actualización omitida." | Tee-Object build/windows/install-test/upgrade.txt; exit 0 }
+          gh release download $previous --pattern "SPJ-Setup-*.exe" --dir build/windows/previous
+          $old = Get-ChildItem build/windows/previous/SPJ-Setup-*.exe | Select-Object -First 1
+          & $old.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DATASCOPE=machine | Out-Null
+          $new = Get-ChildItem build/windows/release/SPJ-Setup-*.exe | Select-Object -First 1
+          & $new.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SPJUPDATER=1 | Out-Null
+          $report = "build/windows/install-test/self-test-upgrade.json"
+          Start-Process "C:\Program Files\SPJ\SPJ ERP POS\SPJ.exe" -ArgumentList "--self-test","--json","--report",$report -Wait
+          if (-not (Get-Content $report | ConvertFrom-Json).ok) { throw "La actualización desde $previous no arrancó" }
+          "OK: actualización desde $previous" | Tee-Object build/windows/install-test/upgrade.txt
+
+      - name: Verify release
+        shell: pwsh
+        run: python pos_spj_v13.4/scripts/release/verify_release.py build/windows/release
+        continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spj-windows-${{ steps.version.outputs.version }}-${{ github.run_number }}
+          path: |
+            build/windows/release/
+            build/windows/install-test/
+            build-environment.txt
+            inno-version.txt
+          retention-days: 30
+
+  publish:
+    # Never automatic: tag + protected environment (manual approval) + signed.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: windows-2022
+    environment: production
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: python -m pip install -r pos_spj_v13.4/installer/windows/requirements-release.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: spj-windows-${{ needs.build.outputs.version }}-${{ github.run_number }}
+          path: artifact
+      - name: Refuse anything not production-ready
+        shell: pwsh
+        run: |
+          python pos_spj_v13.4/scripts/release/verify_release.py artifact/build/windows/release --production
+          $release = Get-Content artifact/build/windows/release/release.json | ConvertFrom-Json
+          if (-not $release.publishable) { throw "No publicable: $($release.reason)" }
+      - name: Create DRAFT release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" --draft --title "SPJ ${{ needs.build.outputs.version }}" `
+            artifact/build/windows/release/SPJ-Setup-*.exe artifact/build/windows/release/*.sha256 `
+            artifact/build/windows/release/manifest.json artifact/build/windows/release/release.json

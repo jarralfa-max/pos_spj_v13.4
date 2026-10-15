@@ -83,10 +83,7 @@ def product_category_name(db, product_id) -> str:
 
 def catalog_row(row) -> dict:
     """Fila de `CATALOG_SELECT` → dict con `precio`/`stock` como Decimal."""
-    try:
-        from domain.money import to_decimal
-    except ImportError:  # importado como paquete `whatsapp_service.`
-        from whatsapp_service.domain.money import to_decimal
+    from whatsapp_service.domain.money import to_decimal
     data = dict(row)
     data["precio"] = to_decimal(data.get("precio"))
     data["stock"] = to_decimal(data.get("stock"))

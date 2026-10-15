@@ -17,17 +17,14 @@ FEATURE FLAG: whatsapp_advanced_enabled (module_toggles en BD)
 """
 from __future__ import annotations
 from decimal import Decimal
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
+from whatsapp_service.domain.money import to_decimal
 
 import hashlib
 import logging
 from typing import List, Dict, Optional, Any
 
-from erp.bridge import ERPBridge
-from erp.events import (
+from whatsapp_service.erp.bridge import ERPBridge
+from whatsapp_service.erp.events import (
     WAEventEmitter,
     QUOTE_CREATED, SALE_CREATED, PAYMENT_REQUIRED, PAYMENT_RECEIVED,
     PURCHASE_ORDER_CREATED, DELIVERY_SCHEDULED, DELIVERY_CONFIRMED,
@@ -39,7 +36,7 @@ from erp.events import (
     WHATSAPP_QUOTE_ACCEPTED_BY_CUSTOMER,
 )
 
-from state.business_idempotency import BusinessIdempotencyService
+from whatsapp_service.state.business_idempotency import BusinessIdempotencyService
 
 logger = logging.getLogger("wa.orchestrator")
 

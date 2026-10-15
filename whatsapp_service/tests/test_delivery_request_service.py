@@ -9,12 +9,12 @@ import sqlite3
 
 import pytest
 
-from application.delivery_request_service import DeliveryRequestService
+from whatsapp_service.application.delivery_request_service import DeliveryRequestService
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from infrastructure.persistence.sqlite_delivery_request_repository import (
+from whatsapp_service.infrastructure.persistence.sqlite_delivery_request_repository import (
     SqliteWhatsAppDeliveryRequestRepository,
 )
-from infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
+from whatsapp_service.infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
 
 
 class _FakeDelivery:
@@ -108,7 +108,7 @@ class TestRequestDelivery:
 
         assert result.scheduled is False
         assert result.deduplicated is False
-        from domain.whatsapp.enums import DeliveryRequestStatus
+        from whatsapp_service.domain.whatsapp.enums import DeliveryRequestStatus
         assert result.request.status == DeliveryRequestStatus.FAILED
 
     def test_retry_after_failure_succeeds_and_is_not_deduplicated(self, conn):
@@ -140,9 +140,9 @@ class TestRequestDelivery:
                 conversation_id="conv-1", order_external_id="order-1", address="Calle 1 #23",
             ))
 
-        from application.idempotency_fingerprint import compute_fingerprint
+        from whatsapp_service.application.idempotency_fingerprint import compute_fingerprint
         record = _FakeRoot(conn).idempotency.get_by_fingerprint(
             compute_fingerprint("SCHEDULE_DELIVERY", "order-1", "Calle 1 #23", "")
         )
-        from domain.whatsapp.enums import IdempotencyStatus
+        from whatsapp_service.domain.whatsapp.enums import IdempotencyStatus
         assert record.status == IdempotencyStatus.FAILED

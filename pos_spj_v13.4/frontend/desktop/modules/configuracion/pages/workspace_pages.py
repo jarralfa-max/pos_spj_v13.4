@@ -9,6 +9,7 @@ shell. "Feature Flags", "Apariencia", "Dispositivos", "Documentos",
 write actions — as of SET-23's repegado, EVERY section has a dedicated
 page (no more generic-fallback sections remain).
 """
+from .actualizaciones_page import ActualizacionesPage
 from .apariencia_page import AparienciaPage
 from .dispositivos_page import DispositivosPage
 from .documentos_page import DocumentosPage
@@ -24,4 +25,5 @@ from .usuarios_roles_page import UsuariosRolesPage
 PAGE_CLASSES = {page.page_id: page for page in (
     EmpresaPage, GeneralPage, DispositivosPage, DocumentosPage, PantallaClientePage, IntegracionesPage,
     FeatureFlagsPage, AparienciaPage, NotificacionesPage, OfflinePage, UsuariosRolesPage,
+    ActualizacionesPage,
 )}

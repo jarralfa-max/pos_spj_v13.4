@@ -176,6 +176,14 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         ConfiguracionAuditLogRepository,
     )
     from frontend.desktop.modules.configuracion.configuracion_presenter import ConfiguracionPresenter
+    from frontend.desktop.modules.configuracion.software_updates_presenter import (
+        SoftwareUpdatesPresenter,
+    )
+    from backend.infrastructure.desktop.software_updates_factory import (
+        build_software_update_dependencies,
+        copy_package_file,
+    )
+    from frontend.desktop.shell.application_lifecycle import request_update_handoff
     from frontend.desktop.modules.configuracion.configuracion_view import ConfiguracionView
 
     session = session_context
@@ -284,6 +292,9 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         save_user_permissions_uc=SaveUserPermissionsUseCase(connection, authorization),
         import_display_media_uc=ImportDisplayMediaUseCase(connection),
         set_device_windows_printer_uc=SetDeviceWindowsPrinterUseCase(connection),
+        software_updates=SoftwareUpdatesPresenter(
+            build_software_update_dependencies(connection, session_context=session),
+            copy_file=copy_package_file, request_handoff=request_update_handoff),
     )
 
     def has_permission(permission: str) -> bool:

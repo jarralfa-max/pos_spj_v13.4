@@ -18,12 +18,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from domain.whatsapp._ids import new_id
+from whatsapp_service.domain.whatsapp._ids import new_id
 from decimal import Decimal
 
-from domain.whatsapp.entities.order_draft import Money, OrderDraftLine, quantize_money
-from domain.whatsapp.enums import TERMINAL_QUOTE_DRAFT_STATUSES, QuoteDraftStatus
-from domain.whatsapp.exceptions import WhatsAppDomainError
+from whatsapp_service.domain.whatsapp.entities.order_draft import Money, OrderDraftLine, quantize_money
+from whatsapp_service.domain.whatsapp.enums import TERMINAL_QUOTE_DRAFT_STATUSES, QuoteDraftStatus
+from whatsapp_service.domain.whatsapp.exceptions import WhatsAppDomainError
 
 
 def _utcnow() -> datetime:

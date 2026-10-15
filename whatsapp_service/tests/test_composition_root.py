@@ -6,8 +6,8 @@ import sqlite3
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from bootstrap.composition_root import REQUIRED_SERVICES, WhatsAppCompositionRoot
-from bootstrap.dependency_graph_validator import (
+from whatsapp_service.bootstrap.composition_root import REQUIRED_SERVICES, WhatsAppCompositionRoot
+from whatsapp_service.bootstrap.dependency_graph_validator import (
     CompositionRootValidationError,
     validate_composition_root,
 )
@@ -35,8 +35,8 @@ class TestWhatsAppCompositionRoot:
         validate_composition_root(root)  # no debe lanzar
 
     def test_accounts_accessor_returns_working_repository(self, root):
-        from domain.whatsapp.entities.business_account import WhatsAppBusinessAccount
-        from domain.whatsapp.enums import WhatsAppProvider
+        from whatsapp_service.domain.whatsapp.entities.business_account import WhatsAppBusinessAccount
+        from whatsapp_service.domain.whatsapp.enums import WhatsAppProvider
 
         account = WhatsAppBusinessAccount.create(
             provider=WhatsAppProvider.META,
@@ -59,7 +59,7 @@ class TestWhatsAppCompositionRoot:
         assert root.messages is not None
 
     def test_secret_store_accessor_is_the_process_singleton(self, root):
-        from config.settings import get_secret_store
+        from whatsapp_service.config.settings import get_secret_store
 
         assert root.secret_store is get_secret_store()
 
@@ -67,7 +67,7 @@ class TestWhatsAppCompositionRoot:
         assert root.provider_configurations is not None
 
     def test_provider_gateway_accessor(self, root):
-        from infrastructure.providers.meta_cloud_api.gateway import MetaCloudApiWhatsAppGateway
+        from whatsapp_service.infrastructure.providers.meta_cloud_api.gateway import MetaCloudApiWhatsAppGateway
 
         assert isinstance(root.provider_gateway, MetaCloudApiWhatsAppGateway)
 
@@ -75,22 +75,22 @@ class TestWhatsAppCompositionRoot:
         assert root.inbox is not None
 
     def test_webhook_processor_accessor(self, root):
-        from infrastructure.webhooks.webhook_processor import WebhookProcessor
+        from whatsapp_service.infrastructure.webhooks.webhook_processor import WebhookProcessor
 
         assert isinstance(root.webhook_processor, WebhookProcessor)
 
     def test_inbox_worker_accessor(self, root):
-        from infrastructure.webhooks.inbox_worker import InboxWorker
+        from whatsapp_service.infrastructure.webhooks.inbox_worker import InboxWorker
 
         assert isinstance(root.inbox_worker, InboxWorker)
 
     def test_conversation_engine_accessor(self, root):
-        from application.conversation_engine import ConversationEngine
+        from whatsapp_service.application.conversation_engine import ConversationEngine
 
         assert isinstance(root.conversation_engine, ConversationEngine)
 
     def test_intent_resolution_service_accessor(self, root):
-        from application.intent_resolution_service import IntentResolutionService
+        from whatsapp_service.application.intent_resolution_service import IntentResolutionService
 
         assert isinstance(root.intent_resolution_service, IntentResolutionService)
 
@@ -101,7 +101,7 @@ class TestWhatsAppCompositionRoot:
         assert root.idempotency is not None
 
     def test_order_draft_service_accessor(self, root):
-        from application.order_draft_service import OrderDraftService
+        from whatsapp_service.application.order_draft_service import OrderDraftService
 
         assert isinstance(root.order_draft_service, OrderDraftService)
 
@@ -109,17 +109,17 @@ class TestWhatsAppCompositionRoot:
         assert root.quote_drafts is not None
 
     def test_quote_draft_service_accessor(self, root):
-        from application.quote_draft_service import QuoteDraftService
+        from whatsapp_service.application.quote_draft_service import QuoteDraftService
 
         assert isinstance(root.quote_draft_service, QuoteDraftService)
 
     def test_payment_provider_accessor(self, root):
-        from infrastructure.providers.mercadopago.gateway import MercadoPagoGateway
+        from whatsapp_service.infrastructure.providers.mercadopago.gateway import MercadoPagoGateway
 
         assert isinstance(root.payment_provider, MercadoPagoGateway)
 
     def test_payment_service_accessor(self, root):
-        from application.payment_service import PaymentService
+        from whatsapp_service.application.payment_service import PaymentService
 
         assert isinstance(root.payment_service, PaymentService)
 
@@ -127,7 +127,7 @@ class TestWhatsAppCompositionRoot:
         assert root.delivery_requests is not None
 
     def test_delivery_request_service_accessor(self, root):
-        from application.delivery_request_service import DeliveryRequestService
+        from whatsapp_service.application.delivery_request_service import DeliveryRequestService
 
         assert isinstance(root.delivery_request_service, DeliveryRequestService)
 
@@ -135,33 +135,33 @@ class TestWhatsAppCompositionRoot:
         assert root.connection is conn
 
     def test_consent_service_accessor(self, root):
-        from application.consent_service import ConsentService
+        from whatsapp_service.application.consent_service import ConsentService
 
         assert isinstance(root.consent_service, ConsentService)
 
     def test_consent_accessor_degrades_to_unavailable_without_customer_privacy_schema(self, root):
         import asyncio
 
-        from infrastructure.erp_clients.unavailable_client import ErpClientUnavailableError
+        from whatsapp_service.infrastructure.erp_clients.unavailable_client import ErpClientUnavailableError
 
         with pytest.raises(ErpClientUnavailableError):
             asyncio.run(root.consent.anything())
 
     def test_loyalty_service_accessor(self, root):
-        from application.loyalty_service import LoyaltyService
+        from whatsapp_service.application.loyalty_service import LoyaltyService
 
         assert isinstance(root.loyalty_service, LoyaltyService)
 
     def test_loyalty_accessor_degrades_to_unavailable_without_loyalty_snapshots_table(self, root):
         import asyncio
 
-        from infrastructure.erp_clients.unavailable_client import ErpClientUnavailableError
+        from whatsapp_service.infrastructure.erp_clients.unavailable_client import ErpClientUnavailableError
 
         with pytest.raises(ErpClientUnavailableError):
             asyncio.run(root.loyalty.anything())
 
     def test_handoff_coordinator_accessor(self, root):
-        from application.handoff_service import HandoffCoordinator
+        from whatsapp_service.application.handoff_service import HandoffCoordinator
 
         assert isinstance(root.handoff_coordinator, HandoffCoordinator)
 
@@ -171,7 +171,7 @@ class TestWhatsAppCompositionRoot:
     def test_staff_directory_accessor_degrades_to_unavailable_without_legacy_schema(self, root):
         import asyncio
 
-        from infrastructure.erp_clients.unavailable_client import ErpClientUnavailableError
+        from whatsapp_service.infrastructure.erp_clients.unavailable_client import ErpClientUnavailableError
 
         with pytest.raises(ErpClientUnavailableError):
             asyncio.run(root.staff_directory.anything())
@@ -180,29 +180,29 @@ class TestWhatsAppCompositionRoot:
         assert root.outbox is not None
 
     def test_outbound_message_service_accessor(self, root):
-        from application.outbound_message_service import OutboundMessageService
+        from whatsapp_service.application.outbound_message_service import OutboundMessageService
 
         assert isinstance(root.outbound_message_service, OutboundMessageService)
 
     def test_outbound_dispatcher_accessor(self, root):
-        from infrastructure.webhooks.outbound_dispatcher import OutboundDispatcher
+        from whatsapp_service.infrastructure.webhooks.outbound_dispatcher import OutboundDispatcher
 
         assert isinstance(root.outbound_dispatcher, OutboundDispatcher)
 
     def test_notification_service_accessor(self, root):
-        from application.notification_service import NotificationService
+        from whatsapp_service.application.notification_service import NotificationService
 
         assert isinstance(root.notification_service, NotificationService)
 
     def test_diagnostics_service_accessor(self, root):
-        from application.diagnostics_service import DiagnosticsService
+        from whatsapp_service.application.diagnostics_service import DiagnosticsService
 
         assert isinstance(root.diagnostics_service, DiagnosticsService)
 
     def test_erp_clients_degrade_to_unavailable_without_legacy_schema(self, root):
         import asyncio
 
-        from infrastructure.erp_clients.unavailable_client import ErpClientUnavailableError
+        from whatsapp_service.infrastructure.erp_clients.unavailable_client import ErpClientUnavailableError
 
         for client in (root.customers, root.catalog, root.orders, root.quotes, root.payments, root.delivery):
             with pytest.raises(ErpClientUnavailableError):
@@ -227,7 +227,7 @@ class TestErpClientsWithRealLegacySchema:
 
         root = WhatsAppCompositionRoot(connection)
         try:
-            from infrastructure.erp_clients.erp_bridge_clients import (
+            from whatsapp_service.infrastructure.erp_clients.erp_bridge_clients import (
                 ErpBridgeCustomersApiClient,
                 ErpBridgeStaffDirectoryApiClient,
             )
@@ -259,7 +259,7 @@ class TestConsentClientWithRealCustomerPrivacySchema:
 
         root = WhatsAppCompositionRoot(connection)
         try:
-            from infrastructure.erp_clients.consent_client import CustomerConsentApiClient
+            from whatsapp_service.infrastructure.erp_clients.consent_client import CustomerConsentApiClient
 
             assert isinstance(root.consent, CustomerConsentApiClient)
         finally:
@@ -281,7 +281,7 @@ class TestLoyaltyClientWithRealLoyaltySnapshotsTable:
 
         root = WhatsAppCompositionRoot(connection)
         try:
-            from infrastructure.erp_clients.loyalty_client import LoyaltySnapshotApiClient
+            from whatsapp_service.infrastructure.erp_clients.loyalty_client import LoyaltySnapshotApiClient
 
             assert isinstance(root.loyalty, LoyaltySnapshotApiClient)
         finally:

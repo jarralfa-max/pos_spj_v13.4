@@ -16,9 +16,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from domain.whatsapp.entities.conversation import WhatsAppConversation
-from domain.whatsapp.enums import ConversationSignal, ConversationState
-from domain.whatsapp.services.conversation_state_machine import next_state
+from whatsapp_service.domain.whatsapp.entities.conversation import WhatsAppConversation
+from whatsapp_service.domain.whatsapp.enums import ConversationSignal, ConversationState
+from whatsapp_service.domain.whatsapp.services.conversation_state_machine import next_state
 
 
 class CannotResetTerminalConversationError(RuntimeError):
@@ -64,7 +64,7 @@ class ConversationEngine:
             return False
 
         if timeout_minutes is None:
-            from config.settings import CONVERSATION_TIMEOUT_MINUTES
+            from whatsapp_service.config.settings import CONVERSATION_TIMEOUT_MINUTES
 
             timeout_minutes = CONVERSATION_TIMEOUT_MINUTES
 

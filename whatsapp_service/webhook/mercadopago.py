@@ -3,19 +3,13 @@
 Recibe notificaciones de pago y actualiza el estado del pedido.
 """
 from __future__ import annotations
-try:
-    from domain.money import loads_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import loads_decimal
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
+from whatsapp_service.domain.money import loads_decimal
+from whatsapp_service.domain.money import to_decimal
 import json
 import logging
 from fastapi import APIRouter, Query, Request, Response
-from middleware.hmac_validator import verify_mp_signature
-from state.business_idempotency import BusinessIdempotencyService
+from whatsapp_service.middleware.hmac_validator import verify_mp_signature
+from whatsapp_service.state.business_idempotency import BusinessIdempotencyService
 
 logger = logging.getLogger("wa.webhook.mp")
 router = APIRouter()
@@ -36,7 +30,7 @@ async def mp_notification(
     data_id: str = Query(None, alias="data.id"),
 ):
     """Recibe notificación de pago de MercadoPago."""
-    from config.settings import get_mp_webhook_secret, is_production
+    from whatsapp_service.config.settings import get_mp_webhook_secret, is_production
 
     body = await request.body()
     secret = get_mp_webhook_secret()
@@ -80,7 +74,7 @@ async def mp_notification(
 
         # Consultar detalles del pago a MP API
         import httpx
-        from config.settings import MP_ACCESS_TOKEN
+        from whatsapp_service.config.settings import MP_ACCESS_TOKEN
         if not MP_ACCESS_TOKEN:
             return {"status": "ok"}
 
@@ -102,13 +96,13 @@ async def mp_notification(
                          payment_id, amount, external_ref)
 
             # Notificar al cliente
-            from notifications.customer import notificar_pago_recibido
+            from whatsapp_service.notifications.customer import notificar_pago_recibido
             await notificar_pago_recibido(
                 external_ref, f"MP-{payment_id}", amount)
 
             if _events:
                 # FASE WA: Emitir PAYMENT_RECEIVED (spec) además de WA_ANTICIPO_PAGADO
-                from erp.events import WA_ANTICIPO_PAGADO, PAYMENT_RECEIVED
+                from whatsapp_service.erp.events import WA_ANTICIPO_PAGADO, PAYMENT_RECEIVED
 
                 # Buscar venta_id por teléfono (external_reference = phone del cliente)
                 venta_id = 0

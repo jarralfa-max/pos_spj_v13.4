@@ -11,14 +11,14 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from application.notification_service import NotificationService
-from application.outbound_message_service import OutboundMessageService
+from whatsapp_service.application.notification_service import NotificationService
+from whatsapp_service.application.outbound_message_service import OutboundMessageService
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
-from infrastructure.webhooks.outbound_dispatcher import OutboundDispatcher
-from middleware import service_auth
-from middleware.service_auth import sign_request
-from router.notify_dispatch_router import router as notify_dispatch_router
+from whatsapp_service.infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
+from whatsapp_service.infrastructure.webhooks.outbound_dispatcher import OutboundDispatcher
+from whatsapp_service.middleware import service_auth
+from whatsapp_service.middleware.service_auth import sign_request
+from whatsapp_service.router.notify_dispatch_router import router as notify_dispatch_router
 
 SECRET = "test-internal-key"
 
@@ -56,8 +56,8 @@ def _signed_headers(body: bytes, *, nonce="nonce-1"):
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setattr("config.settings.get_internal_api_key", lambda: SECRET)
-    monkeypatch.setattr("config.settings.is_production", lambda: False)
+    monkeypatch.setattr("whatsapp_service.config.settings.get_internal_api_key", lambda: SECRET)
+    monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: False)
 
     # `check_same_thread=False`: TestClient corre el app en un thread
     # distinto al de este fixture (Starlette lo despacha vía threadpool).

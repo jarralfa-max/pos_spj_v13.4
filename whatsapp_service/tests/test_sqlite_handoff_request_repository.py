@@ -6,9 +6,9 @@ import sqlite3
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.entities.handoff_request import HandoffRequest
-from domain.whatsapp.enums import HandoffStatus
-from infrastructure.persistence.sqlite_handoff_request_repository import (
+from whatsapp_service.domain.whatsapp.entities.handoff_request import HandoffRequest
+from whatsapp_service.domain.whatsapp.enums import HandoffStatus
+from whatsapp_service.infrastructure.persistence.sqlite_handoff_request_repository import (
     SqliteWhatsAppHandoffRequestRepository,
 )
 

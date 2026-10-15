@@ -1,8 +1,8 @@
 # tests/test_intent_resolution_value_objects.py — WA-8
 from __future__ import annotations
 
-from domain.whatsapp.enums import Intent
-from domain.whatsapp.value_objects.intent_resolution import (
+from whatsapp_service.domain.whatsapp.enums import Intent
+from whatsapp_service.domain.whatsapp.value_objects.intent_resolution import (
     EntityValidationStatus,
     IntentEntity,
     IntentResolution,

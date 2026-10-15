@@ -30,6 +30,6 @@ def redact_secret(value: str) -> str:
     _mask_token` — se mantiene consistente con `SecretStore.mask` en
     `infrastructure/secrets/secret_store.py`.
     """
-    if not value or len(value) < 8:
+    if not value or len(value) <= 8:
         return "***"
     return value[:4] + "*" * (len(value) - 8) + value[-4:]

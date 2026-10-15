@@ -15,15 +15,9 @@ Este módulo no envía WhatsApp al staff. Las alertas de nuevo pedido deben vers
 en el ERP, tal como se definió en el flujo de negocio.
 """
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal
+from whatsapp_service.domain.money import dumps_decimal
 from decimal import Decimal
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
+from whatsapp_service.domain.money import to_decimal
 
 import json
 import logging
@@ -191,7 +185,7 @@ class POSNotifier:
                     timestamp   TEXT    DEFAULT (datetime('now'))
                 )
             """)
-            from erp.events import _new_event_id
+            from whatsapp_service.erp.events import _new_event_id
             self.db.execute("""
                 INSERT INTO wa_event_log (id, event_type, data_json, sucursal_id, prioridad, timestamp)
                 VALUES (?, ?, ?, ?, ?, datetime('now'))

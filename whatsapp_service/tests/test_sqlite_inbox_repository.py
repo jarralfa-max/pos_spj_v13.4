@@ -6,9 +6,9 @@ import sqlite3
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.entities.inbox_job import InboundMessageJob
-from domain.whatsapp.enums import InboxStatus
-from infrastructure.persistence.sqlite_inbox_repository import SqliteWhatsAppInboxRepository
+from whatsapp_service.domain.whatsapp.entities.inbox_job import InboundMessageJob
+from whatsapp_service.domain.whatsapp.enums import InboxStatus
+from whatsapp_service.infrastructure.persistence.sqlite_inbox_repository import SqliteWhatsAppInboxRepository
 
 
 @pytest.fixture()

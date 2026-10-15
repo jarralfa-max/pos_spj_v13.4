@@ -6,13 +6,13 @@ import sqlite3
 
 import pytest
 
-from application.quote_draft_service import ProductNotFoundError, QuoteDraftService
+from whatsapp_service.application.quote_draft_service import ProductNotFoundError, QuoteDraftService
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.entities.quote_draft import EmptyQuoteDraftError, QuoteDraft
-from domain.whatsapp.enums import IdempotencyStatus, QuoteDraftStatus
-from domain.whatsapp.erp_ports import OrderRef, ProductRef, QuoteRef
-from infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
-from infrastructure.persistence.sqlite_quote_draft_repository import SqliteWhatsAppQuoteDraftRepository
+from whatsapp_service.domain.whatsapp.entities.quote_draft import EmptyQuoteDraftError, QuoteDraft
+from whatsapp_service.domain.whatsapp.enums import IdempotencyStatus, QuoteDraftStatus
+from whatsapp_service.domain.whatsapp.erp_ports import OrderRef, ProductRef, QuoteRef
+from whatsapp_service.infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
+from whatsapp_service.infrastructure.persistence.sqlite_quote_draft_repository import SqliteWhatsAppQuoteDraftRepository
 
 
 class _FakeCatalog:

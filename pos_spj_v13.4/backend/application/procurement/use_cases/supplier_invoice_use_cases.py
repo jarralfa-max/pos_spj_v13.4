@@ -420,6 +420,15 @@ class MatchSupplierInvoiceUseCase:
                   operation_id=operation_id, actor_user_id=actor_user_id,
                   supplier_id=inv.supplier_id, match_result=result.value)
             ya_pagada = _already_paid_in_cash(direct)
+            ya_reconocida = _credit_recognized_at_receipt(direct)
+            if result is MatchResult.MATCHED and ya_reconocida:
+                ajuste = _emit_credit_invoice_difference(
+                    uow, inv, direct, operation_id=operation_id, actor_user_id=actor_user_id,
+                    payment_term_days=_payment_term_days(self._payment_terms, inv.supplier_id))
+                return ProcurementResult.ok(
+                    "Factura conciliada; la cuenta por pagar ya existía desde la recepción"
+                    + ajuste, entity_id=inv.id, operation_id=operation_id,
+                    status=inv.status, match_result=result.value)
             if result is MatchResult.MATCHED and not ya_pagada:
                 branch_id = (po.branch_id if po is not None
                             else direct.branch_id if direct is not None else None)
@@ -509,6 +518,14 @@ class ReleaseInvoiceVarianceUseCase:
                     "Diferencia liberada; la compra ya se pagó de contado, no genera "
                     "cuenta por pagar", entity_id=inv.id, operation_id=operation_id,
                     status=inv.status)
+            if _credit_recognized_at_receipt(direct):
+                ajuste = _emit_credit_invoice_difference(
+                    uow, inv, direct, operation_id=operation_id,
+                    actor_user_id=releaser_user_id,
+                    payment_term_days=_payment_term_days(self._payment_terms, inv.supplier_id))
+                return ProcurementResult.ok(
+                    "Diferencia liberada; la cuenta por pagar ya existía desde la recepción"
+                    + ajuste, entity_id=inv.id, operation_id=operation_id, status=inv.status)
             _emit(uow, ProcurementEvents.ACCOUNT_PAYABLE_CREATE_REQUESTED,
                   payment_term_days=_payment_term_days(self._payment_terms, inv.supplier_id),
                   document_id=inv.id, document_number=inv.document_number,
@@ -522,3 +539,64 @@ class ReleaseInvoiceVarianceUseCase:
                   deduplication_key=f"SUPPLIER_INVOICE:{inv.id}")
         return ProcurementResult.ok("Diferencia liberada; CxP generada", entity_id=inv.id,
                                     operation_id=operation_id, status=inv.status)
+
+
+# ── compra rápida a crédito: la CxP nace en la recepción (2026-10-15) ───────
+def _credit_recognized_at_receipt(direct) -> bool:
+    from backend.domain.procurement.enums import PaymentCondition
+    return direct is not None and direct.payment_condition is PaymentCondition.SUPPLIER_CREDIT
+
+
+def _emit_credit_invoice_difference(uow, inv, direct, *, operation_id: str,
+                                    actor_user_id: str, payment_term_days) -> str:
+    """La factura de una compra a crédito NO crea otra CxP: la deuda nació al
+    recibir. Sólo su diferencia contra lo reconocido por las líneas que factura
+    tiene efecto: mayor → CxP por la diferencia; menor → crédito contra la CxP
+    de las recepciones. Devuelve un texto para el mensaje al usuario."""
+    lines = {ln.id: ln for ln in direct.lines}
+    expected = Decimal("0")
+    for invoice_line in inv.lines:
+        line = lines.get(getattr(invoice_line, "direct_purchase_line_id", None) or "")
+        if line is None:
+            continue
+        billable = line.billable_quantity()
+        if not billable:
+            continue
+        expected += (line.line_total().amount
+                     * Decimal(str(invoice_line.invoiced_quantity)) / billable)
+    expected = expected.quantize(Decimal("0.01"))
+    difference = (inv.total.amount - expected).quantize(Decimal("0.01"))
+    if abs(difference) < Decimal("0.01"):
+        return ""
+    total = inv.total.amount or Decimal("1")
+    share = abs(difference) / total
+    natures = {nature: (Decimal(value) * share).quantize(Decimal("0.01"))
+               for nature, value in _nature_subtotals(inv.lines).items()}
+    tax = abs(difference) - sum(natures.values(), Decimal("0"))
+    if tax < 0 and natures:             # redondeo: nunca un IVA negativo
+        largest = max(natures, key=lambda k: natures[k])
+        natures[largest] += tax
+        tax = Decimal("0")
+    currency = inv.total.currency_code
+    if difference > 0:
+        _emit(uow, ProcurementEvents.ACCOUNT_PAYABLE_CREATE_REQUESTED,
+              payment_term_days=payment_term_days, document_id=inv.id,
+              document_number=f"{inv.document_number} (diferencia)",
+              branch_id=direct.branch_id, operation_id=operation_id,
+              actor_user_id=actor_user_id, supplier_id=inv.supplier_id,
+              amount=format(difference, "f"), currency_code=currency,
+              nature_subtotals={k: format(v, "f") for k, v in natures.items()},
+              tax_total=format(tax, "f"), source_type="SUPPLIER_INVOICE", source_id=inv.id,
+              deduplication_key=f"SUPPLIER_INVOICE:{inv.id}")
+        return f"; la factura es mayor por {format(difference, 'f')}: se generó una CxP por la diferencia"
+    receipts = [gr.id for gr in uow.receipts.completed_for_document(direct_purchase_id=direct.id)]
+    _emit(uow, ProcurementEvents.PURCHASE_PAYABLE_CREDIT_REQUESTED, document_id=inv.id,
+          operation_id=operation_id, actor_user_id=actor_user_id,
+          supplier_id=inv.supplier_id, branch_id=direct.branch_id,
+          document_number=f"{inv.document_number} (menor a lo recibido)",
+          currency_code=currency, return_value=format(abs(difference) - tax, "f"),
+          return_tax=format(tax, "f"),
+          nature_subtotals={k: format(v, "f") for k, v in natures.items()},
+          invoice_ids=receipts)
+    return (f"; la factura es menor por {format(-difference, 'f')}: se aplicó un crédito "
+            "a la CxP de la recepción")

@@ -23,6 +23,7 @@ Ambos idempotentes por la referencia de contabilización del documento.
 from __future__ import annotations
 
 from backend.application.event_handlers.finance.procurement_posting_policy import (
+    NATURE_ACCOUNT_ROLE,
     purchase_issue_date,
 )
 from backend.application.services.finance.posting_engine import PostingEngine
@@ -59,7 +60,35 @@ class ProcurementImmediatePaymentReversalHandler:
 
 
 class ProcurementReturnCreditHandler:
+    """Crédito contra la CxP de una compra. Atiende la devolución confirmada y,
+    desde 2026-10-15, ``PURCHASE_PAYABLE_CREDIT_REQUESTED`` (reverso de una
+    recepción a crédito ya reconocida, o factura menor a lo recibido): mismo
+    efecto, Dr Proveedores (o anticipo si ya se pagó) / Cr lo reconocido."""
+
     event_name = "PURCHASE_RETURN_CONFIRMED"
+
+    def _goods_credit_lines(self, uow, profile, payload, goods, currency, on_date, folio):
+        """El abono sale por NATURALEZA si el evento trae el desglose (un gasto
+        no se acredita a inventario); si no, todo a inventario, como siempre."""
+        natures = payload.get("nature_subtotals") or {}
+        if natures:
+            purchase = uow.posting_profiles.find_effective(
+                "PURCHASE", on_date, branch_id=payload.get("branch_id") or None)
+            if purchase is not None:
+                from decimal import Decimal
+                lines, credited = [], Decimal("0")
+                for nature, value in natures.items():
+                    amount = Money.from_string(str(value), currency)
+                    if not amount.is_positive():
+                        continue
+                    role = NATURE_ACCOUNT_ROLE.get(nature, "expense_account_id")
+                    lines.append(LineSpec(purchase.account_for(role), credit=amount,
+                                          description=f"{folio} ({nature})"))
+                    credited += amount.amount
+                if lines and credited == goods.amount:
+                    return lines
+        return [LineSpec(profile.account_for("inventory_account_id"), credit=goods,
+                         description=f"Devolución a proveedor {folio}")]
 
     def __init__(self, connection) -> None:
         self._connection = connection
@@ -118,8 +147,8 @@ class ProcurementReturnCreditHandler:
                 lines.append(LineSpec(profile.account_for("supplier_advance_account_id"),
                                       debit=remaining,
                                       description=f"Saldo a favor con proveedor {folio}"))
-            lines.append(LineSpec(profile.account_for("inventory_account_id"), credit=goods,
-                                  description=f"Devolución a proveedor {folio}"))
+            lines += self._goods_credit_lines(uow, profile, payload, goods, currency,
+                                              on_date, folio)
             if tax.is_positive():
                 lines.append(LineSpec(profile.account_for("tax_account_id"), credit=tax,
                                       description=f"IVA acreditable devuelto {folio}"))

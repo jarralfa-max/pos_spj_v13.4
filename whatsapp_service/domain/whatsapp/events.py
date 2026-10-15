@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
-from domain.whatsapp.enums import ConversationState, MessageDeliveryStatus
+from whatsapp_service.domain.whatsapp.enums import ConversationState, MessageDeliveryStatus
 
 
 def _utcnow() -> datetime:

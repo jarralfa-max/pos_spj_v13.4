@@ -20,7 +20,7 @@ class CompositionRootValidationError(RuntimeError):
 def validate_composition_root(root) -> None:
     """Lanza `CompositionRootValidationError` si falta algún servicio de
     `composition_root.REQUIRED_SERVICES`. No retorna nada en éxito."""
-    from bootstrap.composition_root import REQUIRED_SERVICES
+    from whatsapp_service.bootstrap.composition_root import REQUIRED_SERVICES
 
     missing: List[str] = [name for name in REQUIRED_SERVICES if not root.registry.has(name)]
     if missing:

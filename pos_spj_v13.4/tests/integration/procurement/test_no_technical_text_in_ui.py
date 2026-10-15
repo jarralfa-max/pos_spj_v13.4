@@ -31,6 +31,7 @@ from frontend.desktop.modules.purchasing.enterprise_routes import (
     create_enterprise_purchasing_view,
 )
 from frontend.desktop.modules.purchasing.navigation import IMPLEMENTED_PURCHASING_ROUTES
+from tests.integration._supplier_cutover import grant_supplier_credit
 from tests.integration.procurement.test_invoice_to_payable_chain import (  # noqa: F401
     _Session,
     _presenters,
@@ -55,6 +56,7 @@ def app():
 
 
 def _seed(conn):
+    grant_supplier_credit(conn, "sup-1")   # compra rápida a crédito más abajo
     compras, gerente = _presenters(conn)
     for p in (compras, gerente):
         p._dispatch = None

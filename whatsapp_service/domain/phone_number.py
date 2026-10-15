@@ -1,4 +1,4 @@
-from phone_number import (
+from whatsapp_service.phone_number import (
     normalize_to_digits,
     normalize_to_e164,
     normalize_to_mx_local10,

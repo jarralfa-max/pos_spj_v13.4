@@ -13,11 +13,11 @@ from decimal import Decimal
 from dataclasses import dataclass
 from typing import Optional
 
-from application.idempotency_fingerprint import compute_fingerprint
-from domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
-from domain.whatsapp.entities.order_draft import OrderDraftLine
-from domain.whatsapp.entities.quote_draft import QuoteDraft, QuoteDraftStatus
-from domain.whatsapp.erp_ports import OrderRef, ProductRef, QuoteRef
+from whatsapp_service.application.idempotency_fingerprint import compute_fingerprint
+from whatsapp_service.domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
+from whatsapp_service.domain.whatsapp.entities.order_draft import OrderDraftLine
+from whatsapp_service.domain.whatsapp.entities.quote_draft import QuoteDraft, QuoteDraftStatus
+from whatsapp_service.domain.whatsapp.erp_ports import OrderRef, ProductRef, QuoteRef
 
 
 class ProductNotFoundError(RuntimeError):

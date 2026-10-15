@@ -6,7 +6,7 @@ Este módulo mapea eventos del ERP a templates.
 from __future__ import annotations
 import logging
 from typing import Dict, List, Optional
-from messaging.sender import send_template
+from whatsapp_service.messaging.sender import send_template
 
 logger = logging.getLogger("wa.templates")
 

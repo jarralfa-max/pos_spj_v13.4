@@ -3,8 +3,8 @@
 Determina el tipo de flujo basándose en qué número recibió el mensaje.
 """
 from __future__ import annotations
-from config.numbers import NumberRegistry, NumeroTipo, NumeroConfig
-from models.message import IncomingMessage
+from whatsapp_service.config.numbers import NumberRegistry, NumeroTipo, NumeroConfig
+from whatsapp_service.models.message import IncomingMessage
 
 
 class NumberRouter:

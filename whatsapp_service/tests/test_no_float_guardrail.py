@@ -15,7 +15,7 @@ import tokenize
 from decimal import Decimal
 from pathlib import Path
 
-from domain.money import dumps_decimal, loads_decimal, quantize_money, to_decimal
+from whatsapp_service.domain.money import dumps_decimal, loads_decimal, quantize_money, to_decimal
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -62,7 +62,7 @@ def test_json_roundtrip_is_exact_and_numeric():
 
 
 def test_persisted_context_item_comes_back_as_decimal():
-    from models.context import PedidoItem
+    from whatsapp_service.models.context import PedidoItem
     item = PedidoItem.from_dict({"producto_id": "p", "nombre": "Pechuga",
                                  "cantidad": "1.5", "precio_unitario": 120.1})
     assert item.cantidad == Decimal("1.5") and item.precio_unitario == Decimal("120.1")

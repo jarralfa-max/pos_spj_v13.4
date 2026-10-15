@@ -216,6 +216,25 @@ class PayableQueryService(FinanceQueryServiceBase):
             tuple(params),
         )
 
+    def recognized_for_sources(self, source_module: str, source_ids) -> "Decimal":
+        """Importe ORIGINAL de las CxP ya reconocidas para esos documentos de
+        origen (recepciones, facturas). Lo usa Compras para no contar dos veces
+        una compra comprometida que ya tiene su cuenta por pagar."""
+        from decimal import Decimal
+        ids = [str(i) for i in source_ids if i]
+        if not ids:
+            return Decimal("0")
+        marks = ",".join("?" for _ in ids)
+        rows = self._query(
+            "SELECT fd.total_amount FROM financial_documents fd JOIN payables p"
+            " ON p.financial_document_id = fd.id WHERE fd.source_module = ?"
+            f" AND fd.source_document_id IN ({marks}) AND p.status <> 'CANCELLED'",
+            (source_module, *ids))
+        total = Decimal("0")
+        for row in rows:
+            total += Decimal(str(row["total_amount"] or "0"))
+        return total
+
     def payments(self, *, status: str | None = None) -> list[dict]:
         if status:
             return self._query(

@@ -15,9 +15,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
-from domain.whatsapp._ids import new_id
-from domain.whatsapp.enums import TERMINAL_DELIVERY_REQUEST_STATUSES, DeliveryRequestStatus
-from domain.whatsapp.exceptions import WhatsAppDomainError
+from whatsapp_service.domain.whatsapp._ids import new_id
+from whatsapp_service.domain.whatsapp.enums import TERMINAL_DELIVERY_REQUEST_STATUSES, DeliveryRequestStatus
+from whatsapp_service.domain.whatsapp.exceptions import WhatsAppDomainError
 
 
 def _utcnow() -> datetime:

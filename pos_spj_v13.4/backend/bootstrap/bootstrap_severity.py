@@ -23,6 +23,7 @@ class BootstrapFailureReason(str, Enum):
     # ── Fatal — must stop the boot (§9 "Fatal") ─────────────────────────────
     DATABASE_CORRUPTED_UNRECOVERABLE = "DATABASE_CORRUPTED_UNRECOVERABLE"
     SCHEMA_INCOMPLETE = "SCHEMA_INCOMPLETE"
+    SCHEMA_NEWER_THAN_APPLICATION = "SCHEMA_NEWER_THAN_APPLICATION"
     IDENTITY_NOT_UUIDV7 = "IDENTITY_NOT_UUIDV7"
     BOOTSTRAP_INVALID = "BOOTSTRAP_INVALID"
     REQUIRED_DEPENDENCY_MISSING = "REQUIRED_DEPENDENCY_MISSING"
@@ -48,6 +49,7 @@ class BootstrapFailureReason(str, Enum):
 _FATAL_REASONS = frozenset({
     BootstrapFailureReason.DATABASE_CORRUPTED_UNRECOVERABLE,
     BootstrapFailureReason.SCHEMA_INCOMPLETE,
+    BootstrapFailureReason.SCHEMA_NEWER_THAN_APPLICATION,
     BootstrapFailureReason.IDENTITY_NOT_UUIDV7,
     BootstrapFailureReason.BOOTSTRAP_INVALID,
     BootstrapFailureReason.REQUIRED_DEPENDENCY_MISSING,

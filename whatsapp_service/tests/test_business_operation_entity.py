@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import pytest
 
-from domain.whatsapp.entities.business_operation import (
+from whatsapp_service.domain.whatsapp.entities.business_operation import (
     BusinessOperationIdempotencyRecord,
     IdempotencyRecordAlreadyFinalizedError,
 )
-from domain.whatsapp.enums import IdempotencyStatus
+from whatsapp_service.domain.whatsapp.enums import IdempotencyStatus
 
 
 def _record() -> BusinessOperationIdempotencyRecord:

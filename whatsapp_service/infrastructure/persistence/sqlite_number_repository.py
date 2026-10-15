@@ -6,9 +6,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
-from domain.whatsapp.enums import ChannelNumberStatus, ChannelRole
-from domain.whatsapp.value_objects.phone_number import WhatsAppPhoneNumber
+from whatsapp_service.domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
+from whatsapp_service.domain.whatsapp.enums import ChannelNumberStatus, ChannelRole
+from whatsapp_service.domain.whatsapp.value_objects.phone_number import WhatsAppPhoneNumber
 
 _COLUMNS = (
     "id, account_id, phone_number_external_id, display_phone_number, "

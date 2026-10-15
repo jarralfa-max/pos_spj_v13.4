@@ -1,5 +1,5 @@
-from ai.intent_schema import AIIntentResult
-from ai.fallback import map_ai_to_parsed_intent
+from whatsapp_service.ai.intent_schema import AIIntentResult
+from whatsapp_service.ai.fallback import map_ai_to_parsed_intent
 
 
 def test_map_schedule_order_to_pedido_with_metadata():

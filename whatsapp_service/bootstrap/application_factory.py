@@ -22,8 +22,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from bootstrap.health_checks import build_health_response
-from bootstrap.lifecycle import start_composition_root, stop_composition_root
+from whatsapp_service.bootstrap.health_checks import build_health_response
+from whatsapp_service.bootstrap.lifecycle import start_composition_root, stop_composition_root
 
 
 class WhatsAppApplicationFactory:

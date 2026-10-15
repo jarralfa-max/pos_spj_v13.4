@@ -15,10 +15,7 @@ reemplazar/absorber la de `pago_flow.py` en una fase posterior con
 cobertura de test para ese flujo específico primero.
 """
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal
+from whatsapp_service.domain.money import dumps_decimal
 from decimal import Decimal
 
 import logging
@@ -26,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from domain.whatsapp.payment_provider_ports import PaymentLinkRef
+from whatsapp_service.domain.whatsapp.payment_provider_ports import PaymentLinkRef
 
 logger = logging.getLogger("wa.provider.mercadopago")
 
@@ -45,7 +42,7 @@ class MercadoPagoGateway:
     async def create_preference(
         self, *, amount: Decimal, external_reference: str, description: str = ""
     ) -> PaymentLinkRef:
-        from config.settings import MP_ACCESS_TOKEN
+        from whatsapp_service.config.settings import MP_ACCESS_TOKEN
 
         if not MP_ACCESS_TOKEN:
             raise MercadoPagoPreferenceError("MP_ACCESS_TOKEN no configurado")

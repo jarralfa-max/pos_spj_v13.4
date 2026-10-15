@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import logging
 
-from domain.whatsapp.entities.outbox_message import OutboxMessage
+from whatsapp_service.domain.whatsapp.entities.outbox_message import OutboxMessage
 
 logger = logging.getLogger("wa.outbound_dispatcher")
 

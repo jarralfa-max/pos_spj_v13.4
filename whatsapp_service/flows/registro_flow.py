@@ -3,12 +3,12 @@
 Cuando un número desconocido escribe, se registra con datos mínimos.
 """
 from __future__ import annotations
-from models.context import ConversationContext, FlowState
-from parser.intent_parser import ParsedIntent
-from flows.base_flow import BaseFlow, FlowResult
-from erp.events import WA_CLIENTE_REGISTRADO
-from messaging.sender import send_text, send_buttons
-from messaging import interactive
+from whatsapp_service.models.context import ConversationContext, FlowState
+from whatsapp_service.parser.intent_parser import ParsedIntent
+from whatsapp_service.flows.base_flow import BaseFlow, FlowResult
+from whatsapp_service.erp.events import WA_CLIENTE_REGISTRADO
+from whatsapp_service.messaging.sender import send_text, send_buttons
+from whatsapp_service.messaging import interactive
 
 
 class RegistroFlow(BaseFlow):

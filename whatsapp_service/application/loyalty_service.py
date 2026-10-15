@@ -21,7 +21,7 @@ el corte de alcance, no se fuerza.
 """
 from __future__ import annotations
 
-from domain.whatsapp.erp_ports import LoyaltySummaryRef
+from whatsapp_service.domain.whatsapp.erp_ports import LoyaltySummaryRef
 
 
 class LoyaltyService:

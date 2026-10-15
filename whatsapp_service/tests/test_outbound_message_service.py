@@ -5,9 +5,9 @@ import sqlite3
 
 import pytest
 
-from application.outbound_message_service import OutboundMessageService
+from whatsapp_service.application.outbound_message_service import OutboundMessageService
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
+from whatsapp_service.infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
 
 
 class _FakeRoot:

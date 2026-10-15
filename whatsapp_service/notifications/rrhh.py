@@ -1,7 +1,7 @@
 # notifications/rrhh.py — Notificaciones de RRHH
 from __future__ import annotations
-from messaging.templates import send_event_template
-from messaging.sender import send_text
+from whatsapp_service.messaging.templates import send_event_template
+from whatsapp_service.messaging.sender import send_text
 
 
 async def notificar_vacaciones_aprobadas(phone: str, nombre: str,

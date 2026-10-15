@@ -7,8 +7,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 if "config" in sys.modules and not hasattr(sys.modules["config"], "__path__"):
     del sys.modules["config"]
 
-from flows.cotizacion_flow import CotizacionFlow
-from models.context import ConversationContext, FlowState, PedidoItem
+from whatsapp_service.flows.cotizacion_flow import CotizacionFlow
+from whatsapp_service.models.context import ConversationContext, FlowState, PedidoItem
 
 
 class DummyIntent:
@@ -40,8 +40,8 @@ def test_quote_accept_converts_to_sale_and_resets_context(monkeypatch):
     ctx.current_quote_folio = "COT-5"
     ctx.cliente_id = 10
 
-    monkeypatch.setattr("flows.cotizacion_flow.send_text", AsyncMock())
-    monkeypatch.setattr("flows.cotizacion_flow.interactive.send_menu_principal", AsyncMock())
+    monkeypatch.setattr("whatsapp_service.flows.cotizacion_flow.send_text", AsyncMock())
+    monkeypatch.setattr("whatsapp_service.flows.cotizacion_flow.interactive.send_menu_principal", AsyncMock())
 
     import asyncio
     result = asyncio.run(_run(flow, ctx, "quote_accept"))
@@ -60,8 +60,8 @@ def test_quote_reject_marks_rejected_and_emits_event(monkeypatch):
     ctx.cliente_id = 10
     ctx.sucursal_id = 2
 
-    monkeypatch.setattr("flows.cotizacion_flow.send_text", AsyncMock())
-    monkeypatch.setattr("flows.cotizacion_flow.interactive.send_menu_principal", AsyncMock())
+    monkeypatch.setattr("whatsapp_service.flows.cotizacion_flow.send_text", AsyncMock())
+    monkeypatch.setattr("whatsapp_service.flows.cotizacion_flow.interactive.send_menu_principal", AsyncMock())
 
     import asyncio
     result = asyncio.run(_run(flow, ctx, "quote_reject"))
@@ -82,8 +82,8 @@ def test_quote_accept_without_orchestrator_emits_canonical_events(monkeypatch):
     ctx.cliente_id = 88
     ctx.sucursal_id = 2
 
-    monkeypatch.setattr("flows.cotizacion_flow.send_text", AsyncMock())
-    monkeypatch.setattr("flows.cotizacion_flow.interactive.send_menu_principal", AsyncMock())
+    monkeypatch.setattr("whatsapp_service.flows.cotizacion_flow.send_text", AsyncMock())
+    monkeypatch.setattr("whatsapp_service.flows.cotizacion_flow.interactive.send_menu_principal", AsyncMock())
 
     import asyncio
     result = asyncio.run(_run(flow, ctx, "quote_accept"))

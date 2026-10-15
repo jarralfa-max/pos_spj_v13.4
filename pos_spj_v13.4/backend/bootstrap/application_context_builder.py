@@ -22,6 +22,7 @@ from backend.application.feature_flags.branch_feature_flags_query import (
     BranchFeatureFlagsQuery,
 )
 from backend.application.security.permission_query_service import PermissionQueryService
+from backend.application.software_updates.installation import enabled_capabilities_for
 from backend.bootstrap.application_context import (
     ApplicationContext,
     FeatureContext,
@@ -41,6 +42,7 @@ from backend.infrastructure.db.repositories.settings.branch_directory_repository
 )
 from backend.security.authentication.authenticate_user_use_case import AuthenticationResult
 from backend.security.provisioning.installation_repository import SqliteInstallationRepository
+from backend.shared.app_paths import AppPaths
 
 
 class ApplicationContextBuilder:
@@ -85,4 +87,5 @@ class ApplicationContextBuilder:
             permissions=frozenset(permissions),
             feature_context=FeatureContext.from_flags_dict(flags),
             session_id=session.session_id,
+            capabilities=enabled_capabilities_for(AppPaths.from_environment()),
         )

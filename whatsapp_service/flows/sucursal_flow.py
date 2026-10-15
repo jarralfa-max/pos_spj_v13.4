@@ -4,10 +4,10 @@ Flujo obligatorio cuando el mensaje entra por número global
 y el usuario no tiene sucursal asignada.
 """
 from __future__ import annotations
-from models.context import ConversationContext, FlowState
-from parser.intent_parser import ParsedIntent
-from flows.base_flow import BaseFlow, FlowResult
-from messaging import interactive
+from whatsapp_service.models.context import ConversationContext, FlowState
+from whatsapp_service.parser.intent_parser import ParsedIntent
+from whatsapp_service.flows.base_flow import BaseFlow, FlowResult
+from whatsapp_service.messaging import interactive
 
 
 class SucursalFlow(BaseFlow):
@@ -35,7 +35,7 @@ class SucursalFlow(BaseFlow):
                 pass
 
         # ── Respuesta numérica ("1", "2", "3") ───────────────────────────
-        from parser.patterns import extract_selection
+        from whatsapp_service.parser.patterns import extract_selection
         sel = extract_selection(intent.raw_text)
         if sel > 0:
             sucursales = self.erp.get_sucursales()

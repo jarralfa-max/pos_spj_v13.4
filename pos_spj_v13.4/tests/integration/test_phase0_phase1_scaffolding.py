@@ -62,7 +62,6 @@ def test_phase0_architecture_docs_and_phase1_guardrails_are_installed() -> None:
         "backend/application/queries/customer_query_service.py",
         "backend/application/queries/product_query_service.py",
         "backend/application/queries/supplier_query_service.py",
-        "backend/application/queries/employee_query_service.py",
         "backend/application/queries/branch_query_service.py",
         "backend/application/queries/driver_query_service.py",
         "backend/application/queries/asset_query_service.py",

@@ -152,6 +152,50 @@ class Employee:
     def touch(self) -> None:
         self.updated_at = _utcnow()
 
+    #: Campos del expediente que se editan sin vigencia (HR-23). El salario
+    #: va por ``change_salary`` porque tiene historia.
+    EDITABLE_FIELDS = (
+        "first_name", "last_name", "phone_e164", "email", "department_id",
+        "position_id", "supervisor_employee_id", "bank_account_reference",
+        "tax_identifier", "emergency_contact_name", "emergency_contact_phone",
+    )
+
+    def update_profile(self, **fields) -> dict:
+        """Aplica cambios del expediente con LAS MISMAS invariantes del alta
+        (auditoría HR-23: la edición hacía ``setattr`` y aceptaba un nombre
+        vacío). Devuelve ``{campo: (antes, después)}`` para la bitácora."""
+        changes: dict = {}
+        for key, value in fields.items():
+            if key not in self.EDITABLE_FIELDS or value is None:
+                continue
+            if key in ("first_name", "last_name"):
+                value = str(value).strip()
+                if not value:
+                    raise HRDomainError("El nombre y los apellidos no pueden quedar vacíos")
+            elif isinstance(value, str):
+                value = value.strip() or None
+            if getattr(self, key) != value:
+                changes[key] = (getattr(self, key), value)
+                setattr(self, key, value)
+        if changes:
+            self.touch()
+        return changes
+
+    def change_salary(self, *, daily_salary: Money, base_salary: Money) -> None:
+        if daily_salary.is_negative() or base_salary.is_negative():
+            raise HRDomainError("Los salarios no pueden ser negativos")
+        self.daily_salary = daily_salary
+        self.base_salary = base_salary
+        self.touch()
+
+    def is_employed_on(self, day: date) -> bool:
+        """HR-09: elegibilidad por VIGENCIA del vínculo, no por el estado de
+        hoy — una baja futura conserva el historial; un alta posterior no
+        cobra un periodo previo."""
+        if day < self.hire_date:
+            return False
+        return self.termination_date is None or day <= self.termination_date
+
 
 # ── Attendance ────────────────────────────────────────────────────────────
 @dataclass(frozen=True, slots=True)
@@ -301,6 +345,18 @@ class WorkShift:
                    break_minutes=break_minutes,
                    late_tolerance_minutes=late_tolerance_minutes, branch_id=branch_id)
 
+    def span_minutes(self) -> int:
+        start = self.start_time.hour * 60 + self.start_time.minute
+        end = self.end_time.hour * 60 + self.end_time.minute
+        if self.crosses_midnight:
+            end += 24 * 60
+        return max(0, end - start)
+
+    def expected_minutes(self) -> int:
+        """Minutos NETOS esperados: el descanso configurado es NO pagado
+        (HR-15) y se descuenta igual del esperado y del trabajado."""
+        return max(0, self.span_minutes() - self.break_minutes)
+
 
 @dataclass(slots=True)
 class ShiftAssignment:
@@ -344,6 +400,9 @@ class LeaveRequest:
     approved_at: str | None = None
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
+    cancelled_by_user_id: str | None = None
+    cancelled_at: str | None = None
+    cancel_reason: str | None = None
 
     @classmethod
     def create(cls, employee_id: str, branch_id: str, leave_type: LeaveType,
@@ -364,9 +423,21 @@ class LeaveRequest:
     def overlaps(self, other_start: date, other_end: date) -> bool:
         return self.start_date <= other_end and other_start <= self.end_date
 
-    def approve(self, approver_user_id: str) -> None:
+    def covers(self, day: date) -> bool:
+        return self.start_date <= day <= self.end_date
+
+    def approve(self, approver_user_id: str, *, is_self: bool = False,
+                self_approval_allowed: bool = False) -> None:
         if self.status not in (LeaveStatus.PENDING, LeaveStatus.DRAFT):
             raise InvalidLeaveStateError(f"Solicitud en estado {self.status.value}")
+        if not approver_user_id:
+            raise HRDomainError("La aprobación requiere el usuario aprobador")
+        # HR-19: quien pide (o el propio empleado) no aprueba su ausencia salvo
+        # facultad expresa (``RRHH.permiso.autoaprobar``).
+        if (is_self or approver_user_id == self.requested_by_user_id) \
+                and not self_approval_allowed:
+            raise HRDomainError(
+                "Separación de funciones: el solicitante no aprueba su propia ausencia")
         self.status = LeaveStatus.APPROVED
         self.approved_by_user_id = approver_user_id
         self.approved_at = _utcnow()
@@ -380,11 +451,16 @@ class LeaveRequest:
         self.approved_at = _utcnow()
         self.updated_at = self.approved_at
 
-    def cancel(self) -> None:
+    def cancel(self, actor_user_id: str | None = None, *, reason: str | None = None) -> None:
         if self.status in (LeaveStatus.REJECTED, LeaveStatus.CANCELLED):
             raise InvalidLeaveStateError(f"No se puede cancelar en estado {self.status.value}")
+        if self.status is LeaveStatus.APPROVED and not (reason and reason.strip()):
+            raise HRDomainError("Cancelar una ausencia aprobada requiere un motivo")
         self.status = LeaveStatus.CANCELLED
-        self.updated_at = _utcnow()
+        self.cancelled_by_user_id = actor_user_id
+        self.cancel_reason = reason.strip() if reason else None
+        self.cancelled_at = _utcnow()
+        self.updated_at = self.cancelled_at
 
 
 # ── Payroll ───────────────────────────────────────────────────────────────
@@ -423,6 +499,7 @@ class PayrollPayment:
     authorized_by_user_id: str
     employee_ids: tuple[str, ...] = ()
     paid_at: str = field(default_factory=_utcnow)
+    payment_reference: str | None = None
 
 
 @dataclass(slots=True)
@@ -442,6 +519,14 @@ class PayrollRun:
     lines: list[PayrollLine] = field(default_factory=list)
     created_at: str = field(default_factory=_utcnow)
     updated_at: str = field(default_factory=_utcnow)
+    run_type: str = "ORDINARY"
+    request_fingerprint: str | None = None
+    authorized_net_amount: str | None = None
+    original_run_id: str | None = None
+    adjustment_reason: str | None = None
+    reversed_at: str | None = None
+    reversed_by_user_id: str | None = None
+    reversal_reason: str | None = None
 
     @classmethod
     def create(cls, period_start: date, period_end: date, operation_id: str,
@@ -475,8 +560,24 @@ class PayrollRun:
     def net_amount(self) -> Money:
         return self.gross_amount().subtract(self.deductions_amount())
 
+    def employee_nets(self) -> dict:
+        """Neto POR EMPLEADO (HR-11): lo que se entrega a cada persona."""
+        nets: dict = {}
+        for line in self.lines:
+            current = nets.get(line.employee_id, Money.zero(line.amount.currency_code))
+            nets[line.employee_id] = (current.subtract(line.amount) if line.is_deduction
+                                      else current.add(line.amount))
+        return nets
+
+    def negative_employees(self) -> list:
+        return [employee_id for employee_id, net in self.employee_nets().items()
+                if net.is_negative()]
+
     def _assert_mutable(self) -> None:
-        if self.status in (PayrollRunStatus.PAID, PayrollRunStatus.CANCELLED):
+        # HR-27: autorizar CONGELA el importe; cambiar líneas después exige
+        # volver a generar (cancelar y regenerar), no editar lo autorizado.
+        if self.status in (PayrollRunStatus.PAID, PayrollRunStatus.CANCELLED,
+                           PayrollRunStatus.AUTHORIZED):
             raise PayrollInvalidStateError(
                 f"La corrida está {self.status.value} y no puede modificarse"
             )
@@ -500,9 +601,14 @@ class PayrollRun:
             raise PayrollInvalidStateError(f"No se puede autorizar en estado {self.status.value}")
         if self.generated_by_user_id and authorizer_user_id == self.generated_by_user_id:
             raise HRDomainError("Separación de funciones: quien genera no autoriza la nómina")
+        negatives = self.negative_employees()
+        if negatives:
+            raise PayrollInvalidStateError(
+                f"{len(negatives)} empleado(s) con neto negativo; resuélvalo antes de autorizar")
         self.status = PayrollRunStatus.AUTHORIZED
         self.authorized_by_user_id = authorizer_user_id
         self.authorized_at = _utcnow()
+        self.authorized_net_amount = self.net_amount().to_string()
         self.updated_at = self.authorized_at
 
     def mark_paid(self, payment_id: str) -> None:
@@ -511,6 +617,12 @@ class PayrollRun:
         from backend.domain.hr.exceptions import PayrollNotAuthorizedError
         if self.status is not PayrollRunStatus.AUTHORIZED:
             raise PayrollNotAuthorizedError("La corrida debe estar autorizada para pagarse")
+        if self.authorized_net_amount is not None \
+                and self.authorized_net_amount != self.net_amount().to_string():
+            raise PayrollInvalidStateError(
+                "El importe cambió después de autorizar; la corrida debe autorizarse de nuevo")
+        if self.negative_employees():
+            raise PayrollInvalidStateError("Hay empleados con neto negativo; no se paga")
         self.status = PayrollRunStatus.PAID
         self.payment_id = payment_id
         self.paid_at = _utcnow()
@@ -521,3 +633,18 @@ class PayrollRun:
             raise PayrollAlreadyPaidError("Una corrida pagada no se cancela; requiere reverso")
         self.status = PayrollRunStatus.CANCELLED
         self.updated_at = _utcnow()
+
+    def reverse_payment(self, actor_user_id: str, *, reason: str) -> None:
+        """Pago registrado por error: la corrida queda CANCELADA con la traza del
+        reverso; Finanzas revierte su asiento y los días vuelven a quedar libres."""
+        if self.status is not PayrollRunStatus.PAID:
+            raise PayrollInvalidStateError("Sólo se revierte el pago de una corrida pagada")
+        if not reason or not reason.strip():
+            raise HRDomainError("Revertir un pago de nómina requiere motivo")
+        if not actor_user_id:
+            raise HRDomainError("El reverso requiere el usuario que lo hace")
+        self.status = PayrollRunStatus.CANCELLED
+        self.reversed_at = _utcnow()
+        self.reversed_by_user_id = actor_user_id
+        self.reversal_reason = reason.strip()
+        self.updated_at = self.reversed_at

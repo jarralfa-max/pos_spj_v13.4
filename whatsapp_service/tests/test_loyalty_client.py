@@ -8,7 +8,7 @@ import sqlite3
 
 import pytest
 
-from infrastructure.erp_clients.loyalty_client import LoyaltySnapshotApiClient
+from whatsapp_service.infrastructure.erp_clients.loyalty_client import LoyaltySnapshotApiClient
 
 
 @pytest.fixture()

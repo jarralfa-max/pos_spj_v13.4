@@ -6,8 +6,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from domain.whatsapp.entities.inbox_job import InboundMessageJob
-from domain.whatsapp.enums import InboxStatus
+from whatsapp_service.domain.whatsapp.entities.inbox_job import InboundMessageJob
+from whatsapp_service.domain.whatsapp.enums import InboxStatus
 
 _COLUMNS = "id, message_id, status, attempts, last_error, locked_at, created_at, processed_at"
 

@@ -5,6 +5,101 @@ documentarse aquí antes del commit.
 
 ---
 
+## 338/339 — Instalador y actualizador (INST-0) — 2026-10-14/15
+
+**338** crea `software_station_settings` (por estación — clave = nombre del equipo,
+`default_workstation_id()` — versión instalada, esquema, perfil de instalación,
+capacidades, canal `stable|pilot`, ventana de mantenimiento, última búsqueda) y
+`software_update_events` (búsquedas, rechazos, descargas, importación offline,
+programación, posposición, cambios de canal/ventana y resultado de cada
+instalación). Índice único parcial `(job_id, event_type)`: el resultado de una
+instalación se registra una sola vez aunque el escritorio arranque varias veces.
+DDL en `backend/infrastructure/db/schema/software_updates_schema.py`.
+
+**339** siembra `CONFIGURACION.actualizacion.ver|administrar|canal`:
+`system_owner`/`admin` las tres; `gerente`/`solo_lectura` sólo ver.
+
+Sin migración, en el arranque: `SchemaCompatibilityStep` (entre integridad y
+migraciones) detiene el arranque si `schema_migrations` tiene versiones que
+este binario no conoce (base migrada por una versión más nueva).
+
+Verificadas sobre copia de la base real (tomada con la API de respaldo; la real
+no se tocó): esquema 336 → 339 por `main.py --self-test`, 8 permisos sembrados;
+re-ejecutar 338/339 no duplica nada. Decisiones y evidencias:
+`docs/refactor/INST-0_instalador_actualizador.md`.
+
+---
+
+## 340 — CxP de compras rápidas a crédito ya recibidas — 2026-10-15
+
+Decisión del usuario: la cuenta por pagar de una compra a CRÉDITO nace al
+RECIBIR (antes, sólo al conciliar la factura; en la base real había 4 compras a
+crédito recibidas por $9,066 y 0 CxP). Esta migración regulariza las recepciones
+completadas de compras a crédito sin factura conciliada: encola la misma
+solicitud que hoy emite la recepción (`ACCOUNT_PAYABLE_CREATE_REQUESTED`, clave
+de deduplicación `DIRECT_PURCHASE_RECEIPT:<recepción>`, operación derivada),
+fechada en la recepción. Si el periodo de esa fecha ya no está abierto, se
+reconoce con fecha de hoy y conserva el vencimiento original (recepción + días de
+crédito). Se entrega al arrancar: el arranque ahora también despacha el outbox de
+Compras. Idempotente. Verificada en copia de la base real: 4 CxP, $9,066, con sus
+asientos.
+
+(Número 340: la 338/339 las tomó el actualizador de software.)
+
+---
+
+## 337 — Pendientes de RR. HH.: recibo, checador, complementaria, préstamos, vacaciones — 2026-10-14
+
+Sólo agrega (`create_hr_schema`): `payroll_inputs`, `employee_loans`,
+`payroll_loan_applications`, `leave_balance_movements` (índice único parcial: un
+abono y un vencimiento por ciclo), `hr_time_clock_devices`,
+`hr_employee_credentials` (índice único parcial por credencial activa),
+`hr_device_events` (`UNIQUE(device_id, device_event_id)`); columnas
+`payroll_runs.original_run_id/adjustment_reason/reversed_at/reversed_by_user_id/
+reversal_reason` y `payroll_payments.reversed_at`. Vuelve a ejecutar la 336 para
+sembrar las acciones `RRHH.*` nuevas (recibo, complementaria, revertir pago,
+conceptos, préstamos, saldo, checador). Pasa al libro de vacaciones las
+solicitudes PENDING/APPROVED existentes.
+
+Finanzas (sin migración, al arrancar): cuenta **1145** «Préstamos y anticipos a
+empleados» (`_ensure_late_additions`), rol `employee_receivable_account_id`,
+propósito `EMPLOYEE_LOAN`. Document Output: tipo `PAYROLL_RECEIPT`.
+
+Verificada sobre copia de la base real: aplica limpia e idempotente.
+
+---
+
+## 335/336 — Auditoría directa de RR. HH. cebf67a (HR-AUD) — 2026-10-14
+
+Respuesta a la auditoría externa de RR. HH. (31 hallazgos, 36 escenarios).
+Detalle en `docs/refactor/HR-AUD_auditoria_cebf67a.md`.
+
+**335_hr_audit_cebf67a.** Sólo agrega. Llama a `create_hr_schema`:
+
+- tablas `employee_salary_history` (salario con vigencia; se siembra un renglón
+  por empleado con su salario actual desde su ingreso), `payroll_coverage`
+  (`UNIQUE(employee_id, coverage_date)`: un día lo cubre una sola corrida
+  ordinaria viva; se rellena con las corridas no canceladas y los solapes previos
+  se registran en el log sin cancelar nada), `payroll_payment_allocations`
+  (reparto por empleado) y `hr_inbox` (eventos de Caja retenidos);
+- columnas `payroll_runs.run_type/request_fingerprint/authorized_net_amount`,
+  `payroll_payments.payment_reference`, `leave_requests.cancelled_by_user_id/
+  cancelled_at/cancel_reason`.
+
+**336_seed_hr_granular_permissions.** Vocabulario `RRHH.<accion>` (25 códigos,
+derivado de `backend/application/hr/permissions.py`). system_owner, admin y
+gerente reciben todas; solo_lectura las de consulta. Las acciones gruesas
+previas de RRHH quedan inertes (el catálogo granular las sustituye).
+
+Sin migración: el perfil contable `PAYROLL` de bases nuevas trae
+`cash_account_id` (1101); en bases existentes el manejador usa la cuenta 1101
+del catálogo para pagos en efectivo. El Corte Z publica además
+`CASH_SHIFT_CLOSED` (operación derivada del corte).
+
+Verificadas sobre copia de la base real: aplican limpias e idempotentes.
+
+---
+
 ## 334 — Auditoría directa de Compras d9f2bca (PUR-AUD) — 2026-10-14
 
 Respuesta a la auditoría externa del módulo de Compras (27 hallazgos, 31

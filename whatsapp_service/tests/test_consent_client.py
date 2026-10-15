@@ -9,7 +9,7 @@ import sqlite3
 import pytest
 
 from backend.infrastructure.db.schema.customer_privacy_schema import create_customer_privacy_schema
-from infrastructure.erp_clients.consent_client import CustomerConsentApiClient
+from whatsapp_service.infrastructure.erp_clients.consent_client import CustomerConsentApiClient
 
 
 @pytest.fixture()

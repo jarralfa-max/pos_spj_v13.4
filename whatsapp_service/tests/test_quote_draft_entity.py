@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import pytest
 
-from domain.whatsapp.entities.quote_draft import (
+from whatsapp_service.domain.whatsapp.entities.quote_draft import (
     EmptyQuoteDraftError,
     QuoteDraft,
     QuoteDraftAlreadyFinalizedError,
     QuoteDraftNotYetCreatedError,
 )
-from domain.whatsapp.enums import QuoteDraftStatus
+from whatsapp_service.domain.whatsapp.enums import QuoteDraftStatus
 
 
 def _draft() -> QuoteDraft:

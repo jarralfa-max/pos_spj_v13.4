@@ -5,8 +5,8 @@ import asyncio
 
 import pytest
 
-from application.loyalty_service import LoyaltyService
-from domain.whatsapp.erp_ports import LoyaltySummaryRef
+from whatsapp_service.application.loyalty_service import LoyaltyService
+from whatsapp_service.domain.whatsapp.erp_ports import LoyaltySummaryRef
 
 
 class _FakeLoyalty:

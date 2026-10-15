@@ -24,7 +24,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from middleware.service_auth import require_service_auth
+from whatsapp_service.middleware.service_auth import require_service_auth
 
 logger = logging.getLogger("wa.notify_v2")
 router = APIRouter(

@@ -7,10 +7,7 @@ El microservicio corre separado del ERP desktop, por eso este handler aplica la
 respuesta directamente sobre la BD del ERP.
 """
 from __future__ import annotations
-try:
-    from domain.money import quantize_money, to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import quantize_money, to_decimal
+from whatsapp_service.domain.money import quantize_money, to_decimal
 
 import logging
 import sqlite3
@@ -18,7 +15,7 @@ from typing import Dict
 from core.delivery.domain.events import DeliveryEvents
 from core.services.order_total_service import OrderTotalService
 from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
-from phone_number import possible_match_key
+from whatsapp_service.phone_number import possible_match_key
 
 logger = logging.getLogger("wa.adjustment_approval")
 

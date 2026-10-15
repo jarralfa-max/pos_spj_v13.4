@@ -27,3 +27,29 @@ def local_business_date(timestamp: str | None, *, tz: tzinfo | None = None) -> d
     if moment.tzinfo is None:
         return moment.date()
     return moment.astimezone(tz).date()
+
+
+DEFAULT_BUSINESS_TIMEZONE = "America/Mexico_City"
+
+
+def resolve_timezone(name: str | None) -> tzinfo:
+    """Zona IANA del negocio/sucursal. Si el sistema no trae la base de zonas
+    (``tzdata`` en Windows), la Ciudad de México cae a UTC-6 fijo — sin horario
+    de verano desde 2022 — en vez de tratar la hora local como UTC."""
+    from datetime import timedelta, timezone
+
+    zone_name = str(name or "").strip() or DEFAULT_BUSINESS_TIMEZONE
+    try:
+        from zoneinfo import ZoneInfo
+
+        return ZoneInfo(zone_name)
+    except Exception:
+        if zone_name == DEFAULT_BUSINESS_TIMEZONE:
+            return timezone(timedelta(hours=-6), "CST")
+        return timezone.utc
+
+
+def as_aware(moment: datetime, tz: tzinfo) -> datetime:
+    """Un instante sin zona se interpreta como hora LOCAL de ``tz`` (contrato de
+    captura manual); uno con zona se respeta. Nunca se etiqueta local como UTC."""
+    return moment.replace(tzinfo=tz) if moment.tzinfo is None else moment

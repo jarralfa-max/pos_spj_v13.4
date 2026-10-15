@@ -14,46 +14,12 @@ Producción:
 from __future__ import annotations
 
 import logging
-import os
-import sys
-from contextlib import asynccontextmanager
-from pathlib import Path
+from contextlib import asynccontextmanager, ExitStack
 
 from fastapi import FastAPI
 
 
-# ── Configurar Python path ANTES de importar config/router/flows ───────────────
-#
-# Hay dos paquetes llamados `application` en el repo:
-#   - whatsapp_service/application
-#   - pos_spj_v13.4/application
-#
-# Si el ERP queda antes que whatsapp_service en sys.path, este import falla:
-#   from application.confirm_order_use_case import ...
-# porque Python resuelve `application` contra pos_spj_v13.4/application.
-#
-# Regla de arranque del microservicio:
-#   1) whatsapp_service siempre debe ir primero.
-#   2) pos_spj_v13.4 debe ir después, solo para imports ERP/migrations/core.
-WA_SERVICE_ROOT = Path(__file__).resolve().parent
-REPO_ROOT = WA_SERVICE_ROOT.parent
-ERP_APP_ROOT = REPO_ROOT / "pos_spj_v13.4"
-
-
-def _prioritize_path(path: Path, index: int) -> None:
-    """Inserta un path en una posición estable, removiendo duplicados previos."""
-    path_str = str(path)
-    sys.path[:] = [p for p in sys.path if p != path_str]
-    sys.path.insert(index, path_str)
-
-
-_prioritize_path(WA_SERVICE_ROOT, 0)
-if ERP_APP_ROOT.exists():
-    _prioritize_path(ERP_APP_ROOT, 1)
-
-
-# ── Logging ───────────────────────────────────────────────────────────────────
-from config.settings import LOG_LEVEL
+from whatsapp_service.config.settings import LOG_LEVEL
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -79,7 +45,7 @@ def _assert_production_secrets_configured() -> None:
     Sin `MP_ACCESS_TOKEN` configurado, MercadoPago no está en uso, así que no
     se exige `MP_WEBHOOK_SECRET` en ese caso.
     """
-    from config.settings import (
+    from whatsapp_service.config.settings import (
         is_production,
         get_meta_access_token,
         get_meta_phone_number_id,
@@ -124,96 +90,84 @@ async def lifespan(app: FastAPI):
     # ANTES de tocar migraciones/DB/routers.
     _assert_production_secrets_configured()
 
-    from config.settings import ERP_DB_PATH, CONTEXT_DB_PATH
+    from whatsapp_service.config.settings import ERP_DB_PATH, CONTEXT_DB_PATH
 
-    # 0. Ejecutar migraciones del ERP (crear tablas si no existen)
-    try:
-        import sqlite3
-        mig_conn = sqlite3.connect(ERP_DB_PATH)
-        from migrations.engine import up as run_migrations
-        run_migrations(mig_conn)
-        mig_conn.close()
-        logger.info("Migraciones del ERP aplicadas")
-    except Exception as e:
-        logger.warning("No se pudieron aplicar migraciones del ERP: %s", e)
-
-    # 1. Conectar al ERP
-    from erp.bridge import ERPBridge
+    from whatsapp_service.erp.bridge import ERPBridge
     erp = ERPBridge(ERP_DB_PATH)
-    logger.info("ERP conectado: %s", ERP_DB_PATH)
+    with ExitStack() as resources:
+        resources.callback(erp.close)
+        logger.info("ERP conectado: %s", ERP_DB_PATH)
 
-    # 1b. CompositionRoot del canal (WA-4) — reutiliza la MISMA conexión
-    # `erp.db` (ya migrada arriba), no abre una segunda. Cubre hoy los 6
-    # repositorios SQLite de WA-2/WA-3; el resto de §8 (Provider Gateway,
-    # Webhook Processor, etc.) llega en fases posteriores — ver la tabla en
-    # `bootstrap/composition_root.py`. No reemplaza nada de lo que ya se
-    # construye abajo (ERPBridge/MessageRouter/flows/): coexiste en
-    # paralelo, igual que el esquema WA-3 coexiste con las tablas legacy.
-    from bootstrap.composition_root import WhatsAppCompositionRoot
-    from bootstrap.dependency_graph_validator import validate_composition_root
-    composition_root = WhatsAppCompositionRoot(erp.db)
-    validate_composition_root(composition_root)
+        # 1b. CompositionRoot del canal (WA-4) — reutiliza la MISMA conexión
+        # `erp.db` (ya migrada arriba), no abre una segunda. Cubre hoy los 6
+        # repositorios SQLite de WA-2/WA-3; el resto de §8 (Provider Gateway,
+        # Webhook Processor, etc.) llega en fases posteriores — ver la tabla en
+        # `bootstrap/composition_root.py`. No reemplaza nada de lo que ya se
+        # construye abajo (ERPBridge/MessageRouter/flows/): coexiste en
+        # paralelo, igual que el esquema WA-3 coexiste con las tablas legacy.
+        from whatsapp_service.bootstrap.composition_root import WhatsAppCompositionRoot
+        from whatsapp_service.bootstrap.dependency_graph_validator import validate_composition_root
+        from migrations.whatsapp_runtime import migrate_channel_schema
+        migrate_channel_schema(erp.db)
+        composition_root = WhatsAppCompositionRoot(erp.db, erp_bridge=erp)
+        validate_composition_root(composition_root)
 
-    # 2. EventBus
-    from erp.events import WAEventEmitter
-    events = WAEventEmitter(erp.db)
-    events.ensure_tables()
+        # 2. EventBus
+        from whatsapp_service.erp.events import WAEventEmitter
+        events = WAEventEmitter(erp.db)
+        events.ensure_tables()
 
-    # 3. State store
-    from state.conversation import ConversationStore
-    store = ConversationStore(CONTEXT_DB_PATH)
+        # 3. State store
+        from whatsapp_service.state.conversation import ConversationStore
+        store = ConversationStore(CONTEXT_DB_PATH)
+        resources.callback(store.db.close)
 
-    # 4. Product matcher + LLM + Intent parser
-    from parser.product_matcher import ProductMatcher
-    from parser.llm_local import OllamaClient
-    from parser.intent_parser import IntentParser
-    # Sin sucursal por default (REGLA CERO): el flujo fija la sucursal real
-    # (UUIDv7) por mensaje vía matcher.set_sucursal(ctx.sucursal_id).
-    matcher = ProductMatcher(erp.db, sucursal_id="")
-    llm = OllamaClient()
-    parser = IntentParser(matcher, llm_client=llm)
+        # 4. Product matcher + LLM + Intent parser
+        from whatsapp_service.parser.product_matcher import ProductMatcher
+        from whatsapp_service.parser.llm_local import OllamaClient
+        from whatsapp_service.parser.intent_parser import IntentParser
+        # Sin sucursal por default (REGLA CERO): el flujo fija la sucursal real
+        # (UUIDv7) por mensaje vía matcher.set_sucursal(ctx.sucursal_id).
+        matcher = ProductMatcher(erp.db, sucursal_id="")
+        llm = OllamaClient()
+        parser = IntentParser(matcher, llm_client=llm)
 
-    # 5. Number registry
-    from config.numbers import NumberRegistry
-    number_registry = NumberRegistry(erp.db)
+        # 5. Number registry
+        from whatsapp_service.config.numbers import NumberRegistry
+        number_registry = NumberRegistry(erp.db)
 
-    # 6. Schedules
-    from config.schedules import ScheduleService
-    schedules = ScheduleService(erp.db)
+        # 6. Schedules
+        from whatsapp_service.config.schedules import ScheduleService
+        schedules = ScheduleService(erp.db)
 
-    # 7. Handoff
-    from middleware.handoff import HandoffService
-    handoff = HandoffService(erp)
+        # 7. Handoff
+        from whatsapp_service.middleware.handoff import HandoffService
+        handoff = HandoffService(erp)
 
-    # 8. Routers
-    from router.number_router import NumberRouter
-    from router.message_router import MessageRouter
-    number_router = NumberRouter(number_registry)
-    message_router = MessageRouter(
-        erp=erp, store=store, parser=parser,
-        events=events, schedules=schedules, handoff=handoff)
+        # 8. Routers
+        from whatsapp_service.router.number_router import NumberRouter
+        from whatsapp_service.router.message_router import MessageRouter
+        number_router = NumberRouter(number_registry)
+        message_router = MessageRouter(
+            erp=erp, store=store, parser=parser,
+            events=events, schedules=schedules, handoff=handoff)
 
-    # 9. Inyectar en webhooks
-    from webhook.whatsapp import init_webhook
-    init_webhook(message_router, number_router, store)
+        # 9. Inyectar en webhooks
+        from whatsapp_service.webhook.whatsapp import init_webhook
+        init_webhook(message_router, number_router, store)
 
-    from webhook.mercadopago import init_mp_webhook
-    init_mp_webhook(erp, events)
+        from whatsapp_service.webhook.mercadopago import init_mp_webhook
+        init_mp_webhook(erp, events)
 
-    # Guardar refs globales para health check
-    app.state.erp = erp
-    app.state.store = store
-    app.state.composition_root = composition_root
+        # Guardar refs globales para health check
+        app.state.erp = erp
+        app.state.store = store
+        app.state.composition_root = composition_root
 
-    logger.info("WhatsApp Service listo ✅")
-    logger.info("=" * 60)
+        logger.info("WhatsApp Service listo ✅")
+        logger.info("=" * 60)
 
-    yield  # ── App corriendo ──
-
-    # Shutdown
-    logger.info("Cerrando WhatsApp Service...")
-    erp.close()
-    logger.info("WhatsApp Service cerrado.")
+        yield
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -225,12 +179,12 @@ app = FastAPI(
 )
 
 # ── Registrar routers ─────────────────────────────────────────────────────────
-from webhook.whatsapp import router as wa_router
-from webhook.mercadopago import router as mp_router
-from router.notify_router import router as notify_router
-from router.notify_dispatch_router import router as notify_dispatch_router
-from router.delivery_router import router as delivery_router
-from router.diagnostics_router import router as diagnostics_router
+from whatsapp_service.webhook.whatsapp import router as wa_router
+from whatsapp_service.webhook.mercadopago import router as mp_router
+from whatsapp_service.router.notify_router import router as notify_router
+from whatsapp_service.router.notify_dispatch_router import router as notify_dispatch_router
+from whatsapp_service.router.delivery_router import router as delivery_router
+from whatsapp_service.router.diagnostics_router import router as diagnostics_router
 
 app.include_router(wa_router)
 app.include_router(mp_router)
@@ -256,7 +210,7 @@ async def health():
     if not hasattr(app.state, "composition_root"):
         return {"status": "UNKNOWN", "service": "whatsapp-service", "erp_connected": False, "checks": []}
 
-    from bootstrap.health_checks import build_health_response
+    from whatsapp_service.bootstrap.health_checks import build_health_response
 
     response = build_health_response(app.state.composition_root)
     response["service"] = "whatsapp-service"

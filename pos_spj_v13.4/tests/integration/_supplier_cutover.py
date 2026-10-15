@@ -32,3 +32,15 @@ def apply_supplier_cutover(connection) -> None:
     """
     create_supplier_schema(connection)
     _263.run(connection)
+
+
+def grant_supplier_credit(connection, supplier_id: str = "sup-1", *, days: int = 15,
+                          limit: str = "0") -> None:
+    """Condiciones comerciales con crédito, como las captura Proveedores →
+    Condiciones. Desde 2026-10-15 la compra a crédito exige que el proveedor
+    tenga crédito autorizado (límite "0" = sin límite)."""
+    create_supplier_schema(connection)
+    connection.execute(
+        "INSERT OR REPLACE INTO supplier_commercial_terms (id, supplier_id, currency_code,"
+        " credit_days, is_credit, credit_limit) VALUES (?,?,?,?,1,?)",
+        (f"terms-{supplier_id}", supplier_id, "MXN", days, limit))

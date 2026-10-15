@@ -122,6 +122,7 @@ class ProcurementDownstreamTranslators:
             # El traductor reenvía una lista FIJA de campos; sin esta línea el
             # dato se perdía aquí aunque Compras lo mandara.
             "payment_term_days": payload.get("payment_term_days"),
+            "due_date": payload.get("due_date"),
         })
 
     # treasury / petty cash ---------------------------------------------------

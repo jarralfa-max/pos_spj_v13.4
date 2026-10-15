@@ -1,11 +1,11 @@
 import asyncio
 from datetime import datetime
 
-from ai.intent_resolver import IntentResolver
-from ai.intent_schema import AIIntentResult
-from models.context import ConversationContext
-from models.message import IncomingMessage, MessageType
-from parser.intent_parser import ParsedIntent
+from whatsapp_service.ai.intent_resolver import IntentResolver
+from whatsapp_service.ai.intent_schema import AIIntentResult
+from whatsapp_service.models.context import ConversationContext
+from whatsapp_service.models.message import IncomingMessage, MessageType
+from whatsapp_service.parser.intent_parser import ParsedIntent
 
 
 class DummyParser:
@@ -88,7 +88,7 @@ def test_ai_low_confidence_uses_local():
 
 
 def test_prompt_does_not_contain_credentials():
-    from ai.prompt_builder import build_ai_prompt_context
+    from whatsapp_service.ai.prompt_builder import build_ai_prompt_context
     ctx = ConversationContext(phone="521111")
     prompt = build_ai_prompt_context("quiero pollo", ctx, allowed_intents=["create_order"])
     dump = str(prompt).lower()

@@ -6,8 +6,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from domain.whatsapp.entities.message import WhatsAppMessage, WhatsAppMessageDelivery
-from domain.whatsapp.enums import MessageDeliveryStatus, MessageDirection, MessageType
+from whatsapp_service.domain.whatsapp.entities.message import WhatsAppMessage, WhatsAppMessageDelivery
+from whatsapp_service.domain.whatsapp.enums import MessageDeliveryStatus, MessageDirection, MessageType
 
 _MESSAGE_COLUMNS = (
     "id, conversation_id, direction, message_type, provider_message_id, "

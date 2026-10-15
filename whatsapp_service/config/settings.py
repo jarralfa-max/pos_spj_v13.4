@@ -15,24 +15,29 @@ El microservicio debe poder arrancar con `.env`, pero en ejecución debe preferi
 la configuración capturada desde el módulo cuando exista.
 
 IMPORTANTE:
-La BD canónica del ERP está en:
-<repo>/pos_spj_v13.4/data/spj_pos_database.db
+La BD del ERP la resuelve `AppPaths` (`backend/shared/app_paths.py`), la MISMA
+resolución que usa el escritorio: desde código fuente es
+<repo>/pos_spj_v13.4/data/spj_pos_database.db; instalado, la carpeta de datos
+elegida en el instalador. No debe usarse ni crearse otra BD en la raíz del
+módulo.
 
-No debe usarse ni crearse otra BD en la raíz del módulo.
+Instalado como servicio local (opcional), las credenciales `.env` y las
+conversaciones viven en `<datos>/whatsapp/`, fuera de los archivos que el
+instalador reemplaza o desinstala.
 """
 import os
 import sqlite3
 from pathlib import Path
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except Exception:
-    # python-dotenv es dependencia del proyecto, pero no debe impedir el arranque
-    # si no está disponible en un entorno mínimo.
-    pass
+from dotenv import load_dotenv
+from backend.shared.app_paths import AppPaths
 
-# ── WhatsApp Cloud API ────────────────────────────────────────────────────────
+_APP_PATHS = AppPaths.from_environment()
+if _APP_PATHS.is_installed:
+    load_dotenv(_APP_PATHS.whatsapp_data_dir / "whatsapp.env", override=False)
+else:
+    load_dotenv(Path(__file__).resolve().parents[1] / '.env', override=False)
+
 WA_API_VERSION = os.getenv("WA_API_VERSION", "v21.0")
 WA_PHONE_NUMBER_ID = os.getenv("WA_PHONE_NUMBER_ID")
 WA_ACCESS_TOKEN = os.getenv("WA_ACCESS_TOKEN")
@@ -44,7 +49,7 @@ WA_INTERNAL_API_KEY = os.getenv("WA_INTERNAL_API_KEY", "")
 
 # ── ERP Connection ────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-ERP_CANONICAL_DB_PATH = BASE_DIR / "pos_spj_v13.4" / "data" / "spj_pos_database.db"
+ERP_CANONICAL_DB_PATH = _APP_PATHS.database_path
 
 ERP_DB_PATH = os.getenv(
     "ERP_DB_PATH",
@@ -52,71 +57,8 @@ ERP_DB_PATH = os.getenv(
 )
 
 
-def _read_erp_config(key: str, default: str = "") -> str:
-    """Lee una clave desde `configuraciones` del ERP.
+from whatsapp_service.infrastructure.secrets.secret_store import SecretStore
 
-    El módulo UI usa `WhatsAppConfigRepository.set_config()`, que guarda claves
-    como `wa_<key>`. Esta función acepta tanto `verify_token` como
-    `wa_verify_token` y devuelve el primer valor encontrado.
-
-    Conservada tal cual (sin cache) para no romper otros llamadores directos;
-    las funciones `get_*` de abajo usan en su lugar `SecretStore`, que aplica
-    el mismo patrón de lectura pero con cache TTL en proceso (WA-1, Hallazgo 1
-    de whatsapp_security_audit.md).
-    """
-    db_path = ERP_DB_PATH
-    if not db_path:
-        return default
-    clave = key if key.startswith("wa_") else f"wa_{key}"
-    try:
-        conn = sqlite3.connect(db_path)
-        row = conn.execute(
-            "SELECT valor FROM configuraciones WHERE clave=? LIMIT 1",
-            (clave,),
-        ).fetchone()
-        conn.close()
-        if row and row[0]:
-            return str(row[0])
-    except Exception:
-        return default
-    return default
-
-
-# ── SecretStore (WA-1) ────────────────────────────────────────────────────────
-# Centraliza la lectura de `configuraciones` con cache TTL en proceso, para no
-# reabrir SQLite en cada llamada a send_message/webhook (Hallazgo 1 del audit).
-# El path de la BD se resuelve vía lambda (no valor capturado) para que un
-# cambio de ERP_DB_PATH en tiempo de ejecución (p. ej. en tests) se refleje.
-#
-# `infrastructure` es un nombre de paquete top-level que TAMBIÉN existe en
-# `pos_spj_v13.4/infrastructure/` (arquitectura objetivo del ERP). Si algún
-# import previo en el mismo proceso ya resolvió `infrastructure` contra ESE
-# paquete (p. ej. la suite de tests del ERP y la de este microservicio
-# comparten proceso pytest), un `from infrastructure.secrets... import X`
-# normal reusaría el `infrastructure` YA CACHEADO en sys.modules — insertar
-# rutas en sys.path no ayuda una vez que el nombre del paquete padre ya está
-# cacheado (mismo tipo de colisión de nombre top-level que ya documenta el
-# propio main.py para el paquete `application`). Se carga por RUTA DE
-# ARCHIVO explícita, bajo una clave de sys.modules que nunca colisiona, para
-# evitar el problema por completo en vez de depender del orden de sys.path.
-def _load_secret_store_class():
-    import importlib.util
-    import sys as _sys
-
-    cache_key = "_wa_infra_secret_store"
-    cached = _sys.modules.get(cache_key)
-    if cached is not None:
-        return cached.SecretStore
-
-    module_path = Path(__file__).resolve().parent.parent / "infrastructure" / "secrets" / "secret_store.py"
-    spec = importlib.util.spec_from_file_location(cache_key, str(module_path))
-    module = importlib.util.module_from_spec(spec)
-    _sys.modules[cache_key] = module
-    spec.loader.exec_module(module)
-    return module.SecretStore
-
-
-SecretStore = _load_secret_store_class()
 
 _secret_store = SecretStore(lambda: ERP_DB_PATH)
 
@@ -187,16 +129,6 @@ def get_wa_api_url(phone_number_id: str = None) -> str:
     return f"https://graph.facebook.com/{WA_API_VERSION}/{pid}/messages"
 
 
-# Legacy alias kept for imports that read WA_API_URL directly.
-# Will be None if no Phone Number ID is configured. New code must use
-# get_wa_api_url() so it can read the value saved from the module.
-_legacy_phone_id = get_meta_phone_number_id()
-WA_API_URL: str = (
-    f"https://graph.facebook.com/{WA_API_VERSION}/{_legacy_phone_id}/messages"
-    if _legacy_phone_id else None
-)
-
-# ── MercadoPago ───────────────────────────────────────────────────────────────
 MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN", "")
 MP_WEBHOOK_SECRET = os.getenv("MP_WEBHOOK_SECRET", "")
 
@@ -206,7 +138,9 @@ MAX_FAILED_INTENTS = int(os.getenv("MAX_FAILED_INTENTS", "3"))
 
 # ── Conversation ──────────────────────────────────────────────────────────────
 CONVERSATION_TIMEOUT_MINUTES = int(os.getenv("CONVERSATION_TIMEOUT_MINUTES", "30"))
-CONTEXT_DB_PATH = os.getenv("CONTEXT_DB_PATH", str(Path(__file__).parent.parent / "data" / "conversations.db"))
+CONTEXT_DB_PATH = os.getenv("CONTEXT_DB_PATH", str(
+    _APP_PATHS.whatsapp_data_dir / "conversations.db" if _APP_PATHS.is_installed
+    else Path(__file__).parent.parent / "data" / "conversations.db"))
 
 # ── Internal API security ─────────────────────────────────────────────────────
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
@@ -243,3 +177,7 @@ def is_production() -> bool:
 
 def is_test() -> bool:
     return get_app_env() == "test"
+
+
+def _read_erp_config(key: str, default: str = "") -> str:
+    return _secret_store.get(key, default)

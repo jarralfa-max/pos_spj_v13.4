@@ -13,42 +13,33 @@ Orden de decisión:
 8. Fallback → MenuFlow
 """
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal, loads_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
+from whatsapp_service.domain.money import dumps_decimal, loads_decimal
+from whatsapp_service.domain.money import to_decimal
 
 import json
 import logging
 from typing import Any, Dict
 
-from models.message import IncomingMessage
-from models.context import FlowState
-from parser.intent_parser import IntentParser
-from config.numbers import NumeroConfig, NumeroTipo
-from config.schedules import ScheduleService
-from state.conversation import ConversationStore
-from erp.bridge import ERPBridge
-from erp.events import WAEventEmitter
-from flows.sucursal_flow import SucursalFlow
-from flows.registro_flow import RegistroFlow
-from flows.menu_flow import MenuFlow
-from flows.pedido_flow import PedidoFlow
-from flows.repetir_flow import RepetirFlow
-from flows.cotizacion_flow import CotizacionFlow
-from flows.pago_flow import PagoFlow
-from flows.base_flow import FlowResult
-from messaging import interactive
-from messaging.sender import send_text
-from middleware.handoff import HandoffService
-try:
-    from whatsapp_service.ai.intent_resolver import IntentResolver
-except Exception:  # pragma: no cover
-    from ai.intent_resolver import IntentResolver
+from whatsapp_service.models.message import IncomingMessage
+from whatsapp_service.models.context import FlowState
+from whatsapp_service.parser.intent_parser import IntentParser
+from whatsapp_service.config.numbers import NumeroConfig, NumeroTipo
+from whatsapp_service.config.schedules import ScheduleService
+from whatsapp_service.state.conversation import ConversationStore
+from whatsapp_service.erp.bridge import ERPBridge
+from whatsapp_service.erp.events import WAEventEmitter
+from whatsapp_service.flows.sucursal_flow import SucursalFlow
+from whatsapp_service.flows.registro_flow import RegistroFlow
+from whatsapp_service.flows.menu_flow import MenuFlow
+from whatsapp_service.flows.pedido_flow import PedidoFlow
+from whatsapp_service.flows.repetir_flow import RepetirFlow
+from whatsapp_service.flows.cotizacion_flow import CotizacionFlow
+from whatsapp_service.flows.pago_flow import PagoFlow
+from whatsapp_service.flows.base_flow import FlowResult
+from whatsapp_service.messaging import interactive
+from whatsapp_service.messaging.sender import send_text
+from whatsapp_service.middleware.handoff import HandoffService
+from whatsapp_service.ai.intent_resolver import IntentResolver
 
 logger = logging.getLogger("wa.router")
 
@@ -194,7 +185,6 @@ class MessageRouter:
         self.schedules = schedules
         self.handoff = handoff
         self.intent_resolver = IntentResolver(parser=parser, db=erp.db)
-        self._ensure_pending_intent_table()
 
         self.sucursal_flow = SucursalFlow(erp, events)
         self.registro_flow = RegistroFlow(erp, events)
@@ -215,17 +205,6 @@ class MessageRouter:
         ])
         self.flow_registry = FlowRegistry(self)
 
-    def _ensure_pending_intent_table(self) -> None:
-        self.store.db.execute("""
-            CREATE TABLE IF NOT EXISTS pending_intents (
-                phone TEXT PRIMARY KEY,
-                payload_json TEXT NOT NULL,
-                created_at TEXT DEFAULT (datetime('now')),
-                updated_at TEXT DEFAULT (datetime('now'))
-            )
-        """)
-        self.store.db.commit()
-
     async def _handle_adjustment_response(self, msg: IncomingMessage) -> bool:
         raw = (msg.text or msg.interactive_title or "").strip().lower()
         if not raw:
@@ -236,7 +215,7 @@ class MessageRouter:
         if accepted is None:
             return False
         try:
-            from erp.adjustment_approval import AdjustmentApprovalService
+            from whatsapp_service.erp.adjustment_approval import AdjustmentApprovalService
             svc = AdjustmentApprovalService(self.erp.db)
             if not svc.has_pending_for_phone(msg.from_number):
                 return False
@@ -308,7 +287,7 @@ class MessageRouter:
         self.store.db.execute("DELETE FROM pending_intents WHERE phone=?", (ctx.phone,))
         self.store.db.commit()
         try:
-            from parser.intent_parser import ParsedIntent
+            from whatsapp_service.parser.intent_parser import ParsedIntent
             payload = loads_decimal(row[0] or "{}")
             parsed = ParsedIntent(
                 intent=payload.get("intent", "unknown"),
@@ -351,7 +330,7 @@ class MessageRouter:
         return result
 
     def _apply_intent_to_order_context(self, ctx, intent) -> None:
-        from models.context import PedidoItem
+        from whatsapp_service.models.context import PedidoItem
         for prod in getattr(intent, "products", []) or []:
             try:
                 ctx.pedido_items.append(PedidoItem(

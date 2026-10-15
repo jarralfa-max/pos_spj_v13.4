@@ -29,10 +29,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from application.idempotency_fingerprint import compute_fingerprint
-from domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
-from domain.whatsapp.entities.delivery_request import DeliveryRequest
-from domain.whatsapp.enums import IdempotencyStatus
+from whatsapp_service.application.idempotency_fingerprint import compute_fingerprint
+from whatsapp_service.domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
+from whatsapp_service.domain.whatsapp.entities.delivery_request import DeliveryRequest
+from whatsapp_service.domain.whatsapp.enums import IdempotencyStatus
 
 
 @dataclass(frozen=True)

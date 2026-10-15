@@ -1,101 +1,56 @@
-# infrastructure/secrets/secret_store.py — SecretStore centralizado (WA-1)
-"""
-Centraliza la lectura de secretos desde `configuraciones` (BD ERP), con una
-cache TTL en memoria de proceso para no reabrir SQLite en cada llamada.
-
-Contexto (whatsapp_security_audit.md, Hallazgo 1): antes de esto, cada
-lectura de secreto (`get_meta_access_token`, `get_verify_token`, etc. en
-`config/settings.py`) volvía a abrir una conexión SQLite nueva contra la BD
-del ERP — se ejecutaba en cada `send_message` y en cada webhook recibido, sin
-ningún caching.
-
-Diseño importante: `SecretStore` cachea SOLO el resultado de la lectura
-contra `configuraciones` (BD). El fallback a `.env`/constantes de módulo lo
-sigue resolviendo el llamador (`config/settings.py`) y se pasa como
-`env_fallback` en cada llamada — así el fallback siempre refleja el valor
-vigente del proceso (importante para tests que hacen monkeypatch de las
-constantes de `config.settings`), mientras que solo el costo de abrir SQLite
-se cachea.
-"""
+"""Read ERP integration credentials without caching secret values across rotations."""
 from __future__ import annotations
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
-from decimal import Decimal
-
-import logging
+from pathlib import Path
+import os
 import sqlite3
-import time
-from typing import Callable, Dict, Tuple
+from typing import Callable
+from backend.infrastructure.integrations.whatsapp_credential_resolver import read_whatsapp_setting
 
-logger = logging.getLogger("wa.secrets")
-
-DEFAULT_TTL_SECONDS = 30
-
+DEFAULT_TTL_SECONDS = 0
 
 class SecretStore:
-    """Lee secretos desde `configuraciones.wa_<key>` con cache TTL."""
-
-    def __init__(
-        self,
-        db_path_getter: Callable[[], str],
-        ttl_seconds: int | Decimal | str = DEFAULT_TTL_SECONDS,
-    ) -> None:
+    def __init__(self, db_path_getter: Callable[[], str], ttl_seconds=DEFAULT_TTL_SECONDS,
+                 *, secret_gateway=None, instance_id: str | None = None) -> None:
         self._db_path_getter = db_path_getter
-        self._ttl_ns = int(to_decimal(ttl_seconds) * 1_000_000_000)
-        self._cache: Dict[str, Tuple[str, int]] = {}
+        self._gateway = secret_gateway
+        self._instance_id = instance_id
 
-    def _read_erp_config(self, key: str) -> str:
-        """Lee `configuraciones.wa_<key>` desde la BD del ERP.
+    @property
+    def gateway(self):
+        if self._gateway is None:
+            from backend.security.secrets.default_secret_store import build_default_secret_store
+            self._gateway = build_default_secret_store()
+        return self._gateway
 
-        Mismo patrón que `config/settings.py::_read_erp_config` (acepta
-        `verify_token` o `wa_verify_token`, devuelve el primer valor
-        encontrado).
-        """
+    def get(self, key: str, env_fallback: str = '') -> str:
         db_path = self._db_path_getter()
         if not db_path:
-            return ""
-        clave = key if key.startswith("wa_") else f"wa_{key}"
+            return env_fallback or ''
+        path = Path(db_path).resolve()
+        if not path.is_file():
+            raise RuntimeError('WhatsApp configuration database does not exist; check ERP_DB_PATH')
         try:
-            conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)
             try:
-                row = conn.execute(
-                    "SELECT valor FROM configuraciones WHERE clave=? LIMIT 1",
-                    (clave,),
-                ).fetchone()
+                value = read_whatsapp_setting(conn, key, self,
+                    instance_id=self._instance_id if self._instance_id is not None
+                    else os.getenv('WA_INTEGRATION_INSTANCE_ID', ''))
             finally:
                 conn.close()
-            if row and row[0]:
-                return str(row[0])
-        except Exception as exc:
-            logger.debug("SecretStore: no se pudo leer %s desde BD: %s", clave, exc)
-        return ""
+        except sqlite3.Error as exc:
+            raise RuntimeError('WhatsApp configuration database could not be read') from exc
+        return (env_fallback or '') if value is None else value
 
-    def get(self, key: str, env_fallback: str = "") -> str:
-        """Devuelve el secreto: BD (cacheada por TTL) primero, env después."""
-        now = time.monotonic_ns()
-        cached = self._cache.get(key)
-        if cached is not None and (now - cached[1]) < self._ttl_ns:
-            db_value = cached[0]
-        else:
-            db_value = self._read_erp_config(key)
-            self._cache[key] = (db_value, now)
-        return db_value or (env_fallback or "")
+    def describe(self, name):
+        return self.gateway.describe(name)
+
+    def get_secret(self, name):
+        return self.gateway.get_secret(name)
 
     def clear_cache(self) -> None:
-        """Limpia la cache TTL. Uso principal: tests que cambian la BD/ruta
-        entre casos y necesitan forzar una relectura inmediata."""
-        self._cache.clear()
+        """Public invalidation hook; values are always read afresh."""
 
     @staticmethod
     def mask(value: str) -> str:
-        """Enmascara un secreto para logs/UI.
-
-        Mismo patrón que `core/services/whatsapp_credential_service.py:
-        _mask_token` — primeros 4 + `*` de relleno + últimos 4, o
-        completamente enmascarado si el valor es demasiado corto.
-        """
-        if not value or len(value) < 8:
-            return "***"
-        return value[:4] + "*" * (len(value) - 8) + value[-4:]
+        from whatsapp_service.infrastructure.security.redaction import redact_secret
+        return redact_secret(value)

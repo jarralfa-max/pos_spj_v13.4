@@ -3,7 +3,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import sqlite3
 
-from erp.adjustment_approval import AdjustmentApprovalService
+from whatsapp_service.erp.adjustment_approval import AdjustmentApprovalService
 
 
 def _db():

@@ -16,6 +16,17 @@ Only a migration in ``migrations/`` may execute this DDL.
 from __future__ import annotations
 
 HR_TABLES: tuple[str, ...] = (
+    "hr_device_events",
+    "hr_employee_credentials",
+    "hr_time_clock_devices",
+    "leave_balance_movements",
+    "payroll_loan_applications",
+    "employee_loans",
+    "payroll_inputs",
+    "hr_inbox",
+    "payroll_payment_allocations",
+    "payroll_coverage",
+    "employee_salary_history",
     "hr_outbox",
     "hr_processed_events",
     "hr_audit_log",
@@ -281,6 +292,181 @@ CREATE TABLE IF NOT EXISTS hr_outbox (
     dispatched_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_hr_outbox_status ON hr_outbox (status);
+
+-- Auditoría RRHH cebf67a (migración 335) ---------------------------------
+-- HR-09/HR-23: el salario tiene vigencia; recalcular julio usa la tasa de julio.
+CREATE TABLE IF NOT EXISTS employee_salary_history (
+    id TEXT NOT NULL PRIMARY KEY,
+    employee_id TEXT NOT NULL REFERENCES employees(id),
+    daily_salary TEXT NOT NULL,
+    base_salary TEXT NOT NULL,
+    currency_code TEXT NOT NULL DEFAULT 'MXN',
+    effective_from TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    changed_by_user_id TEXT,
+    operation_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE (employee_id, effective_from)
+);
+
+-- HR-10: un día de un empleado lo cubre UNA sola corrida ordinaria viva. La
+-- restricción UNIQUE lo hace estructural (dos operadores, reintentos, concurrencia).
+CREATE TABLE IF NOT EXISTS payroll_coverage (
+    id TEXT NOT NULL PRIMARY KEY,
+    employee_id TEXT NOT NULL REFERENCES employees(id),
+    coverage_date TEXT NOT NULL,
+    payroll_run_id TEXT NOT NULL REFERENCES payroll_runs(id),
+    UNIQUE (employee_id, coverage_date)
+);
+CREATE INDEX IF NOT EXISTS idx_payroll_coverage_run ON payroll_coverage (payroll_run_id);
+
+-- HR-11: cuánto se entrega a cada persona; la suma es el pago y el asiento.
+CREATE TABLE IF NOT EXISTS payroll_payment_allocations (
+    id TEXT NOT NULL PRIMARY KEY,
+    payroll_payment_id TEXT NOT NULL REFERENCES payroll_payments(id),
+    payroll_run_id TEXT NOT NULL REFERENCES payroll_runs(id),
+    employee_id TEXT NOT NULL REFERENCES employees(id),
+    net_amount TEXT NOT NULL,
+    currency_code TEXT NOT NULL DEFAULT 'MXN',
+    UNIQUE (payroll_payment_id, employee_id)
+);
+
+-- HR-06: eventos de Caja que RR. HH. no pudo aplicar todavía (usuario sin
+-- empleado vinculado). No se pierden: se reprocesan al vincular.
+CREATE TABLE IF NOT EXISTS hr_inbox (
+    event_id TEXT NOT NULL PRIMARY KEY,
+    event_name TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    user_id TEXT,
+    status TEXT NOT NULL DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING','PROCESSED','DISCARDED')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    created_at TEXT NOT NULL,
+    processed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_hr_inbox_status ON hr_inbox (status, user_id);
+
+-- Pendientes de la auditoría RRHH (migración 337) --------------------------
+-- Percepciones/deducciones capturadas y aprobadas (bonos, comisiones, ajustes):
+-- la corrida ordinaria que cubre ``applies_on`` las toma; cancelarla las libera.
+CREATE TABLE IF NOT EXISTS payroll_inputs (
+    id TEXT NOT NULL PRIMARY KEY,
+    employee_id TEXT NOT NULL REFERENCES employees(id),
+    branch_id TEXT NOT NULL,
+    concept TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    currency_code TEXT NOT NULL DEFAULT 'MXN',
+    applies_on TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    source_module TEXT NOT NULL DEFAULT 'hr',
+    source_reference TEXT,
+    status TEXT NOT NULL DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING','APPROVED','APPLIED','REJECTED','CANCELLED')),
+    captured_by_user_id TEXT NOT NULL,
+    approved_by_user_id TEXT,
+    approved_at TEXT,
+    payroll_run_id TEXT REFERENCES payroll_runs(id),
+    operation_id TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_payroll_inputs_employee ON payroll_inputs (employee_id, status);
+
+-- Préstamos y anticipos a empleados: se descuentan por abono en cada nómina
+-- hasta liquidarse. El saldo NO se guarda: es principal − abonos de corridas vivas.
+CREATE TABLE IF NOT EXISTS employee_loans (
+    id TEXT NOT NULL PRIMARY KEY,
+    employee_id TEXT NOT NULL REFERENCES employees(id),
+    branch_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('LOAN','ADVANCE')),
+    principal TEXT NOT NULL,
+    installment TEXT NOT NULL,
+    currency_code TEXT NOT NULL DEFAULT 'MXN',
+    granted_on TEXT NOT NULL,
+    payment_method TEXT NOT NULL CHECK (payment_method IN ('CASH','BANK_TRANSFER','CHECK')),
+    payment_reference TEXT,
+    status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','PAID','CANCELLED')),
+    reason TEXT NOT NULL,
+    granted_by_user_id TEXT NOT NULL,
+    operation_id TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS payroll_loan_applications (
+    id TEXT NOT NULL PRIMARY KEY,
+    loan_id TEXT NOT NULL REFERENCES employee_loans(id),
+    payroll_run_id TEXT NOT NULL REFERENCES payroll_runs(id),
+    amount TEXT NOT NULL,
+    UNIQUE (loan_id, payroll_run_id)
+);
+
+-- Saldo de vacaciones como LIBRO de movimientos (abono por ciclo, reserva,
+-- consumo, liberación, vencimiento, ajuste). Cada saldo se explica por filas.
+CREATE TABLE IF NOT EXISTS leave_balance_movements (
+    id TEXT NOT NULL PRIMARY KEY,
+    employee_id TEXT NOT NULL REFERENCES employees(id),
+    leave_type TEXT NOT NULL DEFAULT 'VACATION',
+    cycle_start TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('ACCRUAL','RESERVATION','RELEASE','CONSUMPTION',
+                                       'EXPIRATION','ADJUSTMENT')),
+    days INTEGER NOT NULL,
+    source_type TEXT,
+    source_id TEXT,
+    reason TEXT NOT NULL DEFAULT '',
+    created_by_user_id TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_leave_ledger_cycle_once
+    ON leave_balance_movements (employee_id, leave_type, cycle_start, kind)
+    WHERE kind IN ('ACCRUAL','EXPIRATION');
+CREATE INDEX IF NOT EXISTS idx_leave_ledger_employee
+    ON leave_balance_movements (employee_id, leave_type, cycle_start);
+
+-- Checador: aparatos, credenciales (referencia del aparato; nunca la plantilla
+-- biométrica; el PIN sólo como hash) y eventos crudos como evidencia.
+CREATE TABLE IF NOT EXISTS hr_time_clock_devices (
+    id TEXT NOT NULL PRIMARY KEY,
+    branch_id TEXT NOT NULL,
+    code TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    driver TEXT NOT NULL DEFAULT 'keyboard',
+    connection_json TEXT NOT NULL DEFAULT '{}',
+    active INTEGER NOT NULL DEFAULT 1,
+    sync_cursor TEXT,
+    last_synced_at TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS hr_employee_credentials (
+    id TEXT NOT NULL PRIMARY KEY,
+    employee_id TEXT NOT NULL REFERENCES employees(id),
+    credential_type TEXT NOT NULL CHECK (credential_type IN ('DEVICE_USER','CARD','QR','PIN')),
+    lookup_key TEXT NOT NULL,
+    device_scope TEXT NOT NULL DEFAULT '',
+    label TEXT NOT NULL DEFAULT '',
+    active INTEGER NOT NULL DEFAULT 1,
+    enrolled_by_user_id TEXT,
+    created_at TEXT NOT NULL,
+    revoked_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_hr_credentials_active
+    ON hr_employee_credentials (credential_type, lookup_key, device_scope) WHERE active=1;
+CREATE TABLE IF NOT EXISTS hr_device_events (
+    id TEXT NOT NULL PRIMARY KEY,
+    device_id TEXT NOT NULL REFERENCES hr_time_clock_devices(id),
+    device_event_id TEXT NOT NULL,
+    credential_type TEXT NOT NULL,
+    lookup_key TEXT NOT NULL,
+    occurred_at TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    verify_method TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL CHECK (status IN ('APPLIED','DUPLICATE','UNMATCHED','REJECTED')),
+    employee_id TEXT,
+    punch_id TEXT,
+    error TEXT,
+    received_at TEXT NOT NULL,
+    UNIQUE (device_id, device_event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_hr_device_events_status ON hr_device_events (status);
 """
 
 
@@ -289,6 +475,25 @@ CREATE INDEX IF NOT EXISTS idx_hr_outbox_status ON hr_outbox (status);
 _UPGRADE_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("hr_outbox", "attempts", "INTEGER NOT NULL DEFAULT 0"),
     ("hr_outbox", "last_error", "TEXT"),
+    # Auditoría RRHH cebf67a (migración 335):
+    # HR-10 tipo de corrida y huella de la solicitud (misma clave, otro contenido).
+    ("payroll_runs", "run_type", "TEXT NOT NULL DEFAULT 'ORDINARY'"),
+    ("payroll_runs", "request_fingerprint", "TEXT"),
+    # HR-27 importe autorizado: pagar exige exactamente esa versión.
+    ("payroll_runs", "authorized_net_amount", "TEXT"),
+    # HR-29 referencia del pago (transferencia/cheque) y quién la capturó.
+    ("payroll_payments", "payment_reference", "TEXT"),
+    # HR-19 cancelación de una ausencia: quién, cuándo y por qué.
+    ("leave_requests", "cancelled_by_user_id", "TEXT"),
+    ("leave_requests", "cancelled_at", "TEXT"),
+    ("leave_requests", "cancel_reason", "TEXT"),
+    # Pendientes (migración 337): corrida complementaria y reverso de un pago.
+    ("payroll_runs", "original_run_id", "TEXT"),
+    ("payroll_runs", "adjustment_reason", "TEXT"),
+    ("payroll_runs", "reversed_at", "TEXT"),
+    ("payroll_runs", "reversed_by_user_id", "TEXT"),
+    ("payroll_runs", "reversal_reason", "TEXT"),
+    ("payroll_payments", "reversed_at", "TEXT"),
 )
 
 

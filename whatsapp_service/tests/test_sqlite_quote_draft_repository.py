@@ -6,9 +6,9 @@ import sqlite3
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.entities.quote_draft import QuoteDraft
-from domain.whatsapp.enums import QuoteDraftStatus
-from infrastructure.persistence.sqlite_quote_draft_repository import SqliteWhatsAppQuoteDraftRepository
+from whatsapp_service.domain.whatsapp.entities.quote_draft import QuoteDraft
+from whatsapp_service.domain.whatsapp.enums import QuoteDraftStatus
+from whatsapp_service.infrastructure.persistence.sqlite_quote_draft_repository import SqliteWhatsAppQuoteDraftRepository
 
 
 @pytest.fixture()

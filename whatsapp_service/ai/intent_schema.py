@@ -1,9 +1,6 @@
 from __future__ import annotations
 from decimal import Decimal
-try:
-    from domain.money import ONE, ZERO, to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import ONE, ZERO, to_decimal
+from whatsapp_service.domain.money import ONE, ZERO, to_decimal
 from enum import Enum
 from typing import List
 from pydantic import BaseModel, Field, field_validator

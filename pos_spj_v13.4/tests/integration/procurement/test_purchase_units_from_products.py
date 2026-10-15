@@ -39,7 +39,7 @@ from frontend.desktop.modules.purchasing.direct_purchase_view_models import Cart
 from frontend.desktop.modules.purchasing.pages.direct_purchase_create_page import (  # noqa: E402
     DirectPurchaseCreatePage,
 )
-from tests.integration._supplier_cutover import apply_supplier_cutover  # noqa: E402
+from tests.integration._supplier_cutover import apply_supplier_cutover, grant_supplier_credit  # noqa: E402
 from tests.integration.procurement._purchase_context import seed_purchase_context  # noqa: E402
 
 
@@ -66,6 +66,7 @@ def conn():
     c.execute("CREATE TABLE proveedores(id TEXT PRIMARY KEY, nombre TEXT, activo INTEGER)")
     c.execute("INSERT INTO proveedores VALUES ('sup-1','Proveedor Uno',1)")
     apply_supplier_cutover(c)
+    grant_supplier_credit(c, "sup-1")
     seed_purchase_context(c)
     c.execute("CREATE TABLE sucursales (id TEXT PRIMARY KEY, nombre TEXT, activa INTEGER)")
     c.execute("INSERT INTO sucursales VALUES ('br-1','Sucursal Uno',1)")

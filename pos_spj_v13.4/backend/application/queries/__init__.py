@@ -12,7 +12,6 @@ from backend.application.queries.base_query_service import (
 from backend.application.queries.customer_query_service import CustomerQueryService
 from backend.application.queries.product_query_service import ProductQueryService
 from backend.application.queries.supplier_query_service import SupplierQueryService
-from backend.application.queries.employee_query_service import EmployeeQueryService
 from backend.application.queries.branch_query_service import BranchQueryService
 from backend.application.queries.driver_query_service import DriverQueryService
 from backend.application.queries.asset_query_service import AssetQueryService
@@ -33,7 +32,6 @@ __all__ = [
     "CustomerQueryService",
     "ProductQueryService",
     "SupplierQueryService",
-    "EmployeeQueryService",
     "BranchQueryService",
     "DriverQueryService",
     "AssetQueryService",

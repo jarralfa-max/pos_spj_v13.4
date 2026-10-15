@@ -21,8 +21,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
-from middleware.service_auth import require_service_auth
+#from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
+from whatsapp_service.middleware.service_auth import require_service_auth
 
 logger = logging.getLogger("wa.delivery")
 # WA-1: ambos endpoints quedan protegidos por HMAC + identidad de servicio
@@ -40,7 +40,7 @@ router = APIRouter(
 
 
 def _connect() -> sqlite3.Connection:
-    from config.settings import ERP_DB_PATH
+    from whatsapp_service.config.settings import ERP_DB_PATH
     conn = sqlite3.connect(ERP_DB_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
@@ -224,7 +224,7 @@ async def sync_order_status(req: DeliveryStatusRequest):
             # (`id TEXT NOT NULL PRIMARY KEY`, migración 050) — silenciado
             # por un `except: pass` desnudo. Se agrega el id (UUIDv7) como
             # primer valor SELECT-eado y se sube la visibilidad del error.
-            from erp.events import _new_event_id
+            from whatsapp_service.erp.events import _new_event_id
             conn.execute("""
                 INSERT INTO wa_event_log(id, event_type, data_json, sucursal_id, prioridad, timestamp)
                 SELECT ?, 'DELIVERY_STATUS_SYNC',

@@ -19,8 +19,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from middleware.hmac_validator import verify_mp_signature
-from webhook import mercadopago as mp_webhook
+from whatsapp_service.middleware.hmac_validator import verify_mp_signature
+from whatsapp_service.webhook import mercadopago as mp_webhook
 
 SECRET = "test-mp-webhook-secret"
 
@@ -83,20 +83,20 @@ def app_client():
 
 
 def test_webhook_rejects_missing_signature_when_secret_configured(app_client, monkeypatch):
-    monkeypatch.setattr("config.settings.MP_WEBHOOK_SECRET", SECRET, raising=False)
+    monkeypatch.setattr("whatsapp_service.config.settings.MP_WEBHOOK_SECRET", SECRET, raising=False)
     resp = app_client.post(
         "/webhook/mercadopago",
-        params={"data.id": "123456789"},
+        params={"whatsapp_service.data.id": "123456789"},
         json={"action": "payment.created", "data": {"id": "123456789"}},
     )
     assert resp.status_code == 403
 
 
 def test_webhook_rejects_invalid_signature_when_secret_configured(app_client, monkeypatch):
-    monkeypatch.setattr("config.settings.MP_WEBHOOK_SECRET", SECRET, raising=False)
+    monkeypatch.setattr("whatsapp_service.config.settings.MP_WEBHOOK_SECRET", SECRET, raising=False)
     resp = app_client.post(
         "/webhook/mercadopago",
-        params={"data.id": "123456789"},
+        params={"whatsapp_service.data.id": "123456789"},
         headers={"x-signature": "ts=1,v1=deadbeef", "x-request-id": "req-1"},
         json={"action": "payment.created", "data": {"id": "123456789"}},
     )
@@ -104,11 +104,11 @@ def test_webhook_rejects_invalid_signature_when_secret_configured(app_client, mo
 
 
 def test_webhook_accepts_valid_signature_and_ignores_non_payment_action(app_client, monkeypatch):
-    monkeypatch.setattr("config.settings.MP_WEBHOOK_SECRET", SECRET, raising=False)
+    monkeypatch.setattr("whatsapp_service.config.settings.MP_WEBHOOK_SECRET", SECRET, raising=False)
     sig = _sign("123456789", "req-1", _now_ms())
     resp = app_client.post(
         "/webhook/mercadopago",
-        params={"data.id": "123456789"},
+        params={"whatsapp_service.data.id": "123456789"},
         headers={"x-signature": sig, "x-request-id": "req-1"},
         json={"action": "payment.updated", "data": {"id": "123456789"}},
     )
@@ -117,7 +117,7 @@ def test_webhook_accepts_valid_signature_and_ignores_non_payment_action(app_clie
 
 
 def test_webhook_falls_back_to_unsigned_when_secret_not_configured(app_client, monkeypatch):
-    monkeypatch.setattr("config.settings.MP_WEBHOOK_SECRET", "", raising=False)
+    monkeypatch.setattr("whatsapp_service.config.settings.MP_WEBHOOK_SECRET", "", raising=False)
     resp = app_client.post(
         "/webhook/mercadopago",
         json={"action": "payment.updated", "data": {"id": "123456789"}},

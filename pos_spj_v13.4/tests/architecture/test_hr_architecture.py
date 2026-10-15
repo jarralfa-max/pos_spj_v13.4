@@ -74,13 +74,19 @@ def test_legacy_hr_implementation_is_removed():
     assert not (REPO / "modulos/rrhh_turnos.py").exists()
 
 
-def test_modulos_rrhh_is_a_thin_wrapper():
-    """modulos/rrhh.py may only re-export the new view; no logic, SQL or styles."""
-    text = (REPO / "modulos/rrhh.py").read_text(encoding="utf-8")
-    assert "create_hr_view" in text
-    assert _SQL.search(text) is None
-    assert "QWidget" not in text or text.count("\n") < 40  # no rich UI, just a wrapper
-    assert len(text.splitlines()) < 40
+def test_live_hr_composition_wires_session_authorization():
+    """El wrapper legacy ``modulos/rrhh.py`` se eliminó con el corte de shell;
+    la ruta viva es el activador → ``build_hr_presenter``. Auditoría RRHH
+    cebf67a HR-01: esa composición debe ligar TODOS los casos de uso a la
+    política de la sesión (antes los 13 se construían sin verificador)."""
+    assert not (REPO / "modulos/rrhh.py").exists()
+    activator = (HR_UI / "shell_registration.py").read_text(encoding="utf-8")
+    assert "build_hr_presenter(self._connection, self._session_context)" in activator
+    routes = (HR_UI / "hr_routes.py").read_text(encoding="utf-8")
+    assert "HRSessionPermissionChecker(session_context)" in routes
+    constructed = re.findall(r"(\w+UseCase)\(([^)]*)\)", routes)
+    assert constructed
+    assert all(args.strip().startswith("auth") for _name, args in constructed), constructed
 
 
 def test_hr_schema_tables_are_born_clean_uuid_identity():

@@ -25,6 +25,8 @@ import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from backend.domain.software_distribution.install_profile import EnabledCapabilities
+
 _ADMIN_ROLES = frozenset({"admin", "system_owner", "superadmin", "administrador"})
 
 DEFAULT_LOCALE = "es-MX"
@@ -87,6 +89,12 @@ class ApplicationContext:
     #: Vacío NO significa "ninguna sucursal": significa "sin asignaciones
     #: explícitas", y entonces manda la sucursal propia (`branch_id`).
     assigned_branch_ids: frozenset[str] = frozenset()
+    #: Capacidades HABILITADAS en esta estación por el perfil de instalación
+    #: (`backend/domain/software_distribution/install_profile.py`). Distinto de
+    #: los feature flags (por sucursal) y de los permisos (por usuario): un
+    #: módulo no instalado se oculta, el router lo rechaza y sus familias de
+    #: permisos se niegan incluso al administrador.
+    capabilities: EnabledCapabilities = field(default_factory=EnabledCapabilities.everything)
     locale: str = DEFAULT_LOCALE
     timezone: str = DEFAULT_TIMEZONE
     currency: str = DEFAULT_CURRENCY
@@ -115,6 +123,7 @@ class ApplicationContext:
             # perdería EN SILENCIO justo al cambiar de sucursal — la operación
             # donde el alcance más importa.
             assigned_branch_ids=self.assigned_branch_ids,
+            capabilities=self.capabilities,
             locale=self.locale, timezone=self.timezone,
             currency=self.currency, offline_status=self.offline_status,
             created_at=self.created_at,

@@ -70,10 +70,11 @@ class TestShifts:
             hr_conn, actor_user_id=new_uuid(), employee_id=emp,
             work_shift_id=shift.entity_id, effective_from=date(2026, 7, 1),
             weekdays=(0, 1, 2, 3, 4))
-        # entry at 09:20 → 20 late minutes (beyond 5 tolerance)
+        # entry at 09:20 LOCAL (15:20Z en la Ciudad de México) → 20 minutos de
+        # retardo (auditoría HR-22: el turno se compara en la hora de la sucursal).
         RegisterAttendancePunchUseCase().execute(
             hr_conn, employee_id=emp, branch_id=BRANCH, punch_type=PunchType.ENTRY,
-            occurred_at=datetime(2026, 7, 16, 9, 20, tzinfo=timezone.utc),
+            occurred_at=datetime(2026, 7, 16, 15, 20, tzinfo=timezone.utc),
             source=AttendanceSource.MANUAL, operation_id=new_uuid())
         with HRUnitOfWork(hr_conn) as uow:
             wd = uow.attendance.find_workday(emp, date(2026, 7, 16))

@@ -6,7 +6,7 @@ import sqlite3
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from bootstrap.lifecycle import start_composition_root, stop_composition_root
+from whatsapp_service.bootstrap.lifecycle import start_composition_root, stop_composition_root
 
 
 @pytest.fixture()
@@ -35,18 +35,18 @@ class TestLifecycle:
             conn.execute("SELECT 1")
 
     def test_production_gate_blocks_start_when_secrets_missing(self, db_path, monkeypatch):
-        monkeypatch.setattr("config.settings.is_production", lambda: True)
-        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "")
-        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "present")
-        monkeypatch.setattr("config.settings.get_verify_token", lambda: "present")
-        monkeypatch.setattr("config.settings.get_app_secret", lambda: "present")
-        monkeypatch.setattr("config.settings.get_internal_api_key", lambda: "present")
-        monkeypatch.setattr("config.settings.MP_ACCESS_TOKEN", "", raising=False)
+        monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: True)
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_access_token", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_phone_number_id", lambda: "present")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_verify_token", lambda: "present")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_app_secret", lambda: "present")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_internal_api_key", lambda: "present")
+        monkeypatch.setattr("whatsapp_service.config.settings.MP_ACCESS_TOKEN", "", raising=False)
         with pytest.raises(RuntimeError):
             start_composition_root(db_path)
 
     def test_does_not_block_start_outside_production(self, db_path, monkeypatch):
-        monkeypatch.setattr("config.settings.is_production", lambda: False)
-        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: False)
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_access_token", lambda: "")
         root = start_composition_root(db_path)
         stop_composition_root(root)

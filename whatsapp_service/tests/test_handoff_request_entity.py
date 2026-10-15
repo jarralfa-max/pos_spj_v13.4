@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import pytest
 
-from domain.whatsapp.entities.handoff_request import (
+from whatsapp_service.domain.whatsapp.entities.handoff_request import (
     HandoffRequest,
     HandoffRequestAlreadyFinalizedError,
 )
-from domain.whatsapp.enums import HandoffStatus
+from whatsapp_service.domain.whatsapp.enums import HandoffStatus
 
 
 def _open(**overrides):

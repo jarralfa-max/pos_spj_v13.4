@@ -4,20 +4,17 @@
 contra `whatsapp_business_accounts`/`whatsapp_provider_configurations`
 (migración 243)."""
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal, loads_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
+from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 
 import json
 from datetime import datetime
 from typing import List, Optional
 
-from domain.whatsapp.entities.business_account import (
+from whatsapp_service.domain.whatsapp.entities.business_account import (
     WhatsAppBusinessAccount,
     WhatsAppProviderConfiguration,
 )
-from domain.whatsapp.enums import AccountStatus, WhatsAppProvider
+from whatsapp_service.domain.whatsapp.enums import AccountStatus, WhatsAppProvider
 
 _ACCOUNT_COLUMNS = (
     "id, provider, business_account_external_id, display_name, status, "

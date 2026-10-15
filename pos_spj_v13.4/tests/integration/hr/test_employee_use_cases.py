@@ -74,7 +74,7 @@ class TestCreateEmployee:
                 hire_date=date(2025, 1, 1), operation_id=new_uuid())
 
     def test_permission_granted_allows(self, hr_conn):
-        auth = AuthorizationPolicy(_Checker({"hr.employee.create"}))
+        auth = AuthorizationPolicy(_Checker({"RRHH.empleado.crear"}))
         result = CreateEmployeeUseCase(auth).execute(
             hr_conn, actor_user_id=new_uuid(), employee_code="OK", first_name="A",
             last_name="B", branch_id=BRANCH, contract_type="PERMANENT",

@@ -26,6 +26,18 @@ REQUIRES_CONSUMER = frozenset({
     "CASH_REFUND_PROCESSED",
     "CASH_HANDOVER_RECEIVED",
     "CASH_DEPOSIT_PREPARED",
+    # Auditoría RRHH HR-03: la asistencia del cajero sale de abrir/cerrar turno;
+    # sin consumidor (RR. HH. sin cablear) quedan pendientes, no se pierden.
+    "CASH_SHIFT_OPENED",
+    "CASH_SHIFT_CLOSED",
+})
+#: Los que atiende Finanzas (``wire_cash_register``); el resto los cablea su dueño.
+FINANCE_EVENTS = frozenset({
+    "CASH_Z_CUT_GENERATED",
+    "CASH_DIFFERENCE_DETECTED",
+    "CASH_REFUND_PROCESSED",
+    "CASH_HANDOVER_RECEIVED",
+    "CASH_DEPOSIT_PREPARED",
 })
 
 #: Tras tantos intentos fallidos el evento pasa a DEAD_LETTER: sigue visible y
@@ -44,7 +56,7 @@ def wire_cash_register(bus, connection) -> dict:
     if subscribe is None:
         raise RuntimeError("El bus no expone subscribe()")
     suscritos = []
-    for evento in sorted(REQUIRES_CONSUMER):
+    for evento in sorted(FINANCE_EVENTS):
         try:
             subscribe(evento, router.handle, priority=50,
                       label=f"cash_finance_{evento.lower()}")

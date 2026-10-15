@@ -6,10 +6,7 @@ Cada evento incluye: sucursal_id, prioridad, timestamp.
 CORRECCIÓN (FASE WA): WAEventEmitter usa ERP's bus.publish(), NO emit().
 """
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal
+from whatsapp_service.domain.money import dumps_decimal
 import json
 import logging
 import os
@@ -66,142 +63,38 @@ ERP_FORECAST_GENERADO   = "FORECAST_GENERADO"
 
 
 def _new_event_id() -> str:
-    """UUIDv7 para `wa_event_log.id` (TEXT PRIMARY KEY, sin default SQL —
-    migración 050, REGLA CERO). Antes de WA-1, `emit()`/`_insert_wa_event()`
-    nunca proveían este valor, así que todo INSERT fallaba silenciosamente
-    contra ese esquema (S6, whatsapp_security_audit.md — "Crítica", viola la
-    regla 12 de CLAUDE.md sobre trazabilidad de auditoría).
-
-    Intenta primero el import directo (funciona cuando este módulo se carga
-    vía main.py, que ya puso pos_spj_v13.4 en sys.path) y si falla, aplica el
-    mismo truco de inserción de sys.path que usa `_init_bus()` de esta misma
-    clase, para que también funcione si `erp.events` se importa standalone
-    (p. ej. bajo tests) sin pasar por main.py.
-    """
-    try:
-        from backend.shared.ids import new_uuid
-        return new_uuid()
-    except ImportError:
-        try:
-            import sys
-            erp_path = os.path.dirname(os.path.dirname(
-                os.path.dirname(os.path.abspath(__file__))))
-            erp_module = os.path.join(erp_path, "pos_spj_v13.4")
-            if os.path.exists(erp_module) and erp_module not in sys.path:
-                sys.path.insert(0, erp_module)
-            from backend.shared.ids import new_uuid
-            return new_uuid()
-        except ImportError:
-            import uuid as _uuid
-            logger.warning("backend.shared.ids no importable — usando uuid4 fallback para wa_event_log.id")
-            return str(_uuid.uuid4())
+    from backend.shared.ids import new_uuid
+    return new_uuid()
 
 
 class WAEventEmitter:
-    """Emite eventos al EventBus del ERP."""
+    """Durable channel event journal, readable from the ERP process.
 
+    In-memory desktop buses cannot cross a process boundary. Persistence
+    failures propagate, so a caller never mistakes a dropped event for success.
+    """
     def __init__(self, db_conn=None):
         self.db = db_conn
-        self._bus = None
-        self._init_bus()
-        if db_conn:
-            self.ensure_tables()
-
-    def _init_bus(self):
-        try:
-            import sys, os
-            # Agregar ruta del ERP al path si no está
-            erp_path = os.path.dirname(os.path.dirname(
-                os.path.dirname(os.path.abspath(__file__))))
-            erp_module = os.path.join(erp_path, "pos_spj_v13.4")
-            if os.path.exists(erp_module) and erp_module not in sys.path:
-                sys.path.insert(0, erp_module)
-
-            from core.events.event_bus import get_bus
-            self._bus = get_bus()
-            logger.info("EventBus del ERP conectado")
-        except ImportError:
-            logger.warning("EventBus no disponible — eventos solo se logean")
 
     def emit(self, event_type: str, data: Dict[str, Any],
-             sucursal_id: int = 1, prioridad: int = 5):
-        """
-        Emite un evento con metadata estándar.
-
-        FIX: ERP EventBus usa publish(), no emit().
-        Usa async_=True para eventos no-críticos que no deben bloquear el flujo WA.
-        """
-        event_data = {
-            **data,
-            "sucursal_id": sucursal_id,
-            "prioridad": prioridad,
-            "timestamp": datetime.now().isoformat(),
-            "canal": "whatsapp",
-        }
-
-        # Log siempre
-        logger.info("EVENT %s: %s (suc=%d, pri=%d)",
-                     event_type, str(data)[:100], sucursal_id, prioridad)
-
-        # Guardar en BD para trazabilidad
-        if self.db:
-            try:
-                # Serialize payload as real JSON (not str())
-                try:
-                    data_json = dumps_decimal(event_data, ensure_ascii=False,
-                                           default=str)[:4000]
-                except Exception:
-                    data_json = str(event_data)[:4000]
-                self.db.execute("""
-                    INSERT INTO wa_event_log (id, event_type, data_json,
-                        sucursal_id, prioridad, timestamp)
-                    VALUES (?, ?, ?, ?, ?, datetime('now'))
-                """, (_new_event_id(), event_type, data_json, sucursal_id, prioridad))
-                try:
-                    self.db.commit()
-                except Exception:
-                    pass
-            except Exception as exc:
-                # WA-1 / S6: antes era `except Exception: pass` — el INSERT
-                # fallaba sistemáticamente por falta de `id` y nadie se
-                # enteraba. Ahora se loguea a WARNING (visible con el
-                # LOG_LEVEL=INFO por defecto) para que un fallo real de
-                # integridad del audit trail nunca vuelva a ser silencioso.
-                logger.warning("No se pudo insertar wa_event_log %s: %s", event_type, exc)
-
-        # Emitir al EventBus del ERP (usa publish(), no emit())
-        # Prioridad ≥ 80 → crítico (síncrono); resto async para no bloquear WA.
-        # Ref: CLAUDE.md priority table: 80 = operaciones críticas de negocio.
-        if self._bus:
-            try:
-                is_critical = prioridad >= 80
-                self._bus.publish(event_type, event_data, async_=not is_critical)
-            except Exception as e:
-                logger.debug("EventBus publish error: %s", e)
+             sucursal_id: str | None = None, prioridad: int = 5):
+        from backend.shared.ids import new_uuid
+        if self.db is None:
+            raise RuntimeError("A durable event connection is required")
+        event_id = new_uuid()
+        event_data = {**data, "event_id": event_id,
+                      "operation_id": data.get("operation_id") or new_uuid(),
+                      "sucursal_id": sucursal_id, "prioridad": prioridad,
+                      "timestamp": datetime.now().isoformat(), "canal": "whatsapp"}
+        self.db.execute(
+            "INSERT INTO wa_event_log (id,event_type,data_json,sucursal_id,prioridad,timestamp) "
+            "VALUES (?,?,?,?,?,?)",
+            (event_id,event_type,dumps_decimal(event_data,ensure_ascii=False,default=str),
+             sucursal_id,prioridad,event_data["timestamp"]))
+        self.db.commit()
+        logger.info("Channel event persisted: %s (%s)", event_type, event_id)
 
     def ensure_tables(self):
-        """CREATE TABLE IF NOT EXISTS de respaldo — normalmente un no-op
-        porque la migración 050 ya crea `wa_event_log`. WA-1: el esquema
-        aquí antes usaba `id INTEGER PRIMARY KEY AUTOINCREMENT` y
-        `sucursal_id INTEGER`, violando REGLA CERO (UUIDv7 obligatorio) y
-        desacordando con el esquema real de la migración 050
-        (`id TEXT NOT NULL PRIMARY KEY`, `sucursal_id TEXT`, sin default SQL
-        en `id`). Corregido para coincidir exactamente."""
-        if self.db:
-            try:
-                self.db.execute("""
-                    CREATE TABLE IF NOT EXISTS wa_event_log (
-                        id          TEXT NOT NULL    PRIMARY KEY,
-                        event_type  TEXT    NOT NULL,
-                        data_json   TEXT,
-                        sucursal_id TEXT,
-                        prioridad   INTEGER DEFAULT 5,
-                        timestamp   TEXT    DEFAULT (datetime('now'))
-                    )
-                """)
-                try:
-                    self.db.commit()
-                except Exception:
-                    pass
-            except Exception as exc:
-                logger.warning("No se pudo asegurar el esquema de wa_event_log: %s", exc)
+        """Validate the migration-owned journal without changing its schema."""
+        if self.db is not None:
+            self.db.execute("SELECT id,event_type,data_json FROM wa_event_log LIMIT 0")

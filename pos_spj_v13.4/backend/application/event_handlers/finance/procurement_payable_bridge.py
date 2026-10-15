@@ -109,6 +109,14 @@ def _due_date(issue_date: date, payload: dict) -> date | None:
     saber qué deuda vencía ni cuándo. Sin días informados (evento anterior al
     cambio), se deja sin vencimiento en vez de inventar uno."""
     from datetime import timedelta
+    explicit = str(payload.get("due_date") or "").strip()
+    if explicit:
+        # Regularización (migración 340): la CxP se reconoce en un periodo
+        # abierto, pero vence cuando vencía según la recepción original.
+        try:
+            return date.fromisoformat(explicit[:10])
+        except ValueError:
+            pass
     dias = payload.get("payment_term_days")
     if dias is None or dias == "":
         return None

@@ -10,7 +10,7 @@ import asyncio
 import httpx
 import pytest
 
-import messaging.sender as sender_mod
+import whatsapp_service.messaging.sender as sender_mod
 
 
 class _FakeResponse:

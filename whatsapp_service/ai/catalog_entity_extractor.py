@@ -1,9 +1,6 @@
 from __future__ import annotations
 from decimal import Decimal
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
+from whatsapp_service.domain.money import to_decimal
 
 import re
 from typing import Any, Dict, List

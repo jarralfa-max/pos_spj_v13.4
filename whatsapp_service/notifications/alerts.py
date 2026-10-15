@@ -8,8 +8,8 @@ from decimal import Decimal
 import logging
 from enum import Enum
 from typing import List
-from messaging.sender import send_text
-from messaging.templates import send_event_template
+from whatsapp_service.messaging.sender import send_text
+from whatsapp_service.messaging.templates import send_event_template
 
 logger = logging.getLogger("wa.notif.alerts")
 

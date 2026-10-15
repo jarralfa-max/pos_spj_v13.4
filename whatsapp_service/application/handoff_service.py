@@ -23,9 +23,9 @@ dependencia hacia adelante desde aquí.
 """
 from __future__ import annotations
 
-from domain.whatsapp.entities.conversation import WhatsAppConversation
-from domain.whatsapp.entities.handoff_request import HandoffRequest
-from domain.whatsapp.enums import ConversationSignal
+from whatsapp_service.domain.whatsapp.entities.conversation import WhatsAppConversation
+from whatsapp_service.domain.whatsapp.entities.handoff_request import HandoffRequest
+from whatsapp_service.domain.whatsapp.enums import ConversationSignal
 
 
 class HandoffCoordinator:

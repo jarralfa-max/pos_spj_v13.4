@@ -5,12 +5,12 @@ from datetime import timedelta
 
 import pytest
 
-from domain.whatsapp.entities.outbox_message import (
+from whatsapp_service.domain.whatsapp.entities.outbox_message import (
     MAX_ATTEMPTS,
     OutboxMessage,
     OutboxMessageAlreadyFinalizedError,
 )
-from domain.whatsapp.enums import OutboxMessageStatus
+from whatsapp_service.domain.whatsapp.enums import OutboxMessageStatus
 
 
 class TestEnqueueText:

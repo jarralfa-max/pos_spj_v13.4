@@ -7,19 +7,16 @@
 ni un `repr()` de Python (§14 del prompt maestro: prohibido guardar
 objetos serializados arbitrariamente)."""
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal, loads_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
+from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 
 import json
 from dataclasses import asdict
 from datetime import datetime
 from typing import Optional
 
-from domain.whatsapp.entities.conversation import ConversationSession, WhatsAppConversation
-from domain.whatsapp.entities.conversation_context import ConversationContext
-from domain.whatsapp.enums import ConversationState
+from whatsapp_service.domain.whatsapp.entities.conversation import ConversationSession, WhatsAppConversation
+from whatsapp_service.domain.whatsapp.entities.conversation_context import ConversationContext
+from whatsapp_service.domain.whatsapp.enums import ConversationState
 
 _CONVERSATION_COLUMNS = (
     "id, identity_id, channel_number_id, branch_id, state, context_json, "

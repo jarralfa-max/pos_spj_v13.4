@@ -17,10 +17,7 @@ ARQUITECTURA:
   - Thread-safe: usa threading.Lock en operaciones de BD
 """
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal, loads_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
+from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 from decimal import Decimal
 
 import logging
@@ -30,7 +27,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Callable, Dict, List, Optional, Any
 
-from erp.events import (
+from whatsapp_service.erp.events import (
     WAEventEmitter,
     PAYMENT_REMINDER, CLIENT_CONFIRMATION_REQUIRED, DELIVERY_REMINDER,
     PURCHASE_FOLLOWUP_REMINDER, STAFF_NOTIFICATION,
@@ -38,7 +35,7 @@ from erp.events import (
     # RRHH aliases (re-emitted from ERP events)
     ERP_PAYROLL_DUE, ERP_EMPLOYEE_REST_DAY,
 )
-from state.priority_queue import PedidoPriorityQueue
+from whatsapp_service.state.priority_queue import PedidoPriorityQueue
 
 logger = logging.getLogger("wa.reminders")
 

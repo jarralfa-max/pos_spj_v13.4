@@ -172,6 +172,11 @@ def _seed(conn) -> None:
     conn.execute("INSERT INTO supplier_addresses (id, supplier_id, address_type, line, city,"
                  " state, label) VALUES ('addr-1', '019a0000-0000-7000-8000-0000000000a1', 'WAREHOUSE', 'Carretera 57 km 3',"
                  " 'San Juan del Río', 'Querétaro', 'Bodega Norte')")
+    # 2026-10-15: comprar a crédito exige que el proveedor tenga crédito en sus
+    # condiciones. «Carnes del Norte» da 30 días sin límite; «Abarrotes» es de contado.
+    conn.execute("INSERT INTO supplier_commercial_terms (id, supplier_id, currency_code,"
+                 " credit_days, is_credit, credit_limit) VALUES (?, ?, 'MXN', 30, 1, '0')",
+                 (new_uuid(), "019a0000-0000-7000-8000-0000000000a1"))
     bootstrap_finance(conn)
     conn.commit()
 
@@ -516,3 +521,110 @@ def test_11_credit_purchase_ends_in_a_paid_payable(env):
         "SELECT SUM(CAST(debit_amount AS NUMERIC)), SUM(CAST(credit_amount AS NUMERIC))"
         " FROM journal_lines").fetchone()
     assert debit == credit                                          # debe = haber
+
+
+# ── crédito del proveedor y CxP al recibir (2026-10-15) ─────────────────────
+_NORTE = "019a0000-0000-7000-8000-0000000000a1"
+_ABARROTES = "019a0000-0000-7000-8000-0000000000a2"
+
+
+def _alas(qty="100", cost="40"):
+    return CartLineVM("p-alas", "CAR-000001 · Alas", Decimal(qty), Decimal(cost))
+
+
+def _payables(env, supplier=_NORTE):
+    return env.conn.execute(
+        "SELECT p.original_amount, p.outstanding_amount, p.issue_date, p.due_date, p.status"
+        " FROM payables p WHERE p.supplier_id=? ORDER BY p.created_at", (supplier,)).fetchall()
+
+
+def test_credit_purchase_creates_its_payable_on_receipt_with_due_date(env):
+    direct, dp = _direct_purchase(env, _alas())
+    ok, msg, _ = direct.confirm(dp, None)
+    assert ok, msg
+    (payable,) = _payables(env)
+    original, outstanding, issue, due, status = payable
+    assert (original, outstanding, status) == ("4000.00", "4000.00", "OPEN")
+    assert (date.fromisoformat(due) - date.fromisoformat(issue)).days == 30
+    credit = env.conn.execute(
+        "SELECT SUM(CAST(jl.credit_amount AS NUMERIC)) FROM journal_lines jl JOIN accounts a"
+        " ON a.id=jl.account_id WHERE a.code='2101'").fetchone()[0]
+    assert Decimal(str(credit)) == Decimal("4000")
+
+
+def test_contado_supplier_cannot_be_bought_on_credit(env):
+    direct = env.direct()
+    ok, msg, data = direct.create(supplier_id=_ABARROTES, lines=[_alas()],
+                                  mode="DIRECT_WITH_IMMEDIATE_RECEIPT",
+                                  payment_condition="SUPPLIER_CREDIT", branch_id=BRANCH,
+                                  warehouse_id=WAREHOUSE, operation_id=new_uuid())
+    assert not ok and data.get("error_code") == "SUPPLIER_NO_CREDIT"
+    assert "contado" in msg
+    assert direct.supplier_credit(_ABARROTES)["suggested"] == "IMMEDIATE_PAYMENT"
+    assert direct.supplier_credit(_NORTE)["suggested"] == "SUPPLIER_CREDIT"
+
+
+def test_exceeding_the_credit_limit_needs_hot_authorization(env):
+    env.conn.execute("UPDATE supplier_commercial_terms SET credit_limit='5000'"
+                     " WHERE supplier_id=?", (_NORTE,))
+    direct, first = _direct_purchase(env, _alas())                 # 4000
+    assert direct.confirm(first, None)[0]
+    assert "usado $4,000.00" in direct.supplier_credit(_NORTE)["text"]
+    direct, second = _direct_purchase(env, _alas("50"))            # +2000 > 5000
+    assert direct.detail(second).status == "PENDING_AUTHORIZATION"
+    ok, msg, data = direct.confirm(second, None)
+    assert not ok and data.get("error_code") == "AUTHORIZATION_REQUIRED"
+    manager = env.direct("gerente")
+    assert manager.authorize(second, "Proveedor confiable, pago en 3 días")[0]
+    ok, msg, _ = direct.confirm(second, None)
+    assert ok, msg
+    assert [p[0] for p in _payables(env)] == ["4000.00", "2000.00"]
+
+
+def test_invoice_of_a_credit_purchase_links_to_the_receipt_payable(env):
+    direct, dp = _direct_purchase(env, _alas())
+    assert direct.confirm(dp, None)[0]
+    buyer, approver = env.buyer(), env.approver()
+    line_id = env.conn.execute("SELECT id FROM direct_purchase_lines WHERE direct_purchase_id=?",
+                               (dp,)).fetchone()[0]
+    ok, msg, invoice = buyer.capture_invoice(
+        supplier_id=_NORTE, invoice_number="F-777", total="4000", direct_purchase_id=dp,
+        lines=[{"product_id": "p-alas", "invoiced_quantity": "100", "unit_price": "40",
+                "direct_purchase_line_id": line_id}])
+    assert ok, msg
+    ok, msg, data = approver.match_invoice(invoice["entity_id"])
+    assert ok and data["match_result"] == "MATCHED", msg
+    assert "ya existía" in msg
+    assert [p[0] for p in _payables(env)] == ["4000.00"]          # no se duplicó
+
+
+def test_reversing_a_received_credit_purchase_credits_its_payable(env):
+    direct, dp = _direct_purchase(env, _alas())
+    assert direct.confirm(dp, None)[0]
+    ok, msg, _ = direct.reverse(dp, "Se capturó con el proveedor equivocado")
+    assert ok, msg
+    ((original, outstanding, _issue, _due, _status),) = _payables(env)
+    assert (original, outstanding) == ("4000.00", "0.00")
+    balance = env.conn.execute(
+        "SELECT SUM(CAST(jl.debit_amount AS NUMERIC)) - SUM(CAST(jl.credit_amount AS NUMERIC))"
+        " FROM journal_lines jl JOIN accounts a ON a.id=jl.account_id WHERE a.code='2101'"
+    ).fetchone()[0]
+    assert Decimal(str(balance)) == Decimal("0")
+
+
+def test_migration_340_regularizes_received_credit_purchases_once(env):
+    direct, dp = _direct_purchase(env, _alas())
+    assert direct.confirm(dp, None)[0]
+    # Como quedaron las compras de antes del cambio: recibidas, sin CxP.
+    env.conn.execute("DELETE FROM procurement_outbox WHERE event_name="
+                     "'ACCOUNT_PAYABLE_CREATE_REQUESTED'")
+    for table in ("payables", "financial_documents"):
+        env.conn.execute(f"DELETE FROM {table}")
+    env.conn.execute("DELETE FROM finance_processed_events")
+    env.conn.commit()
+    migration = importlib.import_module(
+        "migrations.standalone.340_backfill_credit_purchase_payables")
+    migration.run(env.conn)
+    migration.run(env.conn)                                         # idempotente
+    env._dispatch()
+    assert [p[0] for p in _payables(env)] == ["4000.00"]

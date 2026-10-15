@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from domain.whatsapp.entities.conversation import WhatsAppConversation
-from domain.whatsapp.entities.message import WhatsAppMessage
-from domain.whatsapp.enums import ConversationState, MessageDirection, MessageType
-from domain.whatsapp.events import (
+from whatsapp_service.domain.whatsapp.entities.conversation import WhatsAppConversation
+from whatsapp_service.domain.whatsapp.entities.message import WhatsAppMessage
+from whatsapp_service.domain.whatsapp.enums import ConversationState, MessageDirection, MessageType
+from whatsapp_service.domain.whatsapp.events import (
     ConversationOpened,
     ConversationStateChanged,
     IdentityBlocked,
@@ -18,7 +18,7 @@ from domain.whatsapp.events import (
     WHATSAPP_CONVERSATION_OPENED,
     WHATSAPP_MESSAGE_RECEIVED,
 )
-from domain.whatsapp.enums import MessageDeliveryStatus
+from whatsapp_service.domain.whatsapp.enums import MessageDeliveryStatus
 
 
 class TestConversationOpenedEvent:

@@ -10,21 +10,21 @@ from __future__ import annotations
 
 from typing import List, Optional, Protocol
 
-from domain.whatsapp.entities.business_account import (
+from whatsapp_service.domain.whatsapp.entities.business_account import (
     WhatsAppBusinessAccount,
     WhatsAppProviderConfiguration,
 )
-from domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
-from domain.whatsapp.entities.conversation import ConversationSession, WhatsAppConversation
-from domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
-from domain.whatsapp.entities.delivery_request import DeliveryRequest
-from domain.whatsapp.entities.handoff_request import HandoffRequest
-from domain.whatsapp.entities.identity import WhatsAppIdentity
-from domain.whatsapp.entities.inbox_job import InboundMessageJob
-from domain.whatsapp.entities.message import WhatsAppMessage, WhatsAppMessageDelivery
-from domain.whatsapp.entities.order_draft import OrderDraft
-from domain.whatsapp.entities.outbox_message import OutboxMessage
-from domain.whatsapp.entities.quote_draft import QuoteDraft
+from whatsapp_service.domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
+from whatsapp_service.domain.whatsapp.entities.conversation import ConversationSession, WhatsAppConversation
+from whatsapp_service.domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
+from whatsapp_service.domain.whatsapp.entities.delivery_request import DeliveryRequest
+from whatsapp_service.domain.whatsapp.entities.handoff_request import HandoffRequest
+from whatsapp_service.domain.whatsapp.entities.identity import WhatsAppIdentity
+from whatsapp_service.domain.whatsapp.entities.inbox_job import InboundMessageJob
+from whatsapp_service.domain.whatsapp.entities.message import WhatsAppMessage, WhatsAppMessageDelivery
+from whatsapp_service.domain.whatsapp.entities.order_draft import OrderDraft
+from whatsapp_service.domain.whatsapp.entities.outbox_message import OutboxMessage
+from whatsapp_service.domain.whatsapp.entities.quote_draft import QuoteDraft
 
 
 class WhatsAppAccountRepository(Protocol):

@@ -111,6 +111,28 @@ class EmployeeRepository(HRRepositoryBase):
                 " ORDER BY last_name, first_name")
         return [_emp_to_entity(r) for r in rows]
 
+    def list_employed_between(self, start: date, end: date, *,
+                              branch_id: str | None = None) -> list[Employee]:
+        """HR-09: empleados con vínculo VIGENTE en algún día del periodo, sin
+        importar su estado de hoy (una baja posterior conserva su historia)."""
+        conditions = ["hire_date <= ?", "(termination_date IS NULL OR termination_date >= ?)"]
+        params: list = [end.isoformat(), start.isoformat()]
+        if branch_id:
+            conditions.append("branch_id = ?")
+            params.append(branch_id)
+        rows = self._query(
+            f"SELECT {_EMP_COLS} FROM employees WHERE {' AND '.join(conditions)}"
+            " ORDER BY last_name, first_name", tuple(params))
+        return [_emp_to_entity(r) for r in rows]
+
+    def user_for_employee(self, employee_id: str) -> str | None:
+        try:
+            row = self._query_one(
+                "SELECT id FROM usuarios WHERE personal_id=? LIMIT 1", (employee_id,))
+        except Exception:
+            return None
+        return str(row["id"]) if row else None
+
     def list_all(self, *, limit: int = 200, offset: int = 0) -> list[Employee]:
         rows = self._query(
             f"SELECT {_EMP_COLS} FROM employees ORDER BY last_name, first_name"
@@ -120,6 +142,43 @@ class EmployeeRepository(HRRepositoryBase):
     def link_user(self, user_id: str, employee_id: str) -> None:
         """Link a system user to an employee via usuarios.personal_id (mig 095)."""
         self._execute("UPDATE usuarios SET personal_id=? WHERE id=?", (employee_id, user_id))
+
+
+class SalaryHistoryRepository(HRRepositoryBase):
+    """HR-09/HR-23: tarifa con vigencia. La generación usa la tarifa del DÍA."""
+
+    def record(self, *, employee_id: str, daily_salary: Money, base_salary: Money,
+               effective_from: date, reason: str, changed_by_user_id: str | None,
+               operation_id: str) -> None:
+        from backend.shared.ids import new_uuid
+        from datetime import datetime, timezone
+        self._execute(
+            "INSERT INTO employee_salary_history (id, employee_id, daily_salary,"
+            " base_salary, currency_code, effective_from, reason, changed_by_user_id,"
+            " operation_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
+            " ON CONFLICT(employee_id, effective_from) DO UPDATE SET"
+            " daily_salary=excluded.daily_salary, base_salary=excluded.base_salary,"
+            " reason=excluded.reason, changed_by_user_id=excluded.changed_by_user_id,"
+            " operation_id=excluded.operation_id",
+            (new_uuid(), employee_id, daily_salary.to_string(), base_salary.to_string(),
+             daily_salary.currency_code, effective_from.isoformat(), reason,
+             changed_by_user_id, operation_id,
+             datetime.now(timezone.utc).isoformat(timespec="seconds")))
+
+    def history(self, employee_id: str) -> list[dict]:
+        return self._query(
+            "SELECT daily_salary, base_salary, currency_code, effective_from, reason,"
+            " changed_by_user_id, created_at FROM employee_salary_history"
+            " WHERE employee_id=? ORDER BY effective_from", (employee_id,))
+
+    def daily_rate_on(self, employee: Employee, day: date):
+        """Tarifa diaria vigente el ``day``; sin historia, la actual."""
+        from decimal import Decimal
+        row = self._query_one(
+            "SELECT daily_salary FROM employee_salary_history WHERE employee_id=?"
+            " AND effective_from<=? ORDER BY effective_from DESC LIMIT 1",
+            (employee.id, day.isoformat()))
+        return Decimal(row["daily_salary"]) if row else employee.daily_salary.amount
 
 
 class DepartmentRepository(HRRepositoryBase):
@@ -145,6 +204,12 @@ class DepartmentRepository(HRRepositoryBase):
         return [Department(id=r["id"], code=r["code"], name=r["name"],
                            branch_id=r["branch_id"], active=bool(r["active"]),
                            created_at=r["created_at"]) for r in rows]
+
+
+def update_catalog(repo: HRRepositoryBase, table: str, item_id: str, *, name: str,
+                   active: bool) -> None:
+    repo._execute(f"UPDATE {table} SET name=?, active=? WHERE id=?",
+                  (name, int(active), item_id))
 
 
 class PositionRepository(HRRepositoryBase):

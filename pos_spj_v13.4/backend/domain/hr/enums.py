@@ -102,6 +102,9 @@ class PayrollConcept(str, Enum):
     LOAN_DEDUCTION = "LOAN_DEDUCTION"
     ADVANCE_DEDUCTION = "ADVANCE_DEDUCTION"
     ADJUSTMENT = "ADJUSTMENT"
+    #: Retenciones que calcula un proveedor fiscal (ISR, cuota obrera IMSS).
+    TAX_WITHHOLDING = "TAX_WITHHOLDING"
+    SOCIAL_SECURITY = "SOCIAL_SECURITY"
 
 
 #: Concepts that subtract from gross pay.
@@ -110,6 +113,13 @@ DEDUCTION_CONCEPTS = frozenset({
     PayrollConcept.LATE_DEDUCTION,
     PayrollConcept.LOAN_DEDUCTION,
     PayrollConcept.ADVANCE_DEDUCTION,
+    PayrollConcept.TAX_WITHHOLDING,
+    PayrollConcept.SOCIAL_SECURITY,
+})
+
+#: Percepciones que RR. HH. captura y aprueba (bonos, comisiones, ajustes).
+CAPTURABLE_PERCEPTIONS = frozenset({
+    PayrollConcept.BONUS, PayrollConcept.COMMISSION, PayrollConcept.ADJUSTMENT,
 })
 
 

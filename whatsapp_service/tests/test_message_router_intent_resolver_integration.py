@@ -1,9 +1,9 @@
 import asyncio
 from types import SimpleNamespace
 
-from router.message_router import MessageRouter
-from models.context import ConversationContext, FlowState
-from parser.intent_parser import ParsedIntent
+from whatsapp_service.router.message_router import MessageRouter
+from whatsapp_service.models.context import ConversationContext, FlowState
+from whatsapp_service.parser.intent_parser import ParsedIntent
 
 
 class DummyStore:
@@ -94,7 +94,7 @@ def test_router_keeps_branch_selection_behavior_with_resolver():
     async def fake_select(phone, sucursales):
         sent.append(("select", phone, len(sucursales)))
 
-    import router.message_router as mr
+    import whatsapp_service.router.message_router as mr
     old_text = mr.interactive.send_text
     old_sel = mr.interactive.send_seleccion_sucursal
     mr.interactive.send_text = fake_text

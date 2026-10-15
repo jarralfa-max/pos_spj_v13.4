@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from domain.whatsapp._ids import new_id
-from domain.whatsapp.enums import AccountStatus, WhatsAppProvider
+from whatsapp_service.domain.whatsapp._ids import new_id
+from whatsapp_service.domain.whatsapp.enums import AccountStatus, WhatsAppProvider
 
 
 def _utcnow() -> datetime:

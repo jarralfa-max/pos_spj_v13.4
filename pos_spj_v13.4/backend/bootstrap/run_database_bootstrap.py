@@ -9,6 +9,10 @@ differently-error-handled block that opened its own connection and called
 `migrator.up`/`migrate_db`/`verificar_tablas`/`assert_uuid_identity`
 directly — see the SHELL-0 audit, `docs/refactor/application_bootstrap_audit.md`).
 
+`SchemaCompatibilityStep` (2026-10-14) sits between integrity and migrations:
+a database already migrated by a NEWER release stops the start instead of
+running this binary on a schema it does not know.
+
 Reuses the exact `DatabaseIntegrityStep` → `DatabaseMigrationStep` →
 `SchemaValidationStep` → `InstallationStateStep` sequence from SHELL-3
 (`default_bootstrap_steps()` runs the same steps plus environment/paths,
@@ -40,12 +44,14 @@ from backend.bootstrap.health.checks import default_health_checks
 from backend.bootstrap.steps.database_integrity_step import DatabaseIntegrityStep
 from backend.bootstrap.steps.database_migration_step import DatabaseMigrationStep
 from backend.bootstrap.steps.installation_state_step import InstallationStateStep
+from backend.bootstrap.steps.schema_compatibility_step import SchemaCompatibilityStep
 from backend.bootstrap.steps.schema_validation_step import SchemaValidationStep
 
 
 def database_bootstrap_steps() -> list:
     return [
         DatabaseIntegrityStep(),
+        SchemaCompatibilityStep(),
         DatabaseMigrationStep(),
         SchemaValidationStep(),
         InstallationStateStep(),

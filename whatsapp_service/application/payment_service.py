@@ -25,10 +25,10 @@ from decimal import Decimal
 from dataclasses import dataclass
 from typing import Optional
 
-from application.idempotency_fingerprint import compute_fingerprint
-from domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
-from domain.whatsapp.erp_ports import OrderRef
-from domain.whatsapp.payment_provider_ports import PaymentLinkRef
+from whatsapp_service.application.idempotency_fingerprint import compute_fingerprint
+from whatsapp_service.domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
+from whatsapp_service.domain.whatsapp.erp_ports import OrderRef
+from whatsapp_service.domain.whatsapp.payment_provider_ports import PaymentLinkRef
 
 
 @dataclass(frozen=True)

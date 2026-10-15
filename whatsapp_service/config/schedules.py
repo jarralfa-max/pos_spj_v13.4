@@ -18,29 +18,7 @@ class ScheduleService:
 
     def __init__(self, db_conn):
         self.db = db_conn
-        self._ensure_table()
-
-    def _ensure_table(self):
-        try:
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS wa_horarios_sucursal (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    sucursal_id INTEGER NOT NULL,
-                    dia TEXT NOT NULL,
-                    hora_apertura TEXT DEFAULT '08:00',
-                    hora_cierre TEXT DEFAULT '20:00',
-                    activo INTEGER DEFAULT 1,
-                    UNIQUE(sucursal_id, dia)
-                )
-            """)
-            try:
-                self.db.commit()
-            except Exception:
-                pass
-        except Exception as e:
-            logger.debug("_ensure_table: %s", e)
-
-    def esta_abierta(self, sucursal_id: int,
+    def esta_abierta(self, sucursal_id: str,
                      cuando: Optional[datetime] = None) -> bool:
         """Retorna True si la sucursal está abierta en el momento dado."""
         cuando = cuando or datetime.now()
@@ -60,7 +38,7 @@ class ScheduleService:
         except Exception:
             return True  # Fail-open
 
-    def get_horario_hoy(self, sucursal_id: int) -> Optional[Tuple[str, str]]:
+    def get_horario_hoy(self, sucursal_id: str) -> Optional[Tuple[str, str]]:
         """Retorna (hora_apertura, hora_cierre) de hoy."""
         dia = _DIAS.get(datetime.now().weekday(), "lunes")
         try:
@@ -73,7 +51,7 @@ class ScheduleService:
         except Exception:
             return None
 
-    def proximo_horario_apertura(self, sucursal_id: int) -> Optional[str]:
+    def proximo_horario_apertura(self, sucursal_id: str) -> Optional[str]:
         """Retorna texto legible del próximo horario de apertura."""
         from datetime import timedelta
         ahora = datetime.now()

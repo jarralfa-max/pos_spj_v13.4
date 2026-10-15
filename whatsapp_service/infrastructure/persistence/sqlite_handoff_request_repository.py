@@ -6,8 +6,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from domain.whatsapp.entities.handoff_request import HandoffRequest
-from domain.whatsapp.enums import HandoffStatus
+from whatsapp_service.domain.whatsapp.entities.handoff_request import HandoffRequest
+from whatsapp_service.domain.whatsapp.enums import HandoffStatus
 
 _COLUMNS = (
     "id, conversation_id, branch_id, reason, status, assigned_to_phone, "

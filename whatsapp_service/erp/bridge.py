@@ -24,28 +24,25 @@ GATEWAY INTERFACES:
 """
 from __future__ import annotations
 from decimal import Decimal
-try:
-    from domain.money import HUNDRED, JSON_HEADERS, ZERO, dumps_decimal, quantize_money, to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import HUNDRED, JSON_HEADERS, ZERO, dumps_decimal, quantize_money, to_decimal
+from whatsapp_service.domain.money import HUNDRED, JSON_HEADERS, ZERO, dumps_decimal, quantize_money, to_decimal
 import os
 import sqlite3
 import logging
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
-from config.settings import is_production
-from phone_number import possible_match_key
-from erp.catalog_sql import (
+from whatsapp_service.config.settings import is_production
+from whatsapp_service.phone_number import possible_match_key
+from whatsapp_service.erp.catalog_sql import (
     CATALOG_SELECT, OFFERABLE, catalog_params, catalog_row, product_category_name,
 )
-from erp.gateways.api_client import ERPApiClient
-from erp.gateways.sqlite_connection import ERPSqliteConnection
-from erp.gateways.customer_gateway import CustomerGateway as CustomerWriteGateway
-from erp.gateways.order_gateway import OrderGateway as OrderWriteGateway
-from erp.gateways.quote_gateway import QuoteGateway as QuoteWriteGateway
-from erp.gateways.payment_gateway import PaymentGateway as PaymentWriteGateway
-from erp.gateways.inventory_gateway import InventoryGateway as InventoryWriteGateway
-from erp.gateways.delivery_gateway import DeliveryGateway as DeliveryWriteGateway
+from whatsapp_service.erp.gateways.api_client import ERPApiClient
+from whatsapp_service.erp.gateways.sqlite_connection import ERPSqliteConnection
+from whatsapp_service.erp.gateways.customer_gateway import CustomerGateway as CustomerWriteGateway
+from whatsapp_service.erp.gateways.order_gateway import OrderGateway as OrderWriteGateway
+from whatsapp_service.erp.gateways.quote_gateway import QuoteGateway as QuoteWriteGateway
+from whatsapp_service.erp.gateways.payment_gateway import PaymentGateway as PaymentWriteGateway
+from whatsapp_service.erp.gateways.inventory_gateway import InventoryGateway as InventoryWriteGateway
+from whatsapp_service.erp.gateways.delivery_gateway import DeliveryGateway as DeliveryWriteGateway
 
 logger = logging.getLogger("wa.erp")
 
@@ -233,7 +230,11 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
     @property
     def db(self) -> sqlite3.Connection:
         if not self._conn:
-            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            from pathlib import Path
+            path = Path(self.db_path).resolve()
+            if not path.is_file():
+                raise RuntimeError("ERP database does not exist; check ERP_DB_PATH and initialize it with the ERP")
+            self._conn = sqlite3.connect(path.as_uri() + "?mode=rw", uri=True, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
@@ -537,7 +538,7 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
         except Exception:
             cliente_nombre = "Cliente WhatsApp"
         try:
-            from erp.pos_notifier import POSNotifier
+            from whatsapp_service.erp.pos_notifier import POSNotifier
             notifier = POSNotifier(self.db)
             if fecha_entrega:
                 notifier.notify_scheduled_whatsapp_order(

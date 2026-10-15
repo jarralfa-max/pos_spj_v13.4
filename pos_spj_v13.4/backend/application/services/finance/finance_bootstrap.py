@@ -39,6 +39,7 @@ _CHART = (
     ("1130", "Clientes (cuentas por cobrar)", AccountType.ASSET, CashFlowCategory.OPERATING, True),
     ("1135", "CxC a terceros financiadores", AccountType.ASSET, CashFlowCategory.OPERATING, True),
     ("1140", "Anticipos a proveedores", AccountType.ASSET, CashFlowCategory.OPERATING, True),
+    ("1145", "Préstamos y anticipos a empleados", AccountType.ASSET, CashFlowCategory.OPERATING, True),
     ("1150", "Inventario", AccountType.ASSET, CashFlowCategory.OPERATING, True),
     ("1155", "Producción en proceso", AccountType.ASSET, CashFlowCategory.OPERATING, True),
     ("1160", "Inventario en tránsito", AccountType.ASSET, CashFlowCategory.OPERATING, True),
@@ -167,7 +168,7 @@ def _ensure_late_additions(uow: FinanceUnitOfWork, today: date) -> None:
              for code, name, acc_type, cash_flow, posting in _CHART}
     ids: dict[str, str] = {}
     for code in ("2136", "6110", "4120", "1120", "1102", "2132", "4101",
-                 "1140", "1150", "2101", "1170"):
+                 "1140", "1150", "2101", "1170", "1145", "1101", "1110"):
         account = uow.accounts.get_by_code(code)
         if account is None:
             name, acc_type, cash_flow, posting = chart[code]
@@ -181,6 +182,14 @@ def _ensure_late_additions(uow: FinanceUnitOfWork, today: date) -> None:
             instrument_type=CommercialInstrumentType.SWEEPSTAKES_PRIZE) is None:
         uow.posting_profiles.save(_sweepstakes_profile(ids, date(today.year, 1, 1)))
         logger.info("Finance: perfil SWEEPSTAKES_PRIZE agregado")
+    if uow.posting_profiles.find_effective("EMPLOYEE_LOAN", today) is None:
+        uow.posting_profiles.save(_profile(
+            "EMPLOYEE_LOAN", "Préstamos y anticipos a empleados (RR. HH.)", {
+                "employee_receivable_account_id": ids["1145"],
+                "cash_account_id": ids["1101"],
+                "bank_account_id": ids["1110"],
+            }, date(today.year, 1, 1)))
+        logger.info("Finance: perfil EMPLOYEE_LOAN agregado")
     if uow.posting_profiles.find_effective("PURCHASE_RETURN", today) is None:
         uow.posting_profiles.save(_profile(
             "PURCHASE_RETURN", "Devoluciones a proveedor (nota de crédito)", {
@@ -262,6 +271,10 @@ def _seed_posting_profiles(uow: FinanceUnitOfWork, ids: dict[str, str], today: d
             "salary_payable_account_id": ids["2120"],
             "social_security_payable_account_id": ids["2125"],
             "bank_account_id": ids["1110"],
+            # Auditoría RRHH HR-29: la nómina pagada en efectivo sale de caja.
+            "cash_account_id": ids["1101"],
+            # Abonos a préstamos/anticipos descontados en nómina.
+            "employee_receivable_account_id": ids["1145"],
         }, effective),
         _profile("INVENTORY", "Ajustes, merma y producción", {
             "inventory_account_id": ids["1150"],

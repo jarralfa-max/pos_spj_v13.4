@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from bootstrap.service_registry import ServiceNotRegisteredError, ServiceRegistry
+from whatsapp_service.bootstrap.service_registry import ServiceNotRegisteredError, ServiceRegistry
 
 
 class TestServiceRegistry:

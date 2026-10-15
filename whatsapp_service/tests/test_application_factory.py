@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from bootstrap.application_factory import WhatsAppApplicationFactory
+from whatsapp_service.bootstrap.application_factory import WhatsAppApplicationFactory
 
 
 @pytest.fixture()

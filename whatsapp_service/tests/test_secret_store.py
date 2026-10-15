@@ -9,11 +9,11 @@ from __future__ import annotations
 import sqlite3
 import time
 
-from infrastructure.secrets.secret_store import SecretStore
+from whatsapp_service.infrastructure.secrets.secret_store import SecretStore
 
 
 def _db_with_config(tmp_path, clave: str, valor: str) -> str:
-    db_path = str(tmp_path / "erp.db")
+    db_path = str(tmp_path / "whatsapp_service.erp.db")
     conn = sqlite3.connect(db_path)
     conn.execute("CREATE TABLE configuraciones (clave TEXT PRIMARY KEY, valor TEXT)")
     conn.execute("INSERT INTO configuraciones (clave, valor) VALUES (?, ?)", (clave, valor))
@@ -44,7 +44,7 @@ def test_get_falls_back_to_env_when_db_path_missing():
     assert store.get("meta_token", "env-fallback") == "env-fallback"
 
 
-def test_get_caches_db_read_within_ttl(tmp_path):
+def test_rotation_is_visible_even_with_a_legacy_ttl_argument(tmp_path):
     db_path = _db_with_config(tmp_path, "wa_meta_token", "first-value")
     store = SecretStore(lambda: db_path, ttl_seconds=60.0)
 
@@ -56,8 +56,8 @@ def test_get_caches_db_read_within_ttl(tmp_path):
     conn.commit()
     conn.close()
 
-    # Dentro del TTL, sigue devolviendo el valor cacheado.
-    assert store.get("meta_token") == "first-value"
+    # A different process rotated the credential; no stale value is allowed.
+    assert store.get("meta_token") == "second-value"
 
 
 def test_clear_cache_forces_fresh_read(tmp_path):

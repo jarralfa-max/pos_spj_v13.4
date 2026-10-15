@@ -6,11 +6,11 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "pos_spj_v13.4"))
 
-from erp.bridge import ERPBridge
+from whatsapp_service.erp.bridge import ERPBridge
 
 
 def _db_path(tmp_path):
-    dbp = tmp_path / "erp.db"
+    dbp = tmp_path / "whatsapp_service.erp.db"
     conn = sqlite3.connect(dbp)
     conn.execute("CREATE TABLE clientes (id INTEGER PRIMARY KEY, nombre TEXT)")
     conn.execute("INSERT INTO clientes(id,nombre) VALUES (1,'Ana')")
@@ -34,7 +34,7 @@ def test_notify_pos_new_order_routes_scheduled_vs_immediate(tmp_path):
         def notify_new_whatsapp_order(self, **kwargs):
             calls["immediate"] += 1
 
-    with patch("erp.pos_notifier.POSNotifier", DummyNotifier):
+    with patch("whatsapp_service.erp.pos_notifier.POSNotifier", DummyNotifier):
         bridge._notify_pos_new_order(
             venta_id=1, folio="WA-1", total=100,
             cliente_id=1, sucursal_id=1, tipo_entrega="domicilio",
@@ -77,7 +77,7 @@ def test_notify_pos_new_order_also_calls_desktop_notification_service(tmp_path):
             calls["scheduled"] += 1
             return True
 
-    with patch("erp.pos_notifier.POSNotifier", DummyNotifier), \
+    with patch("whatsapp_service.erp.pos_notifier.POSNotifier", DummyNotifier), \
          patch("core.services.desktop_notification_service.DesktopNotificationService", DummyDesktopSvc):
         bridge._notify_pos_new_order(
             venta_id=10, folio="WA-10", total=100,

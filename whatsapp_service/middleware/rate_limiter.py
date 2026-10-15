@@ -8,7 +8,7 @@ import time
 import logging
 from collections import defaultdict
 try:
-    from config.settings import MAX_MESSAGES_PER_MINUTE
+    from whatsapp_service.config.settings import MAX_MESSAGES_PER_MINUTE
 except (ImportError, AttributeError):
     MAX_MESSAGES_PER_MINUTE = 15
 

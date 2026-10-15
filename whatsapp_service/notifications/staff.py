@@ -1,7 +1,7 @@
 # notifications/staff.py — Notificaciones internas al personal
 from __future__ import annotations
 from decimal import Decimal
-from messaging.sender import send_text
+from whatsapp_service.messaging.sender import send_text
 from typing import List
 
 

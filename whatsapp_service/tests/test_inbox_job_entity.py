@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-from domain.whatsapp.entities.inbox_job import InboundMessageJob
-from domain.whatsapp.enums import InboxStatus
-from domain.whatsapp.exceptions import InvalidInboxJobTransitionError
+from whatsapp_service.domain.whatsapp.entities.inbox_job import InboundMessageJob
+from whatsapp_service.domain.whatsapp.enums import InboxStatus
+from whatsapp_service.domain.whatsapp.exceptions import InvalidInboxJobTransitionError
 
 
 def _job() -> InboundMessageJob:

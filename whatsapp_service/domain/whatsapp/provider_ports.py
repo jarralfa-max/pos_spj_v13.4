@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Protocol
 
-from domain.whatsapp.value_objects.intent_resolution import IntentResolution
+from whatsapp_service.domain.whatsapp.value_objects.intent_resolution import IntentResolution
 
 
 class IntentAIProvider(Protocol):

@@ -6,8 +6,8 @@ Se conecta al EventBus del ERP para escuchar cambios.
 from __future__ import annotations
 from decimal import Decimal
 import logging
-from messaging.sender import send_text
-from messaging.templates import send_event_template
+from whatsapp_service.messaging.sender import send_text
+from whatsapp_service.messaging.templates import send_event_template
 
 logger = logging.getLogger("wa.notif.customer")
 

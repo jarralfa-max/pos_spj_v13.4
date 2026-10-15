@@ -15,16 +15,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
-from messaging.sender import _is_whatsapp_opted_out
-from models.message import OutgoingMessage
-import messaging.sender as sender_mod
+from whatsapp_service.messaging.sender import _is_whatsapp_opted_out
+from whatsapp_service.models.message import OutgoingMessage
+import whatsapp_service.messaging.sender as sender_mod
 
 
 def _erp_db(tmp_path) -> str:
     from backend.infrastructure.db.schema.customers_crm_schema import create_customers_crm_schema
     from backend.infrastructure.db.schema.customer_privacy_schema import create_customer_privacy_schema
 
-    dbp = tmp_path / "erp.db"
+    dbp = tmp_path / "whatsapp_service.erp.db"
     conn = sqlite3.connect(dbp)
     conn.execute(
         "CREATE TABLE clientes (id TEXT PRIMARY KEY, nombre TEXT, telefono TEXT, activo INTEGER DEFAULT 1)"

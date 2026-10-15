@@ -118,6 +118,10 @@ from backend.infrastructure.db.repositories.settings.workstation_repository impo
 )
 
 
+#: Filas de la traza de actualizaciones en la tabla genérica de Configuración.
+_UPDATE_HISTORY_LIMIT = 200
+
+
 @dataclass(frozen=True, slots=True)
 class ConfigColumnDTO:
     title: str
@@ -660,7 +664,7 @@ class ConfiguracionWorkspaceQueryService:
         `SecretStoreGateway`'s own docstring says the UI layer must not
         read a raw secret back."""
         if not credential_reference:
-            return "No configurada"
+            return "Sin configurar"
         secret_store = self._secret_store
         if secret_store is None:
             from backend.security.secrets.default_secret_store import build_default_secret_store
@@ -668,8 +672,10 @@ class ConfiguracionWorkspaceQueryService:
             secret_store = build_default_secret_store()
         reference = secret_store.describe(credential_reference)
         if reference is None:
-            return "No configurada"
-        return f"Configurada ({reference.masked_value})"
+            return "Sin configurar"
+        if reference.status == "REVOKED":
+            return "Expirada"
+        return "Configurado"
 
     def _page_feature_flags(self, search: str) -> ConfigPageViewModel:
         columns = (
@@ -755,6 +761,32 @@ class ConfiguracionWorkspaceQueryService:
             for p in policies
         )
         return self._filtered(columns, rows, search, "No hay políticas de expiración de caché todavía.")
+
+    def _page_actualizaciones(self, search: str) -> ConfigPageViewModel:
+        """Traza de actualizaciones de TODAS las estaciones de esta base (la
+        página «Acerca de y actualizaciones» muestra además el estado de la
+        estación propia a través de sus casos de uso)."""
+        from backend.infrastructure.db.repositories.software_updates.station_update_repository import (
+            SqliteStationUpdateRepository,
+        )
+
+        columns = (
+            ConfigColumnDTO("Fecha"), ConfigColumnDTO("Estación"), ConfigColumnDTO("Evento"),
+            ConfigColumnDTO("De"), ConfigColumnDTO("A"), ConfigColumnDTO("Canal"),
+            ConfigColumnDTO("Detalle"),
+        )
+        events = SqliteStationUpdateRepository(self._conn).list_recent_events(_UPDATE_HISTORY_LIMIT)
+        rows = tuple(
+            ConfigRowViewModel(e["id"], (
+                str(e.get("occurred_at") or ""), str(e.get("workstation_key") or ""),
+                str(e.get("event_type") or ""), str(e.get("from_version") or ""),
+                str(e.get("to_version") or ""), str(e.get("channel") or ""),
+                str(e.get("detail") or "")[:200],
+            ))
+            for e in events
+        )
+        return self._filtered(columns, rows, search,
+                              "Aún no hay búsquedas ni instalaciones registradas.")
 
     def _page_usuarios_roles(self, search: str) -> ConfigPageViewModel:
         columns = (
@@ -1200,4 +1232,5 @@ class ConfiguracionWorkspaceQueryService:
         "config_notificaciones": _page_notificaciones,
         "config_offline": _page_offline,
         "config_usuarios_roles": _page_usuarios_roles,
+        "config_actualizaciones": _page_actualizaciones,
     }

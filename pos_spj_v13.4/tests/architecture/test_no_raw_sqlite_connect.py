@@ -41,6 +41,12 @@ ALLOWLIST = {
     # pool — es quien lo implementa. Antes esta entrada era
     # `core/db/connection.py`; el pool se mudó, la entrada se repunta.
     "backend/infrastructure/db/connection.py",
+    # INST-0 (2026-10-14): la API de respaldo en línea de SQLite necesita SUS
+    # PROPIAS conexiones a archivos que el pool no administra (el respaldo, la
+    # copia temporal) y la reubicación de la base legacy corre ANTES de que el
+    # pool exista y sobre un archivo que no es la base activa.
+    "backend/infrastructure/db/sqlite_backup.py",
+    "backend/infrastructure/db/database_relocation.py",
     # ConnectionFactory de la capa de infraestructura (reservada API/backend).
     "backend/infrastructure/db/database.py",
     # SHELL-3 DesktopApplicationBootstrapper: mismo caso que main.py — abre

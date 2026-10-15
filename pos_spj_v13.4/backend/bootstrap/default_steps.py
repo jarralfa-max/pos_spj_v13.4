@@ -16,6 +16,7 @@ from backend.bootstrap.steps.database_integrity_step import DatabaseIntegritySte
 from backend.bootstrap.steps.database_migration_step import DatabaseMigrationStep
 from backend.bootstrap.steps.environment_validation_step import EnvironmentValidationStep
 from backend.bootstrap.steps.installation_state_step import InstallationStateStep
+from backend.bootstrap.steps.schema_compatibility_step import SchemaCompatibilityStep
 from backend.bootstrap.steps.schema_validation_step import SchemaValidationStep
 
 
@@ -24,6 +25,7 @@ def default_bootstrap_steps() -> list[BootstrapStep]:
         EnvironmentValidationStep(),
         ApplicationPathsStep(),
         DatabaseIntegrityStep(),
+        SchemaCompatibilityStep(),
         DatabaseMigrationStep(),
         SchemaValidationStep(),
         InstallationStateStep(),

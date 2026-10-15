@@ -14,7 +14,7 @@ import pytest
 
 from decimal import Decimal
 
-from erp.catalog_sql import (
+from whatsapp_service.erp.catalog_sql import (
     CATALOG_SELECT, OFFERABLE, catalog_params, catalog_row, product_category_name,
 )
 

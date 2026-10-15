@@ -10,11 +10,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from application.diagnostics_service import DiagnosticsService
+from whatsapp_service.application.diagnostics_service import DiagnosticsService
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from middleware import service_auth
-from middleware.service_auth import sign_request
-from router.diagnostics_router import router as diagnostics_router
+from whatsapp_service.middleware import service_auth
+from whatsapp_service.middleware.service_auth import sign_request
+from whatsapp_service.router.diagnostics_router import router as diagnostics_router
 
 SECRET = "test-internal-key"
 
@@ -48,8 +48,8 @@ def _signed_headers(body: bytes, *, nonce="nonce-1"):
 
 @pytest.fixture()
 def client(monkeypatch):
-    monkeypatch.setattr("config.settings.get_internal_api_key", lambda: SECRET)
-    monkeypatch.setattr("config.settings.is_production", lambda: False)
+    monkeypatch.setattr("whatsapp_service.config.settings.get_internal_api_key", lambda: SECRET)
+    monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: False)
 
     connection = sqlite3.connect(":memory:", check_same_thread=False)
     create_whatsapp_schema(connection)

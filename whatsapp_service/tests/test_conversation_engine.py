@@ -6,11 +6,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from application.conversation_engine import CannotResetTerminalConversationError, ConversationEngine
+from whatsapp_service.application.conversation_engine import CannotResetTerminalConversationError, ConversationEngine
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from bootstrap.composition_root import WhatsAppCompositionRoot
-from domain.whatsapp.entities.conversation import WhatsAppConversation
-from domain.whatsapp.enums import ConversationSignal, ConversationState
+from whatsapp_service.bootstrap.composition_root import WhatsAppCompositionRoot
+from whatsapp_service.domain.whatsapp.entities.conversation import WhatsAppConversation
+from whatsapp_service.domain.whatsapp.enums import ConversationSignal, ConversationState
 
 
 @pytest.fixture()
@@ -83,7 +83,7 @@ class TestCheckTimeout:
         assert engine.check_timeout(conversation, now=now, timeout_minutes=30) is False
 
     def test_defaults_to_config_timeout_when_not_specified(self, root, monkeypatch):
-        monkeypatch.setattr("config.settings.CONVERSATION_TIMEOUT_MINUTES", 10)
+        monkeypatch.setattr("whatsapp_service.config.settings.CONVERSATION_TIMEOUT_MINUTES", 10)
         conversation = _open_conversation(root)
         engine = ConversationEngine(root)
         now = conversation.opened_at + timedelta(minutes=11)

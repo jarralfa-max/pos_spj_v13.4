@@ -134,12 +134,17 @@ class TestCashOpenerValidation:
         result = ValidateCashOpenerUseCase().execute(hr_conn, user_id=user)
         assert not result.success and result.error_code == "USER_NOT_LINKED"
 
-    def test_handler_raises_for_unlinked_user(self, hr_conn):
+    def test_handler_holds_event_for_unlinked_user(self, hr_conn):
+        # Auditoría HR-06: antes el evento se marcaba procesado ANTES de
+        # resolver al empleado y se perdía. Ahora queda retenido, sin marcar.
         user = new_uuid()
         hr_conn.execute("INSERT INTO usuarios (id, usuario) VALUES (?, 'x')", (user,))
-        with pytest.raises(UserEmployeeLinkRequiredError):
-            CashShiftOpenedAttendanceHandler(hr_conn).handle(
-                _open_payload(user, employee_id=None))
+        payload = _open_payload(user, employee_id=None)
+        CashShiftOpenedAttendanceHandler(hr_conn).handle(payload)
+        with HRUnitOfWork(hr_conn) as uow:
+            assert not uow.processed_events.was_processed(payload["event_id"])
+            assert [r["event_id"] for r in uow.inbox.list_pending()] == [payload["event_id"]]
+        assert UserEmployeeLinkRequiredError
 
     def test_linked_active_user_ok(self, hr_conn):
         user, emp = _linked_employee(hr_conn)

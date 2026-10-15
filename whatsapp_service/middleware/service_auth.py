@@ -101,22 +101,11 @@ async def require_service_auth(
     no está correctamente autenticada (patrón ya usado en este código para
     dependencias de solo validación).
     """
-    from config.settings import get_internal_api_key, is_production
+    from whatsapp_service.config.settings import get_internal_api_key, is_production
 
     secret = get_internal_api_key()
     if not secret:
-        if is_production():
-            logger.error(
-                "WA_INTERNAL_API_KEY no configurada en producción; "
-                "rechazando request al canal interno ERP↔microservicio "
-                "(whatsapp_security_audit.md S1/S8)."
-            )
-            raise HTTPException(status_code=503, detail="Service auth not configured")
-        logger.warning(
-            "WA_INTERNAL_API_KEY no configurada — endpoint interno sin "
-            "autenticación (permitido solo fuera de producción)."
-        )
-        return
+        raise HTTPException(status_code=503, detail="Service auth not configured")
 
     if not (x_service_id and x_timestamp and x_nonce and x_signature):
         logger.warning("require_service_auth: headers de autenticación de servicio faltantes")
@@ -136,9 +125,8 @@ async def require_service_auth(
         )
         raise HTTPException(status_code=401, detail="Timestamp out of tolerance")
 
-    if _is_replayed_nonce(x_nonce, now):
-        logger.warning("require_service_auth: nonce reutilizado (posible replay): %s", x_nonce)
-        raise HTTPException(status_code=401, detail="Replayed nonce")
+    if x_service_id != ERP_CORE_SERVICE:
+        raise HTTPException(status_code=403, detail="Service identity not allowed")
 
     body = await request.body()
     expected = sign_request(x_service_id, x_timestamp, x_nonce, body, secret)
@@ -148,3 +136,8 @@ async def require_service_auth(
             x_service_id, x_correlation_id,
         )
         raise HTTPException(status_code=401, detail="Invalid signature")
+
+    if _is_replayed_nonce(x_nonce, now):
+        logger.warning("require_service_auth: nonce reutilizado (posible replay): %s", x_nonce)
+        raise HTTPException(status_code=401, detail="Replayed nonce")
+

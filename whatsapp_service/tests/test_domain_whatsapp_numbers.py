@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
-from domain.whatsapp.enums import ChannelNumberStatus, ChannelRole
-from domain.whatsapp.exceptions import InvalidChannelNumberStateError, InvalidPhoneNumberError
-from domain.whatsapp.value_objects.phone_number import WhatsAppPhoneNumber
+from whatsapp_service.domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
+from whatsapp_service.domain.whatsapp.enums import ChannelNumberStatus, ChannelRole
+from whatsapp_service.domain.whatsapp.exceptions import InvalidChannelNumberStateError, InvalidPhoneNumberError
+from whatsapp_service.domain.whatsapp.value_objects.phone_number import WhatsAppPhoneNumber
 
 
 def _number(**overrides):

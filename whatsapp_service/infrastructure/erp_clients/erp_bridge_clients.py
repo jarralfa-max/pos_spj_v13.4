@@ -16,14 +16,11 @@ puertos del canal (WA-5/WA-8) — las llamadas internas a `ERPBridge`/
 """
 from __future__ import annotations
 from decimal import Decimal
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
+from whatsapp_service.domain.money import to_decimal
 
 from typing import Any, Dict, List, Optional
 
-from domain.whatsapp.erp_ports import CustomerRef, OrderRef, ProductRef, QuoteRef
+from whatsapp_service.domain.whatsapp.erp_ports import CustomerRef, OrderRef, ProductRef, QuoteRef
 
 
 def _str_or_empty(value: Any) -> str:

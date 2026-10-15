@@ -1,0 +1,31 @@
+{
+  "format": "spj-signed-manifest/1",
+  "payload": {
+    "format": "spj-release/1",
+    "product": "spj-erp-pos",
+    "version": "13.5.0",
+    "channel": "stable",
+    "published_at": "2026-10-20T03:00:00Z",
+    "platform": {"os": "windows", "arch": "x64"},
+    "minimum_installed_version": "13.4.0",
+    "database_schema": {"requires_at_least": 0, "migrates_to": 339},
+    "artifact": {
+      "kind": "inno-setup",
+      "file_name": "SPJ-Setup-13.5.0-x64.exe",
+      "url": "https://updates.example.invalid/spj/stable/SPJ-Setup-13.5.0-x64.exe",
+      "size": 123456789,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "release_notes": "Ejemplo: notas de la versión mostradas en Acerca de y actualizaciones.",
+    "mandatory": false,
+    "mandatory_deadline": null,
+    "rollout": {"percent": 25, "branch_ids": [], "workstation_ids": ["CAJA-PILOTO-01"]}
+  },
+  "signatures": [
+    {
+      "key_id": "spj-release-2026a",
+      "algorithm": "ed25519",
+      "signature": "EJEMPLO-SIN-FIRMA-VALIDA-generar-con-scripts/release/sign_manifest.py"
+    }
+  ]
+}

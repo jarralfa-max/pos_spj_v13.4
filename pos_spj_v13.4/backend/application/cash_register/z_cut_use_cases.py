@@ -16,7 +16,7 @@ from backend.domain.cash_register.difference_policy import CashDifferencePolicy
 from backend.domain.cash_register.events import CashEvents
 from backend.domain.cash_register.exceptions import CashInvalidStateError
 from backend.infrastructure.db.repositories.cash_register.unit_of_work import CashRegisterUnitOfWork
-from backend.shared.ids import new_uuid
+from backend.shared.ids import derived_uuidv7, new_uuid
 
 
 def _now() -> str:
@@ -114,7 +114,18 @@ class GenerateZCutUseCase:
                         alert_required=decision.alert_required,
                         channels=decision.channels,
                         whatsapp_required="WHATSAPP" in decision.channels)
-            uow.shifts.close(shift_id=shift_id, z_cut_id=cut.id, closed_at=_now())
+            closed_at = _now()
+            uow.shifts.close(shift_id=shift_id, z_cut_id=cut.id, closed_at=closed_at)
+            # Auditoría RRHH cebf67a HR-03/05: el turno se cierra con el Corte Z y
+            # NADIE publicaba CASH_SHIFT_CLOSED, así que la asistencia nunca
+            # registraba la salida. Se publica con el CAJERO del turno (no quien
+            # opera el corte) y con operación derivada del corte: reintentar el
+            # corte no produce un segundo cierre.
+            _record(uow, CashEvents.SHIFT_CLOSED,
+                    operation_id=derived_uuidv7(operation_id, "cash-shift-closed"),
+                    entity_id=shift_id, branch_id=branch_id,
+                    actor_user_id=actor_user_id, shift_id=shift_id, z_cut_id=cut.id,
+                    cashier_user_id=shift["cashier_user_id"], closed_at=closed_at)
             _record(uow, CashEvents.Z_CUT_GENERATED, operation_id=operation_id,
                     entity_id=cut.id, branch_id=branch_id,
                     actor_user_id=actor_user_id, shift_id=shift_id,

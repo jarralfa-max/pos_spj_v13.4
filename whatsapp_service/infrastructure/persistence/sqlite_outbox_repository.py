@@ -8,8 +8,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from domain.whatsapp.entities.outbox_message import OutboxMessage
-from domain.whatsapp.enums import OutboxMessageStatus
+from whatsapp_service.domain.whatsapp.entities.outbox_message import OutboxMessage
+from whatsapp_service.domain.whatsapp.enums import OutboxMessageStatus
 
 _COLUMNS = (
     "id, message_id, conversation_id, channel_number_id, destination_phone, payload_json, "

@@ -1,8 +1,8 @@
 import asyncio
-from models.message import IncomingMessage, MessageType
-from models.context import ConversationContext
-from parser.intent_parser import ParsedIntent
-from ai.intent_resolver import IntentResolver
+from whatsapp_service.models.message import IncomingMessage, MessageType
+from whatsapp_service.models.context import ConversationContext
+from whatsapp_service.parser.intent_parser import ParsedIntent
+from whatsapp_service.ai.intent_resolver import IntentResolver
 
 
 class DummyParser:

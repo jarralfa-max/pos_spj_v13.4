@@ -1,10 +1,8 @@
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal, loads_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
+from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 import json
 import sqlite3
+from backend.shared.ids import new_uuid
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
@@ -31,25 +29,6 @@ class IdempotencyRecord:
 class BusinessIdempotencyService:
     def __init__(self, db: sqlite3.Connection):
         self.db = db
-        self._ensure_table()
-
-    def _ensure_table(self) -> None:
-        self.db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS wa_business_idempotency (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                action_key TEXT UNIQUE NOT NULL,
-                phone TEXT NOT NULL,
-                action_type TEXT NOT NULL,
-                status TEXT NOT NULL,
-                result_json TEXT,
-                error TEXT,
-                created_at TEXT DEFAULT (datetime('now')),
-                updated_at TEXT DEFAULT (datetime('now'))
-            )
-            """
-        )
-        self.db.commit()
 
     def get(self, action_key: str) -> Optional[IdempotencyRecord]:
         row = self.db.execute(
@@ -78,10 +57,10 @@ class BusinessIdempotencyService:
         try:
             self.db.execute(
                 """
-                INSERT INTO wa_business_idempotency(action_key, phone, action_type, status)
-                VALUES (?, ?, ?, 'in_progress')
+                INSERT INTO wa_business_idempotency(id, action_key, phone, action_type, status)
+                VALUES (?, ?, ?, ?, 'in_progress')
                 """,
-                (action_key, phone, action_type),
+                (new_uuid(), action_key, phone, action_type),
             )
             self.db.commit()
             return True

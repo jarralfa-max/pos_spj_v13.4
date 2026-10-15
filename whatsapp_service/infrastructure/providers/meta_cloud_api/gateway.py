@@ -92,8 +92,8 @@ class MetaCloudApiWhatsAppGateway:
         )
 
     async def mark_read(self, *, provider_message_id: str) -> None:
-        from messaging.sender import _build_headers, _get_whatsapp_config, _post_message
-        from config.settings import get_wa_api_url
+        from whatsapp_service.messaging.sender import _build_headers, _get_whatsapp_config, _post_message
+        from whatsapp_service.config.settings import get_wa_api_url
 
         try:
             token, phone_id = _get_whatsapp_config(self._sucursal_id)
@@ -114,8 +114,8 @@ class MetaCloudApiWhatsAppGateway:
         """Descarga en 2 pasos, como exige la Graph API: (1) `GET
         /{media_id}` devuelve metadata + una URL firmada temporal, (2) `GET`
         esa URL con el mismo Bearer token descarga el binario."""
-        from messaging.sender import _build_headers, _get_whatsapp_config
-        from config.settings import WA_API_VERSION
+        from whatsapp_service.messaging.sender import _build_headers, _get_whatsapp_config
+        from whatsapp_service.config.settings import WA_API_VERSION
 
         token, _phone_id = _get_whatsapp_config(self._sucursal_id)
         headers = _build_headers(token)
@@ -152,8 +152,8 @@ class MetaCloudApiWhatsAppGateway:
         /{phone_number_id}`. Síncrono a propósito (ver nota en
         `provider_ports.py`) — `bootstrap/health_checks.py` es un
         agregador síncrono."""
-        from messaging.sender import _get_whatsapp_config
-        from config.settings import WA_API_VERSION
+        from whatsapp_service.messaging.sender import _get_whatsapp_config
+        from whatsapp_service.config.settings import WA_API_VERSION
 
         try:
             token, phone_id = _get_whatsapp_config(self._sucursal_id)
@@ -178,7 +178,7 @@ class MetaCloudApiWhatsAppGateway:
         """Resuelve config + valida consentimiento + arma payload + envía
         vía `messaging.sender._post_message` — el único camino real de
         salida, compartido con `send_message`/`send_template`."""
-        from messaging.sender import (
+        from whatsapp_service.messaging.sender import (
             _build_headers,
             _get_whatsapp_config,
             _is_whatsapp_opted_out,
@@ -186,7 +186,7 @@ class MetaCloudApiWhatsAppGateway:
             _post_message,
             redact_phone,
         )
-        from config.settings import get_wa_api_url
+        from whatsapp_service.config.settings import get_wa_api_url
 
         try:
             normalized_to = _normalize_phone(to)

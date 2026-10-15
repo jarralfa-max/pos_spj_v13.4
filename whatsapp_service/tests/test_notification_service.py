@@ -8,12 +8,12 @@ import sqlite3
 
 import pytest
 
-from application.notification_service import NotificationService
-from application.outbound_message_service import OutboundMessageService
+from whatsapp_service.application.notification_service import NotificationService
+from whatsapp_service.application.outbound_message_service import OutboundMessageService
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.enums import OutboxMessageStatus
-from infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
-from infrastructure.webhooks.outbound_dispatcher import OutboundDispatcher
+from whatsapp_service.domain.whatsapp.enums import OutboxMessageStatus
+from whatsapp_service.infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
+from whatsapp_service.infrastructure.webhooks.outbound_dispatcher import OutboundDispatcher
 
 
 class _FakeProviderGateway:

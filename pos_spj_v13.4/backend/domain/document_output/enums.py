@@ -32,6 +32,8 @@ class DocumentType(str, Enum):
     CUSTOMER_STATEMENT = "CUSTOMER_STATEMENT"
     LOYALTY_CARD = "LOYALTY_CARD"
     SWEEPSTAKES_TICKET = "SWEEPSTAKES_TICKET"
+    # RR. HH. (2026-10-14): recibo de nómina por empleado, en PDF o ticket.
+    PAYROLL_RECEIPT = "PAYROLL_RECEIPT"
     # SET-14 "Label templates": generalizes
     # `backend/domain/inventory/enums.py::LabelType` (INV-26) — same 6
     # categories (LOT/WEIGHT/TRANSFER/COUNT/ADJUSTMENT/PRODUCT), suffixed

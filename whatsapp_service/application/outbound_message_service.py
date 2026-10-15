@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from domain.whatsapp.entities.outbox_message import OutboxMessage
+from whatsapp_service.domain.whatsapp.entities.outbox_message import OutboxMessage
 
 
 class OutboundMessageService:

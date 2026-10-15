@@ -5,14 +5,14 @@ ejecuta la lógica del estado actual, y retorna el nuevo estado.
 """
 from __future__ import annotations
 from typing import TYPE_CHECKING, Optional
-from models.context import ConversationContext, FlowState
-from parser.intent_parser import ParsedIntent
-from erp.bridge import ERPBridge
-from erp.events import WAEventEmitter
+from whatsapp_service.models.context import ConversationContext, FlowState
+from whatsapp_service.parser.intent_parser import ParsedIntent
+from whatsapp_service.erp.bridge import ERPBridge
+from whatsapp_service.erp.events import WAEventEmitter
 
 if TYPE_CHECKING:
-    from erp.business_orchestrator import BusinessOrchestrator
-    from state.reminder_engine import ReminderEngine
+    from whatsapp_service.erp.business_orchestrator import BusinessOrchestrator
+    from whatsapp_service.state.reminder_engine import ReminderEngine
 
 
 class FlowResult:

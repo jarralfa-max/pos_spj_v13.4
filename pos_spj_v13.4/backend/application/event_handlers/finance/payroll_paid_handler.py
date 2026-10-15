@@ -33,7 +33,9 @@ class PayrollPaidHandler(FinanceEventHandler):
         gross_salaries = self.money(payload, "gross_salaries", currency)
         social_security = self.money(payload, "social_security", currency, required=False)
         net_paid = self.money(payload, "net_paid", currency)
-        withholdings = gross_salaries.add(social_security).subtract(net_paid)
+        loan_deductions = self.money(payload, "loan_deductions", currency, required=False)
+        withholdings = gross_salaries.add(social_security).subtract(net_paid).subtract(
+            loan_deductions)
         if withholdings.is_negative():
             raise FinanceDomainError(
                 "PAYROLL_PAID: el neto pagado excede sueldos + cargas sociales"
@@ -48,8 +50,16 @@ class PayrollPaidHandler(FinanceEventHandler):
             lines.append(LineSpec(profile.account_for("expense_account_id"),
                                   debit=social_security,
                                   description="Cargas sociales (IMSS)"))
-        lines.append(LineSpec(profile.account_for("bank_account_id"), credit=net_paid,
-                              description="Pago neto de nómina"))
+        method = str(payload.get("payment_method") or "BANK_TRANSFER").upper()
+        lines.append(LineSpec(self._payment_account(uow, profile, method, entry_date),
+                              credit=net_paid,
+                              description=f"Pago neto de nómina ({method})"))
+        if loan_deductions.is_positive():
+            # Abono a préstamos/anticipos: baja la cuenta por cobrar al empleado,
+            # no es una retención por enterar.
+            lines.append(LineSpec(self._employee_receivable(uow, profile, entry_date),
+                                  credit=loan_deductions,
+                                  description="Abono a préstamos y anticipos de empleados"))
         if withholdings.is_positive():
             lines.append(LineSpec(
                 profile.account_for("social_security_payable_account_id"),
@@ -61,3 +71,23 @@ class PayrollPaidHandler(FinanceEventHandler):
                              str(payload["operation_id"])),
             lines, currency_code=currency, branch_id=branch_id,
         )
+
+    def _role(self, uow, profile, role: str, entry_date) -> str:
+        """El rol en el perfil PAYROLL; si el perfil es previo a 2026-10-14 y no
+        lo trae, el del perfil EMPLOYEE_LOAN (se agrega al arrancar)."""
+        account_id = (getattr(profile, "accounts", None) or {}).get(role)
+        if account_id:
+            return account_id
+        return self.resolve_profile(uow, "EMPLOYEE_LOAN", entry_date).account_for(role)
+
+    def _employee_receivable(self, uow, profile, entry_date) -> str:
+        return self._role(uow, profile, "employee_receivable_account_id", entry_date)
+
+    def _payment_account(self, uow, profile, method: str, entry_date) -> str:
+        """Auditoría RRHH HR-29: el EFECTIVO acredita caja, no bancos (antes todo
+        pago de nómina abonaba la cuenta 1110). Transferencia y cheque, bancos.
+        Perfiles sembrados antes del 2026-10-14 no traen el rol de caja: se usa
+        la cuenta 1101 (Caja) del catálogo."""
+        if method == "CASH":
+            return self._role(uow, profile, "cash_account_id", entry_date)
+        return profile.account_for("bank_account_id")

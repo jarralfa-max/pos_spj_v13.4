@@ -27,8 +27,8 @@ if str(ERP_ROOT) not in sys.path:
 if str(Path(__file__).resolve().parents[1]) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from erp.events import WAEventEmitter
-from erp.pos_notifier import POSNotifier
+from whatsapp_service.erp.events import WAEventEmitter
+from whatsapp_service.erp.pos_notifier import POSNotifier
 
 
 def _migrated_db(tmp_path, name: str = "wa_events.db") -> sqlite3.Connection:

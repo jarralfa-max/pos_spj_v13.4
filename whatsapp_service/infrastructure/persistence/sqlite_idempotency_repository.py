@@ -7,8 +7,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
-from domain.whatsapp.enums import IdempotencyStatus
+from whatsapp_service.domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
+from whatsapp_service.domain.whatsapp.enums import IdempotencyStatus
 
 _COLUMNS = (
     "id, operation_id, operation_type, aggregate_type, aggregate_id, "

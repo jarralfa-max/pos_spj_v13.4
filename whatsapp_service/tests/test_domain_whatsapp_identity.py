@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from domain.whatsapp.entities.identity import WhatsAppIdentity
-from domain.whatsapp.enums import IdentityStatus
+from whatsapp_service.domain.whatsapp.entities.identity import WhatsAppIdentity
+from whatsapp_service.domain.whatsapp.enums import IdentityStatus
 
 
 def _identity(**overrides):

@@ -6,14 +6,14 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
-from domain.whatsapp._ids import new_id
-from domain.whatsapp.enums import (
+from whatsapp_service.domain.whatsapp._ids import new_id
+from whatsapp_service.domain.whatsapp.enums import (
     TERMINAL_DELIVERY_STATUSES,
     MessageDeliveryStatus,
     MessageDirection,
     MessageType,
 )
-from domain.whatsapp.exceptions import InvalidMessageDeliveryTransitionError
+from whatsapp_service.domain.whatsapp.exceptions import InvalidMessageDeliveryTransitionError
 
 
 def _utcnow() -> datetime:

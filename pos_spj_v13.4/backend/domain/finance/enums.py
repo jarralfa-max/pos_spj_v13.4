@@ -210,6 +210,8 @@ class PostingPurpose(str, Enum):
     SUPPLIER_CREDIT_NOTE = "SUPPLIER_CREDIT_NOTE"
     COLLECTION = "COLLECTION"
     PAYROLL = "PAYROLL"
+    #: Préstamo o anticipo de sueldo entregado a un empleado (RR. HH., 2026-10-14).
+    EMPLOYEE_LOAN = "EMPLOYEE_LOAN"
     INVENTORY_ADJUSTMENT = "INVENTORY_ADJUSTMENT"
     WASTE = "WASTE"
     PRODUCTION = "PRODUCTION"

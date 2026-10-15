@@ -115,6 +115,10 @@ class DirectPurchaseCreatePage(QWidget):
         self._payment.set_options(PAYMENT_CONDITION_OPTIONS)
         self._payment.set_current_id(PAYMENT_CONDITION_OPTIONS[0][0])
         self._payment.selection_changed.connect(lambda *_: self._render())
+        # Crédito del proveedor: días, límite, usado y disponible (2026-10-15).
+        self._credit_label = QLabel("")
+        self._credit_label.setProperty("role", "muted")
+        self._credit_label.setWordWrap(True)
         # La fuente de pago ya NO se captura aquí: se pide en el diálogo de
         # confirmación, con el resumen de la compra a la vista.
         for col, (title, widget) in enumerate((("Proveedor", self._supplier),
@@ -125,6 +129,7 @@ class DirectPurchaseCreatePage(QWidget):
         grid.addWidget(QLabel("Almacén destino"), 1, 2); grid.addWidget(self._warehouse, 1, 3)
         grid.addWidget(QLabel("Tipo"), 2, 0); grid.addWidget(self._kind, 2, 1)
         grid.addWidget(QLabel("Condición"), 2, 2); grid.addWidget(self._payment, 2, 3)
+        grid.addWidget(self._credit_label, 4, 0, 1, 4)
         grid.addWidget(QLabel("Surtido"), 3, 0); grid.addWidget(self._fulfillment, 3, 1)
         grid.addWidget(self._origin_label, 3, 2); grid.addWidget(self._origin, 3, 3)
         self._origin_label.setVisible(False)
@@ -235,6 +240,10 @@ class DirectPurchaseCreatePage(QWidget):
 
     def _supplier_selected(self, supplier_id):
         self._supplier_id = str(supplier_id)
+        credit = self._presenter.supplier_credit(self._supplier_id)
+        if not self._locked:
+            self._payment.set_current_id(credit["suggested"])
+        self._credit_label.setText(credit["text"])
         self._fulfillment_changed()
         self._render()
 
@@ -403,6 +412,7 @@ class DirectPurchaseCreatePage(QWidget):
         """Estado limpio para la siguiente compra: ids de operación NUEVOS. El
         destino elegido se conserva (se compra varias veces al mismo lugar)."""
         self._cart = []; self._supplier_id = None; self._source_requisition_id = None
+        self._credit_label.setText("")
         self._current_id = None; self._folio = ""
         self._operation_id = new_uuid()
         self._confirm_operation_id = new_uuid()

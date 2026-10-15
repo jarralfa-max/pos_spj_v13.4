@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import pytest
 
-from domain.whatsapp.entities.delivery_request import (
+from whatsapp_service.domain.whatsapp.entities.delivery_request import (
     DeliveryRequest,
     DeliveryRequestAlreadyFinalizedError,
 )
-from domain.whatsapp.enums import DeliveryRequestStatus
+from whatsapp_service.domain.whatsapp.enums import DeliveryRequestStatus
 
 
 def _start(**overrides):

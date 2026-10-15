@@ -77,6 +77,9 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
     warehouse_directory = WarehouseDirectoryQueryService(connection)
     supplier_origins = SupplierOriginQueryService(connection)
     payment_booking = ProcurementPaymentSourceBookingAdapter(connection)
+    # Crédito del proveedor (2026-10-15): condiciones, límite y exposición.
+    from backend.application.procurement.supplier_credit import SupplierCreditService
+    credit_service = SupplierCreditService(connection)
     return DirectPurchasePresenter(
         connection_provider=lambda: connection,
         read_service=DirectPurchaseReadService(connection),
@@ -85,16 +88,17 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
         use_cases={
             "create": CreateDirectPurchaseUseCase(
                 authorization, supplier_directory, product_catalog=product_catalog,
-                warehouse_directory=warehouse_directory, supplier_origins=supplier_origins),
+                warehouse_directory=warehouse_directory, supplier_origins=supplier_origins,
+                credit_service=credit_service),
             "authorize": AuthorizeDirectPurchaseUseCase(authorization),
             "confirm": ConfirmDirectPurchaseUseCase(
                 authorization, supplier_directory=supplier_directory,
                 product_catalog=product_catalog, warehouse_directory=warehouse_directory,
-                payment_booking=payment_booking),
+                payment_booking=payment_booking, credit_service=credit_service),
             "reverse": ReverseDirectPurchaseUseCase(authorization),
             "receive": ReceiveDirectPurchaseUseCase(
                 authorization, warehouse_directory=warehouse_directory,
-                product_catalog=product_catalog),
+                product_catalog=product_catalog, credit_service=credit_service),
             "record_variance": RecordPurchasePriceVarianceUseCase(authorization),
         },
         session_context=session_context,
@@ -108,4 +112,5 @@ def build_direct_purchase_presenter(connection, session_context=None) -> DirectP
         payment_booking=payment_booking,
         warehouse_directory=warehouse_directory,
         supplier_origins=supplier_origins,
+        credit_service=credit_service,
     )

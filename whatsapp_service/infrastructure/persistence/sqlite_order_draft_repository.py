@@ -7,8 +7,8 @@ from datetime import datetime
 from typing import Optional
 from decimal import Decimal
 
-from domain.whatsapp.entities.order_draft import OrderDraft, OrderDraftLine
-from domain.whatsapp.enums import DeliveryMethod, OrderDraftStatus
+from whatsapp_service.domain.whatsapp.entities.order_draft import OrderDraft, OrderDraftLine
+from whatsapp_service.domain.whatsapp.enums import DeliveryMethod, OrderDraftStatus
 
 _DRAFT_COLUMNS = (
     "id, conversation_id, branch_id, customer_external_id, delivery_method, "

@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from typing import Awaitable, Callable, Optional
 
-from domain.whatsapp.entities.inbox_job import InboundMessageJob
+from whatsapp_service.domain.whatsapp.entities.inbox_job import InboundMessageJob
 
 logger = logging.getLogger("wa.inbox_worker")
 

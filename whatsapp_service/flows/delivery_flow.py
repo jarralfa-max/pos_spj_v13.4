@@ -5,9 +5,9 @@ No duplica lógica — solo conecta el pedido WA con delivery.
 """
 from __future__ import annotations
 import logging
-from erp.bridge import ERPBridge
-from erp.events import WAEventEmitter
-from messaging.sender import send_text
+from whatsapp_service.erp.bridge import ERPBridge
+from whatsapp_service.erp.events import WAEventEmitter
+from whatsapp_service.messaging.sender import send_text
 
 logger = logging.getLogger("wa.delivery")
 

@@ -7,10 +7,10 @@ import sqlite3
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from bootstrap.composition_root import WhatsAppCompositionRoot
-from domain.whatsapp.entities.inbox_job import InboundMessageJob
-from domain.whatsapp.enums import InboxStatus
-from infrastructure.webhooks.inbox_worker import MAX_ATTEMPTS, InboxWorker
+from whatsapp_service.bootstrap.composition_root import WhatsAppCompositionRoot
+from whatsapp_service.domain.whatsapp.entities.inbox_job import InboundMessageJob
+from whatsapp_service.domain.whatsapp.enums import InboxStatus
+from whatsapp_service.infrastructure.webhooks.inbox_worker import MAX_ATTEMPTS, InboxWorker
 
 
 @pytest.fixture()

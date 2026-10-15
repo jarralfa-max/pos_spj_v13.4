@@ -142,6 +142,11 @@ class DesktopRouter:
                 raise NavigationPermissionDeniedError(
                     f"No tiene permiso '{route.required_permission}' para acceder a '{route.route_id}'."
                 )
+        if not self._context.capabilities.is_enabled(route.module_id):
+            self._publish(NAVIGATION_DENIED, {"route_id": route.route_id, "reason": "NOT_INSTALLED"})
+            raise NavigationFeatureDisabledError(
+                f"El módulo '{route.module_id}' no está habilitado en esta estación "
+                "(perfil de instalación).")
         if module_disabled(self._context.feature_context, route.module_id):
             self._publish(NAVIGATION_DENIED, {"route_id": route.route_id, "reason": "MODULE_DISABLED"})
             raise NavigationFeatureDisabledError(

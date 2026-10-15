@@ -6,7 +6,7 @@ que cubren el 70% de la interacción sin NLP.
 from __future__ import annotations
 from decimal import Decimal
 from typing import List, Dict
-from messaging.sender import send_buttons, send_list, send_text
+from whatsapp_service.messaging.sender import send_buttons, send_list, send_text
 
 
 async def send_menu_principal(to: str, nombre: str = ""):

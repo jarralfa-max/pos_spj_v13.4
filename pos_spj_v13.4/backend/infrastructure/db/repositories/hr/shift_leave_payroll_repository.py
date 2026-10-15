@@ -62,6 +62,18 @@ class WorkShiftRepository(HRRepositoryBase):
              ",".join(str(d) for d in assignment.weekdays), assignment.branch_id,
              assignment.created_at))
 
+    def list_assignments(self, employee_id: str) -> list[ShiftAssignment]:
+        rows = self._query(
+            f"SELECT {self._ASSIGN_COLS} FROM shift_assignments WHERE employee_id=?"
+            " ORDER BY effective_from", (employee_id,))
+        return [ShiftAssignment(
+            id=r["id"], employee_id=r["employee_id"], work_shift_id=r["work_shift_id"],
+            effective_from=date.fromisoformat(r["effective_from"]),
+            weekdays=tuple(int(d) for d in r["weekdays"].split(",") if d != ""),
+            branch_id=r["branch_id"],
+            effective_to=date.fromisoformat(r["effective_to"]) if r["effective_to"] else None,
+            created_at=r["created_at"]) for r in rows]
+
     def find_assignment_for(self, employee_id: str, on_date: date) -> ShiftAssignment | None:
         row = self._query_one(
             f"SELECT {self._ASSIGN_COLS} FROM shift_assignments"
@@ -98,25 +110,39 @@ class WorkShiftRepository(HRRepositoryBase):
 class LeaveRepository(HRRepositoryBase):
     _COLS = ("id, employee_id, branch_id, leave_type, start_date, end_date,"
              " requested_days, reason, status, requested_by_user_id, approved_by_user_id,"
-             " approved_at, operation_id, created_at, updated_at")
+             " approved_at, operation_id, created_at, updated_at,"
+             " cancelled_by_user_id, cancelled_at, cancel_reason")
 
     def save(self, request: LeaveRequest) -> None:
         self._execute(
             f"INSERT INTO leave_requests ({self._COLS})"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (request.id, request.employee_id, request.branch_id, request.leave_type.value,
              request.start_date.isoformat(), request.end_date.isoformat(),
              request.requested_days, request.reason, request.status.value,
              request.requested_by_user_id, request.approved_by_user_id,
              request.approved_at, request.operation_id, request.created_at,
-             request.updated_at))
+             request.updated_at, request.cancelled_by_user_id, request.cancelled_at,
+             request.cancel_reason))
 
     def update(self, request: LeaveRequest) -> None:
         self._execute(
             "UPDATE leave_requests SET status=?, approved_by_user_id=?, approved_at=?,"
-            " updated_at=? WHERE id=?",
+            " updated_at=?, cancelled_by_user_id=?, cancelled_at=?, cancel_reason=?"
+            " WHERE id=?",
             (request.status.value, request.approved_by_user_id, request.approved_at,
-             request.updated_at, request.id))
+             request.updated_at, request.cancelled_by_user_id, request.cancelled_at,
+             request.cancel_reason, request.id))
+
+    def list_approved_between(self, start: date, end: date, *,
+                              employee_ids=None) -> list[LeaveRequest]:
+        """HR-08: ausencias APROBADAS que tocan el periodo (alimentan la nómina)."""
+        rows = self._query(
+            f"SELECT {self._COLS} FROM leave_requests WHERE status='APPROVED'"
+            " AND start_date<=? AND end_date>=?", (end.isoformat(), start.isoformat()))
+        wanted = set(employee_ids) if employee_ids is not None else None
+        return [self._to_entity(r) for r in rows
+                if wanted is None or r["employee_id"] in wanted]
 
     def get(self, leave_id: str) -> LeaveRequest | None:
         row = self._query_one(f"SELECT {self._COLS} FROM leave_requests WHERE id=?", (leave_id,))
@@ -150,34 +176,75 @@ class LeaveRepository(HRRepositoryBase):
             requested_by_user_id=row["requested_by_user_id"],
             operation_id=row["operation_id"], status=LeaveStatus(row["status"]),
             approved_by_user_id=row["approved_by_user_id"], approved_at=row["approved_at"],
-            created_at=row["created_at"], updated_at=row["updated_at"])
+            created_at=row["created_at"], updated_at=row["updated_at"],
+            cancelled_by_user_id=row.get("cancelled_by_user_id"),
+            cancelled_at=row.get("cancelled_at"), cancel_reason=row.get("cancel_reason"))
 
 
 class PayrollRepository(HRRepositoryBase):
     _RUN_COLS = ("id, period_start, period_end, branch_id, payment_frequency, status,"
                  " generated_by_user_id, authorized_by_user_id, authorized_at, paid_at,"
-                 " payment_id, operation_id, created_at, updated_at")
+                 " payment_id, operation_id, created_at, updated_at, run_type,"
+                 " request_fingerprint, authorized_net_amount, original_run_id,"
+                 " adjustment_reason, reversed_at, reversed_by_user_id, reversal_reason")
     _LINE_COLS = ("id, payroll_run_id, employee_id, concept, amount, currency_code,"
                   " is_deduction, quantity, notes")
 
     def save(self, run: PayrollRun) -> None:
         self._execute(
             f"INSERT INTO payroll_runs ({self._RUN_COLS})"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (run.id, run.period_start.isoformat(), run.period_end.isoformat(),
              run.branch_id, run.payment_frequency.value if run.payment_frequency else None,
              run.status.value, run.generated_by_user_id, run.authorized_by_user_id,
              run.authorized_at, run.paid_at, run.payment_id, run.operation_id,
-             run.created_at, run.updated_at))
+             run.created_at, run.updated_at, run.run_type, run.request_fingerprint,
+             run.authorized_net_amount, run.original_run_id, run.adjustment_reason,
+             run.reversed_at, run.reversed_by_user_id, run.reversal_reason))
         for line in run.lines:
             self._save_line(line)
 
     def update(self, run: PayrollRun) -> None:
         self._execute(
             "UPDATE payroll_runs SET status=?, authorized_by_user_id=?, authorized_at=?,"
-            " paid_at=?, payment_id=?, updated_at=? WHERE id=?",
+            " paid_at=?, payment_id=?, updated_at=?, authorized_net_amount=?,"
+            " reversed_at=?, reversed_by_user_id=?, reversal_reason=? WHERE id=?",
             (run.status.value, run.authorized_by_user_id, run.authorized_at, run.paid_at,
-             run.payment_id, run.updated_at, run.id))
+             run.payment_id, run.updated_at, run.authorized_net_amount, run.reversed_at,
+             run.reversed_by_user_id, run.reversal_reason, run.id))
+
+    def save_extra_lines(self, run: PayrollRun, lines) -> None:
+        for line in lines:
+            self._save_line(line)
+
+    def list_related(self, original_run_id: str) -> list[PayrollRun]:
+        """Corridas complementarias vivas de una corrida original."""
+        rows = self._query(
+            f"SELECT {self._RUN_COLS} FROM payroll_runs WHERE original_run_id=?"
+            " AND status<>'CANCELLED' ORDER BY created_at", (original_run_id,))
+        return [self._hydrate(r) for r in rows]
+
+    # ── cobertura (HR-10) ────────────────────────────────────────────────────
+    def claim_coverage(self, run_id: str, employee_id: str, days) -> None:
+        """Reserva cada día del empleado para esta corrida. La llave primaria
+        UNIQUE(employee_id, coverage_date) hace IMPOSIBLE una segunda corrida
+        ordinaria solapada: lanza ``sqlite3.IntegrityError``."""
+        from backend.shared.ids import new_uuid
+        for day in days:
+            self._execute(
+                "INSERT INTO payroll_coverage (id, employee_id, coverage_date, payroll_run_id)"
+                " VALUES (?,?,?,?)", (new_uuid(), employee_id, day.isoformat(), run_id))
+
+    def coverage_conflict(self, employee_id: str, start: date, end: date) -> dict | None:
+        return self._query_one(
+            "SELECT c.payroll_run_id, MIN(c.coverage_date) AS first_day,"
+            " MAX(c.coverage_date) AS last_day, r.status FROM payroll_coverage c"
+            " JOIN payroll_runs r ON r.id=c.payroll_run_id WHERE c.employee_id=?"
+            " AND c.coverage_date BETWEEN ? AND ? GROUP BY c.payroll_run_id, r.status",
+            (employee_id, start.isoformat(), end.isoformat()))
+
+    def release_coverage(self, run_id: str) -> None:
+        self._execute("DELETE FROM payroll_coverage WHERE payroll_run_id=?", (run_id,))
 
     def _save_line(self, line: PayrollLine) -> None:
         self._execute(
@@ -215,7 +282,14 @@ class PayrollRepository(HRRepositoryBase):
             authorized_by_user_id=row["authorized_by_user_id"],
             authorized_at=row["authorized_at"], paid_at=row["paid_at"],
             payment_id=row["payment_id"], created_at=row["created_at"],
-            updated_at=row["updated_at"])
+            updated_at=row["updated_at"], run_type=row.get("run_type") or "ORDINARY",
+            request_fingerprint=row.get("request_fingerprint"),
+            authorized_net_amount=row.get("authorized_net_amount"),
+            original_run_id=row.get("original_run_id"),
+            adjustment_reason=row.get("adjustment_reason"),
+            reversed_at=row.get("reversed_at"),
+            reversed_by_user_id=row.get("reversed_by_user_id"),
+            reversal_reason=row.get("reversal_reason"))
         for line_row in self._query(
                 f"SELECT {self._LINE_COLS} FROM payroll_lines WHERE payroll_run_id=?",
                 (row["id"],)):
@@ -232,16 +306,35 @@ class PayrollRepository(HRRepositoryBase):
 class PayrollPaymentRepository(HRRepositoryBase):
     _COLS = ("id, payroll_run_id, gross_amount, deductions_amount, net_amount,"
              " currency_code, payment_method, authorized_by_user_id, paid_by_user_id,"
-             " operation_id, paid_at")
+             " operation_id, paid_at, payment_reference")
 
     def save(self, payment: PayrollPayment) -> None:
         self._execute(
-            f"INSERT INTO payroll_payments ({self._COLS}) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            f"INSERT INTO payroll_payments ({self._COLS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (payment.id, payment.payroll_run_id, payment.gross_amount.to_string(),
              payment.deductions_amount.to_string(), payment.net_amount.to_string(),
              payment.net_amount.currency_code, payment.payment_method.value,
              payment.authorized_by_user_id, payment.paid_by_user_id, payment.operation_id,
-             payment.paid_at))
+             payment.paid_at, payment.payment_reference))
+
+    def save_allocation(self, *, payment_id: str, run_id: str, employee_id: str,
+                        net_amount) -> None:
+        """HR-11: cuánto recibe cada empleado; la suma es el pago y el asiento."""
+        from backend.shared.ids import new_uuid
+        self._execute(
+            "INSERT INTO payroll_payment_allocations (id, payroll_payment_id, payroll_run_id,"
+            " employee_id, net_amount, currency_code) VALUES (?,?,?,?,?,?)",
+            (new_uuid(), payment_id, run_id, employee_id, net_amount.to_string(),
+             net_amount.currency_code))
+
+    def mark_reversed(self, payment_id: str, reversed_at: str) -> None:
+        self._execute("UPDATE payroll_payments SET reversed_at=? WHERE id=?",
+                      (reversed_at, payment_id))
+
+    def allocations(self, payment_id: str) -> list[dict]:
+        return self._query(
+            "SELECT employee_id, net_amount, currency_code FROM payroll_payment_allocations"
+            " WHERE payroll_payment_id=? ORDER BY employee_id", (payment_id,))
 
     def get(self, payment_id: str) -> PayrollPayment | None:
         row = self._query_one(f"SELECT {self._COLS} FROM payroll_payments WHERE id=?", (payment_id,))
@@ -268,4 +361,5 @@ class PayrollPaymentRepository(HRRepositoryBase):
             payment_method=PaymentMethod(row["payment_method"]),
             operation_id=row["operation_id"],
             paid_by_user_id=row["paid_by_user_id"],
-            authorized_by_user_id=row["authorized_by_user_id"], paid_at=row["paid_at"])
+            authorized_by_user_id=row["authorized_by_user_id"], paid_at=row["paid_at"],
+            payment_reference=row.get("payment_reference"))

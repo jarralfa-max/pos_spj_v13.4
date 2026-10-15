@@ -131,7 +131,10 @@ def test_immediate_payment_cannot_come_from_pos_cash(proc_conn):
     assert row[0] == DocumentStatus.DRAFT.value
 
 
-def test_supplier_credit_waits_for_matched_invoice_before_payable(proc_conn):
+def test_supplier_credit_requests_the_payable_at_receipt(proc_conn):
+    """Decisión del usuario 2026-10-15: la CxP de la compra a crédito nace al
+    RECIBIR la mercancía (antes esperaba una factura que casi nunca llegaba y la
+    deuda no existía en Finanzas). Nunca hay pago inmediato."""
     created = _create(proc_conn, payment_condition=PaymentCondition.SUPPLIER_CREDIT.value)
     confirm = ConfirmDirectPurchaseUseCase().execute(
         proc_conn, actor_user_id="u1", direct_purchase_id=created.entity_id,
@@ -139,7 +142,7 @@ def test_supplier_credit_waits_for_matched_invoice_before_payable(proc_conn):
     assert confirm.success
     with ProcurementUnitOfWork(proc_conn) as uow:
         events = {r["event_name"] for r in uow.outbox.list_pending(50)}
-    assert "ACCOUNT_PAYABLE_CREATE_REQUESTED" not in events
+    assert "ACCOUNT_PAYABLE_CREATE_REQUESTED" in events
     assert "PURCHASE_PAYMENT_REQUESTED" not in events
 
 

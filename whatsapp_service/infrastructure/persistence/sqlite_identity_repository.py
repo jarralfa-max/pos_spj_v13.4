@@ -6,9 +6,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from domain.whatsapp.entities.identity import WhatsAppIdentity
-from domain.whatsapp.enums import IdentityStatus
-from domain.whatsapp.value_objects.phone_number import WhatsAppPhoneNumber
+from whatsapp_service.domain.whatsapp.entities.identity import WhatsAppIdentity
+from whatsapp_service.domain.whatsapp.enums import IdentityStatus
+from whatsapp_service.domain.whatsapp.value_objects.phone_number import WhatsAppPhoneNumber
 
 _COLUMNS = (
     "id, wa_id, normalized_phone, customer_id, identity_status, "

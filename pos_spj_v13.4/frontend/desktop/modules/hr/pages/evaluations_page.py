@@ -18,11 +18,13 @@ class EvaluationsPage(HRPage):
     subtitle = "Seguimiento de desempeño del personal"
 
     def _build_extra(self) -> None:
+        # Auditoría RRHH HR-30: estar en la navegación no implica que exista el
+        # proceso. No hay ciclos, objetivos, participantes ni aprobación.
         message = QLabel(
-            "Las evaluaciones de desempeño se habilitarán como un caso de uso "
-            "dedicado del contexto de Recursos Humanos.\n\n"
-            "Los datos de asistencia, puntualidad y horas extra ya alimentan los "
-            "indicadores del resumen y estarán disponibles como insumo objetivo.")
+            "No disponible en esta versión.\n\n"
+            "Las evaluaciones de desempeño aún no tienen ciclos, objetivos, "
+            "participantes ni aprobación. Mientras tanto, la puntualidad, las "
+            "horas extra y las ausencias se consultan en Asistencia y en el Resumen.")
         message.setObjectName("hrEmptyState")
         message.setWordWrap(True)
         message.setAlignment(Qt.AlignTop | Qt.AlignLeft)

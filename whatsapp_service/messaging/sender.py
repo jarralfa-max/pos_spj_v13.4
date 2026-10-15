@@ -14,60 +14,18 @@ from __future__ import annotations
 import httpx
 import logging
 from typing import List, Dict, Optional, Tuple
-from phone_number import normalize_to_e164
+from whatsapp_service.phone_number import normalize_to_e164
 
-try:
-    from config.settings import (
-        WA_ACCESS_TOKEN,
-        WA_PHONE_NUMBER_ID,
-        ERP_DB_PATH,
-        get_wa_api_url,
-        get_meta_access_token,
-        get_meta_phone_number_id,
-    )
-except (ImportError, AttributeError):
-    WA_ACCESS_TOKEN = None
-    WA_PHONE_NUMBER_ID = None
-    ERP_DB_PATH = None
-    def get_wa_api_url(phone_number_id=None):  # type: ignore[misc]
-        raise ValueError("config.settings not available")
-    def get_meta_access_token():  # type: ignore[misc]
-        return ""
-    def get_meta_phone_number_id():  # type: ignore[misc]
-        return ""
-from models.message import OutgoingMessage
+from whatsapp_service.config.settings import (
+    WA_ACCESS_TOKEN, WA_PHONE_NUMBER_ID, ERP_DB_PATH,
+    get_wa_api_url, get_meta_access_token, get_meta_phone_number_id,
+)
+from whatsapp_service.models.message import OutgoingMessage
 
 logger = logging.getLogger("wa.sender")
 
 
-def _load_redact_phone():
-    """Carga `infrastructure.security.redaction.redact_phone` por ruta de
-    archivo explícita, no por nombre de paquete.
-
-    Mismo motivo que en `config/settings.py::_load_secret_store_class()`:
-    `infrastructure` también existe como paquete top-level en
-    `pos_spj_v13.4/infrastructure/`, y si ese otro paquete ya quedó cacheado
-    en `sys.modules['infrastructure']` en este proceso, un import normal
-    resolvería contra el paquete equivocado.
-    """
-    import importlib.util
-    import sys as _sys
-    from pathlib import Path as _Path
-
-    cache_key = "_wa_infra_redaction"
-    cached = _sys.modules.get(cache_key)
-    if cached is not None:
-        return cached.redact_phone
-
-    module_path = _Path(__file__).resolve().parent.parent / "infrastructure" / "security" / "redaction.py"
-    spec = importlib.util.spec_from_file_location(cache_key, str(module_path))
-    module = importlib.util.module_from_spec(spec)
-    _sys.modules[cache_key] = module
-    spec.loader.exec_module(module)
-    return module.redact_phone
-
-
-redact_phone = _load_redact_phone()
+from whatsapp_service.infrastructure.security.redaction import redact_phone
 
 # -----------------------------------------------------------------------------
 #  Utilidades
@@ -83,59 +41,13 @@ def _normalize_phone(phone: str) -> str:
 #  Configuración dinámica (ERP + .env)
 # -----------------------------------------------------------------------------
 
-def _get_whatsapp_config(sucursal_id: Optional[int] = None) -> Tuple[str, str]:
-    """
-    Obtiene token y phone_id.
-
-    Retorna: (token, phone_id)
-    Lanza ValueError si no se puede obtener ninguna configuración válida.
-    """
-    # 1) Configuración global guardada desde el panel Meta/Credenciales.
-    # Esta debe ganar porque es lo que el usuario actualiza desde la UI.
-    try:
-        token = get_meta_access_token()
-        phone_id = get_meta_phone_number_id()
-        if token and phone_id:
-            logger.debug("Configuración obtenida desde configuraciones globales del ERP")
-            return token, phone_id
-    except Exception as e:
-        logger.warning("Error leyendo configuración global WhatsApp: %s", e)
-
-    # 2) Configuración por número/sucursal en whatsapp_numeros.
-    # Se conserva como fallback para escenarios multi-número, pero no debe pisar
-    # el token global recién capturado desde el módulo.
-    try:
-        from erp.bridge import ERPBridge
-        erp = ERPBridge(ERP_DB_PATH)
-        query = """
-            SELECT meta_token, meta_phone_id
-            FROM whatsapp_numeros
-            WHERE activo = 1
-        """
-        params = []
-        if sucursal_id:
-            query += " AND sucursal_id = ?"
-            params.append(sucursal_id)
-        else:
-            query += " ORDER BY sucursal_id LIMIT 1"
-        row = erp.db.execute(query, params).fetchone()
-        if row:
-            token = row["meta_token"]
-            phone_id = row["meta_phone_id"]
-            if token and phone_id:
-                logger.debug("Configuración obtenida desde whatsapp_numeros (sucursal=%s)", sucursal_id or "primera activa")
-                return token, phone_id
-    except Exception as e:
-        logger.warning("Error al acceder a BD para obtener configuración WhatsApp: %s", e)
-
-    # 3) Fallback a variables de entorno.
-    token = WA_ACCESS_TOKEN
-    phone_id = WA_PHONE_NUMBER_ID
-    if token and phone_id:
-        logger.debug("Configuración obtenida desde .env")
-        return token, phone_id
-
-    raise ValueError("No se pudo obtener token y phone_id para WhatsApp (configuración global, BD o .env)")
+def _get_whatsapp_config(sucursal_id: Optional[str] = None) -> Tuple[str, str]:
+    """Use the selected integration; read failures never fall back to stale tokens."""
+    token = get_meta_access_token()
+    phone_id = get_meta_phone_number_id()
+    if not token or not phone_id:
+        raise ValueError("WhatsApp integration credentials are not configured")
+    return token, phone_id
 
 
 def _build_headers(token: str) -> dict:
@@ -216,7 +128,7 @@ def _is_whatsapp_opted_out(phone: str) -> bool:
     a "no retirado", nunca bloquea un envío por una falla de plomería.
     """
     try:
-        from erp.bridge import ERPBridge
+        from whatsapp_service.erp.bridge import ERPBridge
         erp = ERPBridge(ERP_DB_PATH)
         cliente = erp.find_cliente_by_phone(phone)
         legacy_id = cliente.get("id") if cliente else None

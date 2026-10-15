@@ -147,7 +147,10 @@ class TestAdjustments:
         assert approve.success
         with HRUnitOfWork(hr_conn) as uow:
             wd = uow.attendance.get_workday(workday_id)
-        assert wd.status is WorkdayStatus.ADJUSTED
+        # Auditoría HR-17: el ajuste corrige la hora efectiva; la jornada sigue
+        # ABIERTA porque aún no tiene salida (completitud ≠ "fue ajustada").
+        assert wd.first_entry_at.isoformat() == "2026-07-16T08:30:00+00:00"
+        assert wd.status is WorkdayStatus.OPEN
 
     def test_reject_adjustment(self, hr_conn):
         emp, workday_id = self._workday_with_entry(hr_conn)

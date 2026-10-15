@@ -18,11 +18,11 @@ import sqlite3
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "pos_spj_v13.4"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from erp.bridge import ERPBridge
+from whatsapp_service.erp.bridge import ERPBridge
 
 
 def _db_path(tmp_path):
-    dbp = tmp_path / "erp.db"
+    dbp = tmp_path / "whatsapp_service.erp.db"
     conn = sqlite3.connect(dbp)
     conn.execute(
         "CREATE TABLE clientes (id TEXT PRIMARY KEY, nombre TEXT, telefono TEXT, activo INTEGER DEFAULT 1)"

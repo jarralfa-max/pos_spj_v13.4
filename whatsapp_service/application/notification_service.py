@@ -22,7 +22,7 @@ intento inmediato falla.
 from __future__ import annotations
 from decimal import Decimal
 
-from domain.whatsapp.entities.outbox_message import OutboxMessage
+from whatsapp_service.domain.whatsapp.entities.outbox_message import OutboxMessage
 
 
 class NotificationService:

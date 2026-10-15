@@ -5,13 +5,13 @@ from decimal import Decimal
 
 import pytest
 
-from domain.whatsapp.entities.order_draft import (
+from whatsapp_service.domain.whatsapp.entities.order_draft import (
     EmptyOrderDraftError,
     OrderDraft,
     OrderDraftAlreadyFinalizedError,
     OrderDraftLine,
 )
-from domain.whatsapp.enums import DeliveryMethod, OrderDraftStatus
+from whatsapp_service.domain.whatsapp.enums import DeliveryMethod, OrderDraftStatus
 
 
 def _draft() -> OrderDraft:

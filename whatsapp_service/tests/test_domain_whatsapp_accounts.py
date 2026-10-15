@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from domain.whatsapp.entities.business_account import (
+from whatsapp_service.domain.whatsapp.entities.business_account import (
     WhatsAppBusinessAccount,
     WhatsAppProviderConfiguration,
 )
-from domain.whatsapp.enums import AccountStatus, WhatsAppProvider
+from whatsapp_service.domain.whatsapp.enums import AccountStatus, WhatsAppProvider
 
 
 def _account(**overrides):

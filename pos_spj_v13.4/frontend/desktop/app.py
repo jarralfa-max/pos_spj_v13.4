@@ -3,28 +3,40 @@
 `main.py` sólo llama a `main()`; toda la secuencia de arranque vive aquí (§0).
 El orden importa y cada paso depende del anterior:
 
+    0. `--self-test`          — arranque sin ventana para el actualizador y la
+                                CI (`backend/bootstrap/self_test.py`).
     1. QApplication          — antes de cualquier widget o diálogo.
-    2. Instancia única        — antes de tocar la base de datos.
-    3. Base de datos          — integridad -> migraciones -> validación de
-                                esquema/UUID -> estado de instalación, en UNA
-                                sola pasada (`run_database_bootstrap_sequence`).
-    4. Grafo de dependencias  — `CompositionRoot` valida y construye.
-    5. Autenticación          — asistente de primer arranque si hace falta,
+    2. Actualización          — ¿hay un actualizador corriendo, o una
+                                actualización que requiere recuperación?
+                                (`UpdateStartupGate`). Antes de abrir la base.
+    3. Instancia única        — candado sobre la base (`InstanceLock`), visible
+                                también para el actualizador externo.
+    4. Reubicación            — una base anterior al instalador se traslada UNA
+                                vez, con respaldo y verificación.
+    5. Base de datos          — integridad -> compatibilidad de esquema ->
+                                migraciones -> validación de esquema/UUID ->
+                                estado de instalación, en UNA sola pasada.
+    6. Inventario de versión  — versión/esquema de la estación y resultado de
+                                la última actualización.
+    7. Grafo de dependencias  — `CompositionRoot` valida y construye.
+    8. Autenticación          — asistente de primer arranque si hace falta,
                                 luego login. Devuelve un `ApplicationContext`.
-    6. Ventana                — se construye SÓLO tras autenticar, con el
-                                contexto ya resuelto.
+    9. Ventana                — se construye SÓLO tras autenticar.
 
-DÓNDE ESTÁ LA BASE DE DATOS — no se toca
-----------------------------------------
-Se usa `<raíz>/data/spj_pos_database.db`, exactamente la misma ruta de siempre.
-Es tentador cambiarla por `AppPaths.sqlite_database_path()`, que es la
-resolución canónica de rutas del proyecto, pero apunta a otro sitio Y con otro
-nombre de archivo (`%APPDATA%/SPJ/SPJ ERP POS/db/spj.sqlite3`). Hacer ese
-cambio aquí no daría ningún error: la aplicación arrancaría contra una base
-vacía, la migraría entera y mostraría el asistente de primer arranque, como si
-la instalación fuera nueva. Los datos reales seguirían en disco, invisibles.
-Reconciliar ambas rutas es una migración deliberada, con copia y verificación —
-no un efecto secundario de mover el arranque de sitio.
+DÓNDE ESTÁ LA BASE DE DATOS
+---------------------------
+La resuelve `AppPaths.database_path` — la MISMA resolución que usan el pool de
+conexiones, el actualizador, los respaldos y el servicio WhatsApp local:
+
+* desde el código fuente: `<raíz>/data/spj_pos_database.db`, la ruta de
+  siempre (los manuales de reinicio de la base de desarrollo la usan);
+* instalado: `<carpeta de datos>/db/spj_pos_database.db`, en ProgramData o en
+  LocalAppData según el instalador.
+
+Cambiar la ruta nunca arranca sobre una base vacía: si existe una base anterior
+conocida, `LegacyDatabaseRelocator` la traslada con respaldo y verificación, y
+ante cualquier duda (dos bases, base reubicada que desapareció) el arranque se
+detiene con el diagnóstico.
 
 UN FALLO DE ARRANQUE DETIENE EL ARRANQUE
 ----------------------------------------
@@ -44,22 +56,32 @@ import traceback
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QMessageBox
 
+from backend.shared.app_paths import DATABASE_FILENAME, AppPaths
 from backend.shared.app_version import APP_NAME, VERSION
+from backend.shared.install_config import InstallConfigError
 
 logger = logging.getLogger("SPJ.Boot")
 
-#: Raíz del proyecto — `frontend/desktop/app.py` está tres niveles por debajo.
-#: El mismo error que ya se documentó en `backend/infrastructure/db/connection.py`:
-#: contar mal los niveles no rompe nada visiblemente, sólo crea la base de datos
-#: en otra carpeta.
+#: Raíz del código del paquete — `frontend/desktop/app.py` está tres niveles
+#: por debajo. Sólo describe dónde está el código; las rutas de datos salen de
+#: `AppPaths`.
 APP_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-DATA_DIR = os.path.join(APP_ROOT, "data")
-DB_PATH = os.path.join(DATA_DIR, "spj_pos_database.db")
-LOGS_DIR = os.path.join(APP_ROOT, "logs")
 
-#: Se mantiene vivo mientras corre la aplicación: si el `QLocalServer` se
-#: recolecta, el nombre queda libre y una segunda instancia podría abrirse.
-_LOCAL_SERVER = None
+try:
+    PATHS: AppPaths | None = AppPaths.from_environment()
+    _PATHS_ERROR: Exception | None = None
+except InstallConfigError as _exc:  # se informa en main(), con ventana
+    PATHS = None
+    _PATHS_ERROR = _exc
+
+#: Sin `install_config.json` legible no se abre ninguna base (main() se detiene
+#: antes); el valor sólo existe para que el módulo se pueda importar.
+DB_PATH = str(PATHS.database_path) if PATHS else os.path.join(APP_ROOT, "data", DATABASE_FILENAME)
+DATA_DIR = os.path.dirname(DB_PATH)
+LOGS_DIR = str(PATHS.logs_dir) if PATHS else os.path.join(APP_ROOT, "logs")
+
+#: Candado de instancia única; se mantiene vivo mientras corre la aplicación.
+_INSTANCE_LOCK = None
 
 
 def _install_crash_handler() -> None:
@@ -76,7 +98,7 @@ def _install_crash_handler() -> None:
                 QMessageBox.critical(
                     None, f"Error inesperado — {APP_NAME}",
                     f"Ocurrió un error no esperado.\n\n{exc_type.__name__}: {exc_value}\n\n"
-                    f"Revisa logs/spj_pos.log para más detalles.",
+                    f"Revisa {os.path.join(LOGS_DIR, 'spj_pos.log')} para más detalles.",
                 )
         except Exception:
             # Un fallo AL INFORMAR de un fallo no debe sustituir al original:
@@ -88,29 +110,114 @@ def _install_crash_handler() -> None:
     sys.excepthook = _handler
 
 
-def _is_only_instance() -> bool:
-    """False si ya hay otra instancia abierta sobre la MISMA base de datos.
+def _acquire_instance_lock() -> bool:
+    """False si ya hay otra instancia (o el actualizador) sobre la MISMA base.
 
-    El nombre del servidor local incluye la ruta de la base: dos instalaciones
-    con bases distintas sí pueden convivir, dos sobre la misma no.
+    Un candado de archivo junto a la base: dos instalaciones con bases
+    distintas sí pueden convivir, dos sobre la misma no. A diferencia del
+    `QLocalServer` anterior, lo ve también el actualizador externo, que no es
+    un proceso Qt. El sistema operativo lo libera si el proceso muere.
     """
-    global _LOCAL_SERVER
-    try:
-        from PyQt5.QtNetwork import QLocalServer, QLocalSocket
+    global _INSTANCE_LOCK
+    from backend.infrastructure.runtime.instance_lock import InstanceLock
 
-        name = f"SPJ_POS_{os.path.abspath(DB_PATH).replace(os.sep, '_')}"
-        probe = QLocalSocket()
-        probe.connectToServer(name)
-        if probe.waitForConnected(300):
-            probe.disconnectFromServer()
+    lock = InstanceLock(_instance_lock_path())
+    try:
+        if not lock.acquire(timeout_seconds=2.0):
             return False
-        QLocalServer.removeServer(name)
-        _LOCAL_SERVER = QLocalServer()
-        _LOCAL_SERVER.listen(name)
-    except Exception as exc:
+    except OSError as exc:
         # Sin comprobación de instancia única se puede seguir trabajando; sin
         # aplicación, no. Se avisa y se continúa.
         logger.warning("No se pudo verificar la instancia única: %s", exc)
+        return True
+    _INSTANCE_LOCK = lock
+    return True
+
+
+def _instance_lock_path() -> str:
+    return DB_PATH + ".lock"
+
+
+def _release_instance_lock() -> None:
+    global _INSTANCE_LOCK
+    lock, _INSTANCE_LOCK = _INSTANCE_LOCK, None
+    if lock is not None:
+        lock.release()
+
+
+def _update_gate_allows_start() -> bool:
+    """Paso 2: un actualizador en curso o una actualización que requiere
+    recuperación impiden abrir la base. Devuelve False cuando hay que salir."""
+    if PATHS is None:
+        return True
+    from backend.application.software_updates.startup_gate import (
+        GateKind,
+        UpdateStartupGate,
+    )
+    from backend.infrastructure.runtime.instance_lock import InstanceLock
+    from backend.infrastructure.updater.update_job_store import UpdateJobStore
+
+    store = UpdateJobStore(PATHS.update_job_path)
+    gate = UpdateStartupGate(store, InstanceLock(PATHS.updater_lock_path)).inspect()
+    if gate.kind is GateKind.CLEAR:
+        if gate.message:
+            logger.warning(gate.message)
+        return True
+    if gate.kind is GateKind.IN_PROGRESS:
+        QMessageBox.information(None, f"Actualizando {APP_NAME}", gate.message)
+        return False
+    return _offer_guided_recovery(gate.job, store)
+
+
+def _offer_guided_recovery(job, store) -> bool:
+    """La reversión automática no terminó. Opciones reales: recuperar (el
+    actualizador externo restaura el respaldo previo y reinstala la versión
+    anterior) o salir. Abrir sin recuperar no se ofrece: la base puede estar
+    a medio migrar."""
+    detalle = (
+        f"La actualización de {job.from_version} a {job.to_version} no terminó y la "
+        "reversión automática tampoco.\n\n"
+        f"{job.last_detail}\n\n"
+        f"Respaldo previo: {job.backup_path or 'no se llegó a crear'}\n"
+        f"Instalador de la versión anterior: {job.previous_installer_path or 'no disponible'}\n\n"
+        "«Recuperar» restaura la base de datos al momento previo a la actualización y "
+        "reinstala la versión anterior (se pedirá autorización de administrador)."
+    )
+    box = QMessageBox(QMessageBox.Critical, f"Recuperación — {APP_NAME}", detalle)
+    recuperar = box.addButton("Recuperar", QMessageBox.AcceptRole)
+    box.addButton("Salir", QMessageBox.RejectRole)
+    box.exec_()
+    if box.clickedButton() is not recuperar:
+        return False
+    try:
+        from backend.application.software_updates.installation import SoftwareInstallation
+        from backend.infrastructure.updater.update_launcher import ExternalUpdaterLauncher
+
+        ExternalUpdaterLauncher(SoftwareInstallation.describe(PATHS)).launch(
+            job_path=store.path, wait_pid=os.getpid(), mode="recover")
+    except Exception as exc:
+        logger.exception("No se pudo iniciar la recuperación")
+        QMessageBox.critical(None, "Recuperación",
+                             f"No se pudo iniciar el actualizador: {exc}")
+    return False
+
+
+def _relocate_legacy_database() -> bool:
+    """Paso 4. False cuando el arranque debe detenerse."""
+    if PATHS is None or str(PATHS.database_path) != DB_PATH:
+        return True  # ruta fijada a mano (pruebas, soporte)
+    from backend.infrastructure.db.database_relocation import (
+        LegacyDatabaseRelocator,
+        RelocationStatus,
+    )
+
+    result = LegacyDatabaseRelocator(PATHS).run()
+    logger.info("Ubicación de la base: %s — %s", result.status.value, result.message)
+    if result.blocks_startup:
+        QMessageBox.critical(None, "Base de datos — no se abrió", result.message)
+        return False
+    if result.status is RelocationStatus.RELOCATED:
+        QMessageBox.information(None, "Base de datos trasladada", result.message)
     return True
 
 
@@ -149,6 +256,27 @@ def _prepare_database() -> object:
         logger.warning(advertencia)
     logger.info("Base de datos lista (%s).", result.final_state.value)
     return result
+
+
+def _record_station_start(connection) -> None:
+    """Paso 6: inventario de versión de la estación y resultado de la última
+    actualización (que el actualizador dejó en su diario, fuera de la base)."""
+    if PATHS is None:
+        return
+    try:
+        from backend.application.software_updates.use_cases import RecordStationStartUseCase
+        from backend.infrastructure.desktop.software_updates_factory import (
+            build_software_update_dependencies,
+        )
+
+        notice = RecordStationStartUseCase(
+            build_software_update_dependencies(connection, paths=PATHS)).execute()
+    except Exception:
+        # El inventario de versiones no debe impedir vender.
+        logger.exception("No se pudo registrar la versión de la estación.")
+        return
+    if notice is not None:
+        QMessageBox.information(None, notice.title, notice.message)
 
 
 def _build_services():
@@ -190,8 +318,58 @@ def _logout_and_reauthenticate(app, window, coordinator) -> bool:
         app.setQuitOnLastWindowClosed(quit_on_close)
 
 
+def _make_update_handoff(app, connection, ventana: dict):
+    """Cierre ordenado para instalar: servicios de fondo, conexiones, candado
+    y, sólo entonces, el actualizador externo. Si el actualizador no arranca,
+    la aplicación sigue abierta y nada cambió."""
+
+    def handoff(launch_request) -> bool:
+        from backend.application.software_updates.installation import SoftwareInstallation
+        from backend.infrastructure.updater.update_launcher import ExternalUpdaterLauncher
+
+        window = ventana.get("window")
+        try:
+            command = ExternalUpdaterLauncher(SoftwareInstallation.describe(PATHS))
+        except Exception as exc:
+            QMessageBox.critical(window, "Actualización", f"No se pudo preparar el actualizador: {exc}")
+            return False
+        if window is not None and window.service_supervisor is not None:
+            window.service_supervisor.stop_all()
+        from backend.infrastructure.db.sqlite_backup import checkpoint_wal
+
+        if not checkpoint_wal(connection):
+            logger.warning("No se pudo consolidar el WAL antes de actualizar.")
+        try:
+            command.launch(job_path=launch_request.job_path, wait_pid=os.getpid())
+        except Exception as exc:
+            logger.exception("No se pudo iniciar el actualizador")
+            QMessageBox.critical(window, "Actualización",
+                                 f"No se pudo iniciar el actualizador: {exc}\n\nNo se cambió nada.")
+            if window is not None and window.service_supervisor is not None:
+                window.service_supervisor.start_all()
+            return False
+        logger.info("Cerrando para instalar la versión %s.", launch_request.job.to_version)
+        try:
+            from backend.infrastructure.db.connection import close_thread_connection
+
+            close_thread_connection()
+            connection.close()
+        except Exception:
+            pass
+        _release_instance_lock()
+        app.quit()
+        return True
+
+    return handoff
+
+
 def main() -> int:
     """Arranca la aplicación. Devuelve el código de salida del proceso."""
+    if "--self-test" in sys.argv:
+        from backend.bootstrap.self_test import main as self_test_main
+
+        return self_test_main()
+
     from pathlib import Path
 
     from frontend.desktop.logging_setup import configure_logging
@@ -208,6 +386,13 @@ def main() -> int:
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(VERSION)
 
+    if _PATHS_ERROR is not None:
+        QMessageBox.critical(
+            None, f"Instalación dañada — {APP_NAME}",
+            f"{_PATHS_ERROR}\n\nRepare la instalación desde «Aplicaciones instaladas» de "
+            "Windows. No se abrió ninguna base de datos.")
+        return 1
+
     from frontend.desktop.components.branding import BrandAssetProvider
     BrandAssetProvider.apply_to_application(app)
 
@@ -218,14 +403,21 @@ def main() -> int:
     except Exception as exc:
         logger.warning("No se pudo aplicar el tema guardado: %s", exc)
 
-    if not _is_only_instance():
+    if not _update_gate_allows_start():
+        return 0
+
+    if not _acquire_instance_lock():
         QMessageBox.information(
             None, "Ya está ejecutándose",
             f"{APP_NAME} ya está abierto en esta computadora.")
         return 0
 
+    if not _relocate_legacy_database():
+        return 1
+
     bootstrap = _prepare_database()
     connection = bootstrap.context.conn
+    _record_station_start(connection)
     services = _build_services()
 
     from backend.bootstrap.wiring.event_wiring import wire_cross_context_events
@@ -240,6 +432,10 @@ def main() -> int:
         logger.exception("No se pudo cablear la integración entre contextos.")
 
     ventana = {}
+
+    from frontend.desktop.shell.application_lifecycle import set_update_handoff
+
+    set_update_handoff(_make_update_handoff(app, connection, ventana))
 
     def _on_authenticated(context) -> None:
         """Se llama una sola vez, con el login ya resuelto."""
@@ -278,5 +474,7 @@ def main() -> int:
         return 0
 
     exit_code = app.exec_()
+    set_update_handoff(None)
+    _release_instance_lock()
     logger.info("Sistema cerrado. Código: %s", exit_code)
     return exit_code

@@ -8,7 +8,7 @@ completo en su ruta de éxito/error.
 """
 from __future__ import annotations
 
-from infrastructure.security.redaction import redact_phone, redact_secret
+from whatsapp_service.infrastructure.security.redaction import redact_phone, redact_secret
 
 
 def test_redact_phone_keeps_last_4_digits():
@@ -45,7 +45,7 @@ def test_redact_secret_empty():
 def test_redact_secret_matches_secret_store_mask():
     """`SecretStore.mask` y `redact_secret` deben coincidir — mismo patrón
     documentado (`core/services/whatsapp_credential_service.py:_mask_token`)."""
-    from infrastructure.secrets.secret_store import SecretStore
+    from whatsapp_service.infrastructure.secrets.secret_store import SecretStore
 
     value = "sk-test-1234567890abcdef"
     assert redact_secret(value) == SecretStore.mask(value)

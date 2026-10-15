@@ -18,9 +18,11 @@ from frontend.desktop.modules.hr.pages.employees_page import EmployeesPage
 from frontend.desktop.modules.hr.pages.evaluations_page import EvaluationsPage
 from frontend.desktop.modules.hr.pages.leave_page import LeavePage
 from frontend.desktop.modules.hr.pages.overview_page import OverviewPage
+from frontend.desktop.modules.hr.pages.payroll_inputs_page import PayrollInputsPage
 from frontend.desktop.modules.hr.pages.payroll_page import PayrollPage
 from frontend.desktop.modules.hr.pages.schedules_page import SchedulesPage
 from frontend.desktop.modules.hr.pages.settings_page import SettingsPage
+from frontend.desktop.modules.hr.pages.time_clock_page import TimeClockPage
 
 #: (section label or None, page label, page class, semantic icon)
 _NAVIGATION = [
@@ -28,9 +30,11 @@ _NAVIGATION = [
     ("Personal", "Empleados", EmployeesPage, Icons.USERS),
     ("Asistencia", "Jornadas", AttendancePage, Icons.CHECKLIST),
     ("Asistencia", "Ajustes", AdjustmentsPage, Icons.ADJUSTMENT),
+    ("Asistencia", "Checador", TimeClockPage, Icons.CLOCK),
     ("Horarios", "Turnos", SchedulesPage, Icons.CLOCK),
     ("Ausencias", "Vacaciones y permisos", LeavePage, Icons.CALENDAR),
     ("Nómina", "Corridas de nómina", PayrollPage, Icons.CASH),
+    ("Nómina", "Conceptos y préstamos", PayrollInputsPage, Icons.ADJUSTMENT),
     ("Desempeño", "Evaluaciones", EvaluationsPage, Icons.QUALITY),
     (None, "Configuración", SettingsPage, Icons.SETTINGS),
 ]

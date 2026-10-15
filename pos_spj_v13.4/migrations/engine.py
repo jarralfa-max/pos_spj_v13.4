@@ -338,6 +338,12 @@ MIGRATIONS = [
     _Migration("332",  "migrations.standalone.332_finance_audit_d9f2bca"),
     _Migration("333",  "migrations.standalone.333_seed_finance_granular_permissions"),
     _Migration("334",  "migrations.standalone.334_procurement_audit_d9f2bca"),
+    _Migration("335",  "migrations.standalone.335_hr_audit_cebf67a"),
+    _Migration("336",  "migrations.standalone.336_seed_hr_granular_permissions"),
+    _Migration("337",  "migrations.standalone.337_hr_pending_receipts_time_clock"),
+    _Migration("338",  "migrations.standalone.338_software_updates"),
+    _Migration("339",  "migrations.standalone.339_seed_software_update_permissions"),
+    _Migration("340",  "migrations.standalone.340_backfill_credit_purchase_payables"),
 ]
 
 def _ensure_tracking_table(conn):

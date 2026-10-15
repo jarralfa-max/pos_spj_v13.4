@@ -6,10 +6,7 @@ Estado de la conversación, sucursal, pedido en curso, etc.
 from __future__ import annotations
 from decimal import Decimal
 
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
+from whatsapp_service.domain.money import to_decimal
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 from datetime import datetime

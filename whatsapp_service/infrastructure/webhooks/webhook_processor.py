@@ -22,15 +22,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from domain.whatsapp.entities.conversation import WhatsAppConversation
-from domain.whatsapp.entities.identity import WhatsAppIdentity
-from domain.whatsapp.entities.inbox_job import InboundMessageJob
-from domain.whatsapp.entities.message import WhatsAppMessage
-from domain.whatsapp.enums import MessageDirection
-from domain.whatsapp.enums import MessageType as DomainMessageType
-from domain.whatsapp.exceptions import ChannelNumberNotRegisteredError
-from models.message import IncomingMessage, InteractiveType as LegacyInteractiveType
-from models.message import MessageType as LegacyMessageType
+from whatsapp_service.domain.whatsapp.entities.conversation import WhatsAppConversation
+from whatsapp_service.domain.whatsapp.entities.identity import WhatsAppIdentity
+from whatsapp_service.domain.whatsapp.entities.inbox_job import InboundMessageJob
+from whatsapp_service.domain.whatsapp.entities.message import WhatsAppMessage
+from whatsapp_service.domain.whatsapp.enums import MessageDirection
+from whatsapp_service.domain.whatsapp.enums import MessageType as DomainMessageType
+from whatsapp_service.domain.whatsapp.exceptions import ChannelNumberNotRegisteredError
+from whatsapp_service.models.message import IncomingMessage, InteractiveType as LegacyInteractiveType
+from whatsapp_service.models.message import MessageType as LegacyMessageType
 
 # Mapeo del `MessageType` legacy que ya parsea `IncomingMessage.from_webhook`
 # hacia el `MessageType` de dominio (WA-2, §15). No todo tipo legacy tiene

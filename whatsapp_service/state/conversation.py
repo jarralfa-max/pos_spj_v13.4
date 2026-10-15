@@ -4,21 +4,15 @@ Guarda y recupera el estado de conversación en SQLite.
 Cada teléfono tiene un registro con su contexto serializado.
 """
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal, loads_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
+from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 import json
 import sqlite3
 import logging
 from datetime import datetime, timedelta
 from typing import Optional
-from models.context import ConversationContext, FlowState, PedidoItem
-try:
-    from config.settings import CONTEXT_DB_PATH, CONVERSATION_TIMEOUT_MINUTES
-except (ImportError, AttributeError):
-    CONTEXT_DB_PATH = "/tmp/wa_context.db"
-    CONVERSATION_TIMEOUT_MINUTES = 30
+from whatsapp_service.models.context import ConversationContext, FlowState, PedidoItem
+from whatsapp_service.config.settings import CONTEXT_DB_PATH, CONVERSATION_TIMEOUT_MINUTES
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("wa.state")
 
@@ -33,28 +27,8 @@ class ConversationStore:
         self._init_tables()
 
     def _init_tables(self):
-        self.db.executescript("""
-            CREATE TABLE IF NOT EXISTS conversations (
-                phone TEXT PRIMARY KEY,
-                state TEXT DEFAULT 'idle',
-                sucursal_id INTEGER,
-                sucursal_nombre TEXT DEFAULT '',
-                cliente_id INTEGER,
-                cliente_nombre TEXT DEFAULT '',
-                data_json TEXT DEFAULT '{}',
-                last_activity TEXT DEFAULT (datetime('now')),
-                created_at TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS message_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                message_id TEXT UNIQUE,
-                phone TEXT,
-                direction TEXT DEFAULT 'in',
-                content TEXT,
-                timestamp TEXT DEFAULT (datetime('now'))
-            );
-        """)
-        self.db.commit()
+        from migrations.whatsapp_runtime import migrate_conversation_schema
+        migrate_conversation_schema(self.db)
 
     def get(self, phone: str) -> ConversationContext:
         """Recupera o crea el contexto de una conversación."""
@@ -146,9 +120,9 @@ class ConversationStore:
         """Registra un mensaje. Retorna False si ya existe (duplicado)."""
         try:
             self.db.execute(
-                "INSERT INTO message_log (message_id, phone, direction, content) "
-                "VALUES (?, ?, ?, ?)",
-                (message_id, phone, direction, content[:500]))
+                "INSERT INTO message_log (id, message_id, phone, direction, content) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (new_uuid(), message_id, phone, direction, content[:500]))
             self.db.commit()
             return True
         except sqlite3.IntegrityError:

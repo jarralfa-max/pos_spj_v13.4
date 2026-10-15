@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from middleware.service_auth import require_service_auth
+from whatsapp_service.middleware.service_auth import require_service_auth
 
 router = APIRouter(tags=["diagnostics"], dependencies=[Depends(require_service_auth)])
 

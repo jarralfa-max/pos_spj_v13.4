@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import messaging.templates as templates_mod  # noqa: E402
+import whatsapp_service.messaging.templates as templates_mod  # noqa: E402
 
 
 def _send(event_name: str, params: dict, *, to: str = "5551234567"):

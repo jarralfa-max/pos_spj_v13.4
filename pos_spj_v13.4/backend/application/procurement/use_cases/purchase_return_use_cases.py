@@ -295,7 +295,7 @@ class ConfirmPurchaseReturnUseCase:
                   document_number=pr.document_number, currency_code=currency,
                   return_value=str(value.quantize(Decimal("0.01"))),
                   return_tax=str(tax.quantize(Decimal("0.01"))),
-                  invoice_ids=_applied_invoice_ids(uow, gr), lines=stock_lines)
+                  invoice_ids=_payable_sources(uow, gr), lines=stock_lines)
         return ProcurementResult.ok("Devolución confirmada", entity_id=pr.id,
                                     operation_id=operation_id, status=pr.status.value)
 
@@ -333,3 +333,16 @@ class CancelPurchaseReturnUseCase:
                   branch_id=pr.branch_id)
         return ProcurementResult.ok("Devolución cancelada", entity_id=pr.id,
                                     operation_id=operation_id, status=pr.status.value)
+
+
+def _payable_sources(uow, gr) -> list[str]:
+    """Documentos cuya CxP acredita la devolución: las facturas aplicadas y, en
+    una compra rápida a CRÉDITO, la propia recepción (su CxP nace al recibir,
+    2026-10-15)."""
+    from backend.domain.procurement.enums import PaymentCondition
+    sources = list(_applied_invoice_ids(uow, gr))
+    if gr.direct_purchase_id:
+        dp = uow.direct_purchases.get(gr.direct_purchase_id)
+        if dp is not None and dp.payment_condition is PaymentCondition.SUPPLIER_CREDIT:
+            sources.insert(0, gr.id)
+    return sources

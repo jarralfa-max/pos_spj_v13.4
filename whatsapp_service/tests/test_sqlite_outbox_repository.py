@@ -7,9 +7,9 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.entities.outbox_message import OutboxMessage
-from domain.whatsapp.enums import OutboxMessageStatus
-from infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
+from whatsapp_service.domain.whatsapp.entities.outbox_message import OutboxMessage
+from whatsapp_service.domain.whatsapp.enums import OutboxMessageStatus
+from whatsapp_service.infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
 
 
 @pytest.fixture()

@@ -20,22 +20,19 @@ ejecutar lo que esa intención implica es trabajo de fases futuras (WA-9+).
 """
 from __future__ import annotations
 from decimal import Decimal
-try:
-    from domain.money import ONE, ZERO
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import ONE, ZERO
+from whatsapp_service.domain.money import ONE, ZERO
 
 from typing import Dict, Optional, Tuple
 
-from domain.whatsapp.entities.conversation import WhatsAppConversation
-from domain.whatsapp.enums import Intent
-from domain.whatsapp.provider_ports import IntentAIProvider
-from domain.whatsapp.value_objects.intent_resolution import (
+from whatsapp_service.domain.whatsapp.entities.conversation import WhatsAppConversation
+from whatsapp_service.domain.whatsapp.enums import Intent
+from whatsapp_service.domain.whatsapp.provider_ports import IntentAIProvider
+from whatsapp_service.domain.whatsapp.value_objects.intent_resolution import (
     IntentEntity,
     IntentResolution,
     IntentResolutionSource,
 )
-from models.message import IncomingMessage
+from whatsapp_service.models.message import IncomingMessage
 
 # ── Capa 1 — Interactive reply determinista ─────────────────────────────────
 # IDs reales que ya usan los botones/listas de `messaging/interactive.py` —
@@ -156,7 +153,7 @@ _HANDOFF_INTENTS = frozenset({Intent.HUMAN_HANDOFF, Intent.OPT_OUT})
 
 
 def intent_to_conversation_signal(resolution: IntentResolution):
-    from domain.whatsapp.enums import ConversationSignal
+    from whatsapp_service.domain.whatsapp.enums import ConversationSignal
 
     if resolution.intent in _HANDOFF_INTENTS:
         return ConversationSignal.HANDOFF_REQUESTED

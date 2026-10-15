@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Dict, Tuple
 
-from domain.whatsapp.enums import TERMINAL_CONVERSATION_STATES, ConversationSignal, ConversationState
+from whatsapp_service.domain.whatsapp.enums import TERMINAL_CONVERSATION_STATES, ConversationSignal, ConversationState
 
 # Señales universales: aplican desde cualquier estado NO terminal, sin
 # importar el estado actual (un bloqueo o un timeout puede ocurrir en

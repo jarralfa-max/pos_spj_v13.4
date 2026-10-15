@@ -11,8 +11,8 @@ import asyncio
 
 import pytest
 
-import infrastructure.providers.meta_cloud_api.gateway as gateway_mod
-from infrastructure.providers.meta_cloud_api.gateway import MetaCloudApiWhatsAppGateway
+import whatsapp_service.infrastructure.providers.meta_cloud_api.gateway as gateway_mod
+from whatsapp_service.infrastructure.providers.meta_cloud_api.gateway import MetaCloudApiWhatsAppGateway
 
 
 def _gateway() -> MetaCloudApiWhatsAppGateway:
@@ -23,14 +23,14 @@ def _gateway() -> MetaCloudApiWhatsAppGateway:
 def _configured(monkeypatch):
     """Config resuelta por defecto en todos los tests de esta suite —
     cada test que necesite un escenario distinto la sobreescribe."""
-    import messaging.sender as sender_mod
+    import whatsapp_service.messaging.sender as sender_mod
 
     monkeypatch.setattr(sender_mod, "_get_whatsapp_config", lambda sucursal_id=None: ("token", "phone-id"))
     monkeypatch.setattr(sender_mod, "_is_whatsapp_opted_out", lambda phone: False)
 
 
 def _mock_post_message(monkeypatch, result: dict):
-    import messaging.sender as sender_mod
+    import whatsapp_service.messaging.sender as sender_mod
 
     async def _fake(url, payload, headers, timeout=10.0):
         _fake.calls.append((url, payload, headers))
@@ -62,7 +62,7 @@ class TestSendText:
         assert result["error"] == "boom"
 
     def test_opted_out_never_calls_post_message(self, monkeypatch):
-        import messaging.sender as sender_mod
+        import whatsapp_service.messaging.sender as sender_mod
 
         monkeypatch.setattr(sender_mod, "_is_whatsapp_opted_out", lambda phone: True)
         fake = _mock_post_message(monkeypatch, {"ok": True, "status_code": 200, "provider_message_id": "x", "error": None, "raw": {}})
@@ -78,7 +78,7 @@ class TestSendText:
         assert fake.calls == []
 
     def test_missing_config_never_calls_post_message(self, monkeypatch):
-        import messaging.sender as sender_mod
+        import whatsapp_service.messaging.sender as sender_mod
 
         def _raise(sucursal_id=None):
             raise ValueError("no config")
@@ -149,7 +149,7 @@ class TestMarkRead:
         }
 
     def test_missing_config_does_not_raise(self, monkeypatch):
-        import messaging.sender as sender_mod
+        import whatsapp_service.messaging.sender as sender_mod
 
         def _raise(sucursal_id=None):
             raise ValueError("no config")
@@ -240,7 +240,7 @@ class TestHealthCheck:
         assert _gateway().health_check() is False
 
     def test_false_when_config_missing(self, monkeypatch):
-        import messaging.sender as sender_mod
+        import whatsapp_service.messaging.sender as sender_mod
 
         def _raise(sucursal_id=None):
             raise ValueError("no config")

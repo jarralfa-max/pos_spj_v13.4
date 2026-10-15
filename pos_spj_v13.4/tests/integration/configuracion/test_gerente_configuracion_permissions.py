@@ -52,6 +52,9 @@ def test_snapshot_only_names_codes_that_exist():
 def test_gerente_reads_every_section_and_manages_devices(conn):
     _m302.run(conn)
     _m302.run(conn)  # idempotente
+    # «Acerca de y actualizaciones» nació después de la 302: su lectura la
+    # siembra la 339 (INST-0). El contrato es el estado tras TODAS las semillas.
+    importlib.import_module("migrations.standalone.339_seed_software_update_permissions").run(conn)
 
     codes = _gerente_codes(conn)
 

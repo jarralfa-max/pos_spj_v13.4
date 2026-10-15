@@ -160,6 +160,7 @@ class SetCredentialDialog(FormDialog):
         self.form.addRow("Referencia:", self.secret_name)
 
         self.secret_value = StandardLineEdit(self)
+        self.secret_value.setEchoMode(self.secret_value.Password)
         self.secret_value.setAccessibleName("Valor del secreto")
         apply_tooltip(self.secret_value, "Déjalo en blanco para mantener el secreto ya guardado y solo actualizar la referencia.")
         self.form.addRow("Nuevo valor (opcional):", self.secret_value)

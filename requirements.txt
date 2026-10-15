@@ -23,6 +23,7 @@ uvicorn[standard]==0.34.*
 httpx==0.28.*
 python-dotenv==1.0.*
 apscheduler==3.10.*
+tzdata>=2024.1            # zonas horarias IANA en Windows (asistencia RR. HH. por sucursal)
 
 # ───────────────────────────────────────────────────────────────────────────────
 # HARDWARE — Impresoras, Básculas, Scanners

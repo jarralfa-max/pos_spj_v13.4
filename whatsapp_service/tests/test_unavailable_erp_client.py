@@ -5,7 +5,7 @@ import asyncio
 
 import pytest
 
-from infrastructure.erp_clients.unavailable_client import ErpClientUnavailableError, UnavailableErpClient
+from whatsapp_service.infrastructure.erp_clients.unavailable_client import ErpClientUnavailableError, UnavailableErpClient
 
 
 class TestUnavailableErpClient:

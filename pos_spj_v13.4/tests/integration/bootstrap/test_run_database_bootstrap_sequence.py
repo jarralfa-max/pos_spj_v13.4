@@ -16,7 +16,7 @@ def test_full_sequence_succeeds_against_a_fresh_database(tmp_path):
 
     assert result.success is True
     assert result.final_state is BootstrapState.RUNNING
-    assert len(result.step_results) == 4
+    assert len(result.step_results) == 5  # + schema_compatibility (INST-0)
     assert result.context.installation_status is ProvisioningStatus.UNINITIALIZED
     result.context.conn.close()
 
@@ -37,7 +37,7 @@ def test_migration_engine_failure_is_never_silently_swallowed(tmp_path, monkeypa
     assert failed is not None
     assert failed.step_name == "database_migration"
     # the schema/installation steps after it never ran
-    assert len(result.step_results) == 2
+    assert len(result.step_results) == 3  # integrity, schema_compatibility, migration
     result.context.conn.close()
 
 

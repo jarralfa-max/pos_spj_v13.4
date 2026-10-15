@@ -15,10 +15,9 @@ from frontend.desktop.components.worklist_page import WorklistPage
 class HRPage(WorklistPage):
     """Base page: PageHeader + optional KPI bar + StandardTable + refresh.
 
-    HR pages are simple lists — no search box, no server pagination (their
-    presenter methods don't take query/offset params) — so both are off by
-    default. A page can still set ``searchable``/``paginated`` = True once
-    its presenter method supports it.
+    Most HR pages are short worklists (no search, no server pagination). A
+    page sets ``searchable``/``paginated`` = True when its presenter method
+    supports it — Empleados does (auditoría HR-28).
     """
 
     title: str = ""
@@ -26,3 +25,18 @@ class HRPage(WorklistPage):
     columns: list[ColumnSpec] = []
     searchable = False
     paginated = False
+
+    def _capabilities(self):
+        getter = getattr(self._presenter, "capabilities", None)
+        return getter() if getter is not None else None
+
+    def _allowed(self, name: str) -> bool:
+        capabilities = self._capabilities()
+        return True if capabilities is None else bool(getattr(capabilities, name, False))
+
+    def _add_action(self, button, capability: str | None, handler) -> None:
+        """Botón de encabezado visible sólo si la sesión tiene la capacidad
+        (HR-01: el backend lo vuelve a validar)."""
+        button.clicked.connect(handler)
+        button.setVisible(capability is None or self._allowed(capability))
+        self.header.add_action(button)

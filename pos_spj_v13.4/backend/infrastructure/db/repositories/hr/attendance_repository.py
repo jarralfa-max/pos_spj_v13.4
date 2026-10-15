@@ -132,6 +132,24 @@ class AttendanceRepository(HRRepositoryBase):
             (employee_id, work_date.isoformat()))
         return _wd_to_entity(row) if row else None
 
+    def find_open_workday(self, employee_id: str, *, since: date) -> AttendanceWorkday | None:
+        """HR-13: jornada con un segmento ABIERTO desde ``since`` — la salida
+        de un turno nocturno pertenece a la jornada en que se entró."""
+        row = self._query_one(
+            f"SELECT {_WD_COLS} FROM attendance_workdays WHERE employee_id=?"
+            " AND status='OPEN' AND first_entry_at IS NOT NULL AND work_date>=?"
+            " ORDER BY work_date DESC LIMIT 1", (employee_id, since.isoformat()))
+        return _wd_to_entity(row) if row else None
+
+    def list_workdays_between(self, start: date, end: date, *,
+                              employee_ids=None) -> list[AttendanceWorkday]:
+        rows = self._query(
+            f"SELECT {_WD_COLS} FROM attendance_workdays WHERE work_date BETWEEN ? AND ?"
+            " ORDER BY work_date", (start.isoformat(), end.isoformat()))
+        wanted = set(employee_ids) if employee_ids is not None else None
+        return [_wd_to_entity(r) for r in rows
+                if wanted is None or r["employee_id"] in wanted]
+
     def list_workdays(self, *, work_date: date | None = None,
                       branch_id: str | None = None) -> list[AttendanceWorkday]:
         conditions, params = ["1=1"], []
@@ -186,6 +204,20 @@ class AttendanceAdjustmentRepository(HRRepositoryBase):
             f"SELECT {_ADJ_COLS} FROM attendance_adjustments WHERE operation_id=?",
             (operation_id,))
         return self._to_entity(row) if row else None
+
+    def list_approved_for_workday(self, workday_id: str) -> list[AttendanceAdjustment]:
+        rows = self._query(
+            f"SELECT {_ADJ_COLS} FROM attendance_adjustments WHERE workday_id=?"
+            " AND status='APPROVED' ORDER BY approved_at, created_at", (workday_id,))
+        return [self._to_entity(r) for r in rows]
+
+    def count_pending_between(self, start: date, end: date, employee_ids) -> int:
+        wanted = set(employee_ids)
+        rows = self._query(
+            "SELECT a.employee_id FROM attendance_adjustments a JOIN attendance_workdays w"
+            " ON w.id=a.workday_id WHERE a.status='PENDING' AND w.work_date BETWEEN ? AND ?",
+            (start.isoformat(), end.isoformat()))
+        return sum(1 for r in rows if r["employee_id"] in wanted)
 
     def list_pending(self) -> list[AttendanceAdjustment]:
         rows = self._query(

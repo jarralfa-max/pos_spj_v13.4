@@ -13,16 +13,16 @@ from __future__ import annotations
 
 import sqlite3
 
-from bootstrap.composition_root import WhatsAppCompositionRoot
-from bootstrap.dependency_graph_validator import validate_composition_root
+from whatsapp_service.bootstrap.composition_root import WhatsAppCompositionRoot
+from whatsapp_service.bootstrap.dependency_graph_validator import validate_composition_root
 
 
 def start_composition_root(db_path: str) -> WhatsAppCompositionRoot:
     """Aplica el gate de producción, abre la conexión, construye y valida
     el CompositionRoot. El llamador es dueño del ciclo de vida de la
     conexión resultante — usar `stop_composition_root()` para cerrarla."""
-    from config.settings import is_production
-    from main import _assert_production_secrets_configured
+    from whatsapp_service.config.settings import is_production
+    from whatsapp_service.main import _assert_production_secrets_configured
 
     if is_production():
         _assert_production_secrets_configured()

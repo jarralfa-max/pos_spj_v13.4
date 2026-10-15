@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from domain.whatsapp.entities.conversation import ConversationSession, WhatsAppConversation
-from domain.whatsapp.entities.conversation_context import ConversationContext
-from domain.whatsapp.enums import ConversationState
-from domain.whatsapp.exceptions import InvalidConversationStateTransitionError
+from whatsapp_service.domain.whatsapp.entities.conversation import ConversationSession, WhatsAppConversation
+from whatsapp_service.domain.whatsapp.entities.conversation_context import ConversationContext
+from whatsapp_service.domain.whatsapp.enums import ConversationState
+from whatsapp_service.domain.whatsapp.exceptions import InvalidConversationStateTransitionError
 
 
 def _conversation(**overrides):

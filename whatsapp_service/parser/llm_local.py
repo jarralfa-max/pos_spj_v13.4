@@ -12,15 +12,9 @@ El modelo recibe SOLO el mensaje + catálogo reducido.
 Responde SOLO JSON — sin explicaciones, sin markdown.
 """
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal, loads_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
+from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 from decimal import Decimal
-try:
-    from domain.money import JSON_HEADERS, dumps_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import JSON_HEADERS, dumps_decimal
+from whatsapp_service.domain.money import JSON_HEADERS, dumps_decimal
 
 import json
 import logging

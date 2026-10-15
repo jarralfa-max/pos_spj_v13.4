@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import asyncio
 
-from domain.whatsapp.erp_ports import CustomerRef, OrderRef, ProductRef, QuoteRef
-from infrastructure.erp_clients.erp_bridge_clients import (
+from whatsapp_service.domain.whatsapp.erp_ports import CustomerRef, OrderRef, ProductRef, QuoteRef
+from whatsapp_service.infrastructure.erp_clients.erp_bridge_clients import (
     ErpBridgeCustomersApiClient,
     ErpBridgeDeliveryApiClient,
     ErpBridgeOrdersApiClient,

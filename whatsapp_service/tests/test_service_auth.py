@@ -21,8 +21,8 @@ import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from middleware import service_auth
-from middleware.service_auth import require_service_auth, sign_request
+from whatsapp_service.middleware import service_auth
+from whatsapp_service.middleware.service_auth import require_service_auth, sign_request
 
 SECRET = "test-internal-key"
 
@@ -48,8 +48,8 @@ def _signed_headers(body: bytes = b"{}", *, service_id="erp-core", ts=None,
 
 @pytest.fixture
 def app_client(monkeypatch):
-    monkeypatch.setattr("config.settings.get_internal_api_key", lambda: SECRET)
-    monkeypatch.setattr("config.settings.is_production", lambda: False)
+    monkeypatch.setattr("whatsapp_service.config.settings.get_internal_api_key", lambda: SECRET)
+    monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: False)
     app = FastAPI()
 
     @app.post("/protected")
@@ -115,8 +115,8 @@ def test_body_tamper_invalidates_signature(app_client):
 
 
 def test_missing_secret_in_production_rejects(monkeypatch):
-    monkeypatch.setattr("config.settings.get_internal_api_key", lambda: "")
-    monkeypatch.setattr("config.settings.is_production", lambda: True)
+    monkeypatch.setattr("whatsapp_service.config.settings.get_internal_api_key", lambda: "")
+    monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: True)
     app = FastAPI()
 
     @app.post("/protected")
@@ -128,9 +128,9 @@ def test_missing_secret_in_production_rejects(monkeypatch):
     assert resp.status_code == 503
 
 
-def test_missing_secret_outside_production_allows_with_warning(monkeypatch):
-    monkeypatch.setattr("config.settings.get_internal_api_key", lambda: "")
-    monkeypatch.setattr("config.settings.is_production", lambda: False)
+def test_missing_secret_outside_production_also_rejects(monkeypatch):
+    monkeypatch.setattr("whatsapp_service.config.settings.get_internal_api_key", lambda: "")
+    monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: False)
     app = FastAPI()
 
     @app.post("/protected")
@@ -139,7 +139,7 @@ def test_missing_secret_outside_production_allows_with_warning(monkeypatch):
 
     client = TestClient(app)
     resp = client.post("/protected", content=b"{}")
-    assert resp.status_code == 200
+    assert resp.status_code == 503
 
 
 # ── Compatibilidad cruzada con la copia del lado ERP ──────────────────────────
@@ -156,7 +156,7 @@ def test_sign_request_matches_erp_side_copy():
     if str(Path(__file__).resolve().parents[1]) not in sys.path:
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-    from core.integrations.whatsapp_client import _sign_request as erp_sign_request
+    from backend.infrastructure.integrations.whatsapp_client import sign_request as erp_sign_request
 
     body = b'{"phone": "5215500000000", "message": "hola"}'
     a = sign_request("erp-core", "1700000000", "abc123", body, SECRET)

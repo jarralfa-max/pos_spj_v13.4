@@ -2,8 +2,8 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import tempfile
-from state.conversation import ConversationStore
-from models.context import ConversationContext, FlowState
+from whatsapp_service.state.conversation import ConversationStore
+from whatsapp_service.models.context import ConversationContext, FlowState
 
 
 def test_quote_context_fields_are_persisted():

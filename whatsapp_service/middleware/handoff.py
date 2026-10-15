@@ -6,8 +6,8 @@ Notifica al staff de la sucursal correspondiente.
 from __future__ import annotations
 import logging
 from typing import Optional
-from erp.bridge import ERPBridge
-from messaging.sender import send_text
+from whatsapp_service.erp.bridge import ERPBridge
+from whatsapp_service.messaging.sender import send_text
 
 logger = logging.getLogger("wa.handoff")
 

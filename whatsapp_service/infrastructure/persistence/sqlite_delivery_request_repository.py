@@ -6,8 +6,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from domain.whatsapp.entities.delivery_request import DeliveryRequest
-from domain.whatsapp.enums import DeliveryRequestStatus
+from whatsapp_service.domain.whatsapp.entities.delivery_request import DeliveryRequest
+from whatsapp_service.domain.whatsapp.enums import DeliveryRequestStatus
 
 _COLUMNS = (
     "id, conversation_id, order_external_id, address, delivery_date, "

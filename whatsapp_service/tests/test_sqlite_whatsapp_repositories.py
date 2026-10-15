@@ -10,15 +10,15 @@ import sqlite3
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.entities.business_account import (
+from whatsapp_service.domain.whatsapp.entities.business_account import (
     WhatsAppBusinessAccount,
     WhatsAppProviderConfiguration,
 )
-from domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
-from domain.whatsapp.entities.conversation import ConversationSession, WhatsAppConversation
-from domain.whatsapp.entities.identity import WhatsAppIdentity
-from domain.whatsapp.entities.message import WhatsAppMessage, WhatsAppMessageDelivery
-from domain.whatsapp.enums import (
+from whatsapp_service.domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
+from whatsapp_service.domain.whatsapp.entities.conversation import ConversationSession, WhatsAppConversation
+from whatsapp_service.domain.whatsapp.entities.identity import WhatsAppIdentity
+from whatsapp_service.domain.whatsapp.entities.message import WhatsAppMessage, WhatsAppMessageDelivery
+from whatsapp_service.domain.whatsapp.enums import (
     ChannelRole,
     ConversationState,
     MessageDeliveryStatus,
@@ -26,16 +26,16 @@ from domain.whatsapp.enums import (
     MessageType,
     WhatsAppProvider,
 )
-from infrastructure.persistence.sqlite_account_repository import (
+from whatsapp_service.infrastructure.persistence.sqlite_account_repository import (
     SqliteWhatsAppAccountRepository,
     SqliteWhatsAppProviderConfigurationRepository,
 )
-from infrastructure.persistence.sqlite_conversation_repository import (
+from whatsapp_service.infrastructure.persistence.sqlite_conversation_repository import (
     SqliteWhatsAppConversationRepository,
 )
-from infrastructure.persistence.sqlite_identity_repository import SqliteWhatsAppIdentityRepository
-from infrastructure.persistence.sqlite_message_repository import SqliteWhatsAppMessageRepository
-from infrastructure.persistence.sqlite_number_repository import SqliteWhatsAppNumberRepository
+from whatsapp_service.infrastructure.persistence.sqlite_identity_repository import SqliteWhatsAppIdentityRepository
+from whatsapp_service.infrastructure.persistence.sqlite_message_repository import SqliteWhatsAppMessageRepository
+from whatsapp_service.infrastructure.persistence.sqlite_number_repository import SqliteWhatsAppNumberRepository
 
 
 @pytest.fixture()

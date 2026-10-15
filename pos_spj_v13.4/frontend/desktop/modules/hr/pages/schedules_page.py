@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
 from frontend.desktop.components.tables import ColumnSpec
 from frontend.desktop.modules.hr.dialogs.hr_dialogs import AssignShiftDialog, ShiftDialog
 from frontend.desktop.modules.hr.pages._page_base import HRPage
-from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
 
 
 class SchedulesPage(HRPage):
@@ -20,29 +20,27 @@ class SchedulesPage(HRPage):
     ]
 
     def _build_actions(self) -> None:
-        new_btn = create_primary_button(self, "Nuevo turno")
-        new_btn.clicked.connect(self._create_shift)
-        self.header.add_action(new_btn)
-        assign_btn = create_secondary_button(self, "Asignar turno")
-        assign_btn.clicked.connect(self._assign_shift)
-        self.header.add_action(assign_btn)
+        self._add_action(create_primary_button(self, "Nuevo turno"), "shift_manage",
+                         self._create_shift)
+        self._add_action(create_secondary_button(self, "Asignar turno"), "shift_manage",
+                         self._assign_shift)
 
     def _load(self) -> None:
         self.set_table(self._presenter.shifts())
 
     def _create_shift(self) -> None:
-        dialog = ShiftDialog(self)
+        dialog = ShiftDialog(self, on_submit=lambda values: self._presenter.create_shift(**values))
         if dialog.exec_():
-            ok, msg = self._presenter.create_shift(**dialog.values())
-            self.notify(ok, msg)
+            self.notify(True, getattr(dialog, "submitted_message", "Turno creado"))
+            self.reload()
 
     def _assign_shift(self) -> None:
-        employees = self._presenter.employee_options()
         shifts = self._presenter.shift_options()
-        if not employees or not shifts:
-            self.notify(False, "Se requieren empleados activos y al menos un turno.")
+        if not shifts:
+            self.notify(False, "Se requiere al menos un turno.")
             return
-        dialog = AssignShiftDialog(employees, shifts, self)
+        dialog = AssignShiftDialog(
+            self._presenter.search_employees, shifts, self,
+            on_submit=lambda values: self._presenter.assign_shift(**values))
         if dialog.exec_():
-            ok, msg = self._presenter.assign_shift(**dialog.values())
-            self.notify(ok, msg)
+            self.notify(True, getattr(dialog, "submitted_message", "Turno asignado"))

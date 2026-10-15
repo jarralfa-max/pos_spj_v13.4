@@ -8,10 +8,7 @@ El LLM solo se invoca si Nivel 1 y 2 fallan.
 """
 from __future__ import annotations
 from decimal import Decimal
-try:
-    from domain.money import ONE, ZERO, to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import ONE, ZERO, to_decimal
+from whatsapp_service.domain.money import ONE, ZERO, to_decimal
 
 import logging
 from typing import Dict, List, Optional

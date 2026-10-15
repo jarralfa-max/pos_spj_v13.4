@@ -41,8 +41,8 @@ from __future__ import annotations
 
 import sqlite3
 
-from bootstrap.service_registry import ServiceRegistry
-from domain.whatsapp.repository_ports import (
+from whatsapp_service.bootstrap.service_registry import ServiceRegistry
+from whatsapp_service.domain.whatsapp.repository_ports import (
     WhatsAppAccountRepository,
     WhatsAppConversationRepository,
     WhatsAppIdentityRepository,
@@ -50,45 +50,45 @@ from domain.whatsapp.repository_ports import (
     WhatsAppNumberRepository,
     WhatsAppProviderConfigurationRepository,
 )
-from infrastructure.persistence.sqlite_account_repository import (
+from whatsapp_service.infrastructure.persistence.sqlite_account_repository import (
     SqliteWhatsAppAccountRepository,
     SqliteWhatsAppProviderConfigurationRepository,
 )
-from infrastructure.persistence.sqlite_conversation_repository import (
+from whatsapp_service.infrastructure.persistence.sqlite_conversation_repository import (
     SqliteWhatsAppConversationRepository,
 )
-from infrastructure.persistence.sqlite_delivery_request_repository import (
+from whatsapp_service.infrastructure.persistence.sqlite_delivery_request_repository import (
     SqliteWhatsAppDeliveryRequestRepository,
 )
-from infrastructure.persistence.sqlite_handoff_request_repository import (
+from whatsapp_service.infrastructure.persistence.sqlite_handoff_request_repository import (
     SqliteWhatsAppHandoffRequestRepository,
 )
-from infrastructure.persistence.sqlite_identity_repository import SqliteWhatsAppIdentityRepository
-from infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
-from infrastructure.persistence.sqlite_inbox_repository import SqliteWhatsAppInboxRepository
-from infrastructure.persistence.sqlite_message_repository import SqliteWhatsAppMessageRepository
-from infrastructure.persistence.sqlite_number_repository import SqliteWhatsAppNumberRepository
-from infrastructure.persistence.sqlite_order_draft_repository import SqliteWhatsAppOrderDraftRepository
-from infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
-from infrastructure.persistence.sqlite_quote_draft_repository import SqliteWhatsAppQuoteDraftRepository
-from infrastructure.providers.meta_cloud_api.gateway import MetaCloudApiWhatsAppGateway
-from infrastructure.providers.mercadopago.gateway import MercadoPagoGateway
-from infrastructure.webhooks.inbox_worker import InboxWorker
-from infrastructure.webhooks.outbound_dispatcher import OutboundDispatcher
-from infrastructure.webhooks.webhook_processor import WebhookProcessor
-from application.conversation_engine import ConversationEngine
-from application.intent_resolution_service import IntentResolutionService
-from application.order_draft_service import OrderDraftService
-from application.quote_draft_service import QuoteDraftService
-from application.payment_service import PaymentService
-from application.delivery_request_service import DeliveryRequestService
-from application.consent_service import ConsentService
-from application.loyalty_service import LoyaltyService
-from application.handoff_service import HandoffCoordinator
-from application.outbound_message_service import OutboundMessageService
-from application.notification_service import NotificationService
-from application.diagnostics_service import DiagnosticsService
-from infrastructure.erp_clients.unavailable_client import UnavailableErpClient
+from whatsapp_service.infrastructure.persistence.sqlite_identity_repository import SqliteWhatsAppIdentityRepository
+from whatsapp_service.infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
+from whatsapp_service.infrastructure.persistence.sqlite_inbox_repository import SqliteWhatsAppInboxRepository
+from whatsapp_service.infrastructure.persistence.sqlite_message_repository import SqliteWhatsAppMessageRepository
+from whatsapp_service.infrastructure.persistence.sqlite_number_repository import SqliteWhatsAppNumberRepository
+from whatsapp_service.infrastructure.persistence.sqlite_order_draft_repository import SqliteWhatsAppOrderDraftRepository
+from whatsapp_service.infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
+from whatsapp_service.infrastructure.persistence.sqlite_quote_draft_repository import SqliteWhatsAppQuoteDraftRepository
+from whatsapp_service.infrastructure.providers.meta_cloud_api.gateway import MetaCloudApiWhatsAppGateway
+from whatsapp_service.infrastructure.providers.mercadopago.gateway import MercadoPagoGateway
+from whatsapp_service.infrastructure.webhooks.inbox_worker import InboxWorker
+from whatsapp_service.infrastructure.webhooks.outbound_dispatcher import OutboundDispatcher
+from whatsapp_service.infrastructure.webhooks.webhook_processor import WebhookProcessor
+from whatsapp_service.application.conversation_engine import ConversationEngine
+from whatsapp_service.application.intent_resolution_service import IntentResolutionService
+from whatsapp_service.application.order_draft_service import OrderDraftService
+from whatsapp_service.application.quote_draft_service import QuoteDraftService
+from whatsapp_service.application.payment_service import PaymentService
+from whatsapp_service.application.delivery_request_service import DeliveryRequestService
+from whatsapp_service.application.consent_service import ConsentService
+from whatsapp_service.application.loyalty_service import LoyaltyService
+from whatsapp_service.application.handoff_service import HandoffCoordinator
+from whatsapp_service.application.outbound_message_service import OutboundMessageService
+from whatsapp_service.application.notification_service import NotificationService
+from whatsapp_service.application.diagnostics_service import DiagnosticsService
+from whatsapp_service.infrastructure.erp_clients.unavailable_client import UnavailableErpClient
 
 # Nombres canónicos de los servicios registrados — únicos en todo el árbol.
 ACCOUNT_REPOSITORY = "whatsapp_account_repository"
@@ -190,13 +190,14 @@ class WhatsAppCompositionRoot:
     root.
     """
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, *, erp_bridge=None) -> None:
         self._conn = conn
+        self._erp_bridge = erp_bridge
         self.registry = ServiceRegistry()
         self._build()
 
     def _build(self) -> None:
-        from config.settings import get_secret_store
+        from whatsapp_service.config.settings import get_secret_store
 
         self.registry.register(DB_CONNECTION, self._conn)
         self.registry.register(SECRET_STORE, get_secret_store())
@@ -264,7 +265,7 @@ class WhatsAppCompositionRoot:
             )
             return
 
-        from infrastructure.erp_clients.consent_client import CustomerConsentApiClient
+        from whatsapp_service.infrastructure.erp_clients.consent_client import CustomerConsentApiClient
 
         self.registry.register(CONSENT_API_CLIENT, CustomerConsentApiClient(self._conn))
 
@@ -287,7 +288,7 @@ class WhatsAppCompositionRoot:
             )
             return
 
-        from infrastructure.erp_clients.loyalty_client import LoyaltySnapshotApiClient
+        from whatsapp_service.infrastructure.erp_clients.loyalty_client import LoyaltySnapshotApiClient
 
         self.registry.register(LOYALTY_API_CLIENT, LoyaltySnapshotApiClient(self._conn))
 
@@ -296,7 +297,7 @@ class WhatsAppCompositionRoot:
         MISMA base que este root ya usa; degrada a `UnavailableErpClient`
         si el esquema legacy del ERP no está presente (ver docstring del
         módulo)."""
-        bridge = self._try_build_erp_bridge()
+        bridge = self._erp_bridge or self._try_build_erp_bridge()
         if bridge is None:
             reason = "sin ERPBridge real (esquema legacy del ERP no disponible en esta conexión)"
             for name in (
@@ -307,7 +308,7 @@ class WhatsAppCompositionRoot:
                 self.registry.register(name, UnavailableErpClient(name, reason))
             return
 
-        from infrastructure.erp_clients.erp_bridge_clients import (
+        from whatsapp_service.infrastructure.erp_clients.erp_bridge_clients import (
             ErpBridgeCustomersApiClient,
             ErpBridgeDeliveryApiClient,
             ErpBridgeOrdersApiClient,
@@ -316,7 +317,7 @@ class WhatsAppCompositionRoot:
             ErpBridgeStaffDirectoryApiClient,
             ProductMatcherCatalogApiClient,
         )
-        from parser.product_matcher import ProductMatcher
+        from whatsapp_service.parser.product_matcher import ProductMatcher
 
         self.registry.register(CUSTOMERS_API_CLIENT, ErpBridgeCustomersApiClient(bridge))
         self.registry.register(
@@ -340,13 +341,13 @@ class WhatsAppCompositionRoot:
         if not db_path:
             return None
 
-        from erp.bridge import ERPBridge
+        from whatsapp_service.erp.bridge import ERPBridge
 
         bridge = ERPBridge(db_path)
+        bridge._conn = self._conn
         try:
             bridge.db.execute("SELECT 1 FROM clientes LIMIT 1")
         except Exception:
-            bridge.close()
             return None
         return bridge
 

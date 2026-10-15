@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional, Tuple
 
-from domain.whatsapp.enums import Intent
+from whatsapp_service.domain.whatsapp.enums import Intent
 
 
 class IntentResolutionSource(str, Enum):

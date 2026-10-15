@@ -77,3 +77,32 @@ existen, la analítica de Inventario sin catálogos de Mermas en su fixture,
 `nav.losses`, la guarda de esquema con rutas `/` vs `\` en Windows y
 `test_purchasing_root_is_sidebar_shell_not_tab_widget` (cambio a `PageStack` de otra
 persona).
+
+## Addendum 2026-10-15 — crédito del proveedor en la compra rápida
+
+Reporte del usuario: «al realizar una compra no valida las condiciones del
+proveedor (crédito o no), no se crea la CxP ni se valida el límite de crédito».
+Medido en la base real: 4 compras a crédito recibidas ($9,066), 0 CxP; la
+pantalla dejaba elegir crédito con cualquier proveedor.
+
+Decisiones del usuario:
+
+| Tema | Decisión |
+|---|---|
+| Origen de la CxP de una compra a crédito | **Al recibir** la mercancía: CxP por lo aceptado + IVA, vence recepción + días de crédito; asiento Dr Inventario/Gasto/Activo + IVA / Cr Proveedores. La factura posterior **se liga** (no crea otra): si es mayor, CxP por la diferencia; si es menor, crédito a la CxP de la recepción. |
+| Exceder el límite | Queda **pendiente de autorización en caliente** (`COMPRAS` límite financiero, segregación por identidad, bitácora). |
+| Exposición contra el límite | Saldo de CxP abiertas + compras rápidas a crédito comprometidas sin CxP + órdenes de compra abiertas sin CxP. Límite 0 = sin límite. |
+| Compras ya recibidas sin CxP | Se regularizan (migración **340**). |
+
+Lo construido: `SupplierCreditService` (único punto de decisión: condiciones de
+Proveedores → Condiciones, exposición en Decimal, evaluación); validación al
+crear y al confirmar (un proveedor de contado no admite crédito); CxP por cada
+recepción a crédito (inmediata o posterior, parcial incluida); devoluciones y
+reversos de una compra a crédito acreditan la CxP de su recepción
+(`PURCHASE_PAYABLE_CREDIT_REQUESTED`, mismo manejador que la devolución, ahora
+por naturaleza); la pantalla sugiere la condición del proveedor y muestra días,
+límite, usado y disponible; el arranque despacha el outbox de Compras.
+
+Pruebas: 6 escenarios nuevos en `tests/e2e/test_procurement_master_prompt_e2e.py`.
+Abierto: las **órdenes de compra** cuentan en la exposición pero su CxP sigue
+naciendo con la factura (conciliación de tres vías) y no se bloquean por límite.

@@ -6,8 +6,8 @@ import sqlite3
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from bootstrap.composition_root import WhatsAppCompositionRoot
-from bootstrap.health_checks import (
+from whatsapp_service.bootstrap.composition_root import WhatsAppCompositionRoot
+from whatsapp_service.bootstrap.health_checks import (
     HealthStatus,
     build_health_response,
     check_database,
@@ -47,22 +47,22 @@ class TestIndividualChecks:
         assert result.detail  # mensaje informativo, aunque sin nombres de ruta/tabla sensibles
 
     def test_secrets_degraded_outside_production_when_missing(self, root, monkeypatch):
-        monkeypatch.setattr("config.settings.is_production", lambda: False)
-        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "")
-        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "")
-        monkeypatch.setattr("config.settings.get_verify_token", lambda: "")
-        monkeypatch.setattr("config.settings.get_app_secret", lambda: "")
-        monkeypatch.setattr("config.settings.get_internal_api_key", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: False)
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_access_token", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_phone_number_id", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_verify_token", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_app_secret", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_internal_api_key", lambda: "")
         result = check_secrets(root)
         assert result.status == HealthStatus.DEGRADED
 
     def test_secrets_unhealthy_in_production_when_missing(self, root, monkeypatch):
-        monkeypatch.setattr("config.settings.is_production", lambda: True)
-        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "")
-        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "present")
-        monkeypatch.setattr("config.settings.get_verify_token", lambda: "present")
-        monkeypatch.setattr("config.settings.get_app_secret", lambda: "present")
-        monkeypatch.setattr("config.settings.get_internal_api_key", lambda: "present")
+        monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: True)
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_access_token", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_phone_number_id", lambda: "present")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_verify_token", lambda: "present")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_app_secret", lambda: "present")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_internal_api_key", lambda: "present")
         result = check_secrets(root)
         assert result.status == HealthStatus.UNHEALTHY
 
@@ -74,16 +74,16 @@ class TestIndividualChecks:
             "get_app_secret",
             "get_internal_api_key",
         ):
-            monkeypatch.setattr(f"config.settings.{name}", lambda: "present")
+            monkeypatch.setattr(f"whatsapp_service.config.settings.{name}", lambda: "present")
         assert check_secrets(root).status == HealthStatus.HEALTHY
 
     def test_detail_never_contains_a_secret_value(self, root, monkeypatch):
-        monkeypatch.setattr("config.settings.is_production", lambda: False)
-        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "")
-        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "")
-        monkeypatch.setattr("config.settings.get_verify_token", lambda: "")
-        monkeypatch.setattr("config.settings.get_app_secret", lambda: "super-secret-value")
-        monkeypatch.setattr("config.settings.get_internal_api_key", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: False)
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_access_token", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_phone_number_id", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_verify_token", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_app_secret", lambda: "super-secret-value")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_internal_api_key", lambda: "")
         result = check_secrets(root)
         assert "super-secret-value" not in result.detail
 
@@ -93,26 +93,26 @@ class TestProviderGatewayCheck:
     contra la Graph API — ver `check_provider_gateway`."""
 
     def test_unknown_when_secrets_not_configured(self, root, monkeypatch):
-        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "")
-        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_access_token", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_phone_number_id", lambda: "")
         result = check_provider_gateway(root)
         assert result.status == HealthStatus.UNKNOWN
         assert "secrets" in result.detail
 
     def test_healthy_when_configured_and_ping_succeeds(self, root, monkeypatch):
-        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "token")
-        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "phone-id")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_access_token", lambda: "token")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_phone_number_id", lambda: "phone-id")
         monkeypatch.setattr(
-            "infrastructure.providers.meta_cloud_api.gateway.MetaCloudApiWhatsAppGateway.health_check",
+            "whatsapp_service.infrastructure.providers.meta_cloud_api.gateway.MetaCloudApiWhatsAppGateway.health_check",
             lambda self: True,
         )
         assert check_provider_gateway(root).status == HealthStatus.HEALTHY
 
     def test_unhealthy_when_configured_but_ping_fails(self, root, monkeypatch):
-        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "token")
-        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "phone-id")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_access_token", lambda: "token")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_phone_number_id", lambda: "phone-id")
         monkeypatch.setattr(
-            "infrastructure.providers.meta_cloud_api.gateway.MetaCloudApiWhatsAppGateway.health_check",
+            "whatsapp_service.infrastructure.providers.meta_cloud_api.gateway.MetaCloudApiWhatsAppGateway.health_check",
             lambda self: False,
         )
         result = check_provider_gateway(root)
@@ -122,9 +122,9 @@ class TestProviderGatewayCheck:
         """Fuera de producción, sin secretos, `check_secrets` ya reporta
         DEGRADED — `check_provider_gateway` no debe escalar a UNHEALTHY por
         la misma causa, solo reportar UNKNOWN."""
-        monkeypatch.setattr("config.settings.is_production", lambda: False)
-        monkeypatch.setattr("config.settings.get_meta_access_token", lambda: "")
-        monkeypatch.setattr("config.settings.get_meta_phone_number_id", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.is_production", lambda: False)
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_access_token", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.get_meta_phone_number_id", lambda: "")
         assert check_provider_gateway(root).status != HealthStatus.UNHEALTHY
 
 
@@ -138,29 +138,29 @@ class TestInboxQueueCheck:
         assert "0 pendientes" in result.detail
 
     def test_healthy_with_a_few_fresh_pending_jobs(self, root):
-        from domain.whatsapp.entities.inbox_job import InboundMessageJob
+        from whatsapp_service.domain.whatsapp.entities.inbox_job import InboundMessageJob
 
         root.inbox.save(InboundMessageJob.create(message_id="msg-1"))
         assert check_inbox_queue(root).status == HealthStatus.HEALTHY
 
     def test_degraded_when_backlog_exceeds_threshold(self, root, monkeypatch):
-        monkeypatch.setattr("bootstrap.health_checks._INBOX_DEGRADED_PENDING", 1)
-        from domain.whatsapp.entities.inbox_job import InboundMessageJob
+        monkeypatch.setattr("whatsapp_service.bootstrap.health_checks._INBOX_DEGRADED_PENDING", 1)
+        from whatsapp_service.domain.whatsapp.entities.inbox_job import InboundMessageJob
 
         root.inbox.save(InboundMessageJob.create(message_id="msg-1"))
         root.inbox.save(InboundMessageJob.create(message_id="msg-2"))
         assert check_inbox_queue(root).status == HealthStatus.DEGRADED
 
     def test_unhealthy_when_backlog_far_exceeds_threshold(self, root, monkeypatch):
-        monkeypatch.setattr("bootstrap.health_checks._INBOX_UNHEALTHY_PENDING", 1)
-        from domain.whatsapp.entities.inbox_job import InboundMessageJob
+        monkeypatch.setattr("whatsapp_service.bootstrap.health_checks._INBOX_UNHEALTHY_PENDING", 1)
+        from whatsapp_service.domain.whatsapp.entities.inbox_job import InboundMessageJob
 
         root.inbox.save(InboundMessageJob.create(message_id="msg-1"))
         root.inbox.save(InboundMessageJob.create(message_id="msg-2"))
         assert check_inbox_queue(root).status == HealthStatus.UNHEALTHY
 
     def test_completed_jobs_do_not_count_toward_backlog(self, root):
-        from domain.whatsapp.entities.inbox_job import InboundMessageJob
+        from whatsapp_service.domain.whatsapp.entities.inbox_job import InboundMessageJob
 
         job = InboundMessageJob.create(message_id="msg-1")
         job.claim()
@@ -184,29 +184,29 @@ class TestOutboxQueueCheck:
         assert "0 pendientes" in result.detail
 
     def test_healthy_with_a_few_fresh_pending_messages(self, root):
-        from domain.whatsapp.entities.outbox_message import OutboxMessage
+        from whatsapp_service.domain.whatsapp.entities.outbox_message import OutboxMessage
 
         root.outbox.save(OutboxMessage.enqueue_text(destination_phone="+525512345678", body="Hola"))
         assert check_outbox_queue(root).status == HealthStatus.HEALTHY
 
     def test_degraded_when_backlog_exceeds_threshold(self, root, monkeypatch):
-        monkeypatch.setattr("bootstrap.health_checks._OUTBOX_DEGRADED_PENDING", 1)
-        from domain.whatsapp.entities.outbox_message import OutboxMessage
+        monkeypatch.setattr("whatsapp_service.bootstrap.health_checks._OUTBOX_DEGRADED_PENDING", 1)
+        from whatsapp_service.domain.whatsapp.entities.outbox_message import OutboxMessage
 
         root.outbox.save(OutboxMessage.enqueue_text(destination_phone="+525511111111", body="a"))
         root.outbox.save(OutboxMessage.enqueue_text(destination_phone="+525522222222", body="b"))
         assert check_outbox_queue(root).status == HealthStatus.DEGRADED
 
     def test_unhealthy_when_backlog_far_exceeds_threshold(self, root, monkeypatch):
-        monkeypatch.setattr("bootstrap.health_checks._OUTBOX_UNHEALTHY_PENDING", 1)
-        from domain.whatsapp.entities.outbox_message import OutboxMessage
+        monkeypatch.setattr("whatsapp_service.bootstrap.health_checks._OUTBOX_UNHEALTHY_PENDING", 1)
+        from whatsapp_service.domain.whatsapp.entities.outbox_message import OutboxMessage
 
         root.outbox.save(OutboxMessage.enqueue_text(destination_phone="+525511111111", body="a"))
         root.outbox.save(OutboxMessage.enqueue_text(destination_phone="+525522222222", body="b"))
         assert check_outbox_queue(root).status == HealthStatus.UNHEALTHY
 
     def test_sent_messages_do_not_count_toward_backlog(self, root):
-        from domain.whatsapp.entities.outbox_message import OutboxMessage
+        from whatsapp_service.domain.whatsapp.entities.outbox_message import OutboxMessage
 
         message = OutboxMessage.enqueue_text(destination_phone="+525512345678", body="Hola")
         message.claim()
@@ -245,7 +245,7 @@ class TestOverallStatus:
         assert overall_status([]) == HealthStatus.UNKNOWN
 
     def test_unhealthy_beats_degraded(self):
-        from bootstrap.health_checks import HealthCheckResult
+        from whatsapp_service.bootstrap.health_checks import HealthCheckResult
 
         results = [
             HealthCheckResult("a", HealthStatus.DEGRADED),
@@ -255,7 +255,7 @@ class TestOverallStatus:
         assert overall_status(results) == HealthStatus.UNHEALTHY
 
     def test_unknown_does_not_mask_unhealthy(self):
-        from bootstrap.health_checks import HealthCheckResult
+        from whatsapp_service.bootstrap.health_checks import HealthCheckResult
 
         results = [
             HealthCheckResult("a", HealthStatus.UNKNOWN),
@@ -264,7 +264,7 @@ class TestOverallStatus:
         assert overall_status(results) == HealthStatus.UNHEALTHY
 
     def test_all_unknown_is_unknown(self):
-        from bootstrap.health_checks import HealthCheckResult
+        from whatsapp_service.bootstrap.health_checks import HealthCheckResult
 
         results = [HealthCheckResult("a", HealthStatus.UNKNOWN)]
         assert overall_status(results) == HealthStatus.UNKNOWN

@@ -192,8 +192,8 @@ class TestDomainEntityRoundTrip:
     que el esquema realmente encaja con lo que el dominio produce."""
 
     def test_business_account_round_trips(self, conn):
-        from domain.whatsapp.entities.business_account import WhatsAppBusinessAccount
-        from domain.whatsapp.enums import WhatsAppProvider
+        from whatsapp_service.domain.whatsapp.entities.business_account import WhatsAppBusinessAccount
+        from whatsapp_service.domain.whatsapp.enums import WhatsAppProvider
 
         account = WhatsAppBusinessAccount.create(
             provider=WhatsAppProvider.META,
@@ -222,8 +222,8 @@ class TestDomainEntityRoundTrip:
         assert row == (account.id, "ext-123", "DRAFT")
 
     def test_channel_number_round_trips(self, conn):
-        from domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
-        from domain.whatsapp.enums import ChannelRole
+        from whatsapp_service.domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
+        from whatsapp_service.domain.whatsapp.enums import ChannelRole
 
         _seed_account(conn)
         number = WhatsAppChannelNumber.create(
@@ -257,9 +257,9 @@ class TestDomainEntityRoundTrip:
         assert row == ("+525512345678", "BRANCH_SALES")
 
     def test_conversation_and_message_delivery_transition_round_trip(self, conn):
-        from domain.whatsapp.entities.conversation import WhatsAppConversation
-        from domain.whatsapp.entities.message import WhatsAppMessage, WhatsAppMessageDelivery
-        from domain.whatsapp.enums import ConversationState, MessageDeliveryStatus, MessageDirection, MessageType
+        from whatsapp_service.domain.whatsapp.entities.conversation import WhatsAppConversation
+        from whatsapp_service.domain.whatsapp.entities.message import WhatsAppMessage, WhatsAppMessageDelivery
+        from whatsapp_service.domain.whatsapp.enums import ConversationState, MessageDeliveryStatus, MessageDirection, MessageType
 
         _seed_account(conn)
         conn.execute(_insert_number_sql(), ("num-1", "acc-1", "ext-num-1"))

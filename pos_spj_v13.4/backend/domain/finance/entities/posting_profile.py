@@ -45,6 +45,7 @@ ACCOUNT_ROLES = (
     "salary_expense_account_id",
     "salary_payable_account_id",
     "social_security_payable_account_id",
+    "employee_receivable_account_id",
     "inventory_adjustment_account_id",
     "waste_expense_account_id",
     "production_wip_account_id",

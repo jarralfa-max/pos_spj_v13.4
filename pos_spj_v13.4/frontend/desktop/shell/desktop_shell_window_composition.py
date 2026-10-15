@@ -178,6 +178,9 @@ CRM_CYCLE_INTERVAL_MS = 5 * 60 * 1000
 INBOX_REFRESH_INTERVAL_MS = 60 * 1000
 #: Cada cuánto se entrega la cola de alertas de Productos por WhatsApp (PROD-22).
 PRODUCTS_WHATSAPP_OUTBOX_INTERVAL_MS = 60 * 1000
+#: Cada cuánto se revisa si una actualización programada ya puede instalarse
+#: (dentro de la ventana de mantenimiento y sin operaciones en curso).
+SCHEDULED_UPDATE_INTERVAL_MS = 60 * 1000
 
 
 def _build_background_services(*, context: ApplicationContext, connection):
@@ -216,10 +219,35 @@ def _build_background_services(*, context: ApplicationContext, connection):
     supervisor.bind("products.whatsapp_outbox", PeriodicTaskService(
         lambda: drain_product_whatsapp_outbox(connection),
         interval_ms=PRODUCTS_WHATSAPP_OUTBOX_INTERVAL_MS, name="cola WhatsApp de Productos"))
+    registry.register(BackgroundServiceDescriptor(
+        "software_updates.maintenance_window", "Actualización en la ventana de mantenimiento"))
+    supervisor.bind("software_updates.maintenance_window", PeriodicTaskService(
+        _scheduled_update_tick(connection), interval_ms=SCHEDULED_UPDATE_INTERVAL_MS,
+        name="ventana de mantenimiento"))
     feed = NotificationInboxFeed(UserInboxService(connection), context.user_id)
     supervisor.bind("notifications.inbox", PeriodicTaskService(
         feed.refresh, interval_ms=INBOX_REFRESH_INTERVAL_MS, name="bandeja de avisos"))
     return supervisor, feed
+
+
+def _scheduled_update_tick(connection):
+    """Lanza una actualización que alguien programó para la ventana de
+    mantenimiento, sólo dentro de la ventana y sin ventas/cobros/cortes en
+    curso (`RunScheduledUpdateIfDueUseCase`). El cierre lo hace `app.py`."""
+    from backend.application.software_updates.use_cases import RunScheduledUpdateIfDueUseCase
+    from backend.infrastructure.desktop.software_updates_factory import (
+        build_software_update_dependencies,
+    )
+    from frontend.desktop.shell.application_lifecycle import request_update_handoff
+
+    dependencies = build_software_update_dependencies(connection)
+
+    def tick() -> None:
+        request = RunScheduledUpdateIfDueUseCase(dependencies).execute()
+        if request is not None:
+            request_update_handoff(request)
+
+    return tick
 
 
 def build_application_window(

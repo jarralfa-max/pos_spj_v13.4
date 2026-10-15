@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from application.diagnostics_service import DiagnosticsService
+from whatsapp_service.application.diagnostics_service import DiagnosticsService
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
 
 

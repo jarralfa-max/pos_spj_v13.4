@@ -43,7 +43,7 @@ def test_frozen_resources_use_bundle_without_moving_binary_or_data(factory, bund
     assert paths.resource_root == bundle_root
     assert paths.root == install_root
     assert paths.user_data_dir == CONTRACT_ROOT / "user-data"
-    assert paths.sqlite_database_path() == CONTRACT_ROOT / "user-data" / "db" / "spj.sqlite3"
+    assert paths.database_path == CONTRACT_ROOT / "user-data" / "db" / "spj_pos_database.db"
     assert paths.backups_dir == CONTRACT_ROOT / "user-data" / "backups"
     assert paths.downloads_dir == CONTRACT_ROOT / "user-data" / "updater" / "downloads"
 

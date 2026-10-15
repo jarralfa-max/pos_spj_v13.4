@@ -20,6 +20,8 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 
+from backend.shared.ids import derived_uuidv7
+
 from backend.application.procurement.authorization import PurchaseAuthorizationPolicy
 from backend.application.procurement.permissions import PurchasePermissions
 from backend.application.procurement.product_master_rules import (
@@ -139,6 +141,30 @@ class _BaseDirectPurchaseUseCase:
                        # C04: un gasto o servicio no entra al almacén.
                        for ln in dp.lines if ln.enters_stock()])
 
+    def _request_receipt_payable(self, uow: ProcurementUnitOfWork, dp: DirectPurchase,
+                                 gr, actor_user_id: str, payment_term_days) -> None:
+        """Compra a CRÉDITO: la cuenta por pagar nace al recibir (decisión del
+        usuario, 2026-10-15) por el valor de lo ACEPTADO en esta recepción, con su
+        IVA, vencimiento = recepción + días de crédito del proveedor. Antes no
+        nacía hasta conciliar una factura que muchas compras nunca traen.
+        Identidad derivada de la recepción: reintentar no duplica."""
+        if dp.payment_condition is not PaymentCondition.SUPPLIER_CREDIT:
+            return
+        value = receipt_value(dp, gr)
+        if value is None:
+            return
+        natures, tax, amount = value
+        self._emit(uow, ProcurementEvents.ACCOUNT_PAYABLE_CREATE_REQUESTED,
+                   document_id=gr.id, document_number=f"{dp.document_number} / {gr.document_number}",
+                   operation_id=derived_uuidv7(gr.id, "credit-receipt-payable"),
+                   actor_user_id=actor_user_id, supplier_id=dp.supplier_id,
+                   branch_id=dp.branch_id, amount=format(amount, "f"),
+                   currency_code=dp.currency_code, nature_subtotals=natures,
+                   tax_total=format(tax, "f"), payment_term_days=payment_term_days,
+                   payment_condition=dp.payment_condition.value,
+                   source_type="DIRECT_PURCHASE_RECEIPT", source_id=gr.id,
+                   deduplication_key=f"DIRECT_PURCHASE_RECEIPT:{gr.id}")
+
     def _emit(self, uow: ProcurementUnitOfWork, event_name: str, *, document_id: str,
               operation_id: str, actor_user_id: str | None = None, **extra) -> None:
         payload = build_event_payload(
@@ -158,8 +184,10 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
 
     def __init__(self, authorization=None, supplier_directory=None, *,
                  product_catalog=None, warehouse_directory=None,
-                 supplier_origins=None) -> None:
+                 supplier_origins=None, credit_service=None) -> None:
         super().__init__(authorization)
+        #: ``SupplierCreditService``: condiciones de crédito y límite del proveedor.
+        self._credit = credit_service
         self._supplier_directory = supplier_directory
         self._product_catalog = product_catalog
         self._warehouse_directory = warehouse_directory
@@ -251,6 +279,14 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
             except (ProcurementDomainError, ValueError) as exc:
                 return ProcurementResult.fail(str(exc), "VALIDATION", operation_id=operation_id)
 
+            reasons: list[str] = []
+            credit_problem = _credit_problem(self._credit, dp)
+            if credit_problem is not None:
+                code, message = credit_problem
+                if code == "SUPPLIER_NO_CREDIT":
+                    return ProcurementResult.fail(message, code, operation_id=operation_id)
+                reasons.append(message)
+
             user_limit = uow.limits.get_user_limit(actor_user_id, currency_code)
             day_total = month_total = None
             if user_limit is not None:
@@ -262,11 +298,13 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                     actor_user_id, currency_code, now.strftime("%Y-%m-01"))
             evaluation = self._limits.evaluate(dp.total(), user_limit, day_total=day_total,
                                                month_total=month_total)
-            requires_auth = evaluation is not LimitEvaluation.WITHIN
-            if requires_auth:
-                dp.request_authorization(
+            if evaluation is not LimitEvaluation.WITHIN:
+                reasons.append(
                     "Supera el límite del usuario" if evaluation is LimitEvaluation.EXCEEDS
                     else "Supera el umbral de autorización o el acumulado del día/mes")
+            requires_auth = bool(reasons)
+            if requires_auth:
+                dp.request_authorization("; ".join(reasons))
 
             uow.direct_purchases.save(dp)
             uow.direct_purchases.set_operation_id(dp.id, operation_id)
@@ -287,7 +325,9 @@ class CreateDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                            actor_user_id=actor_user_id, supplier_id=supplier_id,
                            branch_id=branch_id, amount=str(dp.total().amount))
         return ProcurementResult.ok(
-            "Compra directa creada", entity_id=dp.id, operation_id=operation_id,
+            "Compra directa creada" + (f"; requiere autorización: {dp.authorization_reason}"
+                                       if requires_auth else ""),
+            entity_id=dp.id, operation_id=operation_id,
             status=dp.status.value, requires_authorization=requires_auth,
             total=str(dp.total().amount), document_number=dp.document_number)
 
@@ -404,8 +444,9 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
 
     def __init__(self, authorization=None, *, supplier_directory=None,
                  product_catalog=None, warehouse_directory=None,
-                 payment_booking=None) -> None:
+                 payment_booking=None, credit_service=None) -> None:
         super().__init__(authorization)
+        self._credit = credit_service
         self._payment = ImmediatePaymentPolicy()
         self._supplier_directory = supplier_directory
         self._product_catalog = product_catalog
@@ -475,6 +516,23 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
             if problema_asiento is not None:
                 return ProcurementResult.fail(problema_asiento, "PAYMENT_NOT_BOOKABLE",
                                               operation_id=operation_id)
+            # Crédito: el proveedor pudo perderlo o el saldo crecer desde el borrador.
+            credit_problem = _credit_problem(self._credit, dp, exclude_self=True)
+            if credit_problem is not None:
+                code, message = credit_problem
+                if code == "SUPPLIER_NO_CREDIT":
+                    return ProcurementResult.fail(message, code, operation_id=operation_id)
+                if not (dp.authorized_by_user_id
+                        and CREDIT_LIMIT_REASON in (dp.authorization_reason or "")):
+                    dp.request_authorization(message)
+                    uow.direct_purchases.save(dp)
+                    self._emit(uow, ProcurementEvents.DIRECT_PURCHASE_AUTHORIZATION_REQUESTED,
+                               document_id=dp.id, operation_id=operation_id,
+                               actor_user_id=actor_user_id, supplier_id=dp.supplier_id,
+                               branch_id=dp.branch_id, amount=str(dp.total().amount))
+                    return ProcurementResult.fail(
+                        f"{message}. Quedó pendiente de autorización.",
+                        "AUTHORIZATION_REQUIRED", operation_id=operation_id)
             try:
                 dp.confirm()
             except ProcurementDomainError as exc:
@@ -517,6 +575,8 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                        total=str(dp.total().amount))
             if receipt_id is not None:
                 self._emit_received(uow, dp, receipt_id, operation_id, actor_user_id)
+                self._request_receipt_payable(uow, dp, gr, actor_user_id,
+                                              _credit_days(self._credit, dp))
             else:
                 self._emit(uow, ProcurementEvents.DIRECT_PURCHASE_RECEIPT_PENDING,
                            document_id=dp.id, operation_id=operation_id,
@@ -533,8 +593,9 @@ class ConfirmDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                            payment_source=payment_source,
                            nature_subtotals=_nature_subtotals(dp.lines),
                            tax_total=str(dp.tax_total().amount))
-            # Supplier credit records the commercial commitment only. The final
-            # CxP is requested exclusively after invoice validation and matching.
+            # Crédito de proveedor (2026-10-15): la CxP nace al RECIBIR (arriba, si
+            # la recepción es inmediata; si no, en ``ReceiveDirectPurchaseUseCase``).
+            # La factura posterior se liga a esa CxP; no crea otra.
         return ProcurementResult.ok("Compra directa confirmada", entity_id=dp.id,
                                     operation_id=operation_id, status=dp.status.value,
                                     goods_receipt_id=receipt_id)
@@ -551,10 +612,11 @@ class ReceiveDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
     """
 
     def __init__(self, authorization=None, *, warehouse_directory=None,
-                 product_catalog=None) -> None:
+                 product_catalog=None, credit_service=None) -> None:
         super().__init__(authorization)
         self._warehouse_directory = warehouse_directory
         self._product_catalog = product_catalog
+        self._credit = credit_service
 
     def execute(self, connection, *, actor_user_id: str, direct_purchase_id: str,
                 operation_id: str, receipt_lines: list[dict] | None = None,
@@ -654,6 +716,8 @@ class ReceiveDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                              branch_id=dp.branch_id)
             self._emit_received(uow, dp, gr.id, operation_id, actor_user_id,
                                 inventory_lines=inventory_lines)
+            self._request_receipt_payable(uow, dp, gr, actor_user_id,
+                                          _credit_days(self._credit, dp))
         return ProcurementResult.ok(
             "Mercancía recibida" if dp.status is DocumentStatus.RECEIVED
             else "Recepción parcial registrada; queda mercancía pendiente", entity_id=dp.id,
@@ -664,7 +728,25 @@ class ReceiveDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
 
 class ReverseDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
     """Reverses a confirmed/received direct purchase (§ reverse). Emits the
-    compensating inventory/financial events; nothing is physically deleted."""
+    compensating inventory/financial events; nothing is physically deleted.
+    A crédito, la CxP de cada recepción se compensa con una nota de crédito
+    (si ya se pagó algo, el excedente queda como anticipo del proveedor)."""
+
+    def _request_receipt_credit(self, uow, dp, gr, actor_user_id: str, reason: str) -> None:
+        value = receipt_value(dp, gr)
+        if value is None:
+            return
+        natures, tax, amount = value
+        goods = amount - tax
+        self._emit(uow, ProcurementEvents.PURCHASE_PAYABLE_CREDIT_REQUESTED,
+                   document_id=derived_uuidv7(gr.id, "credit-receipt-reversal"),
+                   operation_id=derived_uuidv7(gr.id, "credit-receipt-reversal-op"),
+                   actor_user_id=actor_user_id, supplier_id=dp.supplier_id,
+                   branch_id=dp.branch_id,
+                   document_number=f"Reverso {dp.document_number} / {gr.document_number}",
+                   currency_code=dp.currency_code, return_value=format(goods, "f"),
+                   return_tax=format(tax, "f"), nature_subtotals=natures,
+                   invoice_ids=[gr.id], reason=reason)
 
     def execute(self, connection, *, actor_user_id: str, direct_purchase_id: str,
                 operation_id: str, reason: str,
@@ -700,6 +782,8 @@ class ReverseDirectPurchaseUseCase(_BaseDirectPurchaseUseCase):
                                               operation_id=operation_id)
             reversed_receipts = []
             for gr in uow.receipts.completed_for_document(direct_purchase_id=dp.id):
+                if dp.payment_condition is PaymentCondition.SUPPLIER_CREDIT:
+                    self._request_receipt_credit(uow, dp, gr, actor_user_id, reason.strip())
                 gr.reverse()
                 uow.receipts.save(gr)
                 reversed_receipts.append(gr.id)
@@ -889,3 +973,59 @@ def _build_receipt(dp: DirectPurchase, actor_user_id: str, document_number, *,
                                             net_weight=ln.net_weight,
                                             direct_purchase_line_id=ln.id))
     return gr
+
+
+# ── crédito del proveedor (2026-10-15) ─────────────────────────────────────
+CREDIT_LIMIT_REASON = "Excede el límite de crédito del proveedor"
+
+
+def _credit_problem(credit_service, dp, *, exclude_self: bool = False
+                    ) -> tuple[str, str] | None:
+    """(código, mensaje) si la compra a crédito no procede tal cual:
+    ``SUPPLIER_NO_CREDIT`` (el proveedor es de contado) o
+    ``CREDIT_LIMIT_EXCEEDED`` (requiere autorización en caliente)."""
+    if credit_service is None or dp.payment_condition is not PaymentCondition.SUPPLIER_CREDIT:
+        return None
+    evaluation = credit_service.evaluate(
+        dp.supplier_id, dp.total().amount, currency_code=dp.currency_code,
+        exclude_direct_purchase_id=dp.id if exclude_self else None)
+    if not evaluation.allowed:
+        return "SUPPLIER_NO_CREDIT", evaluation.problem()
+    if not evaluation.within_limit:
+        return "CREDIT_LIMIT_EXCEEDED", evaluation.problem()
+    return None
+
+
+def _credit_days(credit_service, dp) -> int | None:
+    if credit_service is None:
+        return None
+    terms = credit_service.terms(dp.supplier_id)
+    return terms.credit_days if terms is not None and terms.is_credit else 0
+
+
+def receipt_value(dp, gr) -> tuple[dict[str, str], Decimal, Decimal] | None:
+    """(subtotales por naturaleza, IVA, total) de lo ACEPTADO en una recepción
+    de compra rápida, neto de descuento, proporcional a cada línea."""
+    lines = {ln.id: ln for ln in dp.lines}
+    natures: dict[str, Decimal] = {}
+    tax = Decimal("0")
+    for received in gr.lines:
+        line = lines.get(getattr(received, "direct_purchase_line_id", None) or "")
+        if line is None:
+            line = next((ln for ln in dp.lines if ln.product_id == received.product_id), None)
+        if line is None:
+            continue
+        full = line.inventory_quantity()
+        if not full:
+            continue
+        ratio = Decimal(str(received.accepted_quantity)) / full
+        nature = line.purchase_nature.value
+        natures[nature] = natures.get(nature, Decimal("0")) + \
+            (line.net_subtotal().amount * ratio).quantize(Decimal("0.01"))
+        tax += ((line.tax.amount if line.tax else Decimal("0")) * ratio).quantize(Decimal("0.01"))
+    if not natures:
+        return None
+    amount = sum(natures.values(), Decimal("0")) + tax
+    if amount <= 0:
+        return None
+    return {k: format(v, "f") for k, v in natures.items()}, tax, amount

@@ -11,9 +11,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
-from domain.whatsapp._ids import new_id
-from domain.whatsapp.enums import IdentityStatus
-from domain.whatsapp.value_objects.phone_number import WhatsAppPhoneNumber
+from whatsapp_service.domain.whatsapp._ids import new_id
+from whatsapp_service.domain.whatsapp.enums import IdentityStatus
+from whatsapp_service.domain.whatsapp.value_objects.phone_number import WhatsAppPhoneNumber
 
 
 def _utcnow() -> datetime:

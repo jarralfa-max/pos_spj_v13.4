@@ -44,6 +44,9 @@ def wire_cross_context_events(connection) -> dict:
         dispatch_hr_outbox,
         wire_hr_finance,
     )
+    from backend.application.event_handlers.hr.cash_attendance_handlers import (
+        wire_cash_attendance,
+    )
 
     bus = get_bus()
     summary = {
@@ -64,6 +67,9 @@ def wire_cross_context_events(connection) -> dict:
         "procurement_downstream_bridges": wire_procurement_downstream_bridges(bus, connection),
         # Auditoría Finanzas F21 (2026-10-10): la nómina pagada llega al mayor.
         "hr": wire_hr_finance(bus, connection),
+        # Auditoría RRHH HR-03 (2026-10-14): apertura y cierre de caja registran
+        # la asistencia del cajero (antes cero suscriptores).
+        "hr_attendance": wire_cash_attendance(bus, connection),
     }
     for context, result in summary.items():
         logger.info("cross-context wiring: %s -> %d subscriptions", context, result["count"])
@@ -73,6 +79,16 @@ def wire_cross_context_events(connection) -> dict:
         dispatch_hr_outbox(connection, bus)
     except Exception:
         logger.exception("despacho inicial de hr_outbox fallido")
+    # Compras (2026-10-15): lo que quedó pendiente (p. ej. las CxP de compras a
+    # crédito regularizadas por la migración 340, o un cierre a media
+    # operación) se entrega al arrancar, no hasta la siguiente operación.
+    try:
+        from backend.application.procurement.integrations.procurement_outbox_dispatcher import (
+            dispatch_procurement_outbox,
+        )
+        dispatch_procurement_outbox(connection, bus)
+    except Exception:
+        logger.exception("despacho inicial de procurement_outbox fallido")
     try:
         from backend.application.services.finance.outbox_dispatcher import (
             dispatch_finance_outbox,
@@ -192,6 +208,8 @@ def wire_procurement_downstream_bridges(bus, connection) -> dict:
                   label="procurement_return_inventory")
     bus.subscribe("PURCHASE_RETURN_CONFIRMED", return_credit.handle, priority=50,
                   label="procurement_return_finance")
+    bus.subscribe("PURCHASE_PAYABLE_CREDIT_REQUESTED", return_credit.handle, priority=50,
+                  label="credit_procurement_return_finance")
 
     return {
         "subscribed": [
@@ -204,6 +222,7 @@ def wire_procurement_downstream_bridges(bus, connection) -> dict:
             "DIRECT_PURCHASE_REVERSED->ProcurementImmediatePaymentReversalHandler",
             "PURCHASE_RETURN_CONFIRMED->SupplierReturnHandler",
             "PURCHASE_RETURN_CONFIRMED->ProcurementReturnCreditHandler",
+            "PURCHASE_PAYABLE_CREDIT_REQUESTED->ProcurementReturnCreditHandler",
         ],
-        "count": 9,
+        "count": 10,
     }

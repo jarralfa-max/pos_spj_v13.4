@@ -152,9 +152,13 @@ def test_without_finance_subscriber_the_z_cut_stays_pending(conn):
     row = conn.execute(
         "SELECT status FROM cash_outbox WHERE event_name='CASH_Z_CUT_GENERATED'").fetchone()
     assert row[0] == "PENDING"
-    # Eventos sin efecto contable sí salen aunque nadie escuche.
+    # Auditoría RRHH HR-03: la apertura del turno alimenta la asistencia del
+    # cajero, así que sin RR. HH. cableado TAMPOCO se da por entregada.
     assert conn.execute("SELECT COUNT(*) FROM cash_outbox WHERE event_name='CASH_SHIFT_OPENED'"
-                        " AND status='DISPATCHED'").fetchone()[0] == 1
+                        " AND status='PENDING'").fetchone()[0] == 1
+    # Eventos sin efecto contable ni de asistencia sí salen aunque nadie escuche.
+    assert conn.execute("SELECT COUNT(*) FROM cash_outbox WHERE status='DISPATCHED'"
+                        ).fetchone()[0] >= 1
     # En cuanto Finanzas se suscribe, el siguiente despacho lo entrega.
     wire_cash_register(get_bus(), conn)
     result = dispatch_cash_outbox(conn, get_bus())

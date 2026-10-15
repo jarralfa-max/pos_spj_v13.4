@@ -10,13 +10,13 @@ import sqlite3
 
 import pytest
 
-from application.order_draft_service import OrderDraftService, ProductNotFoundError
+from whatsapp_service.application.order_draft_service import OrderDraftService, ProductNotFoundError
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.entities.order_draft import EmptyOrderDraftError, OrderDraft
-from domain.whatsapp.enums import DeliveryMethod, IdempotencyStatus, OrderDraftStatus
-from domain.whatsapp.erp_ports import OrderRef, ProductRef
-from infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
-from infrastructure.persistence.sqlite_order_draft_repository import SqliteWhatsAppOrderDraftRepository
+from whatsapp_service.domain.whatsapp.entities.order_draft import EmptyOrderDraftError, OrderDraft
+from whatsapp_service.domain.whatsapp.enums import DeliveryMethod, IdempotencyStatus, OrderDraftStatus
+from whatsapp_service.domain.whatsapp.erp_ports import OrderRef, ProductRef
+from whatsapp_service.infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
+from whatsapp_service.infrastructure.persistence.sqlite_order_draft_repository import SqliteWhatsAppOrderDraftRepository
 
 
 class _FakeCatalog:
@@ -141,7 +141,7 @@ class TestConfirmation:
         _run(service.add_product_by_search(draft, query="bistec", quantity=1))
         _run(service.confirm(draft, customer_external_id="cust-1"))
 
-        from application.order_draft_service import _fingerprint
+        from whatsapp_service.application.order_draft_service import _fingerprint
 
         record = root.idempotency.get_by_fingerprint(_fingerprint(draft))
         assert record.status == IdempotencyStatus.COMPLETED
@@ -196,7 +196,7 @@ class TestConfirmation:
         with pytest.raises(RuntimeError):
             _run(service.confirm(draft, customer_external_id="cust-1"))
 
-        from application.order_draft_service import _fingerprint
+        from whatsapp_service.application.order_draft_service import _fingerprint
 
         record = root.idempotency.get_by_fingerprint(_fingerprint(draft))
         assert record.status == IdempotencyStatus.FAILED

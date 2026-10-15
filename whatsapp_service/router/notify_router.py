@@ -17,7 +17,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from middleware.service_auth import require_service_auth
+from whatsapp_service.middleware.service_auth import require_service_auth
 
 logger = logging.getLogger("wa.notify")
 router = APIRouter(
@@ -56,7 +56,7 @@ class SendMessageRequest(BaseModel):
 
 async def _send(phone: str, text: str) -> bool:
     try:
-        from messaging.sender import send_text
+        from whatsapp_service.messaging.sender import send_text
         return await send_text(phone, text)
     except Exception as e:
         logger.error("send_text %s: %s", phone, e)
@@ -92,7 +92,7 @@ async def cotizacion_lista(req: CotizacionRequest):
 
 @router.post("/send")
 async def send_message(req: SendMessageRequest):
-    from messaging.sender import send_text
+    from whatsapp_service.messaging.sender import send_text
     try:
         ok = await send_text(req.phone, req.message)
         return {"ok": ok}

@@ -66,6 +66,8 @@ class SidebarResolver:
                 continue
             if module_disabled(context.feature_context, item.module_id):
                 continue  # módulo apagado para esta sucursal (Feature Flags)
+            if not context.capabilities.is_enabled(item.module_id):
+                continue  # módulo no instalado en esta estación (perfil)
             resolved.append(SidebarItemViewModel(
                 item_id=item.item_id, route_id=item.route_id, label=item.label, icon=item.icon,
                 group=item.group, order=item.order,

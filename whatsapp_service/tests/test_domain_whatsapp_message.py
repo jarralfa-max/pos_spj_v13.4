@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from domain.whatsapp.entities.message import WhatsAppMessage, WhatsAppMessageDelivery
-from domain.whatsapp.enums import MessageDeliveryStatus, MessageDirection, MessageType
-from domain.whatsapp.exceptions import InvalidMessageDeliveryTransitionError
+from whatsapp_service.domain.whatsapp.entities.message import WhatsAppMessage, WhatsAppMessageDelivery
+from whatsapp_service.domain.whatsapp.enums import MessageDeliveryStatus, MessageDirection, MessageType
+from whatsapp_service.domain.whatsapp.exceptions import InvalidMessageDeliveryTransitionError
 
 
 class TestWhatsAppMessageCreate:

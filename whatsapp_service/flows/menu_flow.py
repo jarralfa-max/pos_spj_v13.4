@@ -4,16 +4,13 @@ Maneja: saludos, ayuda, menú, gracias, y unknown.
 Es el flow por defecto cuando no hay flujo activo.
 """
 from __future__ import annotations
-try:
-    from domain.money import to_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import to_decimal
-from models.context import ConversationContext, FlowState
-from parser.intent_parser import ParsedIntent
-from flows.base_flow import BaseFlow, FlowResult
-from messaging import interactive
-from messaging.sender import send_text
-from config.settings import MAX_FAILED_INTENTS
+from whatsapp_service.domain.money import to_decimal
+from whatsapp_service.models.context import ConversationContext, FlowState
+from whatsapp_service.parser.intent_parser import ParsedIntent
+from whatsapp_service.flows.base_flow import BaseFlow, FlowResult
+from whatsapp_service.messaging import interactive
+from whatsapp_service.messaging.sender import send_text
+from whatsapp_service.config.settings import MAX_FAILED_INTENTS
 
 
 class MenuFlow(BaseFlow):

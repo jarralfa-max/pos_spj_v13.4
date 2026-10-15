@@ -6,9 +6,9 @@ import sqlite3
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.entities.delivery_request import DeliveryRequest
-from domain.whatsapp.enums import DeliveryRequestStatus
-from infrastructure.persistence.sqlite_delivery_request_repository import (
+from whatsapp_service.domain.whatsapp.entities.delivery_request import DeliveryRequest
+from whatsapp_service.domain.whatsapp.enums import DeliveryRequestStatus
+from whatsapp_service.infrastructure.persistence.sqlite_delivery_request_repository import (
     SqliteWhatsAppDeliveryRequestRepository,
 )
 

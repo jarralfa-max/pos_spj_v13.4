@@ -87,6 +87,13 @@ class ConfiguracionPermissions:
     # Dar o quitar permisos a un rol (matriz de permisos).
     ROLES_PERMISOS = permission_code("CONFIGURACION", "rol.permisos")
     AUDITORIA_VIEW = permission_code("CONFIGURACION", "auditoria.ver")
+    # Acerca de y actualizaciones (instalador/actualizador, 2026-10-14).
+    # Ver no da acceso a secretos ni a acciones; administrar = buscar,
+    # descargar, importar paquete offline, programar e instalar; el canal
+    # (estable/piloto) y la ventana de mantenimiento son un permiso aparte.
+    ACTUALIZACIONES_VIEW = permission_code("CONFIGURACION", "actualizacion.ver")
+    ACTUALIZACIONES_ADMINISTRAR = permission_code("CONFIGURACION", "actualizacion.administrar")
+    ACTUALIZACIONES_CANAL = permission_code("CONFIGURACION", "actualizacion.canal")
 
 
 ALL_CONFIGURACION_PERMISSIONS = frozenset(

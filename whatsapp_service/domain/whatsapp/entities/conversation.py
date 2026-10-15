@@ -6,10 +6,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
 
-from domain.whatsapp._ids import new_id
-from domain.whatsapp.entities.conversation_context import ConversationContext
-from domain.whatsapp.enums import TERMINAL_CONVERSATION_STATES, ConversationState
-from domain.whatsapp.exceptions import InvalidConversationStateTransitionError
+from whatsapp_service.domain.whatsapp._ids import new_id
+from whatsapp_service.domain.whatsapp.entities.conversation_context import ConversationContext
+from whatsapp_service.domain.whatsapp.enums import TERMINAL_CONVERSATION_STATES, ConversationState
+from whatsapp_service.domain.whatsapp.exceptions import InvalidConversationStateTransitionError
 
 
 def _utcnow() -> datetime:

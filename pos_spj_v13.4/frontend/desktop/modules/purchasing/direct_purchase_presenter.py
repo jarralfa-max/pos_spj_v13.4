@@ -56,10 +56,11 @@ class DirectPurchasePresenter:
                  supplier_finance: ProcurementFinancePort | None = None,
                  receipt_status: InventoryReceiptStatusPort | None = None,
                  payment_booking=None, warehouse_directory=None,
-                 supplier_origins=None) -> None:
+                 supplier_origins=None, credit_service=None) -> None:
         self._conn = connection_provider
         #: Bodegas del proveedor para «Recolección en proveedor» (§11, §13).
         self._supplier_origins = supplier_origins
+        self._credit = credit_service
         #: Mismo directorio de almacenes que usa el caso de uso para validar
         #: (`active_for_branch`): lo que la pantalla ofrece es EXACTAMENTE lo que
         #: el backend acepta.
@@ -239,6 +240,16 @@ class DirectPurchasePresenter:
 
     def detail(self, direct_purchase_id: str):
         return self._reads.get_detail(direct_purchase_id)
+
+    def supplier_credit(self, supplier_id: str | None) -> dict:
+        """Condición sugerida y estado de crédito del proveedor elegido
+        (2026-10-15): contado si no tiene crédito; crédito si lo tiene."""
+        if not supplier_id or self._credit is None:
+            return {"has_credit": False, "suggested": "IMMEDIATE_PAYMENT", "text": ""}
+        evaluation = self._credit.evaluate(supplier_id, "0")
+        return {"has_credit": evaluation.allowed,
+                "suggested": "SUPPLIER_CREDIT" if evaluation.allowed else "IMMEDIATE_PAYMENT",
+                "text": evaluation.summary()}
 
     def supplier_name(self, supplier_id: str) -> str:
         return self._reads.supplier_name(supplier_id)

@@ -6,9 +6,9 @@ from decimal import Decimal
 
 import pytest
 
-from domain.money import loads_decimal
-from domain.whatsapp.payment_provider_ports import PaymentLinkRef
-from infrastructure.providers.mercadopago.gateway import MercadoPagoGateway, MercadoPagoPreferenceError
+from whatsapp_service.domain.money import loads_decimal
+from whatsapp_service.domain.whatsapp.payment_provider_ports import PaymentLinkRef
+from whatsapp_service.infrastructure.providers.mercadopago.gateway import MercadoPagoGateway, MercadoPagoPreferenceError
 
 
 class _FakeResponse:
@@ -41,9 +41,9 @@ def _run(coro):
 
 class TestMercadoPagoGateway:
     def test_create_preference_returns_checkout_url(self, monkeypatch):
-        import infrastructure.providers.mercadopago.gateway as gateway_mod
+        import whatsapp_service.infrastructure.providers.mercadopago.gateway as gateway_mod
 
-        monkeypatch.setattr("config.settings.MP_ACCESS_TOKEN", "token-123")
+        monkeypatch.setattr("whatsapp_service.config.settings.MP_ACCESS_TOKEN", "token-123")
         monkeypatch.setattr(
             gateway_mod.httpx, "AsyncClient",
             lambda timeout=10.0: _FakeAsyncClient(
@@ -55,15 +55,15 @@ class TestMercadoPagoGateway:
         assert result == PaymentLinkRef(checkout_url="https://mp.example/checkout/1", preference_id="pref-1")
 
     def test_raises_when_token_missing(self, monkeypatch):
-        monkeypatch.setattr("config.settings.MP_ACCESS_TOKEN", "")
+        monkeypatch.setattr("whatsapp_service.config.settings.MP_ACCESS_TOKEN", "")
         gateway = MercadoPagoGateway()
         with pytest.raises(MercadoPagoPreferenceError):
             _run(gateway.create_preference(amount=100.0, external_reference="order-1"))
 
     def test_raises_on_non_success_status(self, monkeypatch):
-        import infrastructure.providers.mercadopago.gateway as gateway_mod
+        import whatsapp_service.infrastructure.providers.mercadopago.gateway as gateway_mod
 
-        monkeypatch.setattr("config.settings.MP_ACCESS_TOKEN", "token-123")
+        monkeypatch.setattr("whatsapp_service.config.settings.MP_ACCESS_TOKEN", "token-123")
         monkeypatch.setattr(
             gateway_mod.httpx, "AsyncClient",
             lambda timeout=10.0: _FakeAsyncClient(_FakeResponse(400, {}, text="bad request")),
@@ -73,9 +73,9 @@ class TestMercadoPagoGateway:
             _run(gateway.create_preference(amount=100.0, external_reference="order-1"))
 
     def test_raises_when_response_has_no_init_point(self, monkeypatch):
-        import infrastructure.providers.mercadopago.gateway as gateway_mod
+        import whatsapp_service.infrastructure.providers.mercadopago.gateway as gateway_mod
 
-        monkeypatch.setattr("config.settings.MP_ACCESS_TOKEN", "token-123")
+        monkeypatch.setattr("whatsapp_service.config.settings.MP_ACCESS_TOKEN", "token-123")
         monkeypatch.setattr(
             gateway_mod.httpx, "AsyncClient",
             lambda timeout=10.0: _FakeAsyncClient(_FakeResponse(201, {"id": "pref-1"})),
@@ -85,7 +85,7 @@ class TestMercadoPagoGateway:
             _run(gateway.create_preference(amount=100.0, external_reference="order-1"))
 
     def test_expiration_and_amount_are_sent_in_payload(self, monkeypatch):
-        import infrastructure.providers.mercadopago.gateway as gateway_mod
+        import whatsapp_service.infrastructure.providers.mercadopago.gateway as gateway_mod
 
         captured = {}
 
@@ -96,7 +96,7 @@ class TestMercadoPagoGateway:
                 captured["headers"] = headers
                 return self._response
 
-        monkeypatch.setattr("config.settings.MP_ACCESS_TOKEN", "token-123")
+        monkeypatch.setattr("whatsapp_service.config.settings.MP_ACCESS_TOKEN", "token-123")
         monkeypatch.setattr(
             gateway_mod.httpx, "AsyncClient",
             lambda timeout=10.0: _CapturingClient(_FakeResponse(201, {"init_point": "https://x", "id": "p1"})),

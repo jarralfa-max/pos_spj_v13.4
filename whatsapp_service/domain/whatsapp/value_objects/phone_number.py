@@ -13,8 +13,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from domain.phone_number import normalize_to_e164
-from domain.whatsapp.exceptions import InvalidPhoneNumberError
+from whatsapp_service.domain.phone_number import normalize_to_e164
+from whatsapp_service.domain.whatsapp.exceptions import InvalidPhoneNumberError
 
 
 @dataclass(frozen=True)

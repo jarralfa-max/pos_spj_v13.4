@@ -17,19 +17,16 @@ solo proceso, mismo criterio pragmático que `InboxWorker`, WA-6):
 `BACKOFF_SECONDS[attempts - 1]`, tope en el último valor.
 """
 from __future__ import annotations
-try:
-    from domain.money import dumps_decimal, loads_decimal
-except ImportError:  # importado como paquete `whatsapp_service.`
-    from whatsapp_service.domain.money import dumps_decimal, loads_decimal
+from whatsapp_service.domain.money import dumps_decimal, loads_decimal
 
 import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from domain.whatsapp._ids import new_id
-from domain.whatsapp.enums import TERMINAL_OUTBOX_STATUSES, OutboxMessageStatus
-from domain.whatsapp.exceptions import WhatsAppDomainError
+from whatsapp_service.domain.whatsapp._ids import new_id
+from whatsapp_service.domain.whatsapp.enums import TERMINAL_OUTBOX_STATUSES, OutboxMessageStatus
+from whatsapp_service.domain.whatsapp.exceptions import WhatsAppDomainError
 
 MAX_ATTEMPTS = 5
 BACKOFF_SECONDS = (30, 120, 600, 1800, 3600)

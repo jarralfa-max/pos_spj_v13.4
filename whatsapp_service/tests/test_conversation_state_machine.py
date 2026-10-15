@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from domain.whatsapp.enums import ConversationSignal, ConversationState
-from domain.whatsapp.services.conversation_state_machine import (
+from whatsapp_service.domain.whatsapp.enums import ConversationSignal, ConversationState
+from whatsapp_service.domain.whatsapp.services.conversation_state_machine import (
     UnhandledConversationSignalError,
     next_state,
 )

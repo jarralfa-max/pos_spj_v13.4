@@ -7,11 +7,11 @@ from decimal import Decimal
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
-from domain.whatsapp.entities.order_draft import OrderDraft
-from domain.whatsapp.enums import DeliveryMethod, IdempotencyStatus, OrderDraftStatus
-from infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
-from infrastructure.persistence.sqlite_order_draft_repository import SqliteWhatsAppOrderDraftRepository
+from whatsapp_service.domain.whatsapp.entities.business_operation import BusinessOperationIdempotencyRecord
+from whatsapp_service.domain.whatsapp.entities.order_draft import OrderDraft
+from whatsapp_service.domain.whatsapp.enums import DeliveryMethod, IdempotencyStatus, OrderDraftStatus
+from whatsapp_service.infrastructure.persistence.sqlite_idempotency_repository import SqliteWhatsAppIdempotencyRepository
+from whatsapp_service.infrastructure.persistence.sqlite_order_draft_repository import SqliteWhatsAppOrderDraftRepository
 
 
 @pytest.fixture()

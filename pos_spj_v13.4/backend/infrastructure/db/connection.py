@@ -10,13 +10,14 @@ Características:
 - Transacciones seguras con SAVEPOINT
 - Compatibilidad backward con código legacy
 
-Ruta canónica de BD:
-    <paquete ERP>/data/spj_pos_database.db
+Ruta canónica de BD: `AppPaths.from_environment().database_path`
+    código fuente -> <paquete ERP>/data/spj_pos_database.db
+    instalado     -> <carpeta de datos>/db/spj_pos_database.db
 
 IMPORTANTE:
-El default de este módulo debe coincidir con `main.py`. Así evitamos que
-servicios que llamen `get_connection()` antes del bootstrap creen otra BD
-como `data/spj.db` o `spj_pos_database.db` fuera de `/data`.
+El default de este módulo sale de la MISMA resolución que usa el arranque
+(`frontend/desktop/app.py`). Así evitamos que servicios que llamen
+`get_connection()` antes del bootstrap creen otra BD en otra carpeta.
 """
 
 from __future__ import annotations
@@ -42,9 +43,16 @@ logger = logging.getLogger("spj.connection")
 # ese mismo `../../` apuntaría a `backend/` y la base de datos se crearía en
 # `backend/data/` — otra BD, silenciosamente. Por eso son tres niveles.
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../"))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-CANONICAL_DB_FILENAME = "spj_pos_database.db"
-CANONICAL_DB_PATH = os.path.join(DATA_DIR, CANONICAL_DB_FILENAME)
+#
+# La ruta de la base ya NO se calcula aquí: la resuelve `AppPaths`, la misma
+# resolución que usan el escritorio, el actualizador y el servicio WhatsApp
+# local. En un checkout de código fuente sigue siendo
+# `<paquete>/data/spj_pos_database.db`; instalado, vive en la carpeta de datos
+# elegida en el instalador (ver `backend/shared/app_paths.py`).
+from backend.shared.app_paths import DATABASE_FILENAME as CANONICAL_DB_FILENAME, AppPaths
+
+CANONICAL_DB_PATH = str(AppPaths.from_environment().database_path)
+DATA_DIR = os.path.dirname(CANONICAL_DB_PATH)
 
 _DB_PATH = CANONICAL_DB_PATH
 DB_PATH = CANONICAL_DB_PATH  # alias legacy

@@ -162,6 +162,10 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
         self._reload_health()
 
     def _reload_credentials(self) -> None:
+        if self._selected_definition_id:
+            self._instances_by_id = {
+                i.entity_id: i for i in self._presenter.list_integration_instances(self._selected_definition_id)
+            }
         instance = self._instances_by_id.get(self._selected_instance_id)
         definition = self._definitions_by_id.get(self._selected_definition_id)
         rows = []

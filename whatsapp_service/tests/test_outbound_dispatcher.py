@@ -9,11 +9,11 @@ import sqlite3
 
 import pytest
 
-from application.outbound_message_service import OutboundMessageService
+from whatsapp_service.application.outbound_message_service import OutboundMessageService
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from domain.whatsapp.enums import OutboxMessageStatus
-from infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
-from infrastructure.webhooks.outbound_dispatcher import OutboundDispatcher
+from whatsapp_service.domain.whatsapp.enums import OutboxMessageStatus
+from whatsapp_service.infrastructure.persistence.sqlite_outbox_repository import SqliteWhatsAppOutboxRepository
+from whatsapp_service.infrastructure.webhooks.outbound_dispatcher import OutboundDispatcher
 
 
 class _FakeProviderGateway:
@@ -121,7 +121,7 @@ class TestRunOnce:
         assert len(gateway.text_calls) == 2
 
     def test_unknown_payload_kind_is_treated_as_a_dispatch_failure(self, conn):
-        from domain.whatsapp.entities.outbox_message import OutboxMessage as _OutboxMessage
+        from whatsapp_service.domain.whatsapp.entities.outbox_message import OutboxMessage as _OutboxMessage
 
         root = _FakeRoot(conn)
         # Construye directamente (no vía enqueue_text/enqueue_template,

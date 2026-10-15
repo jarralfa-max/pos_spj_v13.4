@@ -6,15 +6,15 @@ from datetime import datetime
 
 import pytest
 
-from application.intent_resolution_service import (
+from whatsapp_service.application.intent_resolution_service import (
     IntentResolutionService,
     NullIntentAIProvider,
     intent_to_conversation_signal,
 )
-from domain.whatsapp.entities.conversation import WhatsAppConversation
-from domain.whatsapp.enums import ConversationSignal, Intent
-from domain.whatsapp.value_objects.intent_resolution import IntentResolution, IntentResolutionSource
-from models.message import IncomingMessage, InteractiveType, MessageType
+from whatsapp_service.domain.whatsapp.entities.conversation import WhatsAppConversation
+from whatsapp_service.domain.whatsapp.enums import ConversationSignal, Intent
+from whatsapp_service.domain.whatsapp.value_objects.intent_resolution import IntentResolution, IntentResolutionSource
+from whatsapp_service.models.message import IncomingMessage, InteractiveType, MessageType
 
 
 def _conversation(**context_overrides) -> WhatsAppConversation:

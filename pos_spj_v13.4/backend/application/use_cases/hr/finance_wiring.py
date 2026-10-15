@@ -23,8 +23,10 @@ from datetime import datetime, timezone
 logger = logging.getLogger("spj.hr.finance_wiring")
 
 PAYROLL_PAID = "PAYROLL_PAID"
+EMPLOYEE_LOAN_GRANTED = "EMPLOYEE_LOAN_GRANTED"
+PAYROLL_PAYMENT_REVERSED = "PAYROLL_PAYMENT_REVERSED"
 #: Eventos con efecto contable: sin consumidor NO se marcan despachados.
-REQUIRES_CONSUMER = frozenset({PAYROLL_PAID})
+REQUIRES_CONSUMER = frozenset({PAYROLL_PAID, EMPLOYEE_LOAN_GRANTED, PAYROLL_PAYMENT_REVERSED})
 MAX_ATTEMPTS = 10
 
 
@@ -50,11 +52,21 @@ def wire_hr_finance(bus, connection) -> dict:
     def _to_finance(payload: dict) -> None:
         handler.handle(payroll_paid_to_finance(payload))
 
-    try:
-        subscribe(PAYROLL_PAID, _to_finance, priority=50, label="hr_finance_payroll_paid")
-    except TypeError:
-        subscribe(PAYROLL_PAID, _to_finance)
-    return {"subscribed": [f"{PAYROLL_PAID}->finance"], "count": 1}
+    from backend.application.event_handlers.finance.hr_compensation_handlers import (
+        EmployeeLoanGrantedHandler,
+        PayrollPaymentReversedHandler,
+    )
+
+    routes = ((PAYROLL_PAID, _to_finance),
+              (EMPLOYEE_LOAN_GRANTED, EmployeeLoanGrantedHandler(connection).handle),
+              (PAYROLL_PAYMENT_REVERSED, PayrollPaymentReversedHandler(connection).handle))
+    for event_name, handler_fn in routes:
+        try:
+            subscribe(event_name, handler_fn, priority=50,
+                      label=f"hr_finance_{event_name.lower()}")
+        except TypeError:
+            subscribe(event_name, handler_fn)
+    return {"subscribed": [f"{name}->finance" for name, _ in routes], "count": len(routes)}
 
 
 def _columns(connection) -> set[str]:

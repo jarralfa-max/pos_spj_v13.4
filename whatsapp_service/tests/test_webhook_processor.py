@@ -7,12 +7,12 @@ from datetime import datetime
 import pytest
 
 from backend.infrastructure.db.schema.whatsapp_schema import create_whatsapp_schema
-from bootstrap.composition_root import WhatsAppCompositionRoot
-from domain.whatsapp.entities.business_account import WhatsAppBusinessAccount
-from domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
-from domain.whatsapp.enums import ChannelRole, WhatsAppProvider
-from domain.whatsapp.exceptions import ChannelNumberNotRegisteredError
-from models.message import IncomingMessage, InteractiveType, MessageType
+from whatsapp_service.bootstrap.composition_root import WhatsAppCompositionRoot
+from whatsapp_service.domain.whatsapp.entities.business_account import WhatsAppBusinessAccount
+from whatsapp_service.domain.whatsapp.entities.channel_number import WhatsAppChannelNumber
+from whatsapp_service.domain.whatsapp.enums import ChannelRole, WhatsAppProvider
+from whatsapp_service.domain.whatsapp.exceptions import ChannelNumberNotRegisteredError
+from whatsapp_service.models.message import IncomingMessage, InteractiveType, MessageType
 
 
 @pytest.fixture()
@@ -88,7 +88,7 @@ class TestWebhookProcessorHappyPath:
         assert identity is not None
 
     def test_interactive_button_reply_maps_to_button_reply_type(self, root, registered_number):
-        from domain.whatsapp.enums import MessageType as DomainMessageType
+        from whatsapp_service.domain.whatsapp.enums import MessageType as DomainMessageType
 
         incoming = _incoming(
             type=MessageType.INTERACTIVE,

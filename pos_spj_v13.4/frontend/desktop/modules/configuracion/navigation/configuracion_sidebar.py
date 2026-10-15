@@ -78,6 +78,11 @@ CONFIGURACION_NAV: tuple[ConfiguracionNavEntry, ...] = (
         "config_usuarios_roles", "Usuarios y Roles", "users", ConfiguracionPermissions.USUARIOS_VIEW,
         "Usuarios, roles y auditoría del sistema.",
     ),
+    ConfiguracionNavEntry(
+        "config_actualizaciones", "Acerca de y actualizaciones", "info",
+        ConfiguracionPermissions.ACTUALIZACIONES_VIEW,
+        "Versión instalada, canal, ventana de mantenimiento e historial de actualizaciones.",
+    ),
 )
 
 

@@ -199,9 +199,14 @@ class ConfiguracionPresenter:
         user_permission_matrix_query=None, save_user_permissions_uc=None,
         import_display_media_uc=None, set_device_windows_printer_uc=None,
         authorization=None, audit_log_repository=None,
-        address_search_factory=None,
+        address_search_factory=None, software_updates=None,
     ) -> None:
         self._query_service = query_service
+        #: «Acerca de y actualizaciones» tiene su propio presentador
+        #: (`software_updates_presenter.py`): sus casos de uso no son de la
+        #: gobernanza de configuración. Se expone aquí porque las páginas se
+        #: construyen con el presentador del módulo.
+        self.software_updates = software_updates
         #: Fábrica del servicio estándar de direcciones. Opcional para que las
         #: decenas de pruebas que construyen el presentador sin ella sigan igual;
         #: las dos raíces de composición reales sí la inyectan.

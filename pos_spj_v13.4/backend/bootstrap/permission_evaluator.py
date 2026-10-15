@@ -20,9 +20,14 @@ class PermissionEvaluator:
         self._context = context
 
     def has_permission(self, code: str) -> bool:
+        normalized = normalize_permission(code)
+        # Un módulo NO instalado en esta estación (perfil de instalación) no se
+        # concede a nadie, administrador incluido: es la mitad backend de
+        # "oculto y bloqueado"; la otra mitad es el menú y el router.
+        if self._context.capabilities.permission_blocked(normalized):
+            return False
         if self._context.is_admin():
             return True
-        normalized = normalize_permission(code)
         permissions = self._context.permissions
         if "*" in permissions or normalized in permissions:
             return True

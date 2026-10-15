@@ -1,8 +1,8 @@
 import asyncio
 from types import SimpleNamespace
 
-from router.message_router import MessageRouter
-from models.context import ConversationContext, FlowState
+from whatsapp_service.router.message_router import MessageRouter
+from whatsapp_service.models.context import ConversationContext, FlowState
 
 
 class DummyStore:
@@ -70,7 +70,7 @@ async def _route_once(ctx):
     async def fake_select(phone, sucursales):
         sent.append(("select", phone, len(sucursales)))
 
-    import router.message_router as mr
+    import whatsapp_service.router.message_router as mr
     old_text = mr.interactive.send_text
     old_sel = mr.interactive.send_seleccion_sucursal
     mr.interactive.send_text = fake_text
