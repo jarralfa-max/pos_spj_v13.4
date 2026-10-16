@@ -20,7 +20,8 @@ Format `spj-install/1`:
       "update_feed_url": "https://updates.example/spj/{channel}/manifest.json",
       "allowed_update_hosts": ["updates.example"],
       "legacy_database_paths": ["C:\\\\SPJ\\\\pos_spj_v13.4\\\\data\\\\spj_pos_database.db"],
-      "whatsapp_mode": "remote" | "local"
+      "whatsapp_mode": "remote" | "local",
+      "install_mode": "admin" | "user"          # user = /CURRENTUSER, no UAC
     }
 
 Pure stdlib on purpose: `AppPaths` (this same `shared` layer) needs the data
@@ -56,6 +57,9 @@ class InstallConfig:
     allowed_update_hosts: tuple[str, ...] = ()
     legacy_database_paths: tuple[str, ...] = ()
     whatsapp_mode: str = "remote"
+    #: "admin": installed for the machine (Program Files, UAC to update).
+    #: "user": installed with /CURRENTUSER for one Windows user, no elevation.
+    install_mode: str = "admin"
     source_file: Path | None = field(default=None, compare=False)
 
     @classmethod
@@ -69,7 +73,11 @@ class InstallConfig:
         whatsapp_mode = str(data.get("whatsapp_mode") or "remote").lower()
         if whatsapp_mode not in {"remote", "local"}:
             raise InstallConfigError(f"whatsapp_mode inválido: {whatsapp_mode!r}")
+        install_mode = str(data.get("install_mode") or "admin").lower()
+        if install_mode not in {"admin", "user"}:
+            raise InstallConfigError(f"install_mode inválido: {install_mode!r}")
         return cls(
+            install_mode=install_mode,
             data_scope=scope,
             profile=str(data.get("profile") or "erp_full").lower(),
             capabilities=tuple(str(c) for c in data.get("capabilities") or ()),
@@ -106,4 +114,5 @@ class InstallConfig:
             "allowed_update_hosts": list(self.allowed_update_hosts),
             "legacy_database_paths": list(self.legacy_database_paths),
             "whatsapp_mode": self.whatsapp_mode,
+            "install_mode": self.install_mode,
         }

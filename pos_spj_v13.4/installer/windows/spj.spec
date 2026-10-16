@@ -99,6 +99,16 @@ whatsapp = Analysis(
     noarchive=False,
 )
 
+# The PyQtWebEngine hook drags in the whole QML tree (~21 MB, the deepest
+# paths of the bundle). SPJ has no QML: QtWebEngineWidgets renders without it
+# (`--self-test-ui` checks WebEngine on every build).
+def _without_qml(entries):
+    return [e for e in entries if not e[0].replace("\\", "/").startswith("PyQt5/Qt5/qml/")]
+
+
+desktop.datas = _without_qml(desktop.datas)
+desktop.binaries = _without_qml(desktop.binaries)
+
 desktop_pyz = PYZ(desktop.pure)
 whatsapp_pyz = PYZ(whatsapp.pure)
 

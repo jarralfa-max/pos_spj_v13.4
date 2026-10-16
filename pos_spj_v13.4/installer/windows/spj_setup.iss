@@ -16,6 +16,7 @@
 ; /SILENT /VERYSILENT /DIR= /TYPE= /COMPONENTS= /TASKS= /LOG=):
 ;   /DATASCOPE=machine|user   /CHANNEL=stable|pilot   /LEGACYDB=<path>
 ;   /SPJUPDATER=1  (set by the external updater: no launch at the end)
+;   /CURRENTUSER   per-user install without administrator rights
 ;
 ; Data is NEVER removed by uninstall, repair or upgrade: the database,
 ; backups, logs, images, secrets fallback and WhatsApp conversations live in
@@ -58,10 +59,13 @@ DefaultDirName={autopf}\SPJ\{#AppName}
 DefaultGroupName=SPJ
 DisableProgramGroupPage=yes
 UsePreviousAppDir=yes
+; Remembers the setup type AND the chosen components on upgrade.
 UsePreviousSetupType=yes
-UsePreviousComponents=yes
 UsePreviousTasks=yes
 PrivilegesRequired=admin
+; /CURRENTUSER installs for one Windows user WITHOUT administrator rights
+; (laptops, CI, testing): data scope forced to «user», no WhatsApp service.
+PrivilegesRequiredOverridesAllowed=commandline
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
@@ -119,7 +123,9 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Source: "{#UpdaterExe}"; DestDir: "{app}"; Flags: ignoreversion
 ; The installer keeps a copy of itself so the updater can roll back to this
 ; exact version later (installers.json records its SHA-256).
-Source: "{srcexe}"; DestDir: "{#InstallerCacheDir}"; DestName: "{#InstallerName}"; Flags: external ignoreversion uninsneveruninstall
+; Skipped when this installer IS the cached copy (rollback, recovery, «Reparar»):
+; overwriting the running executable aborts the whole installation (exit 5).
+Source: "{srcexe}"; DestDir: "{#InstallerCacheDir}"; DestName: "{#InstallerName}"; Flags: external ignoreversion uninsneveruninstall; Check: not RunningFromInstallerCache
 
 [Icons]
 Name: "{autoprograms}\SPJ\{#AppName}"; Filename: "{app}\SPJ.exe"; WorkingDir: "{app}"
@@ -149,6 +155,12 @@ begin
   Result := ExpandConstant('{param:' + Name + '|' + Default + '}');
 end;
 
+function RunningFromInstallerCache: Boolean;
+begin
+  Result := CompareText(ExpandConstant('{srcexe}'),
+    ExpandConstant('{#InstallerCacheDir}\{#InstallerName}')) = 0;
+end;
+
 function IsUpdaterRun: Boolean;
 begin
   Result := ParamOr('SPJUPDATER', '0') = '1';
@@ -159,12 +171,18 @@ var
   Value: String;
 begin
   Result := '';
-  if RegQueryStringValue(HKLM, 'Software\SPJ\SPJ ERP POS', 'DataScope', Value) then
+  if RegQueryStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'DataScope', Value) then
     Result := Value;
 end;
 
 function IsMachineScope: Boolean;
 begin
+  { A per-user install (/CURRENTUSER, no admin) can only keep per-user data. }
+  if not IsAdminInstallMode then
+  begin
+    Result := False;
+    Exit;
+  end;
   if WizardSilent then
     Result := LowerCase(ParamOr('DATASCOPE', PreviousDataScope)) <> 'user'
   else
@@ -203,6 +221,8 @@ begin
   { On upgrades the scope and the legacy database were already decided. }
   if (PageID = ScopePage.ID) or (PageID = LegacyPage.ID) then
     Result := PreviousDataScope <> '';
+  if (PageID = ScopePage.ID) and not IsAdminInstallMode then
+    Result := True;
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -304,11 +324,16 @@ begin
     Json := Json + 'local'
   else
     Json := Json + 'remote';
+  Json := Json + '",' + #13#10 + '  "install_mode": "';
+  if IsAdminInstallMode then
+    Json := Json + 'admin'
+  else
+    Json := Json + 'user';
   Json := Json + '"' + #13#10 + '}' + #13#10;
   if not SaveStringToFile(ExpandConstant('{app}\install_config.json'), Json, False) then
     RaiseException('No se pudo escribir install_config.json');
-  RegWriteStringValue(HKLM, 'Software\SPJ\SPJ ERP POS', 'DataScope', Scope);
-  RegWriteStringValue(HKLM, 'Software\SPJ\SPJ ERP POS', 'InstalledVersion', '{#AppVersion}');
+  RegWriteStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'DataScope', Scope);
+  RegWriteStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'InstalledVersion', '{#AppVersion}');
 end;
 
 procedure WriteInstallerIndex;
@@ -323,7 +348,7 @@ begin
   Json := '{"installers": [' +
           '{"version": "{#AppVersion}", "file": "' + Current + '", "sha256": "' +
           GetSHA256OfFile(Dir + '\' + Current) + '"}';
-  if RegQueryStringValue(HKLM, 'Software\SPJ\SPJ ERP POS', 'PreviousVersion', Previous)
+  if RegQueryStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'PreviousVersion', Previous)
      and (Previous <> '{#AppVersion}') then
   begin
     PreviousName := 'SPJ-Setup-' + Previous + '-{#Arch}.exe';
@@ -343,7 +368,7 @@ begin
   Dir := ExpandConstant('{#InstallerCacheDir}');
   Keep1 := '{#InstallerName}';
   Keep2 := '';
-  if RegQueryStringValue(HKLM, 'Software\SPJ\SPJ ERP POS', 'PreviousVersion', Previous) then
+  if RegQueryStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'PreviousVersion', Previous) then
     Keep2 := 'SPJ-Setup-' + Previous + '-{#Arch}.exe';
   if FindFirst(Dir + '\SPJ-Setup-*.exe', FindRec) then
   try
@@ -363,10 +388,10 @@ var
 begin
   Result := '';
   { Remember the version being replaced: it becomes the rollback target. }
-  if RegQueryStringValue(HKLM, 'Software\SPJ\SPJ ERP POS', 'InstalledVersion', Installed)
+  if RegQueryStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'InstalledVersion', Installed)
      and (Installed <> '{#AppVersion}') then
-    RegWriteStringValue(HKLM, 'Software\SPJ\SPJ ERP POS', 'PreviousVersion', Installed);
-  { A running local WhatsApp service holds files in {app}: stop it first. }
+    RegWriteStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'PreviousVersion', Installed);
+  // A running local WhatsApp service holds files in the app folder: stop it first.
   if FileExists(ExpandConstant('{app}\spj_whatsapp.exe')) then
     Exec(ExpandConstant('{app}\spj_whatsapp.exe'), 'stop', '', SW_HIDE,
          ewWaitUntilTerminated, Code);
@@ -392,7 +417,7 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    RegDeleteValue(HKLM, 'Software\SPJ\SPJ ERP POS', 'InstalledVersion');
+    RegDeleteValue(HKA, 'Software\SPJ\SPJ ERP POS', 'InstalledVersion');
     if not UninstallSilent then
       MsgBox('SPJ se desinstaló. Sus datos (base de datos, respaldos, imágenes y registros) se ' +
            'conservaron en la carpeta de datos de SPJ. Bórrelos manualmente sólo si está seguro.',

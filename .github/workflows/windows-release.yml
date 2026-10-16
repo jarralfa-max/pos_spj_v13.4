@@ -38,7 +38,7 @@ env:
 jobs:
   build:
     runs-on: windows-2022
-    timeout-minutes: 120
+    timeout-minutes: 180
     outputs:
       version: ${{ steps.version.outputs.version }}
     env:
@@ -69,11 +69,18 @@ jobs:
           cd pos_spj_v13.4
           python -m pytest tests/unit/software_distribution tests/integration/software_distribution tests/architecture/test_installer_updater_guardrails.py -q
 
-      - name: Install Inno Setup 6
+      - name: Install Inno Setup 6.7.3 (pinned, signature checked)
         shell: pwsh
         run: |
-          choco install innosetup -y --no-progress
-          (Get-Item "C:\Program Files (x86)\Inno Setup 6\ISCC.exe").VersionInfo.ProductVersion | Tee-Object -FilePath inno-version.txt
+          $ErrorActionPreference = "Stop"
+          $setup = Join-Path $env:RUNNER_TEMP "innosetup-6.7.3.exe"
+          Invoke-WebRequest -UseBasicParsing "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe" -OutFile $setup
+          $sig = Get-AuthenticodeSignature -LiteralPath $setup
+          if ($sig.Status -ne "Valid") { throw "Inno Setup sin firma valida: $($sig.Status)" }
+          $dir = Join-Path $env:RUNNER_TEMP "InnoSetup6"
+          Start-Process $setup -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/CURRENTUSER","/NOICONS","/DIR=$dir") -Wait
+          "SPJ_ISCC=$dir\ISCC.exe" >> $env:GITHUB_ENV
+          "Inno Setup $((Get-Item "$dir\ISCC.exe").VersionInfo.ProductVersion) firmado por $($sig.SignerCertificate.Subject)" | Tee-Object -FilePath inno-version.txt
 
       - name: Read version
         id: version
@@ -105,7 +112,7 @@ jobs:
             --channel $env:CHANNEL --build-number ${{ github.run_number }} `
             --artifact-base-url "${{ vars.SPJ_ARTIFACT_BASE_URL || 'https://updates.example.invalid/spj' }}/$env:CHANNEL" `
             --feed-url "${{ vars.SPJ_FEED_URL || '' }}" `
-            --allowed-hosts "${{ vars.SPJ_ALLOWED_HOSTS || '' }}" $sign
+            --allowed-hosts "${{ vars.SPJ_ALLOWED_HOSTS || '' }}" --iscc $env:SPJ_ISCC $sign
 
       - name: Sign manifest (only if the signing key is configured)
         if: env.HAS_MANIFEST_KEY == 'true'
@@ -118,43 +125,151 @@ jobs:
             --key-id "${{ vars.SPJ_MANIFEST_KEY_ID }}" --key-env SPJ_MANIFEST_SIGNING_KEY `
             --out build/windows/release/manifest.json
 
-      - name: Silent install, self-test without Python, repair, uninstall keeps data
+      - name: Build a NEXT test version (for the real upgrade/rollback test)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $file = "pos_spj_v13.4/backend/shared/app_version.py"
+          $current = "${{ steps.version.outputs.version }}"
+          $core = $current.Split("-")[0].Split(".")
+          $next = "$($core[0]).$($core[1]).$([int]$core[2] + 1)-ci.${{ github.run_number }}"
+          (Get-Content $file -Raw).Replace("VERSION = `"$current`"", "VERSION = `"$next`"") | Set-Content $file -Encoding utf8 -NoNewline
+          try {
+            python pos_spj_v13.4/scripts/release/build_windows_release.py --channel $env:CHANNEL `
+              --build-number ${{ github.run_number }} --build-dir build/windows-next --iscc $env:SPJ_ISCC `
+              --artifact-base-url "https://updates.example.invalid/spj/$env:CHANNEL"
+          } finally { git checkout -- $file }
+          "SPJ_NEXT_VERSION=$next" >> $env:GITHUB_ENV
+
+      - name: Legacy database, install with /LEGACYDB, relocation keeps the data
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $python = (Get-Command python).Source
-          $installer = Get-ChildItem build/windows/release/SPJ-Setup-*.exe | Select-Object -First 1
-          $logs = New-Item -ItemType Directory -Force -Path build/windows/install-test
-          & $installer.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DATASCOPE=machine /TYPE=pos_essential "/LOG=$($logs.FullName)\install.log" | Out-Null
-          $app = "C:\Program Files\SPJ\SPJ ERP POS\SPJ.exe"
-          if (-not (Test-Path $app)) { throw "SPJ.exe no quedó instalado" }
-          # Run the installed app with NO Python on PATH.
-          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'Python|hostedtoolcache' }) -join ';'
-          $report = "$($logs.FullName)\self-test-1.json"
-          $p = Start-Process -FilePath $app -ArgumentList "--self-test","--json","--report",$report -Wait -PassThru
-          Get-Content $report
-          $r = Get-Content $report | ConvertFrom-Json
-          if (-not $r.ok) { throw "Autoprueba falló: $($r.detail)" }
-          if ($r.version -ne "${{ steps.version.outputs.version }}") { throw "Versión instalada $($r.version)" }
-          $config = Get-Content "C:\Program Files\SPJ\SPJ ERP POS\install_config.json" | ConvertFrom-Json
-          if ($config.profile -ne "pos_essential" -or $config.data_scope -ne "machine") { throw "install_config.json inesperado" }
-          $db = "C:\ProgramData\SPJ\SPJ ERP POS\db\spj_pos_database.db"
-          if (-not (Test-Path $db)) { throw "La base no quedó en ProgramData" }
-          # Data marker survives a repair (same installer again)…
+          "SPJ_PYTHON=$python" >> $env:GITHUB_ENV
           $marker = "pos_spj_v13.4/scripts/release/ci_data_marker.py"
-          & $python $marker write $db
-          if ($LASTEXITCODE -ne 0) { throw "no se pudo escribir el marcador" }
-          & $installer.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/LOG=$($logs.FullName)\repair.log" | Out-Null
-          $p = Start-Process -FilePath $app -ArgumentList "--self-test","--json","--report","$($logs.FullName)\self-test-2.json" -Wait -PassThru
-          if (-not (Get-Content "$($logs.FullName)\self-test-2.json" | ConvertFrom-Json).ok) { throw "Autoprueba tras reparar falló" }
-          # …and an uninstall.
-          $uninstaller = Get-ChildItem "C:\Program Files\SPJ\SPJ ERP POS\unins*.exe" | Select-Object -First 1
-          & $uninstaller.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART | Out-Null
+          $logs = (New-Item -ItemType Directory -Force -Path build/windows/install-test).FullName
+          # A pre-installer station: database created and migrated FROM SOURCE.
+          $legacy = "C:\spj-legacy\pos_spj_v13.4\data\spj_pos_database.db"
+          $env:SPJ_DB_PATH = $legacy
+          python pos_spj_v13.4/main.py --self-test --json --report "$logs\legacy-source.json"
+          Remove-Item Env:SPJ_DB_PATH
+          & $python $marker write $legacy; if ($LASTEXITCODE) { throw "marcador" }
+          $installer = (Get-ChildItem build/windows/release/SPJ-Setup-*.exe | Select-Object -First 1).FullName
+          Start-Process $installer -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DATASCOPE=machine","/TYPE=pos_essential","/LEGACYDB=$legacy","/LOG=$logs\install.log") -Wait
+          $app = "C:\Program Files\SPJ\SPJ ERP POS\SPJ.exe"
+          if (-not (Test-Path $app)) { throw "SPJ.exe no quedo instalado" }
+          $config = Get-Content "C:\Program Files\SPJ\SPJ ERP POS\install_config.json" | ConvertFrom-Json
+          if ($config.profile -ne "pos_essential" -or $config.data_scope -ne "machine" -or $config.install_mode -ne "admin") { throw "install_config.json inesperado" }
+          # From here on the installed app runs with NO Python on PATH.
+          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'Python|hostedtoolcache' }) -join ';'
+          Start-Process $app -ArgumentList @("--self-test","--json","--report","$logs\self-test-1.json") -Wait
+          $r = Get-Content "$logs\self-test-1.json" | ConvertFrom-Json
+          if (-not $r.ok) { throw "Autoprueba fallo: $($r.detail)" }
+          if ($r.version -ne "${{ steps.version.outputs.version }}") { throw "Version instalada $($r.version)" }
+          if ($r.detail -notmatch "RELOCATED") { throw "No se reubico la base legacy: $($r.detail)" }
+          $db = "C:\ProgramData\SPJ\SPJ ERP POS\db\spj_pos_database.db"
+          & $python $marker check $db; if ($LASTEXITCODE) { throw "La base reubicada perdio los datos" }
+          if (Test-Path $legacy) { throw "La base legacy no se archivo" }
+          if (-not (Get-ChildItem "C:\spj-legacy\pos_spj_v13.4\data" -Filter "*.relocated-*")) { throw "Falta el original archivado" }
+          "OK: base legacy reubicada con sus datos" | Tee-Object "$logs\legacy.txt"
+
+      - name: GUI self-test of the installed app (login, main window, every route, WebEngine)
+        shell: pwsh
+        run: |
+          $logs = (Resolve-Path build/windows/install-test).Path
+          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'Python|hostedtoolcache' }) -join ';'
+          Start-Process "C:\Program Files\SPJ\SPJ ERP POS\SPJ.exe" -ArgumentList @("--self-test-ui","--report","$logs\ui-self-test.json","--screenshots","$logs\screenshots") -Wait
+          $r = Get-Content "$logs\ui-self-test.json" | ConvertFrom-Json
+          "$($r.detail) | packaging: $($r.packaging -join '; ') | avisos: $($r.route_warnings.Count)"
+          if (-not $r.ok) { throw "Autoprueba de interfaz fallo: $($r.packaging -join '; ')" }
+
+      - name: Repair (the cached installer the «Reparar» shortcut runs) keeps the data
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $logs = (Resolve-Path build/windows/install-test).Path
+          # NOT the build-folder copy: the shortcut and every rollback run the
+          # installer cached in ProgramData, which must not overwrite itself.
+          $cache = "C:\ProgramData\SPJ\Installers\SPJ ERP POS"
+          $installer = "$cache\SPJ-Setup-${{ steps.version.outputs.version }}-x64.exe"
+          if (-not (Test-Path $installer)) { throw "El instalador no quedo en la cache de reversion" }
+          $index = Get-Content "$cache\installers.json" | ConvertFrom-Json
+          if ($index.installers[0].sha256 -ne (Get-FileHash $installer -Algorithm SHA256).Hash.ToLower()) { throw "installers.json no coincide" }
+          $p = Start-Process "`"$installer`"" -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/LOG=$logs\repair.log") -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "La reparacion termino con codigo $($p.ExitCode)" }
+          Start-Process "C:\Program Files\SPJ\SPJ ERP POS\SPJ.exe" -ArgumentList @("--self-test","--json","--report","$logs\self-test-2.json") -Wait
+          if (-not (Get-Content "$logs\self-test-2.json" | ConvertFrom-Json).ok) { throw "Autoprueba tras reparar fallo" }
+          & $env:SPJ_PYTHON pos_spj_v13.4/scripts/release/ci_data_marker.py check "C:\ProgramData\SPJ\SPJ ERP POS\db\spj_pos_database.db"
+          if ($LASTEXITCODE) { throw "La reparacion perdio datos" }
+
+      - name: Real update through spj_updater.exe, then a forced rollback
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $logs = (Resolve-Path build/windows/install-test).Path
+          $install = "C:\Program Files\SPJ\SPJ ERP POS"
+          $db = "C:\ProgramData\SPJ\SPJ ERP POS\db\spj_pos_database.db"
+          $v1 = "${{ steps.version.outputs.version }}"; $v2 = $env:SPJ_NEXT_VERSION
+          $next = (Get-ChildItem build/windows-next/release/SPJ-Setup-*.exe | Select-Object -First 1).FullName
+          function Invoke-Update([string]$installer, [string]$from, [string]$to) {
+            $stage = & $env:SPJ_PYTHON pos_spj_v13.4/scripts/release/ci_stage_update.py --install-dir $install --installer $installer --from-version $from --to-version $to | ConvertFrom-Json
+            $exe = $stage.command[0]
+            $rest = $stage.command[1..($stage.command.Count - 1)] | ForEach-Object { if ($_ -match ' ') { "`"$_`"" } else { $_ } }
+            Start-Process $exe -ArgumentList $rest -Wait
+            $job = Get-Content $stage.job_path | ConvertFrom-Json
+            $job | ConvertTo-Json -Depth 6 | Set-Content "$logs\job-$to.json"
+            return $job
+          }
+          # v1 -> v2: must COMPLETE, back up first and keep the data.
+          $job = Invoke-Update $next $v1 $v2
+          if ($job.state -ne "COMPLETED") { throw "Actualizacion no completada: $($job.state) $($job.history[-1].detail)" }
+          Start-Process "$install\SPJ.exe" -ArgumentList @("--self-test","--json","--report","$logs\self-test-v2.json") -Wait
+          $r = Get-Content "$logs\self-test-v2.json" | ConvertFrom-Json
+          if (-not $r.ok -or $r.version -ne $v2) { throw "Tras actualizar: ok=$($r.ok) version=$($r.version)" }
+          if (-not (Get-ChildItem "C:\ProgramData\SPJ\SPJ ERP POS\backups" -Filter "*pre-update-$v2*.db")) { throw "Sin respaldo previo" }
+          & $env:SPJ_PYTHON pos_spj_v13.4/scripts/release/ci_data_marker.py check $db; if ($LASTEXITCODE) { throw "La actualizacion perdio datos" }
+          # Forced failure: the job announces a version the package does not
+          # contain, so the self-test reports another version and the updater
+          # rolls back (database restored + cached installer reinstalled).
+          $job = Invoke-Update $next $v2 "99.0.0"
+          if ($job.state -ne "ROLLED_BACK") { throw "Se esperaba ROLLED_BACK: $($job.state) $($job.history[-1].detail)" }
+          Start-Process "$install\SPJ.exe" -ArgumentList @("--self-test","--json","--report","$logs\self-test-rollback.json") -Wait
+          $r = Get-Content "$logs\self-test-rollback.json" | ConvertFrom-Json
+          if (-not $r.ok -or $r.version -ne $v2) { throw "Tras revertir: ok=$($r.ok) version=$($r.version)" }
+          & $env:SPJ_PYTHON pos_spj_v13.4/scripts/release/ci_data_marker.py check $db; if ($LASTEXITCODE) { throw "La reversion perdio datos" }
+          "OK: $v1 -> $v2 por el actualizador; fallo forzado revertido" | Tee-Object "$logs\update.txt"
+
+      - name: Optional local WhatsApp service (install, loopback only, remove)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $logs = (Resolve-Path build/windows/install-test).Path
+          $next = (Get-ChildItem build/windows-next/release/SPJ-Setup-*.exe | Select-Object -First 1).FullName
+          Start-Process $next -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/COMPONENTS=nucleo,modulos\fidelidad,whatsapp_local","/LOG=$logs\whatsapp-install.log") -Wait
+          $svc = Get-Service SPJWhatsApp
+          if ($svc.Status -ne "Running") { Start-Service SPJWhatsApp; Start-Sleep 5; $svc.Refresh() }
+          if ($svc.Status -ne "Running") { throw "El servicio WhatsApp no arranco" }
+          $ok = $false
+          foreach ($i in 1..30) { try { Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8000/docs -TimeoutSec 2 | Out-Null; $ok = $true; break } catch { Start-Sleep 1 } }
+          if (-not $ok) { throw "El servicio no responde en 127.0.0.1:8000" }
+          $listen = Get-NetTCPConnection -LocalPort 8000 -State Listen | Select-Object -ExpandProperty LocalAddress -Unique
+          if ($listen -ne "127.0.0.1") { throw "El servicio escucha fuera de loopback: $listen" }
+          Start-Process $next -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/COMPONENTS=nucleo,modulos\fidelidad","/LOG=$logs\whatsapp-remove.log") -Wait
+          if (Get-Service SPJWhatsApp -ErrorAction SilentlyContinue) { throw "Quitar el componente no elimino el servicio" }
+          "OK: servicio WhatsApp local instalado, en loopback y retirado" | Tee-Object "$logs\whatsapp.txt"
+
+      - name: Uninstall keeps the data
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $uninstaller = (Get-ChildItem "C:\Program Files\SPJ\SPJ ERP POS\unins*.exe" | Select-Object -First 1).FullName
+          Start-Process $uninstaller -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART") -Wait
           Start-Sleep -Seconds 5
-          if (Test-Path $app) { throw "La desinstalación dejó SPJ.exe" }
-          & $python $marker check $db
-          if ($LASTEXITCODE -ne 0) { throw "La desinstalación no conservó los datos" }
-          "OK: instalación, autoprueba sin Python, reparación y desinstalación con datos conservados" | Tee-Object "$($logs.FullName)\result.txt"
+          if (Test-Path "C:\Program Files\SPJ\SPJ ERP POS\SPJ.exe") { throw "La desinstalacion dejo SPJ.exe" }
+          & $env:SPJ_PYTHON pos_spj_v13.4/scripts/release/ci_data_marker.py check "C:\ProgramData\SPJ\SPJ ERP POS\db\spj_pos_database.db"
+          if ($LASTEXITCODE) { throw "La desinstalacion no conservo los datos" }
+          "OK: desinstalacion con datos conservados" | Tee-Object build/windows/install-test/uninstall.txt
 
       - name: Upgrade from the previous published release (when one exists)
         shell: pwsh
@@ -185,6 +300,7 @@ jobs:
           path: |
             build/windows/release/
             build/windows/install-test/
+            build/windows-next/release/release.json
             build-environment.txt
             inno-version.txt
           retention-days: 30

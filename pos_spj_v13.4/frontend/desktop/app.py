@@ -365,6 +365,10 @@ def _make_update_handoff(app, connection, ventana: dict):
 
 def main() -> int:
     """Arranca la aplicación. Devuelve el código de salida del proceso."""
+    if "--self-test-ui" in sys.argv:
+        from frontend.desktop.ui_self_test import main as ui_self_test_main
+
+        return ui_self_test_main()
     if "--self-test" in sys.argv:
         from backend.bootstrap.self_test import main as self_test_main
 

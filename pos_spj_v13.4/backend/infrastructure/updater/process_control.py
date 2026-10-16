@@ -73,9 +73,15 @@ def inno_silent_arguments(log_path: Path) -> list[str]:
 
 
 class InstallerRunner:
+    """`elevate=False` for per-user installations (`install_mode: user`): the
+    installer runs as the same user, with `/CURRENTUSER`, and no UAC prompt."""
+
+    def __init__(self, *, elevate: bool = True) -> None:
+        self._elevate = elevate
+
     def run(self, installer: Path, arguments: Sequence[str], *, timeout_seconds: float) -> int:
         installer = Path(installer)
-        if sys.platform == "win32":
+        if sys.platform == "win32" and self._elevate:
             return _win_run_elevated(installer, list(arguments), timeout_seconds)
         completed = subprocess.run([str(installer), *arguments], timeout=timeout_seconds,
                                    check=False)

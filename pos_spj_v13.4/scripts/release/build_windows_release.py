@@ -48,6 +48,10 @@ from _release_common import (
 )
 
 INSTALLER_DIR = PACKAGE_ROOT / "installer" / "windows"
+#: `C:\Program Files\SPJ\SPJ ERP POS\` (33) + this must stay below MAX_PATH (260),
+#: with room for a longer custom installation folder.
+INSTALL_DIR_EXAMPLE = r"C:\Program Files\SPJ\SPJ ERP POS"
+MAX_BUNDLE_RELATIVE_PATH = 180
 ICON_SIZES = (16, 24, 32, 48, 64, 128, 256)
 
 
@@ -161,7 +165,9 @@ def main(argv=None) -> int:
     version = read_version()
     semver = SemanticVersion.parse(version)
     file_version = semver.windows_file_version()
-    build_dir = args.build_dir.resolve()
+    # absolute(), not resolve(): resolve() expands an 8.3 short path back to the
+    # long one, and Inno Setup cannot read files past MAX_PATH (260).
+    build_dir = args.build_dir.absolute()
     release_dir = build_dir / "release"
     dist_dir = build_dir / "dist"
     for folder in (release_dir, dist_dir, build_dir / "work"):
@@ -188,10 +194,16 @@ def main(argv=None) -> int:
 
     bundle = dist_dir / "SPJ"
     updater = dist_dir / "spj_updater.exe"
+    longest = max(len(str(path.relative_to(bundle))) for path in bundle.rglob("*"))
+    if longest > MAX_BUNDLE_RELATIVE_PATH:
+        raise SystemExit(
+            f"Una ruta del paquete mide {longest} caracteres; instalada en "
+            f"'{INSTALL_DIR_EXAMPLE}' superaría el límite de Windows (260).")
     if args.sign:
         sign([bundle / "SPJ.exe", bundle / "spj_whatsapp.exe", updater])
 
-    result = {**build_info, "schema_target": schema_target(), "bundle": str(bundle)}
+    result = {**build_info, "schema_target": schema_target(), "bundle": str(bundle),
+              "longest_bundle_path": longest}
     if args.skip_installer:
         write_json(release_dir / "release.json", {**result, "publishable": False,
                                                   "reason": "sin instalador (--skip-installer)"})

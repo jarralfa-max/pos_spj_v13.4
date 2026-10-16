@@ -80,16 +80,19 @@ def build_transaction(paths: AppPaths, job: UpdateJob, *, store: UpdateJobStore,
     logs = paths.logs_dir
     logs.mkdir(parents=True, exist_ok=True)
 
+    per_user = paths.install_config is not None and paths.install_config.install_mode == "user"
+
     def arguments(current: UpdateJob, installer: str) -> list[str]:
         name = Path(installer).stem
-        return inno_silent_arguments(logs / f"instalador-{current.job_id}-{name}.log")
+        extra = ["/CURRENTUSER"] if per_user else []
+        return [*inno_silent_arguments(logs / f"instalador-{current.job_id}-{name}.log"), *extra]
 
     return UpdateTransaction(
         job_store=store,
         database_lock=InstanceLock(database.with_name(database.name + ".lock")),
         backup=SQLiteBackupService(app_version=job.from_version),
         backups_dir=paths.backups_dir,
-        installer_runner=InstallerRunner(),
+        installer_runner=InstallerRunner(elevate=not per_user),
         installer_arguments=arguments,
         self_test=SelfTestProbe(app_command(paths)),
         trust=AuthenticodeVerifier(required=require_signature),

@@ -38,12 +38,42 @@ Instalación desatendida (despliegue masivo):
 # Base anterior:  /LEGACYDB="D:\SPJ\pos_spj_v13.4\data\spj_pos_database.db"
 ```
 
+Equipo sin permisos de administrador (laptop de oficina, prueba): agregue
+`/CURRENTUSER`. Se instala sólo para ese usuario en `%LOCALAPPDATA%\Programs`, sin UAC,
+con datos «sólo mi usuario» y sin servicio WhatsApp local; las actualizaciones de esa
+instalación tampoco piden UAC. Las cajas se instalan como administrador.
+
 Comprobación sin abrir ventanas:
 
 ```powershell
 & "C:\Program Files\SPJ\SPJ ERP POS\SPJ.exe" --self-test --json --report C:\Temp\spj-selftest.json
 Get-Content C:\Temp\spj-selftest.json     # "ok": true y la versión esperada
 ```
+
+Comprobación CON ventanas (login, ventana principal, todos los módulos del perfil y
+gráficas), sobre una copia temporal de la base — no modifica los datos de la estación:
+
+```powershell
+& "C:\Program Files\SPJ\SPJ ERP POS\SPJ.exe" --self-test-ui --report C:\Temp\spj-ui.json --screenshots C:\Temp\spj-ui
+```
+
+### Piloto obligatorio en la primera caja de cada sucursal
+
+Las pruebas automáticas no tienen impresora, báscula ni cajón. Antes de instalar en las
+demás cajas, en UNA caja real y sin Python instalado:
+
+- [ ] Abrir SPJ desde el acceso directo del menú Inicio (no desde una carpeta).
+- [ ] Asistente de primer arranque o, si la base se trasladó, login con un usuario real.
+- [ ] Abrir turno de caja con fondo.
+- [ ] Venta de prueba con un producto por pieza y uno por kilo (báscula leyendo peso).
+- [ ] Cobro en efectivo: abre el cajón e imprime el ticket en la impresora térmica.
+- [ ] Lector de código de barras agrega el producto.
+- [ ] Pantalla del cliente (si la sucursal la usa).
+- [ ] Corte Z de prueba e impresión.
+- [ ] Configuración → Acerca de y actualizaciones muestra la versión esperada.
+- [ ] Cerrar y volver a abrir: los datos de la venta siguen ahí.
+
+Anote cualquier error en el registro `<datos>\logs\spj_pos.log` y envíelo antes de seguir.
 
 ## 2. Dónde está cada cosa
 

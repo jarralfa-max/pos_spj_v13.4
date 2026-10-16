@@ -176,3 +176,49 @@ Entorno limpio (venv en carpeta temporal) con `requirements.txt` completo + PyQt
 * Fallas de entorno: `test_whatsapp_credentials_regression.py` (archivo sin commitear de otra
   sesión) no encuentra `whatsapp_service` en `sys.path`; con la raíz del repo en `PYTHONPATH`
   pasa 5/5. `test_ci_workflow.py` necesita `pyyaml`; shell con el APPDATA real necesita pywin32.
+
+## 8. Auditoría 3983fe7 «¿qué falta para instalar sin Python?» (2026-10-15)
+
+Se respondió construyendo y PROBANDO el instalador real en esta PC (Windows 11, sin
+elevación; Inno Setup 6.7.3 firmado, instalado por usuario en una carpeta temporal y
+desinstalado al final).
+
+Defectos REALES encontrados al ejecutarlo — ninguno lo detectaban las pruebas previas:
+
+| Defecto | Efecto | Corrección |
+| --- | --- | --- |
+| `UsePreviousComponents` no es directiva de Inno | El `.iss` no compilaba | Eliminada (los componentes se recuerdan con `UsePreviousSetupType`) |
+| Comentario Pascal `{ … {app} … }` | El `}` interno cerraba el comentario; no compilaba | Comentario `//` |
+| Rutas > 260 caracteres (árbol QML de PyQtWebEngine) | ISCC abortaba con rutas de build largas | QML excluido del paquete (21 MB, SPJ no usa QML; WebEngine sigue funcionando) + guardia de longitud en el build + `absolute()` en vez de `resolve()` |
+| **El instalador en caché se copiaba sobre sí mismo** | **Toda reversión, recuperación y el acceso «Reparar» abortaban con código 5** | `Check: not RunningFromInstallerCache`; la CI ahora repara con el instalador EN CACHÉ |
+| El actualizador siempre pedía UAC | Una instalación por usuario no podía actualizarse sin administrador | `install_mode` en `install_config.json`; `/CURRENTUSER` sin elevación para instalaciones por usuario (`PrivilegesRequiredOverridesAllowed=commandline`) |
+
+Nuevo: `SPJ.exe --self-test-ui` abre de verdad la ventana de login, la ventana principal,
+TODAS las rutas del perfil y QtWebEngine, con capturas; corre sobre una COPIA temporal de
+la base (abrir el POS crea una venta borrador) y con vigilancia de 15 min (una vez, en esta PC
+sin espacio en disco, el proceso de WebEngine quedó colgado 44 min al cerrar).
+
+Evidencia local, instalador real `SPJ-Setup-13.4.0-x64.exe` (146 MB), sin Python en el PATH:
+
+* Instalación `/CURRENTUSER /TYPE=pos_essential /LEGACYDB=<copia de la base real>`: acceso
+  directo, `install_config.json` (`user/user/pos_essential`), caché de reversión indexada.
+* Autoprueba: base legacy REUBICADA (esquema 336 → 340), marcador de datos intacto.
+* Autoprueba de interfaz: login, ventana principal, **8 de 8 rutas** (núcleo + Fidelidad = perfil
+  POS esencial), WebEngine OK.
+* `spj_updater.exe`: actualización COMPLETED con respaldo verificado; fallo forzado → ROLLED_BACK
+  con la base restaurada y el instalador en caché reinstalado; «Reparar» desde la caché OK.
+* Desinstalación: programa y accesos eliminados, base y datos conservados.
+
+Ampliado `windows-release.yml`: Inno 6.7.3 fijado con verificación de firma; segunda versión
+de prueba (`X.Y.Z+1-ci.N`); base legacy → `/LEGACYDB`; autoprueba de interfaz con capturas;
+reparación con el instalador en caché; actualización real v1→v2 por `spj_updater.exe` y
+reversión forzada; servicio WhatsApp (instalar, sólo `127.0.0.1`, retirar); desinstalación.
+
+NO ejecutado todavía:
+
+* El job de Windows (no hay `gh` ni permisos aquí). Es lo único que prueba instalación
+  **como administrador** (Program Files, ProgramData, servicio WhatsApp) y el salto real de
+  versión 13.4.0 → 13.4.1 (localmente se reinstaló la misma versión por falta de disco).
+* PC limpia y hardware (impresora, báscula, cajón, lector): checklist del piloto en el
+  runbook, sección 1.
+* Firma Authenticode, clave Ed25519 de producción, servidor y canal: decisiones pendientes.
