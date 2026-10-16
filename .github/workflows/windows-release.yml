@@ -15,6 +15,17 @@ on:
         default: "stable"
   push:
     tags: ["v*"]
+    # Branch pushes run it too, but only when they touch the packaging or the
+    # updater (path filters do not apply to tag pushes).
+    branches: ["**"]
+    paths:
+      - "pos_spj_v13.4/installer/**"
+      - "pos_spj_v13.4/scripts/release/**"
+      - "pos_spj_v13.4/backend/infrastructure/updater/**"
+      - "pos_spj_v13.4/backend/application/software_updates/**"
+      - "pos_spj_v13.4/backend/domain/software_distribution/**"
+      - "pos_spj_v13.4/frontend/desktop/ui_self_test.py"
+      - ".github/workflows/windows-release.yml"
   pull_request:
     paths:
       - "pos_spj_v13.4/installer/**"
