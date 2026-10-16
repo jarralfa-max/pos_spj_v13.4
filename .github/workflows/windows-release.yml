@@ -202,6 +202,7 @@ jobs:
           "OK: base legacy reubicada con sus datos" | Tee-Object "$logs\legacy.txt"
 
       - name: GUI self-test of the installed app (login, main window, every route, WebEngine)
+        timeout-minutes: 20
         shell: pwsh
         run: |
           trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
@@ -233,6 +234,7 @@ jobs:
           if ($LASTEXITCODE) { throw "La reparacion perdio datos" }
 
       - name: Real update through spj_updater.exe, then a forced rollback
+        timeout-minutes: 60
         shell: pwsh
         run: |
           trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
@@ -246,7 +248,15 @@ jobs:
             $stage = & $env:SPJ_PYTHON pos_spj_v13.4/scripts/release/ci_stage_update.py --install-dir $install --installer $installer --from-version $from --to-version $to | ConvertFrom-Json
             $exe = $stage.command[0]
             $rest = $stage.command[1..($stage.command.Count - 1)] | ForEach-Object { if ($_ -match ' ') { "`"$_`"" } else { $_ } }
-            Start-Process $exe -ArgumentList $rest -Wait
+            # Wait for the updater ONLY (not its descendants) and never forever:
+            # a hang must leave a diagnosis, not burn the job's time limit.
+            $proc = Start-Process $exe -ArgumentList $rest -PassThru
+            if (-not $proc.WaitForExit(1200000)) {
+              $state = (Get-Content $stage.job_path -Raw | ConvertFrom-Json).state
+              $tail = Get-Content "C:\ProgramData\SPJ\SPJ ERP POS\logs\updater.log" -Tail 12 -ErrorAction SilentlyContinue
+              Get-Process | Where-Object { $_.Path -like "*SPJ*" -or $_.ProcessName -like "*Setup*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+              throw "El actualizador no termino en 20 min (estado $state). updater.log: $($tail -join ' / ')"
+            }
             $job = Get-Content $stage.job_path | ConvertFrom-Json
             $job | ConvertTo-Json -Depth 6 | Set-Content "$logs\job-$to.json"
             return $job
@@ -271,6 +281,7 @@ jobs:
           "OK: $v1 -> $v2 por el actualizador; fallo forzado revertido" | Tee-Object "$logs\update.txt"
 
       - name: Optional local WhatsApp service (install, loopback only, remove)
+        timeout-minutes: 15
         shell: pwsh
         run: |
           trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
@@ -291,6 +302,7 @@ jobs:
           "OK: servicio WhatsApp local instalado, en loopback y retirado" | Tee-Object "$logs\whatsapp.txt"
 
       - name: Uninstall keeps the data
+        timeout-minutes: 10
         shell: pwsh
         run: |
           trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }

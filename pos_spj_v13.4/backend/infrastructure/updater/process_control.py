@@ -81,11 +81,27 @@ class InstallerRunner:
 
     def run(self, installer: Path, arguments: Sequence[str], *, timeout_seconds: float) -> int:
         installer = Path(installer)
-        if sys.platform == "win32" and self._elevate:
+        if sys.platform == "win32" and self._elevate and not is_process_elevated():
             return _win_run_elevated(installer, list(arguments), timeout_seconds)
+        # Per-user installation, or this process ALREADY holds administrator
+        # rights (an elevated session, the CI runner): the installer inherits
+        # them. Asking `runas` for elevation one already has is pointless and,
+        # in a service session without an interactive desktop, never returns.
         completed = subprocess.run([str(installer), *arguments], timeout=timeout_seconds,
                                    check=False)
         return completed.returncode
+
+
+def is_process_elevated() -> bool:
+    """True when the current process runs with an administrator token."""
+    if sys.platform != "win32":
+        return hasattr(os, "geteuid") and os.geteuid() == 0
+    try:
+        import ctypes
+
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except (AttributeError, OSError):
+        return False
 
 
 def _quote_argument(argument: str) -> str:
