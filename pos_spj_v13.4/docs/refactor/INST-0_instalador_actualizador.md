@@ -222,3 +222,32 @@ NO ejecutado todavía:
 * PC limpia y hardware (impresora, báscula, cajón, lector): checklist del piloto en el
   runbook, sección 1.
 * Firma Authenticode, clave Ed25519 de producción, servidor y canal: decisiones pendientes.
+
+### 8.1 Job de Windows en GitHub Actions — VERDE (2026-10-16, run 38902999978, commit 0019cd60)
+
+Runner `windows-2022` limpio, instalación como ADMINISTRADOR, aplicación sin Python en el PATH:
+
+| Paso | Resultado | Tiempo |
+| --- | --- | --- |
+| Entorno fijado + pruebas del actualizador | OK | 111 s |
+| Inno Setup 6.7.3 (firma verificada) | OK | 6 s |
+| Build 13.4.0 (PyInstaller + actualizador + instalador) | OK | 314 s |
+| Build 13.4.1-ci.N (para el salto de versión) | OK | 308 s |
+| Base legacy → `/LEGACYDB` → reubicada con sus datos (Program Files + ProgramData) | OK | 34 s |
+| Autoprueba de interfaz: 8/8 rutas (POS esencial), WebEngine OK | OK | 26 s |
+| «Reparar» con el instalador EN CACHÉ | OK | 17 s |
+| Actualización REAL 13.4.0 → 13.4.1 por `spj_updater.exe` + reversión forzada | OK | 64 s |
+| Servicio WhatsApp: instalar, sólo `127.0.0.1:8000`, retirar | OK | 38 s |
+| Desinstalar conservando datos | OK | 8 s |
+| Verificar release | falla esperada (sin manifiesto firmado) — `continue-on-error` | 1 s |
+
+Lo que costó llegar ahí (4 ejecuciones): argumento vacío en el paso de build; la autoprueba de
+interfaz se colgaba ante el diálogo de Caja en una instalación nueva («Esta estación no tiene
+sincronización local configurada», ahora se registra y se rechaza); y el actualizador pedía
+`runas` aun teniendo ya administrador, lo que en la sesión de servicio del runner no regresaba
+(ahora sólo eleva cuando hace falta).
+
+Sigue pendiente: firma Authenticode, clave Ed25519 de producción y servidor de
+actualizaciones (sin ellos el release es `publishable=false`), y el piloto con hardware real
+en una caja (runbook §1). Hallazgo de producto a decidir: en una instalación nueva, Caja
+abre un diálogo modal sobre sincronización local antes de configurar nada.
