@@ -118,12 +118,19 @@ jobs:
       - name: Build bundle, updater and installer
         shell: pwsh
         run: |
-          $sign = if ($env:SPJ_SIGN -eq "1") { "--sign" } else { "" }
-          python pos_spj_v13.4/scripts/release/build_windows_release.py `
-            --channel $env:CHANNEL --build-number ${{ github.run_number }} `
-            --artifact-base-url "${{ vars.SPJ_ARTIFACT_BASE_URL || 'https://updates.example.invalid/spj' }}/$env:CHANNEL" `
-            --feed-url "${{ vars.SPJ_FEED_URL || '' }}" `
-            --allowed-hosts "${{ vars.SPJ_ALLOWED_HOSTS || '' }}" --iscc $env:SPJ_ISCC $sign
+          # Build the argument list explicitly: pwsh passes "" as a real empty
+          # argument, and argparse rejects it (the first run failed that way).
+          $buildArgs = @("pos_spj_v13.4/scripts/release/build_windows_release.py",
+            "--channel", $env:CHANNEL, "--build-number", "${{ github.run_number }}",
+            "--artifact-base-url", "${{ vars.SPJ_ARTIFACT_BASE_URL || 'https://updates.example.invalid/spj' }}/$env:CHANNEL",
+            "--iscc", $env:SPJ_ISCC)
+          $feed = "${{ vars.SPJ_FEED_URL }}"; $hosts = "${{ vars.SPJ_ALLOWED_HOSTS }}"
+          if ($feed) { $buildArgs += @("--feed-url", $feed) }
+          if ($hosts) { $buildArgs += @("--allowed-hosts", $hosts) }
+          if ($env:SPJ_SIGN -eq "1") { $buildArgs += "--sign" }
+          "python $($buildArgs -join ' ')"
+          python @buildArgs
+          if ($LASTEXITCODE) { throw "El build terminó con código $LASTEXITCODE" }
 
       - name: Sign manifest (only if the signing key is configured)
         if: env.HAS_MANIFEST_KEY == 'true'

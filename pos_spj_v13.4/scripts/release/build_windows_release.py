@@ -184,7 +184,10 @@ def main(argv=None) -> int:
     write_json(build_dir / "build_info.json", build_info)
     (build_dir / "version_info.txt").write_text(
         version_info_text(version, file_version, str(args.build_number)), encoding="utf-8")
-    render_icon(build_dir)
+    try:
+        render_icon(build_dir)
+    except Exception as exc:  # an icon must never block a release build
+        print(f"Aviso: no se pudo generar spj.ico ({exc}); el .exe irá sin icono.")
 
     environment = dict(os.environ, SPJ_BUILD_DIR=str(build_dir))
     for spec in ("spj.spec", "spj_updater.spec"):
