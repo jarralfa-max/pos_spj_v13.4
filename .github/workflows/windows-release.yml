@@ -68,6 +68,7 @@ jobs:
       - name: Install pinned build environment
         shell: pwsh
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           python -m pip install --upgrade pip
           python -m pip install -r pos_spj_v13.4/installer/windows/requirements-release.txt
           python -m pip freeze > build-environment.txt
@@ -77,12 +78,14 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           cd pos_spj_v13.4
           python -m pytest tests/unit/software_distribution tests/integration/software_distribution tests/architecture/test_installer_updater_guardrails.py -q
 
       - name: Install Inno Setup 6.7.3 (pinned, signature checked)
         shell: pwsh
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           $ErrorActionPreference = "Stop"
           $setup = Join-Path $env:RUNNER_TEMP "innosetup-6.7.3.exe"
           Invoke-WebRequest -UseBasicParsing "https://github.com/jrsoftware/issrc/releases/download/is-6_7_3/innosetup-6.7.3.exe" -OutFile $setup
@@ -97,6 +100,7 @@ jobs:
         id: version
         shell: pwsh
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           $v = python -c "import ast,pathlib;s=pathlib.Path('pos_spj_v13.4/backend/shared/app_version.py').read_text(encoding='utf-8');print([ast.literal_eval(n.value) for n in ast.parse(s).body if isinstance(n,ast.Assign) and getattr(n.targets[0],'id','')=='VERSION'][0])"
           "version=$v" >> $env:GITHUB_OUTPUT
 
@@ -107,6 +111,7 @@ jobs:
           PFX_B64: ${{ secrets.SPJ_SIGNING_CERT_PFX_B64 }}
           PFX_PASSWORD: ${{ secrets.SPJ_SIGNING_CERT_PASSWORD }}
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           $pfx = Join-Path $env:RUNNER_TEMP "spj-signing.pfx"
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:PFX_B64))
           $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString $env:PFX_PASSWORD -AsPlainText -Force)
@@ -118,6 +123,7 @@ jobs:
       - name: Build bundle, updater and installer
         shell: pwsh
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           # Build the argument list explicitly: pwsh passes "" as a real empty
           # argument, and argparse rejects it (the first run failed that way).
           $buildArgs = @("pos_spj_v13.4/scripts/release/build_windows_release.py",
@@ -138,6 +144,7 @@ jobs:
         env:
           SPJ_MANIFEST_SIGNING_KEY: ${{ secrets.SPJ_MANIFEST_SIGNING_KEY }}
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           python pos_spj_v13.4/scripts/release/sign_manifest.py `
             --payload build/windows/release/manifest.payload.json `
             --key-id "${{ vars.SPJ_MANIFEST_KEY_ID }}" --key-env SPJ_MANIFEST_SIGNING_KEY `
@@ -146,6 +153,7 @@ jobs:
       - name: Build a NEXT test version (for the real upgrade/rollback test)
         shell: pwsh
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           $ErrorActionPreference = "Stop"
           $file = "pos_spj_v13.4/backend/shared/app_version.py"
           $current = "${{ steps.version.outputs.version }}"
@@ -162,6 +170,7 @@ jobs:
       - name: Legacy database, install with /LEGACYDB, relocation keeps the data
         shell: pwsh
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           $ErrorActionPreference = "Stop"
           $python = (Get-Command python).Source
           "SPJ_PYTHON=$python" >> $env:GITHUB_ENV
@@ -195,16 +204,18 @@ jobs:
       - name: GUI self-test of the installed app (login, main window, every route, WebEngine)
         shell: pwsh
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           $logs = (Resolve-Path build/windows/install-test).Path
           $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -notmatch 'Python|hostedtoolcache' }) -join ';'
           Start-Process "C:\Program Files\SPJ\SPJ ERP POS\SPJ.exe" -ArgumentList @("--self-test-ui","--report","$logs\ui-self-test.json","--screenshots","$logs\screenshots") -Wait
           $r = Get-Content "$logs\ui-self-test.json" | ConvertFrom-Json
-          "$($r.detail) | packaging: $($r.packaging -join '; ') | avisos: $($r.route_warnings.Count)"
-          if (-not $r.ok) { throw "Autoprueba de interfaz fallo: $($r.packaging -join '; ')" }
+          "::notice title=Autoprueba de interfaz::$($r.detail) | dialogos: $($r.dialogs -join ' / ') | avisos: $($r.route_warnings -join ' / ')"
+          if (-not $r.ok) { throw "Autoprueba de interfaz fallo: $($r.detail) | $($r.packaging -join '; ')" }
 
       - name: Repair (the cached installer the «Reparar» shortcut runs) keeps the data
         shell: pwsh
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           $ErrorActionPreference = "Stop"
           $logs = (Resolve-Path build/windows/install-test).Path
           # NOT the build-folder copy: the shortcut and every rollback run the
@@ -224,6 +235,7 @@ jobs:
       - name: Real update through spj_updater.exe, then a forced rollback
         shell: pwsh
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           $ErrorActionPreference = "Stop"
           $logs = (Resolve-Path build/windows/install-test).Path
           $install = "C:\Program Files\SPJ\SPJ ERP POS"
@@ -261,6 +273,7 @@ jobs:
       - name: Optional local WhatsApp service (install, loopback only, remove)
         shell: pwsh
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           $ErrorActionPreference = "Stop"
           $logs = (Resolve-Path build/windows/install-test).Path
           $next = (Get-ChildItem build/windows-next/release/SPJ-Setup-*.exe | Select-Object -First 1).FullName
@@ -280,6 +293,7 @@ jobs:
       - name: Uninstall keeps the data
         shell: pwsh
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           $ErrorActionPreference = "Stop"
           $uninstaller = (Get-ChildItem "C:\Program Files\SPJ\SPJ ERP POS\unins*.exe" | Select-Object -First 1).FullName
           Start-Process $uninstaller -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART") -Wait
@@ -294,6 +308,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          trap { Write-Output "::error title=$env:GITHUB_ACTION::$($_.Exception.Message)"; break }
           $previous = gh release list --exclude-drafts --limit 1 --json tagName --jq ".[0].tagName" 2>$null
           if (-not $previous) { "Sin release anterior publicado: prueba de actualización omitida." | Tee-Object build/windows/install-test/upgrade.txt; exit 0 }
           gh release download $previous --pattern "SPJ-Setup-*.exe" --dir build/windows/previous

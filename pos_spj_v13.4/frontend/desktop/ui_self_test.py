@@ -40,6 +40,15 @@ logger = logging.getLogger("SPJ.UiSelfTest")
 
 _PACKAGING_ERRORS = (ImportError, ModuleNotFoundError, FileNotFoundError, OSError)
 
+#: Last step reached — the watchdog report names it, so a hang is located
+#: even when nothing else could be written.
+_PROGRESS: dict[str, str] = {"step": "inicio"}
+
+
+def _at(step: str) -> None:
+    _PROGRESS["step"] = step
+    logger.info("autoprueba de interfaz: %s", step)
+
 
 def _argument(argv: list[str], name: str) -> str | None:
     if name in argv:
@@ -71,6 +80,36 @@ def _grab(widget, directory: Path | None, name: str, report: dict) -> None:
     target = directory / f"{name}.png"
     if widget.grab().save(str(target)):
         report["screenshots"].append(str(target))
+
+
+def _start_modal_dismisser(app, report: dict):
+    """Close any modal dialog that a screen opens and record it.
+
+    A screen may legitimately ASK something on a new installation (the cash
+    register screen does when there is no register yet); a person answers it,
+    an unattended self-test would wait forever. The dialog is recorded as a
+    route warning with its title and text, then rejected — never accepted, so
+    nothing is confirmed on the person's behalf."""
+    from PyQt5.QtCore import QTimer
+    from PyQt5.QtWidgets import QDialog, QMessageBox
+
+    def _sweep() -> None:
+        widget = app.activeModalWidget()
+        if widget is None or _PROGRESS["step"] == "ventana de login":
+            return  # the login window is modal itself and is closed by the test
+        text = widget.text() if isinstance(widget, QMessageBox) else ""
+        report["dialogs"].append(
+            f"{_PROGRESS['step']}: «{widget.windowTitle()}» {text}".strip()[:300])
+        if isinstance(widget, QDialog):
+            widget.reject()
+        else:
+            widget.close()
+
+    timer = QTimer()
+    timer.setInterval(500)
+    timer.timeout.connect(_sweep)
+    timer.start()
+    return timer
 
 
 def _check_webengine(app, report: dict) -> None:
@@ -143,6 +182,8 @@ def run_ui_self_test(argv: list[str]) -> int:
         app.setApplicationName(APP_NAME)
         app.setApplicationVersion(VERSION)
         report["qt_platform"] = app.platformName()
+        report["dialogs"] = []
+        dismisser = _start_modal_dismisser(app, report)  # noqa: F841 — kept alive
 
         from frontend.desktop.components.branding import BrandAssetProvider
 
@@ -178,6 +219,7 @@ def run_ui_self_test(argv: list[str]) -> int:
         lock = None
         report["database_copy"] = True
         set_db_path(str(copy))
+        _at("arranque de la base (copia)")
         bootstrap = run_database_bootstrap_sequence(copy)
         if not bootstrap.success:
             failed = bootstrap.failed_step()
@@ -191,6 +233,7 @@ def run_ui_self_test(argv: list[str]) -> int:
             build_authentication_coordinator,
         )
 
+        _at("ventana de login")
         coordinator = build_authentication_coordinator(
             connection=connection, container=_build_services(),
             on_authenticated=lambda _context: None)
@@ -219,6 +262,7 @@ def run_ui_self_test(argv: list[str]) -> int:
             workstation_type="pos", user_id=new_uuid(), user_name="Autoprueba",
             roles=("admin",), permissions=frozenset({"*"}), feature_context=FeatureContext(),
             session_id=new_uuid(), capabilities=enabled_capabilities_for(paths))
+        _at("ventana principal")
         window = build_application_window(
             context=context, connection=connection,
             session_context=LegacySessionAdapter(context),
@@ -234,6 +278,7 @@ def run_ui_self_test(argv: list[str]) -> int:
 
         loader = window._module_loader
         for index, route_id in enumerate(routes, start=1):
+            _at(f"ruta {route_id}")
             entry = {"route": route_id, "ok": False}
             try:
                 route = window.router.route_registry.get(route_id)
@@ -260,6 +305,7 @@ def run_ui_self_test(argv: list[str]) -> int:
             report["routes"].append(entry)
         window.close()
 
+        _at("QtWebEngine")
         _check_webengine(app, report)
         report["ui"] = True
         report["ok"] = not report["packaging"]
@@ -305,12 +351,14 @@ def main(argv: list[str] | None = None) -> int:
     report_file = _argument(argv, "--report")
 
     def _timeout() -> None:
-        _write({"ok": False, "ui": False, "detail":
-                f"La autoprueba de interfaz no terminó en {WATCHDOG_SECONDS} s.",
-                "packaging": ["timeout"]}, report_file)
+        _write({"ok": False, "ui": False, "stuck_at": _PROGRESS["step"], "detail":
+                f"La autoprueba de interfaz no terminó en {limit:.0f} s "
+                f"(detenida en: {_PROGRESS['step']}).",
+                "packaging": [f"timeout en {_PROGRESS['step']}"]}, report_file)
         os._exit(2)
 
-    watchdog = threading.Timer(WATCHDOG_SECONDS, _timeout)
+    limit = float(os.environ.get("SPJ_UI_SELF_TEST_TIMEOUT") or WATCHDOG_SECONDS)
+    watchdog = threading.Timer(limit, _timeout)
     watchdog.daemon = True
     watchdog.start()
     code = run_ui_self_test(argv)
