@@ -1,4 +1,6 @@
-# TRD — Arquitectura técnica SPJ ERP/POS
+# TRD — Arquitectura técnica de la plataforma
+
+**Contrato objetivo desde cero.** Ver [plano maestro](MASTER_BLUEPRINT.md), [web](WEB_APPS.md) y [servicio WhatsApp](WHATSAPP_SERVICE.md). La sección de línea base permite rastrear qué partes existen; el resto es especificación de construcción.
 
 ## 1. Línea base comprobada
 
@@ -75,3 +77,44 @@ La estación almacena operaciones locales y cursor de sincronización. Cada coma
 | Instalación | Windows limpio sin Python, perfil POS y perfil completo, backup/update/rollback probados. |
 
 **Fuentes revisadas:** `frontend/desktop/app.py`, `backend/bootstrap/wiring/event_wiring.py`, `backend/api/main.py`, `backend/application/security/permission_catalog.py`, `backend/domain/software_distribution/install_profile.py`, `backend/application/logistics/wiring.py`, `backend/application/event_handlers/inventory/purchase_stock_entry_bridge.py`, `migrations/standalone/171_logistics_bounded_context_schema.py`.
+
+## 9. Núcleo central y sincronización propuestos
+
+**Aislamiento:** un servicio API central despliega casos de uso y repositorios sobre PostgreSQL; estaciones mantienen SQLite local para POS y operaciones autorizadas sin red. Central es autoridad sobre identidad, catálogo maestro, campañas, folios compartidos, límites financieros globales, cupones únicos y cierre consolidado. La estación es autoridad temporal sobre su turno y sus movimientos locales dentro de cupos explícitos. La publicación sincronizada no aplica una mutación por segunda vez: el servicio central reconoce `installation_id + operation_id`, valida versión y devuelve ACK/rechazo/conflicto. Una venta local confirmada se etiqueta «pendiente central» hasta ACK, pero conserva integridad local y recibo con folio local único.
+
+La sincronización incluye snapshot inicial, cursor durable por stream/contexto, reintento ordenado cuando existe causalidad, auditoría de reloj, reconciliación por hashes/conteos de ledger y «último sincronizado» visible. Cambios de precio: vigencia y versión aplicada al checkout; conflicto de stock entre sucursales no se resuelve sumando proyecciones; transferencias usan estados de tránsito/recepción. Si se opera sólo en una sucursal, puede iniciarse con una única instalación y API local; el contrato central permanece estable.
+
+## 10. Contratos HTTP por área
+
+| Área | Consultas/Comandos públicos propuestos | Requisitos adicionales |
+| --- | --- | --- |
+| CRM | `/api/v1/customers`, `/leads`, `/opportunities`, `/activities`, `/quotes` | Pagination, consentimiento, PII/branch scope. |
+| Compras | `/api/v1/purchase-orders`, `/direct-purchases`, `/receipts`, `/supplier-invoices` | Workflow de aprobación, idempotencia, expected_version. |
+| Inventario/logística | `/api/v1/stock/availability`, `/lots`, `/shipments`, `/containers`, `/custody` | Scopes almacén, offset/cursor y comandos offline. |
+| Producción | `/api/v1/processing/orders`, `/execute`, `/outputs`, `/yield` | Balance masa, perfil snapshot y permisos de override. |
+| Ventas/caja | `/api/v1/sales`, `/payments`, `/cash-shifts`, `/cuts` | JWT/sesión, cash scope, idempotencia, no datos tarjeta sensibles. |
+| Finanzas | `/api/v1/journals`, `/payables`, `/receivables`, `/reconciliations` | Segregación, periodo abierto y auditoría exportación. |
+| BI | `/api/v1/metrics/{metric}`, `/dimensions`, `/drilldowns` | RLS, watermark, límite de filas, métrica/version. |
+| Integraciones | `/api/v1/integrations/whatsapp/config`, `/status`, `/templates` | Secret reference, prueba, rotación, permisos de operación. |
+
+Ejemplo de comando (estructura; sin fijar librería): `POST .../purchase-orders`, cabecera `Idempotency-Key: <uuidv7>`, cuerpo `{branch_id, supplier_id, lines:[{product_id, quantity:"12.500", unit_id, unit_price:"42.30"}], expected_version:0}`. Respuesta `{id, folio, status, version, operation_id}`. Errores estructurados `code`, `message`, `field_errors`, `correlation_id`, `retryable`; nunca exponer stack/secret. Mutaciones producen 409 en versión/duplicado incompatible, 403 en scope y 422 en invariantes. No usar `Idempotency-Key` como credencial.
+
+## 11. Catálogo mínimo de eventos y responsabilidad
+
+| Productor | Hechos | Consumidores con efecto |
+| --- | --- | --- |
+| Compras | PurchaseConfirmed, GoodsReceiptAccepted, GoodsReceiptReversed | Inventario, Finanzas, Logística, BI. |
+| Logística | ShipmentDispatched, ShipmentArrived, CustodyTransferred, TemperatureObserved | Compras/Transferencias, Calidad, BI; no stock directo. |
+| Inventario | StockReceived, StockReserved, StockConsumed, StockReleased, StockAdjusted | Producción, Ventas, Costos, BI. |
+| Producción | ProductionCompleted, YieldVarianceDetected, OutputReleased | Inventario, Costos, Calidad, BI. |
+| Ventas | SaleCompleted, SaleReturned, PaymentConfirmed | Inventario, Caja, Finanzas, Fidelidad, BI. |
+| Caja | ShiftClosed, CashHandoverConfirmed, DifferenceRaised | Finanzas, RR. HH. y alertas. |
+| Fidelidad | PointsIssued, VoucherRedeemed, CouponConsumed, BenefitReversed | Finanzas, POS proyecciones, CRM. |
+| RR. HH. | PayrollPaid | Finanzas, BI agregado. |
+| WhatsApp | MessageReceived, DeliveryStatusChanged, HandoffRequested, OrderDraftConfirmed | CRM, Ventas/Pedidos, analítica. |
+
+Los nombres son **propuestos** y se mapean una sola vez a los eventos actuales. Envelope `{event_id, event_type, schema_version, aggregate_type, aggregate_id, aggregate_version, operation_id, correlation_id, causation_id, branch_id, occurred_at, payload}`; consumidor declara clave única `(consumer,event_id)` y política de reintentos. Rechazar evento futuro incompatible con DLQ visible.
+
+## 12. Protección y cumplimiento operativos
+
+Documentar amenaza por interfaz: pérdida de dispositivo, acceso a SQLite, escalamiento de rol, IDOR web, replay de webhook Meta, inyección en mensaje/plantilla, exposición de PII en log/BI, doble canje, overbooking stock y actualización maliciosa. Usar cifrado en transporte, hardening de dispositivo, mínimo privilegio DB, respaldo cifrado, auditoría append-only con retención y exportación controlada. Los datos fiscales, laborales y sanitarios requieren revisión local antes de fijar defaults. En WebSocket/notificación push también filtrar scope. APIs Meta/versiones de librerías se revisan al integrar.

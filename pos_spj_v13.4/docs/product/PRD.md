@@ -1,8 +1,10 @@
-# PRD — SPJ ERP/POS
+# PRD — SPJ ERP/POS desde cero
+
+**Versión de visión: 2.0.** Alcance de producto completo descrito en [plano maestro](MASTER_BLUEPRINT.md), [catálogo de módulos](MODULE_CATALOG.md), [web](WEB_APPS.md) y [WhatsApp](WHATSAPP_SERVICE.md). El código actual es referencia de descubrimiento, no criterio de terminado.
 
 ## 1. Visión y alcance
 
-Un ERP de escritorio para operar sucursales, almacenes y cajas con conectividad intermitente: desde abastecimiento y recepción hasta transformación cárnica, inventario, precios, venta, cobro, devoluciones y conciliación financiera. Los módulos secundarios cubren CRM, fidelidad, entregas, transferencias, mermas, calidad, RR. HH., activos y analítica. El diseño debe servir a pollo, otras proteínas y abarrotes, con unidad por pieza y por peso.
+Una plataforma ERP/POS para operar sucursales, almacenes, cajas y canales digitales con conectividad intermitente: desde planeación y compra hasta logística, transformación cárnica, inventario, precio, CRM, pedido, venta, entrega, caja, finanzas y analítica. Incluye fidelidad, instrumentos comerciales, calidad, merma, RR. HH., activos, tickets, dispositivos y notificaciones. El diseño sirve a pollo, otras proteínas, abarrotes y servicios, en pieza, peso y sus conversiones. Integra cuatro aplicaciones web para CRM, Compras, Finanzas y BI, dos PWA operativas y un microservicio WhatsApp oficial.
 
 **Estado de referencia:** la rama contiene contextos y pantallas para la mayoría de estas funciones, pero no se presupone un flujo integrado sin pruebas. El recorrido compra→venta y las brechas comprobadas están en [Appflow](APPFLOW.md).
 
@@ -20,6 +22,9 @@ Un ERP de escritorio para operar sucursales, almacenes y cajas con conectividad 
 | Cliente / CRM | Consultar historial, crédito y beneficios | Vista única sin permisos implícitos. |
 | Finanzas | Conciliar CxP/CxC, tesorería, costos, nómina y cierres | Asientos balanceados con referencia al hecho origen. |
 | Administrador | Configurar sucursales, instalación, dispositivos, permisos y actualizaciones | Estación instalable y operable sin Python. |
+| Agente CRM | Convertir lead en oportunidad, cotización y pedido con seguimiento | Funnel medible, actividad siguiente y consentimiento documentado. |
+| Analista BI | Investigar margen, merma y ventas entre sucursales | Métrica certificada, corte temporal y scope visibles. |
+| Agente WhatsApp | Atender bandeja, escalar y confirmar pedidos | Mensajes entregados, trazados y vinculados sin duplicar órdenes. |
 
 ## 3. Requisitos por flujo
 
@@ -37,6 +42,13 @@ Un ERP de escritorio para operar sucursales, almacenes y cajas con conectividad 
 | P10 | Identidad y permisos | Un vocabulario otorgable; asignación por rol y usuario con alcance sucursal/almacén; backend deniega sin sesión/checker. |
 | P11 | UX | Búsqueda canónica, IDs internos ocultos, folios comerciales visibles; claros estados sin conexión, error, permiso y sincronización. |
 | P12 | Instalación | Perfil completo/POS/personalizado, dependencias, migraciones y respaldo previo a actualización; habilitar sólo capacidades instaladas y autorizadas. |
+| P13 | Web CRM | Pipeline, cliente 360, tareas, cotizaciones, servicio, campaña consentida y bandeja WhatsApp con la misma identidad/permiso de escritorio. |
+| P14 | Web Compras | Requisición, RFQ, comparativo, OC, directa, recepción/diferencia, factura y aprobaciones; sin duplicar inventario. |
+| P15 | Web Finanzas | Mayor, CxP/CxC, tesorería, conciliación, presupuestos, cierre y excepciones con fuente operativa trazable. |
+| P16 | Web BI | Métricas únicas, filtros por scope, latencia de sincronización, drill-down protegido y exportación auditada. |
+| P17 | WhatsApp | Servicio independiente con webhook firmado, plantillas, consentimiento, bandeja, handoff, borradores de pedido/cotización, métricas, DLQ y credenciales administrables. |
+| P18 | Entrega/servicio | Pedido, reserva, picking, ruta, peso variable, evidencia, cobro contra entrega, devolución y liquidación. |
+| P19 | Activos/RR. HH. | Custodia/mantenimiento/depreciación; empleado/turno/asistencia/nómina/préstamo con segregación y privacidad. |
 
 ## 4. Reglas comerciales clave
 
@@ -66,7 +78,13 @@ Un ERP de escritorio para operar sucursales, almacenes y cajas con conectividad 
 
 La liberación requiere pruebas integradas con DB limpia, pruebas de duplicado/reintento, corte de red, permisos negativos, pruebas de hardware o simuladores y validación de operadores en 1366×768 y 1920×1080.
 
-## 7. Evidencia de código y límites
+## 7. Experiencias y límites del lanzamiento
+
+El producto no se lanza como «ERP completo» por tener navegación o entidades vacías. La primera entrega utilizable exige ciclo mínimo de compra, stock, venta, caja y asiento balanceado; web y WhatsApp sólo se activan cuando cuentan con API, sesión, permisos y métricas reales. El [plan](DELIVERY_PLAN.md) ordena módulos sin eliminar el alcance integral. La sincronización local/central y la autoridad de pagos/beneficios requieren definición antes del primer despliegue multi sucursal.
+
+**Indicadores de negocio adicionales:** tiempo desde recepción a venta, precisión inventario por lote, diferencia caja por turno, cumplimiento de rendimiento, tasa de reabasto, abandono de carrito, conversión CRM, entregas puntuales, conversión WhatsApp y frescura de BI. Cada indicador debe declarar fuente, fórmula, horario de corte y regla de devoluciones.
+
+## 8. Evidencia de código y límites
 
 - `backend/application/procurement/use_cases/purchase_order_use_cases.py`, `direct_purchase_use_cases.py`; `backend/application/logistics/origin_purchase_workspace.py`.
 - `backend/application/meat_processing/use_cases/order_execution_use_cases.py`; `backend/application/inventory/use_cases/reconstruction_use_cases.py`; `backend/application/sales/use_cases/payment_use_cases.py`.

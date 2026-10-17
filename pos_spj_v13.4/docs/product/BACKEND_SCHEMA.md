@@ -1,4 +1,6 @@
-# Backend schema — modelo de datos y propiedad
+# Backend schema — esquema lógico desde cero y referencia actual
+
+El esquema físico actual se inventaría en §2–4. El modelo **objetivo** de plataforma central, web y WhatsApp se especifica en §7–10; no interpretar las tablas propuestas como migraciones existentes.
 
 ## 1. Convención
 
@@ -81,3 +83,45 @@ Este ER representa referencias de negocio y eventos; **no afirma que todas sean 
 En DB limpia: listar tablas reales tras migraciones; `PRAGMA foreign_key_check`; registrar dos comandos idénticos y dos diferentes con misma operación; comprobar unicidad de balance por dimensión; revertir un ledger/asiento; comparar suma de líneas con totales; ejecutar cadena compra→venta; asegurar que cada esquema nuevo tiene migración versionada, rollback de actualización y test de permiso/sucursal.
 
 **Fuentes DDL:** `backend/infrastructure/db/schema/{products,pricing,procurement,inventory,meat_processing,sales,finance,customers_crm,loyalty,hr}_schema.py`, `migrations/standalone/171_logistics_bounded_context_schema.py`, `175_cash_register_bounded_context_schema.py`, `migrations/m000_base_schema.py`.
+
+## 7. Plataforma objetivo central
+
+| Agregado/tabla propuesto | Columnas esenciales | Claves y política |
+| --- | --- | --- |
+| `organizations` / `branches` / `facilities` / `warehouses` | `id`, código, zona horaria, estado; relación jerárquica | UNIQUE código dentro de padre; sucursal y almacén no son literales hardcodeados. |
+| `users` / `roles` / `permissions` / `role_grants` / `user_grants` | ID, acción, efecto, scope, vigencia, version | Un solo evaluador canónico, denegación por defecto; precedencia explícita de denegación y override. |
+| `sessions` / `service_credentials` | usuario/cliente servicio, dispositivo, expiración, revocación, MFA | Hash de token y rotación; secreto referenciado, nunca legible por UI. |
+| `devices` / `installations` / `install_profiles` | estación, sucursal, versión, capacidades, último contacto | UNIQUE identidad instalación; capabilities por perfil y dependencia. |
+| `configuration_versions` / `secret_references` | clave, ámbito, valor no sensible, estado, aprobador, fecha | Secret externo cifrado; before/after redactado. |
+| `audit_entries` | `id`, actor, acción, recurso, scope, motivo, fecha, correlación | Append-only, export auditado, retención política. |
+| `outbox_events` / `inbox_receipts` / `dead_letters` | event/operation ID, contexto, versión, payload, intento, consumer | UNIQUE `(consumer,event_id)`; retry/backoff y revisión. |
+| `sync_cursors` / `sync_conflicts` | instalación, stream, secuencia, versión, estado, resolución | Sincronización incremental y resultado visible. |
+
+No obliga a centralizar tablas que ya tienen ownership local: define las capacidades transversales y la forma en que se replican. En PostgreSQL usar `UUID`, `NUMERIC(p,s)` con escala propia del dominio, `timestamptz` y restricciones equivalentes; en SQLite `TEXT` decimal/UUID y timestamps ISO UTC. `Float` sólo en visualización derivada sin efecto monetario.
+
+## 8. Modelo lógico de los canales web
+
+Las web apps **no tienen una copia escribible** de `customers`, `purchase_orders`, `journal_entries` ni `inventory_ledger`. La API comparte dominio; sus proyecciones de lectura (`customer_360_projection`, `purchase_work_queue`, `finance_exception_queue`, `metric_snapshot`) son reconstruibles desde eventos/ledgers. Cada proyección tiene `source_version`, `as_of`, `branch_id`, `rebuild_version`; el QueryService aplica RLS/alcance antes de paginar y exportar. Las métricas versionadas se definen con `metric_definitions(id, code, version, expression_ref, owner, grain, timezone, reversal_policy)` y snapshots por dimensiones; nunca se acepta SQL arbitrario enviado por navegador.
+
+## 9. WhatsApp — existente y objetivo
+
+La fuente DDL `backend/infrastructure/db/schema/whatsapp_schema.py` declara `whatsapp_business_accounts`, `whatsapp_provider_configurations`, `whatsapp_channel_numbers`, `whatsapp_identities`, `whatsapp_conversations`, `whatsapp_messages`, `whatsapp_message_deliveries`, `whatsapp_inbox`, `whatsapp_outbox`, `whatsapp_business_operation_idempotency`, `whatsapp_dead_letter`, `whatsapp_order_drafts`, `whatsapp_quote_drafts`, `whatsapp_delivery_requests` y `whatsapp_handoff_requests`. El propio archivo indica que algunas rutas históricas todavía consumen tablas previas y que no toda la nueva estructura está cableada: comprobar consumidores antes de elegir fuente única.
+
+| Relación objetivo | Regla |
+| --- | --- |
+| Cuenta → número → conversación → mensaje → entrega | IDs proveedor únicos; webhook duplicado no duplica mensaje ni orden. |
+| Identidad → `customer_id` | Vínculo verificado, consentimiento propiedad CRM; no crear cliente implícito sin política. |
+| Conversación → pedido/cotización borrador | `source_conversation_id`, versión, confirmación y `erp_document_id` único. |
+| Evento ERP → `whatsapp_outbox` | Intento, estado proveedor, plantilla, rechazo, DLQ y correlation. |
+| Número → sucursal/horario | Puede atender varias sucursales mediante regla explícita, sin default silencioso. |
+
+Credenciales: `secret_reference_id` a vault cifrado, `rotated_at`, `last_validation_at`; nunca almacenar token recuperable en respuesta API, log ni export. Métricas de mensajes derivan de deliveries, no de número de requests HTTP.
+
+## 10. Invariantes transversales y migración
+
+1. `purchase_receipt_line → inventory_ledger_line` tiene clave de idempotencia `source_context + source_document_id + source_line_id + effect_type`; reversa explícita. Un embarque sin documento se concilia antes del efecto de costo/stock.
+2. `processing_order` captura `yield_profile_version_id`/`cutting_scheme_version_id` y snapshot de entradas/salidas; suma de masa consumida = salidas + merma + diferencia justificada dentro de tolerancia. Precio de venta no determina costo por sí solo.
+3. `sale_line` conserva snapshot de precio/impuesto/beneficio, reserva de stock y unidad/peso. Una devolución referencia línea original y cantidad restante retornable.
+4. `payment_allocation` suma total de cobro con precisión decimal; `journal_lines` balancean débito/crédito; pasivos de vale/puntos no se sobrecanjean con dos estaciones.
+5. `cash_cut` usa folio visible independiente de ID; reimpresiones dejan auditoría; `loyalty_transaction` y `voucher_redemption` tienen idempotencia por venta/beneficio/operación.
+6. Desarrollar migraciones nuevas sólo tras mapa de consumo y prueba de nacimiento limpio. No añadir lectura dual permanente por comodidad. Registrar forward migration y recuperación de instalador con backup/restore, no un `DROP` de datos productivos.

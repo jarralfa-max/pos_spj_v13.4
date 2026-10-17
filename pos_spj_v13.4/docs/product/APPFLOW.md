@@ -1,4 +1,6 @@
-# Appflow — De compra a venta y cierre
+# Appflow — Plataforma completa desde cero
+
+El recorrido principal conserva el flujo cárnico solicitado. Los siguientes recorridos amplían CRM, web, WhatsApp, RR. HH., activos y BI, siempre usando un dueño por operación. Ver [catálogo](MODULE_CATALOG.md).
 
 ## 1. Recorrido operativo objetivo
 
@@ -75,3 +77,53 @@ Los nombres exactos de enum/DB deben cotejarse antes de implementar transiciones
 ## 6. Prueba end-to-end exigida
 
 En DB nueva y usuario acotado: comprar 100 kg directamente sin OC → cargar 1 contenedor → despachar y recibir 98 kg, rechazar 2 kg → inventario 98 kg aceptados → transformar 90 kg con 4 cortes y merma → vender 1 corte por peso y un bundle → pagar parcialmente en efectivo y otro medio → emitir ticket → corte Z → verificar sumas de ledger, asientos balanceados, costo/genealogía, outbox sin pendientes permanentes y ausencia de doble registro al reintentar cada comando. Repetir con calidad bloqueada, permiso denegado y red desconectada.
+
+## 7. Captación y venta omnicanal
+
+```mermaid
+flowchart TD
+  A["Lead web / WhatsApp / mostrador"] --> B["CRM: identidad y consentimiento"]
+  B --> C["Actividad y oportunidad"]
+  C --> D["Cotización: precio y disponibilidad"]
+  D --> E{"Confirmación"}
+  E -->|Pedido entrega| F["Reserva y delivery"]
+  E -->|Tienda| G["POS y caja"]
+  F --> H["Entrega, cobro y evidencia"]
+  G --> I["Finanzas y fidelidad"]
+  H --> I
+```
+
+El chat puede sugerir productos, pero no compromete precio, stock ni crédito sin respuesta de la API ERP. Convertir cotización conserva versión y genera un solo pedido/venta. Una devolución anula efectos financieros y de beneficios según política; no borra actividad CRM.
+
+## 8. WhatsApp: mensaje a pedido
+
+Webhook firmado → inbox duradera → deduplicación por ID Meta → identidad E.164/consentimiento → conversación → catálogo/precio desde API → borrador → confirmación explícita → CreateOrder idempotente → acuse por outbox → actualización de estado de entrega → handoff si hay incertidumbre. Si ERP está caído, guardar borrador/petición pendiente y avisar al operador; jamás confirmar un pedido inexistente. Campaña masiva exige plantilla aprobada, consentimiento por finalidad, aprobación y presupuesto.
+
+## 9. Web Compras, Finanzas y BI
+
+**Compras:** forecast produce sugerencia → comprador edita/requisita → aprobador distinto valida → cotizaciones comparadas → adjudicación → OC o compra directa → recepción con tolerancias → factura comparada → CxP o excepción. La web usa exactamente el mismo caso de uso de recepción que el escritorio/móvil, con permiso y alcance iguales.
+
+**Finanzas:** evento operativo confirmado → regla posting versionada → asiento propuesto → balanceado y periodo abierto → contabilizado → extracto bancario/caja → match → conciliado. Falla de regla produce excepción visible y retry idempotente; no pérdida silenciosa. Cierre bloquea posting posterior salvo reapertura autorizada.
+
+**BI:** proyección desde outbox/ledgers → actualización de watermark → métrica certificada → filtro RLS → drill-down → documento origen. Dashboard advierte sucursales desactualizadas y no suma pendientes como ventas finales.
+
+## 10. Personas, activos y servicio
+
+**RR. HH.:** alta empleado → asignación puesto/sucursal → programación turno → asistencia validada → incidencias aprobadas → nómina calculada → autorización segregada → pago/finanzas → recibo restringido. Abrir caja no sustituye por sí solo un registro de jornada si la política laboral difiere.
+
+**Activos:** adquisición → alta con número y responsable → mantenimiento preventivo/correctivo → movimiento/custodia → depreciación financiera → baja autorizada. Un contenedor reusable puede ser activo bajo política contable, pero logística conserva su ciclo físico y finanzas su valor.
+
+**Servicio/devolución:** queja o devolución desde CRM/WhatsApp/POS → verificación venta/lote → autorización y evidencia → retorno físico/cuarentena → reintegro o nota de crédito → reversa fidelidad/IVA/costo según caso → seguimiento y cierre.
+
+## 11. Errores, offline y compensación
+
+| Escenario | Estado visible | Acción de recuperación |
+| --- | --- | --- |
+| Red cae tras cobro local | Venta confirmada local / pendiente central | Reintento mismo `operation_id`; conciliador investiga ACK, no segundo cargo. |
+| Cupón único sin autoridad central | Bloqueado o cupo previamente asignado | Nunca aceptar dos canjes globales por last-write-wins. |
+| Producción falla tras consumo | Transacción revertida o estado pendiente compensable | Reversar movimiento y evitar salida parcial. |
+| Webhook Meta duplicado | Ya procesado | Responder éxito sin nuevo pedido/mensaje. |
+| Diferencia recepción | Incidencia abierta | Cantidad aceptada a stock; rechazo/cuaren. separado. |
+| Asiento no generado | Documento válido / contabilidad pendiente | DLQ/retry con alerta y misma clave de posting. |
+
+Estas rutas necesitan pruebas E2E por desktop/web/móvil y pruebas de contract versionado. La secuencia de implementación está en [plan de entrega](DELIVERY_PLAN.md).
