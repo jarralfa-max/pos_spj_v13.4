@@ -83,9 +83,11 @@ class TestSalesPosPresenterWiredHandlers:
         assert captured["unit_price"] == Decimal("10.00")
         assert captured["product_snapshot"] == {"name": "Bistec"}
 
-    def test_add_line_uses_the_canonical_pricing_engine_when_wired(self):
-        """§20: the charged price comes from Pricing (branch/customer/volume
-        -aware), not whatever the caller passed in from the catalog grid."""
+    def test_add_line_leaves_pricing_to_the_use_case(self):
+        """Auditoría V04 (2026-10-15): el precio que se cobra lo resuelve
+        `AddSaleLineUseCase` con Precios — igual para clic, escáner, cantidad y
+        cliente. El presentador ya no consulta Precios: pasa el precio del
+        catálogo, que sólo vale si Precios no tiene uno."""
         captured = {}
         priced = {}
 
@@ -112,9 +114,8 @@ class TestSalesPosPresenterWiredHandlers:
             sale_id="sale-1", product_id="p1", quantity=Decimal("2"),
             unit_price=Decimal("999.00"), product_snapshot={"name": "Bistec"})
 
-        assert captured["unit_price"] == Decimal("8.50")
-        assert priced == {"product_id": "p1", "branch_id": "branch-9",
-                          "customer_id": "cust-1", "quantity": Decimal("2")}
+        assert captured["unit_price"] == Decimal("999.00")
+        assert priced == {}
 
     def test_add_line_falls_back_to_caller_price_when_nothing_configured(self):
         captured = {}

@@ -21,7 +21,8 @@ Format `spj-install/1`:
       "allowed_update_hosts": ["updates.example"],
       "legacy_database_paths": ["C:\\\\SPJ\\\\pos_spj_v13.4\\\\data\\\\spj_pos_database.db"],
       "whatsapp_mode": "remote" | "local",
-      "install_mode": "admin" | "user"          # user = /CURRENTUSER, no UAC
+      "install_mode": "admin" | "user",         # user = /CURRENTUSER, no UAC
+      "capability_catalog": 2                    # falta = 1 (antes de `logistics`)
     }
 
 Pure stdlib on purpose: `AppPaths` (this same `shared` layer) needs the data
@@ -60,6 +61,9 @@ class InstallConfig:
     #: "admin": installed for the machine (Program Files, UAC to update).
     #: "user": installed with /CURRENTUSER for one Windows user, no elevation.
     install_mode: str = "admin"
+    #: Versión del catálogo de capacidades con que se escribió (1 si falta: un
+    #: instalador anterior a la capacidad `logistics`).
+    capability_catalog: int = 1
     source_file: Path | None = field(default=None, compare=False)
 
     @classmethod
@@ -76,7 +80,12 @@ class InstallConfig:
         install_mode = str(data.get("install_mode") or "admin").lower()
         if install_mode not in {"admin", "user"}:
             raise InstallConfigError(f"install_mode inválido: {install_mode!r}")
+        try:
+            catalog = int(data.get("capability_catalog") or 1)
+        except (TypeError, ValueError) as exc:
+            raise InstallConfigError("capability_catalog inválido") from exc
         return cls(
+            capability_catalog=catalog,
             install_mode=install_mode,
             data_scope=scope,
             profile=str(data.get("profile") or "erp_full").lower(),

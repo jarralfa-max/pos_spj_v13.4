@@ -14,6 +14,7 @@ class TransferRequestsPage(TransferWorkspacePage):
     title = "Solicitudes"
     subtitle = "Necesidades de traslado y prioridades."
     action_text = "Nueva solicitud"
+    cycle_actions = (("Enviar a aprobación", "submit"),)
 
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(presenter, parent)

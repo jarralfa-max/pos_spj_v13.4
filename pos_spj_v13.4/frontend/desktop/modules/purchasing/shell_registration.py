@@ -83,7 +83,10 @@ def create_purchasing_view(
         "create": DirectPurchaseCreateView(direct_presenter),
         "history": DirectPurchaseHistoryView(direct_presenter),
     }
-    return EnterprisePurchasingView(presenter, parent, direct_purchase_views=direct_views)
+    return EnterprisePurchasingView(
+        presenter, parent, direct_purchase_views=direct_views,
+        # «Compra en origen → Nueva recolección» (integración Logística 32cfbf).
+        direct_purchase_factory=lambda: DirectPurchaseCreateView(direct_presenter))
 
 
 class PurchasingModuleActivator:

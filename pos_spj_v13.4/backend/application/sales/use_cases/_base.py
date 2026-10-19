@@ -43,10 +43,63 @@ class _SalesBaseUseCase:
         self, authorization: SalesAuthorizationPolicy | None = None,
         inventory_authorization: InventoryAuthorizationPolicy | None = None,
         customer_authorization: CustomerAuthorizationPolicy | None = None,
+        *, pricing=None,
     ) -> None:
         self._auth = authorization or SalesAuthorizationPolicy()
         self._inventory_auth = inventory_authorization
         self._customer_auth = customer_authorization
+        #: Precios (auditoría V04): el precio que se cobra lo resuelve el caso
+        #: de uso, igual para clic, escáner, cantidad y cliente. Antes lo
+        #: resolvía el presentador sólo en el clic y el escáner cobraba el de
+        #: la lista base.
+        self._pricing = pricing
+
+    #: Marca en el snapshot de la línea de dónde salió su precio.
+    PRICE_FROM_PRICING = "PRICING"
+    PRICE_FROM_CATALOG = "CATALOG"
+
+    def _price(self, sale, product_id: str, quantity) -> "Decimal | None":
+        """Precio vigente de Precios para esta venta (sucursal, cliente, cantidad,
+        canal POS) o None si Precios no está o el producto no tiene precio — en
+        ese caso manda el del catálogo. Nunca bloquea la venta por una consulta
+        de precio que falla."""
+        from backend.application.sales.pricing_resolution import resolve_sale_price
+        return resolve_sale_price(self._pricing, branch_id=sale.branch_id,
+                                  customer_id=sale.customer_id, product_id=product_id,
+                                  quantity=quantity)
+
+    def _reprice(self, sale, lines=None) -> int:
+        """Vuelve a pedir precio para las líneas que lo tomaron de Precios.
+        Devuelve cuántas cambiaron."""
+        from backend.domain.sales.policies.lifecycle_policies import SaleLifecyclePolicy
+        if not SaleLifecyclePolicy.is_line_mutable(sale.status):
+            return 0      # en cobro el precio ya quedó fijo
+        changed = 0
+        for line in list(lines if lines is not None else sale.lines):
+            if (line.product_snapshot or {}).get("price_source") != self.PRICE_FROM_PRICING:
+                continue
+            price = self._price(sale, line.product_id, line.quantity.value)
+            if price is not None and sale.reprice_line(line.id, price):
+                changed += 1
+        return changed
+
+    def _load_sale(self, uow, sale_id: str, actor_user_id: str, operation_id: str):
+        """La venta por id, SÓLO si es de la sucursal del usuario (auditoría V05).
+
+        Devuelve ``(venta, None)`` o ``(None, SaleResult de fallo)``. Es la única
+        forma en que un caso de uso de Ventas carga una venta por id: una prueba
+        de arquitectura impide volver a `uow.sales.get` directo."""
+        from backend.application.sales.result import fail_from_domain_error
+        from backend.domain.sales.exceptions import SaleNotFoundError, SalesDomainError
+        sale = uow.sales.get(sale_id)
+        if sale is None:
+            return None, fail_from_domain_error(
+                SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+        try:
+            self._auth.require_branch(actor_user_id, sale.branch_id)
+        except SalesDomainError as exc:
+            return None, fail_from_domain_error(exc, operation_id=operation_id)
+        return sale, None
 
     def _inventory_client(self, connection, *, branch_id: str, actor_user_id: str):
         """Cliente de inventario con la identidad y el permiso del llamador.

@@ -5,6 +5,51 @@ documentarse aquí antes del commit.
 
 ---
 
+## Integración Logística · Transferencias · POS · Instalador (sin migración) — 2026-10-16
+
+Respuesta al encargo `32cfbf` (detalle en `docs/refactor/LOG-INT_auditoria_32cfbf.md`).
+**No agrega migración**: el esquema de Logística (171), Transferencias e Inventario ya
+existía; los cambios son de composición y casos de uso.
+
+- Capacidades instalables: `CAPABILITY_CATALOG_VERSION = 2` y campo `capability_catalog`
+  en `install_config.json`. Una configuración personalizada de catálogo 1 que tenía
+  `orders_delivery` recibe `logistics` al leerse (`migrate_legacy_capabilities`): nadie
+  pierde acceso a `LOGISTICA`. El instalador conserva el marcador en sus datos previos.
+- Recepción del embarque: la operación ya no se deriva con `uuid5`; se busca la recepción
+  existente por clave de negocio (embarque, tipo, documento) y, si no hay, `new_uuid()`.
+- POS: se retiró `ReconstructBaseProductUseCase` (producía un entero en existencia y
+  commiteaba fuera del cobro); ahora composición virtual por partes. Sin cambio de esquema.
+- Mobile API: el secreto de los tokens vive en el almacén de secretos
+  (`mobile_api.session_secret`), no en tablas.
+
+---
+
+## 343 — Transformación directa y bloqueos del despiece (auditoría de Producción 32cfbf) — 2026-10-16
+
+Medido en una copia de la base real: «Pollo Entero» tenía perfil de rendimiento
+activo y 132.68 kg, y no se podía despiezar por tres razones a la vez (política
+que exigía esquema de corte, lotes de compra «pendiente de inspección» sin que
+nada exija inspección, y ningún almacén «Producción»).
+
+* Crea `direct_transformations` (bitácora idempotente de la acción única; un
+  renglón por `operation_id` con la orden y el UUIDv7 de cada etapa).
+* `processing_output_results` + `weight_source` (CAPTURED|ESTIMATED) y
+  `estimate_reason`: el peso real tomado de lo esperado queda marcado con motivo.
+* Lotes de COMPRA «pendiente de inspección» cuyo producto no la exige (misma
+  regla que la recepción: el perfil de calidad pide inspección) y sin ninguna
+  inspección registrada → LIBERADO. En la base real: 4 lotes.
+* Siembra `PRODUCCION.transformacion_directa.ejecutar` a los roles con
+  `PRODUCCION.orden.iniciar` (admin, gerente, almacén, system_owner).
+
+Cambios de código ligados (sin migración): en despiece el perfil de rendimiento
+MANDA (decisión del usuario; el esquema es opcional y debe coincidir); la
+recepción crea el lote LIBERADO cuando el renglón entra disponible; Compras ya
+no explota recetas al recibir (decisión del usuario; se borró
+`purchase_recipe_explosion_bridge.py` y su prueba). Ver
+`docs/refactor/PROC-AUD_auditoria_32cfbf.md`.
+
+---
+
 ## 338/339 — Instalador y actualizador (INST-0) — 2026-10-14/15
 
 **338** crea `software_station_settings` (por estación — clave = nombre del equipo,
@@ -45,6 +90,113 @@ Compras. Idempotente. Verificada en copia de la base real: 4 CxP, $9,066, con su
 asientos.
 
 (Número 340: la 338/339 las tomó el actualizador de software.)
+
+---
+
+## Limpieza de pruebas legacy (sin migración) — 2026-10-16
+
+Pruebas que fallaban porque su SUJETO se borró con `core/`, `repositories/` y
+`modulos/` (verificado clase por clase: no existe en `backend/` ni `frontend/`).
+Probaban código que ya no corre; no protegían ninguna lógica viva.
+
+* Borradas: `tests/integration/inventory/` test_sales_reversal_canonical,
+  test_sale_items_flip, test_sale_cancel_canonical, test_reporte_email_lotes_canonical,
+  test_productos_repository_stock_cutover, test_productos_has_movements_canonical,
+  test_production_items_flip, test_inventory_enterprise_session_wiring,
+  test_delivery_movement_exists_canonical, test_canonical_stock_read_adapter,
+  test_analytics_top_consumed_canonical; `tests/unit/`
+  test_sales_stock_validation_uses_query_service; `tests/integration/sales/`
+  test_analytics_engine_reads_unified_sales, test_ceo_feeder_services_see_pos_sales,
+  test_legacy_readers_see_pos_sales; y en `tests/unit/` (no llegaban ni a
+  importar: `core.*`, `sync.*`, `repositories.*`) test_configuracion_dtos,
+  test_configuracion_refactor_services, test_configuracion_transactions,
+  test_feature_flag_service, test_remediacion0_cxc_cxp_events,
+  test_remediacion0_raffle_finance_handler, test_remediacion_b_refresh_contract,
+  meat_processing/test_meat_processing_sync_validator. Más `tests/integration/products/` test_discount_guard_cost_repoint y
+  test_pos_catalog_canonical_repoint (`core.services.discount_guard` y el catálogo
+  de ventas de `core/`).
+* Recortadas (sólo lo legacy): test_canonical_layer_reads_unified_sales (3 de 13),
+  test_legacy_reader_repoints (`TestProductCatalogRepoint`),
+  test_active_branch_resolver (17-27: `SessionContext`, eventos de `core/` y una
+  copia del `MainWindow` borrado; el resolver vivo conserva sus pruebas),
+  test_phase5_query_services (`CashRegisterQueryService`, retirada en 342b0d9f).
+* Borrada `tests/unit/test_archive_legacy_inventory_migration.py`: exigía que la
+  migración 099 renombrara tablas a `legacy_*`; desde Plan B (a94c35cb) la 099 es
+  un no-op documentado a propósito.
+* Bombas de tiempo: `tests/unit/forecasting/` usaba `valid_until` con fechas
+  fijas (2026-09-10 ya vencida; 2026-12-10 vencía en diciembre) y el dominio
+  rechaza una recomendación vencida; ahora son relativas a hoy.
+* Defecto real: «Acerca de y actualizaciones» abría un `QMessageBox` modal al
+  construirse sin presentador de actualizaciones o con error de lectura, y
+  tumbaba el proceso (access violation) al recorrer las rutas de Configuración;
+  ahora muestra el aviso en la página y deshabilita las acciones.
+
+**Segunda pasada: `tests/unit` + `tests/architecture` completos.** Antes la
+corrida se caía al 69 % (el modal de arriba). Ya completa: 130 fallas, 126 de
+ellas ya fallaban en HEAD (verificado con una copia limpia de HEAD).
+
+* Regresiones propias (4), corregidas: `sale_receipt_snapshots` pasa a
+  `id TEXT NOT NULL PRIMARY KEY` + `sale_id UNIQUE` (contrato de PK de Ventas;
+  la 342 aún no corre en ninguna base real); los casos de uso de logos ya no
+  crean esquema al vuelo (lo crea la 342); dos guardas de Caja reflejan
+  CJA-04/CJA-05 (caja por nombre, sin `display_code`).
+* Guardas de código legacy borrado: 28 archivos borrados y 11 recortados en
+  `tests/architecture/` (+`test_menu_hidden_reasons`, `test_delivery_guardrails`,
+  `test_phone_widget_is_standard`); todos leían o importaban `modulos/`,
+  `interfaz/` o `core/`.
+* Trinquetes que registran avance: float monetario 24→16, rutas reales
+  Configuración 11→12 y Cárnico 16→17; listas vacías en BI (8 motores retirados)
+  y Compras (`planeacion_compras.py`); alcance de Configuración sin los query
+  services borrados en 29317dca.
+* Guardas actualizadas a la estructura actual: `PageStack` (el
+  `QStackedWidget` común) en BI/Caja/Mermas/Cárnico/Compras; arranque en
+  `frontend/desktop/app.py`; impresión de Transferencias acotada a sus archivos
+  (y leída en UTF-8); `StatusBadge[variant]`; «Configurado» (3983fe70);
+  `products` en vez de `productos`; dobles del cobro POS y de alcance de
+  Transferencias alineados al contrato real.
+* Código: `sales_pos/composition.py` ya no hace `commit()` (el caso de uso del
+  cajón confirma con su unidad de trabajo).
+* Migradas a código vivo (no borradas): test_main_startup_gates (arranque actual
+  `frontend/desktop/app.main`), test_sales_sweepstakes (Sorteos canónico),
+  test_network_label_gateway y test_orders_delivery_outbox_dispatcher (transporte
+  y bus actuales).
+* Defectos reales encontrados al revisarlas: reprocesar una venta duplicaba los
+  boletos de sorteo; la gráfica de mermas mostraba el código interno y tumbaba la
+  analítica sin el módulo de Mermas. Ambos corregidos.
+
+---
+
+## 342 — Diseño del ticket, logos y foto del ticket (comparativa de tickets main ↔ ERP 968e0bc) — 2026-10-16
+
+Medido en la base real: el impresor de Ventas ignoraba la plantilla (había una
+versión de `SALE_TICKET` con el texto libre «Productos, unidad, cantidad, costo»
+pendiente de aprobación, sin efecto posible), el logo de la empresa era un UUID
+que no se podía cargar y `print_jobs` tenía 0 filas.
+
+Crea `branding_assets` (logo original + derivado para térmica) y
+`branch_branding` (logo propio de la sucursal; sin él hereda el de la empresa,
+decisión del usuario), y `sale_receipt_snapshots` (foto de cada ticket: la
+reimpresión sale idéntica, marcada — decisión del usuario). Para `SALE_TICKET`
+y `SWEEPSTAKES_TICKET` sin versión ACTIVA siembra una versión ACTIVA con el
+diseño por omisión (el ticket de siempre) en la plantilla existente de ese tipo
+o en una nueva; no toca las versiones existentes (la de texto libre ya no puede
+aprobarse ni activarse). Idempotente. Verificada en copia de la base real: dos
+ejecuciones, «POS-01» v2 ACTIVA + «Boleto de sorteo» v1 ACTIVA,
+`foreign_key_check` limpio. Detalle: `docs/refactor/TICKET-AUD_comparativa_968e0bc.md`.
+
+---
+
+## 341 — Pagos anulados en el cobro (auditoría de Ventas cebf67a) — 2026-10-15
+
+Crea `sale_payment_voids` (vía `create_sales_schema`): el rastro de cada pago que
+se anula mientras la venta sigue en cobro — al quitar un pago ya registrado desde
+el diálogo de cobro o al cancelar una venta con pagos (decisión del usuario:
+"compensar y avisar"; CxC y vale se compensan en la misma transacción, el cajero
+recibe qué devolver). Antes la venta quedaba CANCELLED con sus pagos y la deuda
+a crédito viva. Sólo agrega filas (`INSERT OR IGNORE`); el repositorio tolera
+bases anteriores sin la tabla. Idempotente. Verificada en copia de la base real
+(dos ejecuciones, `foreign_key_check` limpio). Detalle:
+`docs/refactor/SALES-AUD_auditoria_cebf67a.md`.
 
 ---
 

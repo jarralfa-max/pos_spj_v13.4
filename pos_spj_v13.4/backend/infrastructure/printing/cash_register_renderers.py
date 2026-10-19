@@ -29,9 +29,9 @@ class CashDocumentHtmlRenderer:
             for label, value in document.totals)
         markers = []
         if document.barcode_value:
-            markers.append(f"<p>BARCODE:{escape(document.barcode_value)}</p>")
+            markers.append(f"<p>Folio: {escape(document.barcode_value)}</p>")
         if document.qr_value:
-            markers.append(f"<p>QR:{escape(document.qr_value)}</p>")
+            markers.append(f"<p>Verificación: {escape(document.qr_value)}</p>")
         html = (
             "<!doctype html><html lang='es'><meta charset='utf-8'>"
             f"<title>{escape(document.title)}</title><body>"
@@ -51,12 +51,34 @@ class CashDocumentHtmlRenderer:
 class CashDocumentEscPosRenderer:
     def __init__(self, *, paper_width_mm: int = 58, encoding: str = "cp850") -> None:
         self._width = 48 if int(paper_width_mm) >= 80 else 32
+        self._paper = 80 if int(paper_width_mm) >= 80 else 58
         self._encoding = encoding
 
     def render(self, document: CashPrintDocument) -> CashPrintArtifact:
+        """Auditoría de Caja CJA-05 (2026-10-16): el código de barras y el QR son
+        SÍMBOLOS rasterizados (antes se imprimía el texto `QR:<uuid>` y
+        `BARCODE:<...>`). Debajo va su valor legible, que también es el
+        respaldo si el símbolo no se puede generar."""
+        from backend.infrastructure.printing.escpos import (
+            ALIGN_CENTER, ALIGN_LEFT, dots_for_paper_width, render_barcode, render_qr,
+        )
+
         text = self.render_text_preview(document)
+        body = INIT + text.encode(self._encoding, errors="replace") + b"\n"
+        dots = dots_for_paper_width(self._paper)
+        symbols = (
+            (document.barcode_value,
+             lambda v: render_barcode(v, max_width_dots=int(dots * 0.9), module_height=7.0)),
+            (document.qr_value, lambda v: render_qr(v, max_width_dots=int(dots * 0.6))),
+        )
+        for value, render in symbols:
+            if not value:
+                continue
+            graphic = render(str(value))
+            body += ALIGN_CENTER + (graphic or b"") + b"\n"
+            body += _clean(value).encode(self._encoding, errors="replace") + b"\n" + ALIGN_LEFT
         return CashPrintArtifact(
-            content=INIT + text.encode(self._encoding, errors="replace") + b"\n" + CUT_PARTIAL,
+            content=body + CUT_PARTIAL,
             media_type="application/vnd.escpos",
             filename=f"{document.document_type.value.lower()}-{_filename_token(document.reference)}.bin",
             format=CashPrintFormat.ESC_POS,
@@ -78,10 +100,6 @@ class CashDocumentEscPosRenderer:
             lines.append("-" * self._width)
             for label, value in document.totals:
                 lines.extend(_wrap_pair(label, value, self._width))
-        if document.barcode_value:
-            lines.append(f"BARCODE:{_clean(document.barcode_value)}")
-        if document.qr_value:
-            lines.append(f"QR:{_clean(document.qr_value)}")
         return "\n".join(lines)
 
 

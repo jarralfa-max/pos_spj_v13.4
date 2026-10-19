@@ -54,6 +54,10 @@ class LoyaltyTransactionRepository(LoyaltyRepositoryBase):
             "SELECT * FROM loyalty_transactions WHERE id=?", (transaction_id,))
         return self._hydrate(row) if row else None
 
+    def list_for_sale(self, sale_id: str) -> list[LoyaltyTransaction]:
+        return [self._hydrate(row) for row in self._query(
+            "SELECT * FROM loyalty_transactions WHERE sale_id=? ORDER BY created_at", (sale_id,))]
+
     def get_by_operation_id(self, operation_id: str) -> LoyaltyTransaction | None:
         row = self._query_one(
             "SELECT * FROM loyalty_transactions WHERE operation_id=?", (operation_id,))

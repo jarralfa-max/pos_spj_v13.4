@@ -30,14 +30,6 @@ def test_supplier_ui_lives_inside_finance():
     assert "SuppliersPage" in nav and "Maestro de proveedores" in nav
 
 
-def test_no_standalone_supplier_menu():
-    """modulos/proveedores.py must delegate into Finanzas, never build its own UI."""
-    src = (REPO / "modulos/proveedores.py").read_text(encoding="utf-8")
-    assert "create_finance_view" in src and "proveedores" in src
-    assert _SQL.search(src) is None
-    assert len(src.splitlines()) < 30  # thin wrapper only
-
-
 def test_supplier_ui_has_no_sql_or_repositories():
     offenders = []
     for path in _ui_files():

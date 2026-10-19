@@ -20,7 +20,6 @@ from frontend.desktop.modules.cash_register.cash_register_dialogs import (
 )
 from frontend.desktop.modules.cash_register.presentation import (
     direction_label,
-    display_code,
     movement_label,
     origin_label,
     user_facing_error,
@@ -92,15 +91,20 @@ class CashLedgerPage(QWidget):
 
     @staticmethod
     def _money(value):
-        return f"${value:,.2f}"
+        return "Oculto" if value is None else f"${value:,.2f}"
 
     def refresh(self):
         if not self._shift_id:
             return
-        projection = self._query.projection(self._shift_id)
+        presenter = self._presenter
+        projection = self._query.projection(
+            self._shift_id,
+            requester_user_id=presenter.actor_user_id() if presenter is not None else None,
+            branch_id=presenter.active_branch_id() if presenter is not None else None)
         self._rows_by_id = {row.id: row for row in projection.rows}
         self._kpis.set_cards([
-            KPIDTO("balance", "Saldo", self._money(projection.balance), projection.balance),
+            KPIDTO("balance", "Saldo", self._money(projection.balance), projection.balance,
+                   subtitle=getattr(projection, "hidden_reason", None)),
             KPIDTO("inflows", "Entradas", self._money(projection.inflows), projection.inflows),
             KPIDTO("outflows", "Salidas", self._money(projection.outflows), projection.outflows),
             KPIDTO("count", "Movimientos", str(projection.movement_count), projection.movement_count),
@@ -119,8 +123,10 @@ class CashLedgerPage(QWidget):
             for row in projection.rows
         ], row_ids=[row.id for row in projection.rows])
         for row_index, row in enumerate(projection.rows):
-            reversal = display_code("MOV", row.reversal_of_id) if row.reversal_of_id else "—"
-            origin = origin_label(reference_id=row.reference_id, sale_id=row.related_sale_id)
+            reversal = (getattr(row, "reversal_label", "") or "Movimiento") if row.reversal_of_id \
+                else "—"
+            origin = origin_label(reference_id=row.reference_id, sale_id=row.related_sale_id,
+                                  label=getattr(row, "origin_label", ""))
             self._table.item(row_index, 6).setText(reversal)
             self._table.item(row_index, 6).setToolTip(reversal)
             self._table.item(row_index, 7).setText(origin)
@@ -218,8 +224,8 @@ class CashLedgerPage(QWidget):
                 f"Movimiento: {movement_label(row.movement_type)}",
                 f"Direccion: {direction_label(row.direction)}",
                 f"Concepto: {row.concept}",
-                f"Documento origen: {origin_label(reference_id=row.reference_id, sale_id=row.related_sale_id)}",
-                f"Reverso de: {display_code('MOV', row.reversal_of_id) if row.reversal_of_id else 'No aplica'}",
+                f"Documento origen: {origin_label(reference_id=row.reference_id, sale_id=row.related_sale_id, label=getattr(row, 'origin_label', ''))}",
+                f"Reverso de: {(getattr(row, 'reversal_label', '') or 'Movimiento') if row.reversal_of_id else 'No aplica'}",
                 f"Saldo del turno: {self._money(row.balance)}",
                 "",
                 "Detalles tecnicos disponibles en Auditoria.",

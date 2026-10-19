@@ -154,6 +154,7 @@ class ApproveProcessingOrderUseCase:
         operation_id: str,
         actor_user_id: str,
         context: MeatProcessingExecutionContext | None = None,
+        direct_transformation: bool = False,
     ) -> MeatProcessingResult:
         try:
             self._auth.require(actor_user_id, MeatProcessingPermissions.ORDER_APPROVE)
@@ -172,7 +173,10 @@ class ApproveProcessingOrderUseCase:
                     return MeatProcessingResult.ok(
                         "Orden ya aprobada (idempotente)", entity_id=order.id,
                         operation_id=operation_id, already_processed=True)
-                order.approve(actor_user_id=actor_user_id)
+                if direct_transformation:
+                    order.approve_direct_transformation(actor_user_id=actor_user_id)
+                else:
+                    order.approve(actor_user_id=actor_user_id)
                 uow.orders.save(order)
                 payload = build_meat_processing_event(
                     MeatProcessingEvents.PROCESSING_ORDER_APPROVED, operation_id=operation_id,
@@ -183,7 +187,9 @@ class ApproveProcessingOrderUseCase:
                     event_name=MeatProcessingEvents.PROCESSING_ORDER_APPROVED,
                     payload_json=json.dumps(payload), operation_id=operation_id)
                 uow.audit.record(
-                    entity_type="ProcessingOrder", entity_id=order.id, action="APPROVED",
+                    entity_type="ProcessingOrder", entity_id=order.id,
+                    action=("APPROVED_BY_DIRECT_TRANSFORMATION" if direct_transformation
+                            else "APPROVED"),
                     user_id=actor_user_id, operation_id=operation_id, branch_id=order.branch_id,
                     warehouse_id=order.warehouse_id, processing_order_id=order.id)
         except MeatProcessingError as exc:

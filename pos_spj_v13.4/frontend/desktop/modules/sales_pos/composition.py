@@ -44,6 +44,7 @@ from backend.application.sales.use_cases.cart_use_cases import (
     AddSaleLineUseCase,
     AssignCustomerToSaleUseCase,
     RemoveSaleLineUseCase,
+    OpenSaleForCashierUseCase,
     StartSaleUseCase,
     UpdateSaleLineQuantityUseCase,
 )
@@ -57,13 +58,19 @@ from backend.application.sales.use_cases.discount_use_cases import (
     ApplySaleDiscountPercentUseCase,
     ApplySaleDiscountUseCase,
 )
-from backend.application.sales.use_cases.invoice_use_cases import RequestInvoiceUseCase
+from backend.application.sales.use_cases.invoice_use_cases import (
+    MarkInvoiceErrorUseCase,
+    MarkInvoiceIssuedUseCase,
+    RequestInvoiceUseCase,
+)
 from backend.application.sales.use_cases.lifecycle_use_cases import (
     BeginSaleCheckoutUseCase,
     CancelSaleUseCase,
     ResumeSaleUseCase,
+    ReturnSaleToCartUseCase,
     SuspendSaleUseCase,
 )
+from backend.application.sales.use_cases.payment_void_use_cases import VoidSalePaymentUseCase
 from backend.application.sales.use_cases.coupon_use_cases import (
     ApplyCouponToSaleUseCase,
     RemoveCouponFromSaleUseCase,
@@ -167,7 +174,8 @@ def _open_drawer_after_cash_sale(handler, connection, session_context):
                 connection, sale_id=kwargs["sale_id"],
                 branch_id=getattr(session_context, "active_branch_id", None),
                 actor_user_id=kwargs["actor_user_id"], operation_id=new_uuid())
-            connection.commit()
+            # Sin commit aquí: `OpenCashDrawerUseCase` confirma con su propia
+            # unidad de trabajo (guardia test_no_commit_rollback_in_frontend).
         except Exception:  # noqa: BLE001 - la venta ya está cobrada
             import logging
             logging.getLogger("spj.sales_pos.composition").exception(
@@ -350,6 +358,9 @@ def build_sales_pos_presenter(
         "voucher_balance": _voucher_balance(connection),
         "prepaid_voucher_definitions": _prepaid_definitions(connection),
         "pricing": pricing_client,
+        # El precio que verá el cajero antes de agregar (diálogo de peso), con la
+        # misma regla que el caso de uso (auditoría V04).
+        "price_preview": _price_preview(connection, pricing_client, auth),
         # Prueba quién autoriza con su usuario y clave (mismas reglas y
         # bloqueo que el login); el permiso lo decide el caso de uso.
         "authorizer_credentials": _authorizer_credentials(connection).execute,
@@ -359,6 +370,8 @@ def build_sales_pos_presenter(
         "cash_tender": _cash_tender,
         "payment_amount_check": _payment_amount_check,
         "weight_policy": _weight_policy,
+        "scale_factory": _scale_factory(connection, auth),
+        "display_preferences": _display_preferences(connection),
     }
 
     def _h(execute, **extra):
@@ -368,10 +381,14 @@ def build_sales_pos_presenter(
 
     command_handlers = {
         "start_sale": _h(StartSaleUseCase(auth).execute),
-        "add_line": _h(AddSaleLineUseCase(auth).execute),
-        "update_line_quantity": _h(UpdateSaleLineQuantityUseCase(auth).execute),
+        # Abre con la venta en curso del cajero o reutiliza un borrador (V03).
+        "open_sale": _h(OpenSaleForCashierUseCase(auth).execute),
+        # El precio lo resuelve el caso de uso con Precios (auditoría V04).
+        "add_line": _h(AddSaleLineUseCase(auth, pricing=pricing_client).execute),
+        "update_line_quantity": _h(UpdateSaleLineQuantityUseCase(
+            auth, pricing=pricing_client).execute),
         "remove_line": _h(RemoveSaleLineUseCase(auth).execute),
-        "assign_customer": _h(AssignCustomerToSaleUseCase(auth).execute),
+        "assign_customer": _h(AssignCustomerToSaleUseCase(auth, pricing=pricing_client).execute),
         "quick_create_customer": _h(
             QuickCreateCustomerForSaleUseCase(customer_auth).execute),
         "scan_loyalty_card": _h(ScanLoyaltyCardForSaleUseCase(auth).execute),
@@ -380,7 +397,7 @@ def build_sales_pos_presenter(
         "apply_coupon": _h(ApplyCouponToSaleUseCase(auth).execute),
         "remove_coupon": _h(RemoveCouponFromSaleUseCase(auth).execute),
         "sell_prepaid_voucher": _h(SellPrepaidVoucherUseCase(auth).execute),
-        "scan_code": _scan_code_handler(connection, auth),
+        "scan_code": _scan_code_handler(connection, auth, pricing_client),
         "apply_sale_discount": _h(ApplySaleDiscountUseCase(
             auth, authorizer_authorization=authorizer_auth,
             minimum_prices=pricing_client).execute),
@@ -392,13 +409,18 @@ def build_sales_pos_presenter(
             minimum_prices=pricing_client).execute),
         "record_payment": _payment_handler(connection, auth, customer_auth),
         "begin_checkout": _h(BeginSaleCheckoutUseCase(auth).execute),
+        # Auditoría V02/V03: quitar un pago ya registrado y volver al carrito.
+        "void_payment": _h(VoidSalePaymentUseCase(auth, customer_authorization=customer_auth)
+                           .execute),
+        "return_to_cart": _h(ReturnSaleToCartUseCase(auth).execute),
         "checkout_sale": _open_drawer_after_cash_sale(_after_commit(_h(CheckoutSaleUseCase(
             auth, inventory_auth, authorizer_authorization=authorizer_auth,
             costs=pricing_client).execute), connection), connection, session_context),
         "suspend_sale": _h(SuspendSaleUseCase(auth, inventory_auth).execute),
         "resume_sale": _h(ResumeSaleUseCase(auth).execute),
         "cancel_sale": _after_commit(
-            _h(CancelSaleUseCase(auth, inventory_auth).execute), connection),
+            _h(CancelSaleUseCase(auth, inventory_auth, customer_authorization=customer_auth)
+               .execute), connection),
         "return_line": _after_commit(_h(ReturnSaleLineUseCase(
             auth, inventory_auth, authorizer_authorization=authorizer_auth,
             cash_refund_service=_cash_refund_service(connection, session_context)).execute),
@@ -407,6 +429,9 @@ def build_sales_pos_presenter(
             auth, inventory_auth, authorizer_authorization=authorizer_auth).execute),
             connection),
         "request_invoice": _h(RequestInvoiceUseCase(auth).execute),
+        # Resultado del timbrado registrado a mano mientras no hay PAC (V09).
+        "mark_invoice_issued": _h(MarkInvoiceIssuedUseCase(auth).execute),
+        "mark_invoice_error": _h(MarkInvoiceErrorUseCase(auth).execute),
         "print_receipt": _receipt_handler(PrintSaleReceiptUseCase(auth), connection, printer),
         "reprint_receipt": _receipt_handler(ReprintReceiptUseCase(auth), connection, printer),
         "push_customer_display": _customer_display_handler(connection),
@@ -418,8 +443,13 @@ def build_sales_pos_presenter(
         command_handlers=command_handlers)
 
 
-def _scan_code_handler(connection, auth):
-    router = ScanCodeRouter(auth)
+def _price_preview(connection, pricing, auth):
+    from backend.application.sales.pricing_resolution import SalePricePreviewService
+    return SalePricePreviewService(connection, pricing, auth)
+
+
+def _scan_code_handler(connection, auth, pricing=None):
+    router = ScanCodeRouter(auth, pricing=pricing)
 
     def handler(*, sale_id, code, context, branch_id, actor_user_id, operation_id):
         return router.route(
@@ -465,11 +495,54 @@ def _sales_ticket_printer(connection, session_context):
         connection, branch_id=getattr(session_context, "active_branch_id", None) or None)
 
 
+def _display_preferences(connection):
+    from backend.application.customer_display.queries.display_preferences_query import DisplayPreferencesQuery
+    return DisplayPreferencesQuery(connection)
+
+
+def _scale_factory(connection, auth):
+    def create(*, actor_user_id, branch_id, workstation_id=None):
+        from backend.application.sales.queries.scale_configuration_query import ScaleConfigurationQuery
+        from backend.application.sales.scale_reading_service import ScaleReadingService
+        from backend.infrastructure.hardware.scale_gateway import SicsScaleGateway, RhinoBar8RsScaleGateway
+        from backend.domain.device_management.enums import ConnectionType
+        configured = ScaleConfigurationQuery(connection, auth).resolve(
+            actor_user_id=actor_user_id, branch_id=branch_id, workstation_id=workstation_id)
+        if configured is None:
+            return ScaleReadingService()
+        device, profile = configured
+        drivers = {"SICS": SicsScaleGateway, "RHINO_BAR_8RS": RhinoBar8RsScaleGateway}
+        # Older Device Management profiles stored generic ON_DEMAND plus the
+        # manufacturer's model. Resolve that explicit model, never guess a port.
+        protocol = profile.protocol
+        if protocol in (None, "", "ON_DEMAND") and (profile.model or "").upper().replace(" ", "") == "BAR-8RS":
+            protocol = "RHINO_BAR_8RS"
+        connection_profile = profile.connection_profile
+        if protocol not in drivers or connection_profile.connection_type not in (ConnectionType.SERIAL, ConnectionType.USB):
+            raise ValueError("El protocolo de esta báscula requiere un controlador validado")
+        serial_profile = connection_profile.serial_port
+        if serial_profile is None:
+            from backend.domain.device_management.value_objects.serial_port_profile import SerialPortProfile
+            params = connection_profile.extra_parameters
+            serial_profile = SerialPortProfile.create(port=params["port"], baud_rate=int(params["baud_rate"]),
+                parity=params.get("parity", "N"), data_bits=int(params.get("data_bits", "8")),
+                stop_bits=params.get("stop_bits", "1"),
+                read_timeout_seconds=Decimal(str(profile.timeout_seconds)))
+        from backend.application.settings.configuration_reader import ConfigurationReader
+        from backend.domain.settings.enums import ScopeType
+        stale = ConfigurationReader(connection).get("sales.scale_stale_seconds",
+                    context={ScopeType.BRANCH: branch_id, ScopeType.DEVICE: device.id})
+        return ScaleReadingService(drivers[protocol](serial_profile,
+                                                    device_id=device.id), stale_seconds=stale)
+    return create
+
+
 def _customer_display_handler(connection):
     client = SalesCustomerDisplayClient(connection)
 
-    def handler(*, gateway, state, branch_id=None):
-        client.push_sale_state(gateway, state=state, branch_id=branch_id)
+    def handler(*, gateway, state, branch_id=None, preferences=None, workstation_id=None):
+        client.push_sale_state(gateway, state=state, branch_id=branch_id, preferences=preferences,
+                               workstation_id=workstation_id)
     return handler
 
 

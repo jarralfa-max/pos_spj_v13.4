@@ -29,6 +29,18 @@ class SaleInvoicePolicy:
                 "Ya existe una solicitud de factura pendiente para esta venta")
 
     @staticmethod
+    def normalize_fiscal_uuid(value: str) -> str:
+        """El folio fiscal (UUID del timbre del SAT): 8-4-4-4-12 hexadecimal.
+        Se guarda en mayúsculas, como lo imprime el CFDI."""
+        import re
+        text = (value or "").strip().upper()
+        if not re.fullmatch(r"[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}", text):
+            raise InvoiceTransitionNotAllowedError(
+                "El folio fiscal (UUID) debe tener el formato del SAT: "
+                "XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX")
+        return text
+
+    @staticmethod
     def ensure_can_resolve(status: InvoiceStatus) -> None:
         if status is not InvoiceStatus.REQUESTED:
             raise InvoiceTransitionNotAllowedError(

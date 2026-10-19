@@ -212,6 +212,7 @@ class ScaleProtocol(str, Enum):
 
     TOLEDO_STANDARD = "TOLEDO_STANDARD"
     SICS = "SICS"
+    RHINO_BAR_8RS = "RHINO_BAR_8RS"
     NCI = "NCI"
     CONTINUOUS = "CONTINUOUS"
     ON_DEMAND = "ON_DEMAND"

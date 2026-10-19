@@ -86,6 +86,27 @@ class FinancialDocument:
                        else FinancialDocumentStatus.PARTIALLY_SETTLED)
         self.updated_at = _utcnow()
 
+    def decrease_total(self, amount: Money) -> None:
+        """Retira un cargo que nunca debió quedar (auditoría de Ventas V02: pago
+        a crédito anulado antes de cerrar la venta). En cero, se cancela."""
+        if self.status is FinancialDocumentStatus.CANCELLED:
+            raise FinanceDomainError("A cancelled document cannot be adjusted")
+        if not amount.is_positive():
+            raise FinanceDomainError("Adjustment amount must be positive")
+        if amount > self.outstanding_amount:
+            raise InsufficientOutstandingError(
+                f"Adjustment {amount.to_string()} exceeds outstanding "
+                f"{self.outstanding_amount.to_string()} of document {self.document_number}")
+        self.total_amount = self.total_amount.subtract(amount)
+        self.outstanding_amount = self.outstanding_amount.subtract(amount)
+        if self.total_amount.is_zero():
+            self.status = FinancialDocumentStatus.CANCELLED
+        else:
+            self.status = (FinancialDocumentStatus.OPEN
+                           if self.outstanding_amount.amount == self.total_amount.amount
+                           else FinancialDocumentStatus.PARTIALLY_SETTLED)
+        self.updated_at = _utcnow()
+
     def apply_settlement(self, amount: Money) -> None:
         """Reduce the outstanding amount; never below zero."""
         if not amount.is_positive():

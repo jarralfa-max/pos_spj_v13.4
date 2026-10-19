@@ -109,8 +109,10 @@ def raster_image(image, *, max_width_dots: int) -> bytes:
             + bytes(datos))
 
 
-def render_barcode(payload: str, *, max_width_dots: int) -> bytes:
-    """Code 128 rasterizado. Vacío si no se puede generar."""
+def render_barcode(payload: str, *, max_width_dots: int,
+                   module_height: float | None = None) -> bytes:
+    """Code 128 rasterizado. Vacío si no se puede generar. `module_height` (mm)
+    None = el de la librería (etiquetas); el ticket usa barras más bajas."""
     if not str(payload or "").strip():
         return b""
     try:
@@ -122,7 +124,8 @@ def render_barcode(payload: str, *, max_width_dots: int) -> bytes:
     try:
         buffer = io.BytesIO()
         barcode.get("code128", str(payload), writer=ImageWriter()).write(
-            buffer, options={"write_text": False, "quiet_zone": 2.0})
+            buffer, options={"write_text": False, "quiet_zone": 2.0,
+                             **({"module_height": module_height} if module_height else {})})
         buffer.seek(0)
         from PIL import Image
 

@@ -91,16 +91,30 @@ class ExecuteProcessingOrderUseCase:
     def execute(self, connection, *, order_id: str, outputs: list[dict],
                 actor_user_id: str, operation_id: str, inputs: list[dict] | None = None,
                 variance_authorizer_user_id: str | None = None,
-                variance_reason: str | None = None, context=None) -> MeatProcessingResult:
+                variance_reason: str | None = None, context=None,
+                estimated_product_ids=(), estimate_reason: str | None = None,
+                ) -> MeatProcessingResult:
+        """`estimated_product_ids` (auditoría 32cfbf P2, decisión del usuario):
+        salidas cuyo peso real NO se pesó y se tomó de lo esperado. Quedan
+        marcadas ESTIMADO en el resultado y en la auditoría, con su motivo; sin
+        motivo no se ejecuta (antes el peso venía precargado y confirmarlo sin
+        pesar dejaba "reales" iguales al plan, ocultando la merma)."""
         try:
             self._auth.require(actor_user_id, MeatProcessingPermissions.ORDER_START)
         except Exception as exc:  # noqa: BLE001 — permiso denegado
             return MeatProcessingResult.fail(str(exc), "PERMISSION_DENIED",
                                              operation_id=operation_id)
+        estimadas = frozenset(str(p) for p in estimated_product_ids or ())
+        if estimadas and not (estimate_reason or "").strip():
+            return MeatProcessingResult.fail(
+                "Usar el peso esperado como real exige un motivo (queda registrado "
+                "como ESTIMADO).", "ESTIMATE_REASON_REQUIRED", operation_id=operation_id)
         preparado = self._prepare(connection, order_id=order_id, inputs=inputs,
                                   outputs=outputs, operation_id=operation_id)
         if isinstance(preparado, MeatProcessingResult):
             return preparado
+        preparado["estimated"] = estimadas
+        preparado["estimate_reason"] = (estimate_reason or "").strip() or None
         if preparado["out_of_tolerance"]:
             fuera = ", ".join(f"{r.product_id} ({r.variance_pct}%)"
                               for r in preparado["rows"] if r.product_id in preparado["out"])
@@ -487,7 +501,12 @@ class ExecuteProcessingOrderUseCase:
                 "input_lot_id": lotes_entrada[0] if lotes_entrada else None,
                 "output_lot_id": next((s.lot_id for s in MeatProcessingUnitOfWork(
                     connection).outputs.list_by_order(oid) if s.product_id == r.product_id),
-                    None)} for r in p["rows"]])
+                    None),
+                "weight_source": ("ESTIMATED" if r.product_id in p.get("estimated", ())
+                                  else "CAPTURED"),
+                "estimate_reason": (p.get("estimate_reason")
+                                    if r.product_id in p.get("estimated", ()) else None),
+            } for r in p["rows"]])
             with MeatProcessingUnitOfWork(connection) as audit_uow:
                 audit_uow.audit.record(
                     entity_type="ProcessingOrder", entity_id=oid, action="EXECUTED",
@@ -498,6 +517,8 @@ class ExecuteProcessingOrderUseCase:
                         "variance_authorized_by": (variance_authorizer
                                                    if p["out_of_tolerance"] else None),
                         "variance_reason": variance_reason if p["out_of_tolerance"] else None,
+                        "estimated_outputs": sorted(p.get("estimated", ())),
+                        "estimate_reason": p.get("estimate_reason"),
                     }), branch_id=order.branch_id, warehouse_id=order.warehouse_id,
                     processing_order_id=oid)
 

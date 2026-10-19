@@ -292,6 +292,7 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         save_user_permissions_uc=SaveUserPermissionsUseCase(connection, authorization),
         import_display_media_uc=ImportDisplayMediaUseCase(connection),
         set_device_windows_printer_uc=SetDeviceWindowsPrinterUseCase(connection),
+        ticket_designer=_ticket_designer(connection),
         software_updates=SoftwareUpdatesPresenter(
             build_software_update_dependencies(connection, session_context=session),
             copy_file=copy_package_file, request_handoff=request_update_handoff),
@@ -333,3 +334,11 @@ def _address_search_factory(connection):
         )
         return build_address_search_service(connection)
     return _build
+
+
+def _ticket_designer(connection):
+    """Diseñador de tickets y logos (comparativa de tickets, 2026-10-16)."""
+    from backend.application.use_cases.configuracion.ticket_designer_service import (
+        TicketDesignerService,
+    )
+    return TicketDesignerService(connection)

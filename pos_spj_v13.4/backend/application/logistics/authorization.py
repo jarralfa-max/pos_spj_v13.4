@@ -6,6 +6,10 @@ class LogisticsAuthorizationPolicy:
     def __init__(self, checker=None) -> None:
         self._checker = checker
 
+    def allows(self, user_id: str, permission: str) -> bool:
+        return bool(self._checker is not None and user_id
+                    and self._checker.has_permission(user_id, permission))
+
     def require(self, user_id: str, permission: str) -> None:
         if self._checker is None or not user_id or not self._checker.has_permission(user_id, permission):
             raise LogisticsPermissionDeniedError(f"Permiso requerido: {permission}")

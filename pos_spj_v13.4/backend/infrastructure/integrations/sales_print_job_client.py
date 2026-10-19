@@ -5,7 +5,8 @@ shape: thin, delegates entirely to the owning contexts' real policies and
 repositories.
 
 **Audit/governance only** — this never influences whether or how a real
-ticket is physically printed. Actual byte rendering and dispatch stay on
+ticket is physically printed. (2026-10-16: the template version recorded is
+now the one the printer actually rendered — see `receipt_use_cases`.) Actual byte rendering and dispatch stay on
 `core/services/printer_service.py::PrinterService`/`TicketESCPOSRenderer`,
 untouched. `printer_device_id`/`print_route_id` are recorded here for
 audit purposes only.
@@ -59,9 +60,12 @@ class SalesPrintJobClient:
 
     def try_create_or_reprint_job(
         self, *, sale_id: str, branch_id: str, actor_user_id: str,
-        is_reprint: bool, reprint_reason: str,
+        is_reprint: bool, reprint_reason: str, template_version_id: str | None = None,
     ) -> PrintJob | None:
-        version_id = self._active_sale_ticket_version_id()
+        """`template_version_id`: la versión con que DE VERDAD se imprimió
+        (comparativa de tickets, 2026-10-16); antes se anotaba la activa aunque
+        el impresor no la usara."""
+        version_id = template_version_id or self._active_sale_ticket_version_id()
         if version_id is None:
             return None
 

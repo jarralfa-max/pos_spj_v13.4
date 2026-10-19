@@ -46,6 +46,36 @@ class SettingSpec:
 
 
 SETTINGS_CATALOG: tuple[SettingSpec, ...] = (
+    *(SettingSpec(f"customer_display.{key}", "customer_display", "Pantalla del cliente", label,
+                  ValueType.BOOLEAN, default,
+                  allowed_scopes=frozenset({_G, ScopeType.COMPANY, ScopeType.BRANCH, ScopeType.WORKSTATION}))
+      for key, label, default in (
+          ("enabled", "Habilitar pantalla del cliente", True),
+          ("fullscreen", "Pantalla completa", False),
+          ("show_items", "Mostrar carrito", True),
+          ("show_unit_price", "Mostrar precio unitario", True),
+          ("show_discounts", "Mostrar descuentos", True),
+          ("show_tax", "Mostrar impuestos", True),
+          ("show_points", "Mostrar puntos", True),
+          ("show_scale", "Mostrar lectura de báscula", True),
+          ("show_change", "Mostrar cambio confirmado", True),
+          ("ads_during_sale", "Publicidad durante la venta", True))),
+    SettingSpec("customer_display.screen_name", "customer_display", "Pantalla del cliente",
+                "Nombre de pantalla física (vacío: automática)", ValueType.STRING, "",
+                allowed_scopes=frozenset({_G, ScopeType.BRANCH, ScopeType.WORKSTATION})),
+    SettingSpec("customer_display.thank_you_seconds", "customer_display", "Pantalla del cliente",
+                "Segundos del agradecimiento", ValueType.INTEGER, 8,
+                validation_schema={"min": 1, "max": 120},
+                allowed_scopes=frozenset({_G, ScopeType.COMPANY, ScopeType.BRANCH, ScopeType.WORKSTATION})),
+    SettingSpec("customer_display.thank_you_message", "customer_display", "Pantalla del cliente",
+                "Mensaje de agradecimiento", ValueType.STRING, "¡Gracias por tu compra!\n¡Te esperamos pronto!",
+                allowed_scopes=frozenset({_G, ScopeType.COMPANY, ScopeType.BRANCH, ScopeType.WORKSTATION})),
+    SettingSpec("customer_display.welcome_message", "customer_display", "Pantalla del cliente",
+                "Mensaje de bienvenida", ValueType.STRING, "Bienvenido",
+                allowed_scopes=frozenset({_G, ScopeType.COMPANY, ScopeType.BRANCH, ScopeType.WORKSTATION})),
+    SettingSpec("sales.scale_stale_seconds", "sales", "Báscula", "Vigencia de lectura (segundos)",
+                ValueType.DECIMAL, Decimal("3"), validation_schema={"min": 1, "max": 30},
+                allowed_scopes=frozenset({_G, ScopeType.BRANCH, ScopeType.DEVICE})),
     # ── Fidelidad: programa de puntos ────────────────────────────────────
     SettingSpec(
         "loyalty.pesos_per_point", "loyalty", "Programa de puntos", "Pesos por punto",

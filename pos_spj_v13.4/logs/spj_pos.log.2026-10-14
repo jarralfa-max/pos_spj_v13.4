@@ -1,0 +1,66 @@
+2026-10-14 13:41:26,454 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-10-14 16:27:07,399 SPJ.Boot INFO =======================================================
+2026-10-14 16:27:07,399 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-14 16:27:07,400 SPJ.Boot INFO =======================================================
+2026-10-14 16:27:14,226 spj.migrations.335 INFO 335: historial salarial 0, días de cobertura 0, solapes previos 0
+2026-10-14 16:27:14,229 spj.migrations INFO Migración 335 ejecutada.
+2026-10-14 16:27:14,288 spj.migrations.336 INFO 336: 103 permisos de RR. HH. concedidos; roles omitidos: ninguno
+2026-10-14 16:27:14,301 spj.migrations INFO Migración 336 ejecutada.
+2026-10-14 16:27:14,306 spj.migrations INFO Migraciones completadas: 2 ejecutadas.
+2026-10-14 16:27:14,854 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-14 16:27:14,854 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-14 16:27:16,003 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-14 16:27:16,905 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-14 16:27:17,157 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-14 16:27:17,158 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-14 16:27:17,158 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-14 16:27:17,160 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-14 16:27:17,161 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-14 16:27:17,161 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-14 16:27:17,162 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-14 16:27:17,162 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 9 subscriptions
+2026-10-14 16:27:17,162 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-14 16:27:17,163 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-14 16:27:56,226 spj.finance.bootstrap INFO Finance: cuenta 1145 agregada al catálogo existente
+2026-10-14 16:28:00,225 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-14 17:22:48,315 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-10-14 17:38:11,054 SPJ.Boot INFO =======================================================
+2026-10-14 17:38:11,055 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-14 17:38:11,055 SPJ.Boot INFO =======================================================
+2026-10-14 17:38:13,146 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-10-14 17:38:14,207 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-14 17:38:14,216 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-14 17:38:18,732 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-14 17:38:19,503 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-14 17:38:19,740 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-14 17:38:19,741 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-14 17:38:19,741 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-14 17:38:19,741 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-14 17:38:19,741 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-14 17:38:19,742 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-14 17:38:19,742 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-14 17:38:19,742 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 9 subscriptions
+2026-10-14 17:38:19,742 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-14 17:38:19,743 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-14 17:39:01,475 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-14 17:48:02,732 SPJ.Boot INFO Sesión iniciada: Juana Rodriguez en Corregidora.
+2026-10-14 17:49:07,170 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-10-14 17:52:39,715 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\finance\pages\general_ledger_page.py", line 25, in <lambda>
+    self._account_combo.currentIndexChanged.connect(lambda _i: self._load_lines())
+                                                               ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\finance\pages\general_ledger_page.py", line 40, in _load_lines
+    self.set_table(self._presenter.general_ledger(account_id))
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\worklist_page.py", line 212, in set_table
+    self._table.load_rows(model.rows, row_ids=model.row_ids)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\components\tables.py", line 197, in load_rows
+    raise ValueError("row_ids must contain one identity per row")
+ValueError: row_ids must contain one identity per row
+
+2026-10-14 18:01:50,842 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-14 18:11:47,564 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-10-14 18:15:18,793 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-10-14 18:18:19,458 SPJ.Boot INFO Sistema cerrado. Código: 0

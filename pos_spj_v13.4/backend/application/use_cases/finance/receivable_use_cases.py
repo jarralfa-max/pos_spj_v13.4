@@ -188,6 +188,42 @@ class RegisterSaleCreditChargeUseCase:
             return receivable
 
 
+class VoidSaleCreditChargeUseCase:
+    """Anula el cargo a crédito de UN pago de una venta que todavía no se cierra
+    (auditoría de Ventas V02, decisión del usuario "compensar y avisar").
+
+    Antes, cancelar una venta con un pago a crédito ya registrado dejaba la
+    deuda viva en CxC. El cargo se retira con la identidad del pago (el mismo
+    ``operation_id`` con que nació) y queda un renglón negativo en
+    ``receivable_charges`` como rastro. Idempotente. No hay asiento que revertir:
+    el asiento de la venta a crédito lo hace Ventas al completar la venta.
+    """
+
+    def execute(self, connection, *, sale_id: str, payment_id: str,
+                owns_transaction: bool = True) -> Receivable | None:
+        charge_operation = f"{sale_id}:{payment_id}:credit-charge"
+        void_operation = f"{charge_operation}-void"
+        with FinanceUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
+            charge = uow.receivable_charges.find_by_operation_id(charge_operation)
+            if charge is None:
+                return None            # ese pago nunca cargó deuda
+            receivable = uow.receivables.get(charge["receivable_id"])
+            if uow.receivable_charges.find_by_operation_id(void_operation) is not None:
+                return receivable      # reintento
+            money = Money.from_string(charge["amount"], charge["currency_code"])
+            receivable.remove_charge(money)
+            uow.receivables.update(receivable)
+            document = uow.financial_documents.get(receivable.financial_document_id)
+            if document is not None:
+                document.decrease_total(money)
+                uow.financial_documents.update(document)
+            uow.receivable_charges.add(
+                receivable_id=receivable.id, amount=f"-{money.to_string()}",
+                currency_code=money.currency_code, source_module="sales",
+                source_reference=payment_id, operation_id=void_operation)
+            return receivable
+
+
 class RegisterCollectionUseCase:
     """Registers a customer payment: updates CxC and posts Dr treasury / Cr CxC."""
 

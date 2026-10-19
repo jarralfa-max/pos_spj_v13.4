@@ -155,7 +155,17 @@ def test_a_locked_user_is_reported_as_locked(conn):
 
 
 # ── la pantalla, entera ─────────────────────────────────────────────────────
-def test_the_usuarios_roles_page_opens(conn):
+@pytest.fixture(scope="module")
+def qt_app():
+    """La QApplication se CONSERVA mientras corre el módulo. Creada dentro de la
+    prueba sin guardarla (`QApplication.instance() or QApplication([])`) se
+    recolectaba al instante y el primer widget tumbaba el proceso de pytest sin
+    mensaje (2026-10-16)."""
+    from PyQt5.QtWidgets import QApplication
+    return QApplication.instance() or QApplication([])
+
+
+def test_the_usuarios_roles_page_opens(conn, qt_app):
     """La comprobación que habría cazado el fallo, y la que no existía.
 
     Las de arriba fijan el contrato del servicio; ésta construye la PANTALLA por
@@ -164,14 +174,11 @@ def test_the_usuarios_roles_page_opens(conn):
     página llama a `_reload_roles()` desde su `__init__`, así que el fallo
     ocurría antes de que nadie pudiera interactuar con ella.
     """
-    from PyQt5.QtWidgets import QApplication
-
     from frontend.desktop.modules.configuracion.configuracion_presenter import (
         ConfiguracionPresenter,
     )
     from frontend.desktop.modules.configuracion.configuracion_routes import build_page
 
-    QApplication.instance() or QApplication([])
     _rol(conn)
     _usuario(conn)
 

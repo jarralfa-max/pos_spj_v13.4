@@ -68,7 +68,8 @@ def test_all_single_column_text_pk_are_not_null():
     )
 
 
-@pytest.mark.parametrize("tabla", ["productos", "ventas", "clientes", "sucursales"])
+# `productos` (legacy) se borró en PROD-22; el maestro vivo es `products`.
+@pytest.mark.parametrize("tabla", ["products", "ventas", "clientes", "sucursales"])
 def test_insert_null_id_is_rejected_smoke(tabla):
     """Humo: insertar un id NULL explícito es rechazado por la constraint."""
     conn = _active_schema()

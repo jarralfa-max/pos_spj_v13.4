@@ -19,7 +19,7 @@ class CashShiftRow:
     cashier_user_id: str
     cashier_name: str
     status: str
-    opening_amount: Decimal
+    opening_amount: Decimal | None
     expected_cash: Decimal | None
     opened_at: str
 
@@ -88,17 +88,28 @@ class CashShiftQueryService:
                LIMIT ?""",
             (branch_id, safe_limit),
         )
-        rows = tuple(self._row_from_record(row) for row in cursor.fetchall())
+        from backend.application.cash_register.amount_visibility import CashAmountVisibility
+        visibility = CashAmountVisibility(self._connection, self._authorization)
+        rows = tuple(self._row_from_record(row, visibility, requester_user_id, branch_id)
+                     for row in cursor.fetchall())
         active_count = sum(1 for row in rows if row.status in {"OPEN", "SUSPENDED", "CLOSING"})
         return CashShiftList(active_count=active_count, rows=rows)
 
-    def _row_from_record(self, row) -> CashShiftRow:
+    def _row_from_record(self, row, visibility=None, requester_user_id: str = "",
+                         branch_id: str = "") -> CashShiftRow:
+        """Auditoría CJA-01: los importes de cada turno siguen la regla única de
+        `CashAmountVisibility` (arqueo abierto, turno propio, importes
+        sensibles); el fondo inicial de un turno ajeno también es sensible."""
         shift_id = str(row[0])
-        expected_cash = (
-            None
-            if shift_has_open_blind_count(self._connection, shift_id)
-            else Decimal(str(row[8] or "0"))
-        )
+        if visibility is None:
+            visible = not shift_has_open_blind_count(self._connection, shift_id)
+            opening_visible = True
+        else:
+            visible = visibility.shift_amounts_visible(
+                shift_id=shift_id, cashier_user_id=str(row[4] or ""),
+                requester_user_id=requester_user_id, branch_id=branch_id)
+            opening_visible = visible or str(row[4] or "") == requester_user_id
+        expected_cash = Decimal(str(row[8] or "0")) if visible else None
         return CashShiftRow(
             id=shift_id,
             register_name=str(row[1] or ""),
@@ -107,7 +118,7 @@ class CashShiftQueryService:
             cashier_user_id=str(row[4] or ""),
             cashier_name=str(row[5] or ""),
             status=str(row[6] or ""),
-            opening_amount=Decimal(str(row[7] or "0")),
+            opening_amount=Decimal(str(row[7] or "0")) if opening_visible else None,
             expected_cash=expected_cash,
             opened_at=str(row[9] or ""),
         )

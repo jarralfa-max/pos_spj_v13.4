@@ -245,7 +245,9 @@ def create_enterprise_purchasing_view(container, parent=None):
         "create": DirectPurchaseCreateView(direct_presenter),
         "history": DirectPurchaseHistoryView(direct_presenter),
     }
-    return EnterprisePurchasingView(presenter, parent, direct_purchase_views=direct_views)
+    return EnterprisePurchasingView(
+        presenter, parent, direct_purchase_views=direct_views,
+        direct_purchase_factory=lambda: DirectPurchaseCreateView(direct_presenter))
 
 
 def _returns_reads(connection):

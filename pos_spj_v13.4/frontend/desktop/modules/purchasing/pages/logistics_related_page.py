@@ -12,8 +12,8 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QHBoxLayout, QLabel, QSplitter, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
-    ColumnSpec, PageHeader, SearchInput, SectionCard, StandardCheckBox, StandardLineEdit,
-    StandardTable, Tabs, create_primary_button, create_secondary_button,
+    ColumnSpec, PageHeader, SearchInput, SearchOption, SearchSelector, SectionCard,
+    StandardCheckBox, StandardLineEdit, StandardTable, Tabs, create_primary_button, create_secondary_button,
     create_success_button,
 )
 from frontend.desktop.components.icons import Icons
@@ -56,10 +56,15 @@ DOCUMENT_STATUS_ES = {
 class LogisticsRelatedPage(QWidget):
     """Choose commercial context, create/open a shipment, load, dispatch and receive."""
 
-    def __init__(self, presenter, parent=None, *, capabilities=None) -> None:
+    def __init__(self, presenter, parent=None, *, capabilities=None,
+                 direct_purchase_factory=None) -> None:
         super().__init__(parent)
         self.setObjectName("originPurchaseWorkspacePage")
         self._presenter = presenter
+        #: () -> DirectPurchaseCreateView: «Nueva recolección» sin orden de compra
+        #: (integración Logística 32cfbf). La compra se captura y confirma por el
+        #: caso de uso de Compras; nunca se fabrica una OC para el formulario.
+        self._direct_purchase_factory = direct_purchase_factory
         self._capabilities = capabilities
         self._documents = []
         self._detail = None
@@ -97,26 +102,68 @@ class LogisticsRelatedPage(QWidget):
         self._open.clicked.connect(self._create_or_open)
         self._open.setEnabled(False)
         card.body().addWidget(self._open)
+        self._new_pickup = create_secondary_button(
+            self, "Nueva recolección sin orden de compra")
+        self._new_pickup.setToolTip(
+            "Captura y confirma una compra directa con «Recolección en proveedor» y abre "
+            "su embarque.")
+        self._new_pickup.clicked.connect(self._start_direct_pickup)
+        self._new_pickup.setVisible(self._direct_purchase_factory is not None)
+        card.body().addWidget(self._new_pickup)
         return card
+
+    def _start_direct_pickup(self):
+        from frontend.desktop.components.dialogs import FormDialog
+        vista = self._direct_purchase_factory()
+        dialogo = FormDialog(self, title="Nueva recolección: compra directa", width=1100)
+        dialogo.content_layout().addWidget(vista)
+        confirmada = {}
+
+        def al_confirmar(purchase_id, mode):
+            confirmada.update(id=purchase_id, mode=mode)
+            dialogo.accept()
+
+        vista.purchase_confirmed.connect(al_confirmar)
+        vista.start_pickup()
+        dialogo.exec_()
+        if not confirmada:
+            return
+        if confirmada["mode"] != "SUPPLIER_PICKUP":
+            self._feedback(True, "La compra se confirmó con recepción inmediata: no requiere "
+                                 "recolección.")
+            return
+        self.reload()
+        documento = next((d for d in self._documents if d["id"] == confirmada["id"]), None)
+        if documento is None:
+            self._feedback(False, "La compra se confirmó, pero no aparece lista para cargar: "
+                                  "revisa su sucursal y estado en Compras → Historial.")
+            return
+        self._open_document(documento)
 
     def _build_workspace(self):
         card = SectionCard(title="Workspace de carga")
         self._summary = QLabel("Sin embarque seleccionado", self)
         self._summary.setWordWrap(True); card.body().addWidget(self._summary)
 
+        # Selector del catálogo (antes sólo se podía TECLEAR el código): busca
+        # por código o tipo, muestra si se puede cargar y acepta lo que teclea
+        # un lector de QR (Intro sin coincidencia = referencia escaneada).
+        self._container_ref = SearchSelector(
+            self, provider=self._container_options,
+            placeholder="Buscar contenedor por código o tipo, o escanear su QR",
+            keep_selection=True, collapse_when_empty=True)
+        self._container_ref.selected.connect(lambda _option: self._attach.setFocus())
+        self._container_ref.submitted.connect(self._attach_scanned)
+        card.body().addWidget(self._container_ref)
         containers = QHBoxLayout()
         self._register = create_secondary_button(self, "Registrar contenedor")
         self._register.clicked.connect(self._register_container)
-        self._container_ref = StandardLineEdit(self)
-        self._container_ref.setPlaceholderText("Código o QR del contenedor")
-        self._container_ref.returnPressed.connect(self._attach_container)
         self._inside = StandardCheckBox("Dentro del seleccionado", self)
         self._attach = create_secondary_button(self, "Agregar al embarque")
         self._attach.clicked.connect(self._attach_container)
         self._load = create_primary_button(self, "Cargar línea")
         self._load.clicked.connect(self._load_line)
-        for widget in (self._register, self._container_ref, self._inside, self._attach,
-                       self._load):
+        for widget in (self._register, self._inside, self._attach, self._load):
             containers.addWidget(widget)
         card.body().addLayout(containers)
 
@@ -217,6 +264,9 @@ class LogisticsRelatedPage(QWidget):
     def _create_or_open(self):
         document = self._selected_document()
         if document is None: return
+        self._open_document(document)
+
+    def _open_document(self, document):
         origin_id = None
         if not document.get("shipment_id") and not document.get("origin_supplier_address_id"):
             options = self._presenter.origin_supplier_options(document.get("supplier_id"))
@@ -242,8 +292,19 @@ class LogisticsRelatedPage(QWidget):
             self._render_detail(detail)
 
     # ── contenedores ──────────────────────────────────────────────────────────
+    def _container_options(self, query: str):
+        if not self._detail:
+            return []
+        return [SearchOption(
+            id=f["id"], label=f["code"],
+            subtitle=f"{f['type_name']} · " + ("se puede cargar" if f["loadable"]
+                                               else f["not_loadable_reason"]))
+            for f in self._presenter.origin_container_options(query)]
+
     def _register_container(self):
-        dialog = ContainerRegisterDialog(self, type_options=self._presenter.origin_container_types())
+        dialog = ContainerRegisterDialog(
+            self, type_options=self._presenter.origin_container_types(),
+            code_preview=self._presenter.origin_next_code_preview)
         if not dialog.exec_():
             return
         type_id = None
@@ -254,22 +315,38 @@ class LogisticsRelatedPage(QWidget):
                 self._feedback(False, message); return
             type_id = data.get("id")
         values = dialog.container_values(type_id)
-        ok, message, _data = self._presenter.origin_register_container(**values)
-        self._feedback(ok, f"Contenedor {values['code'].upper()} registrado." if ok else message)
-        if ok:
-            self._container_ref.setText(values["code"].upper())
+        ok, message, data = self._presenter.origin_register_container(**values)
+        if not ok:
+            self._feedback(False, message); return
+        codigos = data.get("codes") or [data.get("code", "")]
+        self._feedback(True, (f"Contenedor {codigos[0]} registrado." if len(codigos) == 1 else
+                              f"{len(codigos)} contenedores registrados: {codigos[0]} a "
+                              f"{codigos[-1]}.") + " Imprime sus etiquetas en Logística → "
+                                                   "Contenedores.")
+        self._container_ref.set_picked(SearchOption(id=data.get("container_id", ""),
+                                                    label=codigos[0]))
+
+    def _attach_scanned(self, reference: str):
+        self._attach_reference(reference)
 
     def _attach_container(self):
+        option = self._container_ref.picked_option()
+        self._attach_reference(option.label if option else self._container_ref.text())
+
+    def _attach_reference(self, reference: str):
         if not self._detail: return
-        reference = self._container_ref.text().strip()
+        reference = (reference or "").strip()
         if not reference:
-            self._feedback(False, "Captura o escanea el código del contenedor."); return
+            self._feedback(False, "Elige un contenedor de la lista o escanea su QR."); return
         parent = self._tree.selected_row_id() if self._inside.isChecked() else None
         ok, message, detail = self._presenter.origin_attach_container(
             self._detail["id"], reference, parent)
-        self._after(ok, message, detail, f"Contenedor {reference.upper()} agregado.")
+        escaneado = "/" in reference or len(reference) > 40
+        self._after(ok, message, detail, "Contenedor escaneado agregado." if escaneado
+                    else f"Contenedor {reference.upper()} agregado.")
         if ok:
             self._container_ref.clear()
+            self._container_ref.focus_search()     # listo para el siguiente escaneo
 
     def _load_line(self):
         if not self._detail: return

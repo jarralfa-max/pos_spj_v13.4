@@ -189,6 +189,10 @@ class ProcessingRecipeSnapshot:
     quality_constraints: dict = field(default_factory=dict)
     substitutions: tuple[str, ...] = ()
     effective_version: str = ""
+    #: Incongruencias entre definiciones de Productos que impiden congelar
+    #: (p. ej. esquema de corte que contradice al perfil de rendimiento). No se
+    #: persiste: una foto con problemas nunca llega a congelarse.
+    definition_problems: tuple[str, ...] = ()
     # ── sello (sólo al congelar) ────────────────────────────────────────
     id: str | None = None
     processing_order_id: str | None = None

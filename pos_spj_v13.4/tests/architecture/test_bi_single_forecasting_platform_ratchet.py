@@ -75,16 +75,8 @@ def _current_engine_classes() -> set[str]:
 # Frozen at BI-1 (2026-09-04) — see BI-0 audit's forecast parity matrix.
 # SÓLO puede reducirse: cuando el motor se retire (BI-32) tras existir el
 # reemplazo canónico con paridad de tests, se borra de aquí.
-_ALLOWLIST: frozenset[str] = frozenset({
-    "core/services/forecast_engine.py::ForecastEngine",
-    "core/services/forecast_service.py::ForecastService",
-    "core/services/actionable_forecast.py::ActionableForecastService",
-    "core/forecast/demand_forecast_engine.py::DemandForecastEngine",
-    "core/forecast/seasonality_detector.py::SeasonalityDetector",
-    "core/forecast/replenishment_engine.py::ReplenishmentEngine",
-    "core/forecast/safety_stock_calculator.py::SafetyStockCalculator",
-    "core/services/enterprise/demand_forecasting.py::DemandForecastingEngine",
-})
+# 2026-10-16: los 8 motores legacy se retiraron con `core/`; la lista queda vacía.
+_ALLOWLIST: frozenset[str] = frozenset()
 
 
 def test_no_new_forecast_engine_was_added_outside_the_frozen_allowlist():

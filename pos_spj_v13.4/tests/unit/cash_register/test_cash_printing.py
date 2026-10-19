@@ -167,10 +167,12 @@ class CashPrintingTests(unittest.TestCase):
         artifact = renderer.render(sample_document())
         self.assertTrue(artifact.content.startswith(INIT))
         self.assertTrue(artifact.content.endswith(CUT_PARTIAL))
-        text = artifact.content.decode("cp850", errors="replace")
-        self.assertNotIn("ñ", text)
-        self.assertIn("Corte Z".upper(), text)
         preview = renderer.render_text_preview(sample_document())
+        self.assertNotIn("ñ", preview)
+        self.assertIn("Corte Z".upper(), preview)
+        # Auditoría CJA-05: el código va como símbolo rasterizado, no `BARCODE:`.
+        self.assertNotIn(b"BARCODE:", artifact.content)
+        self.assertNotIn(b"QR:", artifact.content)
         self.assertLessEqual(max(len(line) for line in preview.splitlines()), 32)
 
     def test_all_required_cash_24_documents_render_to_html_and_escpos(self):
@@ -228,7 +230,9 @@ class CashPrintingTests(unittest.TestCase):
         self.assertEqual(store.printed[0][0], ok.print_id)
         self.assertEqual(store.failed[0][0], fail.print_id)
         self.assertIn("offline", store.failed[0][2])
-        self.assertEqual(auth.calls[0]["permission_code"], "CAJA.imprimir")
+        # Auditoría CJA-06: entregar trabajos ya autorizados sólo pide acceso a
+        # Caja; el permiso del documento se exigió al crear cada trabajo.
+        self.assertEqual(auth.calls[0]["permission_code"], "CAJA.ver")
 
 
 if __name__ == "__main__":

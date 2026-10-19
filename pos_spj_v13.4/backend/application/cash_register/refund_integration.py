@@ -74,7 +74,8 @@ class CashRefundIntegrationService:
     def process(self, connection, *, refund_id: str, sale_id: str,
                 branch_id: str, cashier_user_id: str, authorized_by: str,
                 operation_id: str, original_payment_lines: object,
-                refund_lines: object, reason: str) -> CashRefundResult:
+                refund_lines: object, reason: str,
+                owns_transaction: bool = True) -> CashRefundResult:
         self._auth.require(user_id=cashier_user_id,
                            permission_code=CashPermissions.REFUND_REQUEST,
                            branch_id=branch_id)
@@ -94,7 +95,7 @@ class CashRefundIntegrationService:
                     f"El reembolso excede el pago original para {settlement_type}")
         cash_amount = requested.get("CASH", Decimal("0"))
         self._limit.require_operable(cash_amount)
-        with CashRegisterUnitOfWork(connection) as uow:
+        with CashRegisterUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
             prior = uow.idempotency.get(operation_id)
             if prior:
                 data = json.loads(prior["result_json"])

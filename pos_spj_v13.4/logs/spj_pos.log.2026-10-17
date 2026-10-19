@@ -1,0 +1,213 @@
+2026-10-17 07:50:26,444 SPJ.Boot INFO =======================================================
+2026-10-17 07:50:26,449 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-17 07:50:26,463 SPJ.Boot INFO =======================================================
+2026-10-17 07:50:29,438 SPJ.Boot INFO Ubicación de la base: NOT_APPLICABLE — Ruta de base fija (código fuente o SPJ_DB_PATH).
+2026-10-17 07:50:30,778 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-10-17 07:50:31,626 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-17 07:50:31,628 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-17 07:50:32,932 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-17 07:50:33,468 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-17 07:50:33,701 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-17 07:50:33,701 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-17 07:50:33,702 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-17 07:50:33,702 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-17 07:50:33,702 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-17 07:50:33,702 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-17 07:50:33,703 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-17 07:50:33,703 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 9 subscriptions
+2026-10-17 07:50:33,703 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-17 07:50:33,704 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-17 07:51:12,826 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-17 08:07:15,698 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-10-17 12:04:45,980 SPJ.Boot INFO =======================================================
+2026-10-17 12:04:46,000 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-17 12:04:46,016 SPJ.Boot INFO =======================================================
+2026-10-17 12:04:49,386 SPJ.Boot INFO Ubicación de la base: NOT_APPLICABLE — Ruta de base fija (código fuente o SPJ_DB_PATH).
+2026-10-17 12:04:50,808 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-10-17 12:04:51,280 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-17 12:04:51,378 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-17 12:04:52,879 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-17 12:04:53,363 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-17 12:04:53,580 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-17 12:04:53,581 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-17 12:04:53,581 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-17 12:04:53,584 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-17 12:04:53,597 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-17 12:04:53,599 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-17 12:04:53,600 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-17 12:04:53,601 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 9 subscriptions
+2026-10-17 12:04:53,611 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-17 12:04:53,612 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-17 12:05:33,841 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-17 12:09:31,469 spj.settings.reader WARNING Definición customer_display.enabled sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,471 spj.settings.reader WARNING Definición customer_display.fullscreen sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,472 spj.settings.reader WARNING Definición customer_display.show_items sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,473 spj.settings.reader WARNING Definición customer_display.show_unit_price sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,474 spj.settings.reader WARNING Definición customer_display.show_discounts sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,475 spj.settings.reader WARNING Definición customer_display.show_tax sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,476 spj.settings.reader WARNING Definición customer_display.show_points sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,477 spj.settings.reader WARNING Definición customer_display.show_scale sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,478 spj.settings.reader WARNING Definición customer_display.show_change sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,479 spj.settings.reader WARNING Definición customer_display.ads_during_sale sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,480 spj.settings.reader WARNING Definición customer_display.screen_name sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,481 spj.settings.reader WARNING Definición customer_display.thank_you_seconds sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,484 spj.settings.reader WARNING Definición customer_display.thank_you_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,487 spj.settings.reader WARNING Definición customer_display.welcome_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,513 spj.settings.reader WARNING Definición customer_display.enabled sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,562 spj.settings.reader WARNING Definición customer_display.fullscreen sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,562 spj.settings.reader WARNING Definición customer_display.show_items sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,563 spj.settings.reader WARNING Definición customer_display.show_unit_price sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,563 spj.settings.reader WARNING Definición customer_display.show_discounts sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,564 spj.settings.reader WARNING Definición customer_display.show_tax sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,564 spj.settings.reader WARNING Definición customer_display.show_points sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,564 spj.settings.reader WARNING Definición customer_display.show_scale sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,565 spj.settings.reader WARNING Definición customer_display.show_change sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,565 spj.settings.reader WARNING Definición customer_display.ads_during_sale sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,565 spj.settings.reader WARNING Definición customer_display.screen_name sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,566 spj.settings.reader WARNING Definición customer_display.thank_you_seconds sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,566 spj.settings.reader WARNING Definición customer_display.thank_you_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:09:31,567 spj.settings.reader WARNING Definición customer_display.welcome_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,855 spj.settings.reader WARNING Definición customer_display.enabled sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,855 spj.settings.reader WARNING Definición customer_display.fullscreen sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,855 spj.settings.reader WARNING Definición customer_display.show_items sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,856 spj.settings.reader WARNING Definición customer_display.show_unit_price sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,856 spj.settings.reader WARNING Definición customer_display.show_discounts sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,856 spj.settings.reader WARNING Definición customer_display.show_tax sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,857 spj.settings.reader WARNING Definición customer_display.show_points sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,857 spj.settings.reader WARNING Definición customer_display.show_scale sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,857 spj.settings.reader WARNING Definición customer_display.show_change sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,857 spj.settings.reader WARNING Definición customer_display.ads_during_sale sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,858 spj.settings.reader WARNING Definición customer_display.screen_name sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,858 spj.settings.reader WARNING Definición customer_display.thank_you_seconds sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,858 spj.settings.reader WARNING Definición customer_display.thank_you_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:11:21,858 spj.settings.reader WARNING Definición customer_display.welcome_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,217 spj.settings.reader WARNING Definición customer_display.enabled sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,218 spj.settings.reader WARNING Definición customer_display.fullscreen sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,218 spj.settings.reader WARNING Definición customer_display.show_items sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,218 spj.settings.reader WARNING Definición customer_display.show_unit_price sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,219 spj.settings.reader WARNING Definición customer_display.show_discounts sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,219 spj.settings.reader WARNING Definición customer_display.show_tax sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,219 spj.settings.reader WARNING Definición customer_display.show_points sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,219 spj.settings.reader WARNING Definición customer_display.show_scale sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,220 spj.settings.reader WARNING Definición customer_display.show_change sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,220 spj.settings.reader WARNING Definición customer_display.ads_during_sale sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,220 spj.settings.reader WARNING Definición customer_display.screen_name sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,220 spj.settings.reader WARNING Definición customer_display.thank_you_seconds sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,221 spj.settings.reader WARNING Definición customer_display.thank_you_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:12:34,221 spj.settings.reader WARNING Definición customer_display.welcome_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,724 spj.settings.reader WARNING Definición customer_display.enabled sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,729 spj.settings.reader WARNING Definición customer_display.fullscreen sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,730 spj.settings.reader WARNING Definición customer_display.show_items sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,730 spj.settings.reader WARNING Definición customer_display.show_unit_price sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,730 spj.settings.reader WARNING Definición customer_display.show_discounts sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,731 spj.settings.reader WARNING Definición customer_display.show_tax sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,731 spj.settings.reader WARNING Definición customer_display.show_points sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,732 spj.settings.reader WARNING Definición customer_display.show_scale sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,733 spj.settings.reader WARNING Definición customer_display.show_change sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,734 spj.settings.reader WARNING Definición customer_display.ads_during_sale sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,734 spj.settings.reader WARNING Definición customer_display.screen_name sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,734 spj.settings.reader WARNING Definición customer_display.thank_you_seconds sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,737 spj.settings.reader WARNING Definición customer_display.thank_you_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:13:02,742 spj.settings.reader WARNING Definición customer_display.welcome_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,512 spj.settings.reader WARNING Definición customer_display.enabled sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,512 spj.settings.reader WARNING Definición customer_display.fullscreen sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,513 spj.settings.reader WARNING Definición customer_display.show_items sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,513 spj.settings.reader WARNING Definición customer_display.show_unit_price sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,513 spj.settings.reader WARNING Definición customer_display.show_discounts sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,513 spj.settings.reader WARNING Definición customer_display.show_tax sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,514 spj.settings.reader WARNING Definición customer_display.show_points sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,514 spj.settings.reader WARNING Definición customer_display.show_scale sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,514 spj.settings.reader WARNING Definición customer_display.show_change sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,514 spj.settings.reader WARNING Definición customer_display.ads_during_sale sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,515 spj.settings.reader WARNING Definición customer_display.screen_name sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,515 spj.settings.reader WARNING Definición customer_display.thank_you_seconds sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,515 spj.settings.reader WARNING Definición customer_display.thank_you_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:08,515 spj.settings.reader WARNING Definición customer_display.welcome_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,428 spj.settings.reader WARNING Definición customer_display.enabled sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,429 spj.settings.reader WARNING Definición customer_display.fullscreen sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,429 spj.settings.reader WARNING Definición customer_display.show_items sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,429 spj.settings.reader WARNING Definición customer_display.show_unit_price sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,430 spj.settings.reader WARNING Definición customer_display.show_discounts sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,430 spj.settings.reader WARNING Definición customer_display.show_tax sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,430 spj.settings.reader WARNING Definición customer_display.show_points sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,430 spj.settings.reader WARNING Definición customer_display.show_scale sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,431 spj.settings.reader WARNING Definición customer_display.show_change sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,431 spj.settings.reader WARNING Definición customer_display.ads_during_sale sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,432 spj.settings.reader WARNING Definición customer_display.screen_name sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,432 spj.settings.reader WARNING Definición customer_display.thank_you_seconds sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,433 spj.settings.reader WARNING Definición customer_display.thank_you_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:19,433 spj.settings.reader WARNING Definición customer_display.welcome_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,788 spj.settings.reader WARNING Definición customer_display.enabled sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,789 spj.settings.reader WARNING Definición customer_display.fullscreen sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,789 spj.settings.reader WARNING Definición customer_display.show_items sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,789 spj.settings.reader WARNING Definición customer_display.show_unit_price sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,790 spj.settings.reader WARNING Definición customer_display.show_discounts sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,790 spj.settings.reader WARNING Definición customer_display.show_tax sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,790 spj.settings.reader WARNING Definición customer_display.show_points sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,790 spj.settings.reader WARNING Definición customer_display.show_scale sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,791 spj.settings.reader WARNING Definición customer_display.show_change sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,791 spj.settings.reader WARNING Definición customer_display.ads_during_sale sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,791 spj.settings.reader WARNING Definición customer_display.screen_name sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,791 spj.settings.reader WARNING Definición customer_display.thank_you_seconds sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,792 spj.settings.reader WARNING Definición customer_display.thank_you_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:14:44,792 spj.settings.reader WARNING Definición customer_display.welcome_message sin sincronizar; rige el valor de omisión
+2026-10-17 12:21:59,149 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-10-17 12:32:20,001 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-10-17 12:39:47,202 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-10-17 12:42:15,358 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-10-17 12:44:23,203 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-10-17 19:17:02,027 SPJ.Boot INFO =======================================================
+2026-10-17 19:17:02,029 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-17 19:17:02,029 SPJ.Boot INFO =======================================================
+2026-10-17 19:17:09,131 SPJ.Boot INFO Ubicación de la base: NOT_APPLICABLE — Ruta de base fija (código fuente o SPJ_DB_PATH).
+2026-10-17 19:17:09,762 spj.migrations INFO Migración 344 ejecutada.
+2026-10-17 19:17:09,763 spj.migrations INFO Migraciones completadas: 1 ejecutadas.
+2026-10-17 19:17:13,237 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-17 19:17:13,238 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-17 19:17:15,162 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-17 19:17:16,082 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-17 19:17:16,507 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-17 19:17:16,508 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-17 19:17:16,508 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-17 19:17:16,508 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-17 19:17:16,509 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-17 19:17:16,509 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-17 19:17:16,509 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-17 19:17:16,510 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 9 subscriptions
+2026-10-17 19:17:16,510 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-17 19:17:16,510 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-17 19:19:36,640 spj.finance.bootstrap INFO Finance bootstrap: chart already seeded; skipping
+2026-10-17 19:19:38,325 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-17 19:36:59,209 backend.infrastructure.integrations.sales_print_job_client INFO Sin ruta de impresión configurada para SALE_TICKET (venta 01a13ceb-a562-7b5d-8226-00cf6c6545be): No hay PrintRoute activa para document_type='SALE_TICKET' en este contexto
+2026-10-17 19:40:29,356 spj.configuracion.presenter ERROR ConfiguracionPresenter.create_next_template_version failed
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\modules\configuracion\configuracion_presenter.py", line 1342, in create_next_template_version
+    version = self._create_next_template_version_uc.execute(
+        version_id=version_id, content=content, created_by_user_id=self._actor(),
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\application\use_cases\configuracion\document_template_use_cases.py", line 131, in execute
+    self._versions.save(next_version)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\document_output\document_template_version_repository.py", line 20, in save
+    self._execute(
+    ~~~~~~~~~~~~~^
+        f"INSERT INTO document_template_versions ({_COLS})"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        self._params(version),
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\db\repositories\document_output\base.py", line 25, in _execute
+    self._conn.execute(sql, params)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.IntegrityError: UNIQUE constraint failed: document_template_versions.template_id, document_template_versions.version
+2026-10-17 19:44:34,499 SPJ.Boot INFO Sesión iniciada: Juana Rodriguez en Corregidora.
+2026-10-17 19:46:07,277 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-17 19:48:02,648 spj.security.system_integration INFO integración sales→loyalty: 01a0d664-e618-7659-ad9e-cdaad8f61247 pide GROWTH_ENGINE.puntos.acreditar → concedido
+2026-10-17 19:48:02,703 spj.security.system_integration INFO integración sales→loyalty: 01a0d664-e618-7659-ad9e-cdaad8f61247 pide GROWTH_ENGINE.puntos.acreditar → concedido
+2026-10-17 19:48:03,319 backend.infrastructure.integrations.sales_print_job_client INFO Sin ruta de impresión configurada para SALE_TICKET (venta 01a12952-c1b8-7841-bdd7-40ff968cbc68): No hay PrintRoute activa para document_type='SALE_TICKET' en este contexto
+2026-10-17 19:59:49,082 spj.security.system_integration INFO integración sales→loyalty: 01a0d664-e618-7659-ad9e-cdaad8f61247 pide GROWTH_ENGINE.puntos.acreditar → concedido
+2026-10-17 19:59:49,092 spj.security.system_integration INFO integración sales→loyalty: 01a0d664-e618-7659-ad9e-cdaad8f61247 pide GROWTH_ENGINE.puntos.acreditar → concedido
+2026-10-17 19:59:49,490 backend.infrastructure.integrations.sales_print_job_client INFO Sin ruta de impresión configurada para SALE_TICKET (venta 01a136d2-a729-7de6-9e27-f5eefeaf2e96): No hay PrintRoute activa para document_type='SALE_TICKET' en este contexto
+2026-10-17 20:03:20,390 SPJ.Boot INFO Sistema cerrado. Código: 0

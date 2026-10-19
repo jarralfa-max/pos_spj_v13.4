@@ -54,7 +54,7 @@ def _record_canonical_loss(conn):
     PostInventoryMovementUseCase().execute(conn, movement, actor_user_id="u1")
     classification_id, reason_id = conn.execute(
         "SELECT r.classification_id,r.id FROM loss_reasons r "
-        "JOIN loss_classifications c ON c.id=r.classification_id WHERE c.code='DAMAGE' LIMIT 1"
+        "JOIN loss_classifications c ON c.id=r.classification_id WHERE c.code='HANDLING_DAMAGE' LIMIT 1"
     ).fetchone()
     case_id = new_uuid()
     now = "2026-08-08T12:00:00+00:00"
@@ -97,7 +97,8 @@ class TestAnalytics:
     def test_waste_chart(self, seeded):
         branch_id = seeded.execute("SELECT branch_id FROM loss_cases LIMIT 1").fetchone()[0]
         dto = InventoryAnalyticsService(seeded).waste_by_type_chart(branch_id=branch_id)
-        assert "DAMAGE" in dto.categories and dto.series[0].semantic == "danger"
+        # El nombre de la clasificación, no su código interno.
+        assert "Daño por manipulación" in dto.categories and dto.series[0].semantic == "danger"
 
     def test_movements_chart(self, seeded):
         dto = InventoryAnalyticsService(seeded).movements_by_type_chart(branch_id="b1")

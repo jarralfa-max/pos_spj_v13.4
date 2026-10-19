@@ -56,6 +56,17 @@ class ReserveStockForSaleUseCase(ReserveStockForProductionUseCase):
     _REQUIRE_RELEASED = False
 
 
+class ReserveStockForTransferUseCase(ReserveStockForProductionUseCase):
+    """Reserva para una transferencia (integración Logística 32cfbf): mismo
+    mecanismo por lotes, origen TRANSFER y su propia estrategia configurable.
+    Como el mostrador, admite lotes en inspección; nunca bloqueados, en
+    cuarentena, rechazados o caducados."""
+    _SOURCE = ReservationSource.TRANSFER
+    _STRATEGY_SETTING = "transfer.allocation_strategy"
+    _PURPOSE = "transferencia"
+    _REQUIRE_RELEASED = False
+
+
 def plan_sale_issue(connection, *, product_id: str, branch_id: str, warehouse_id: str,
                     quantity: Decimal) -> tuple[list[LotAllocation], Decimal]:
     """Qué saldos cubren `quantity` (misma estrategia y elegibilidad que la

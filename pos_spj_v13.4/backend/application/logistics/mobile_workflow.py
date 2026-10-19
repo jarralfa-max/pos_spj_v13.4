@@ -85,12 +85,21 @@ class MobileOriginPurchaseWorkflow:
                             "lotControlled": bool(row[6]),
                             "expirationControlled": bool(row[7])} for row in rows]}
 
+    def _container(self, reference: str):
+        """Por el QR escaneado con la cámara o por el código impreso tecleado.
+        Se valida contra la firma GUARDADA: el secreto del servicio (otra cuenta
+        de Windows) no tiene por qué ser el del escritorio que emitió."""
+        try:
+            container = self._logistics.find_container(reference)
+        except Exception as exc:
+            raise ValueError("QR revocado o de otro contenedor") from exc
+        if container is None:
+            raise ValueError(f"No existe el contenedor {str(reference or '').strip()[:40]}")
+        return container
+
     def resolve_container(self, identity: MobileIdentity, token: str) -> dict:
         self._require(identity, LogisticsPermissions.CONTAINER_SCAN)
-        container_id, _ = self._qr.resolve(token)
-        container = self._repo.get_container(container_id)
-        if container is None or not self._qr.validate(token, container):
-            raise ValueError("QR revocado o contenedor inexistente")
+        container = self._container(token)
         ctype = self._repo.get_type(container.container_type_id)
         return {"containerId": container.id, "containerCode": container.container_code,
                 "typeName": ctype.name, "status": container.status.value,
@@ -143,7 +152,7 @@ class MobileOriginPurchaseWorkflow:
         self._check_version(identity, shipment_id, expected_version)
         self._logistics.attach_container(
             actor_user_id=identity.user_id, shipment_id=shipment_id,
-            container_id=self._qr.resolve(command["containerToken"])[0],
+            container_id=self._container(command["containerToken"]).id,
             operation_id=operation_id, parent_node_id=command.get("parentNodeId"),
             node_id=command["nodeId"])
         return self._shipment_result(self._shipment(identity, shipment_id))
@@ -281,6 +290,6 @@ class MobileOriginPurchaseWorkflow:
 
     @staticmethod
     def _require(identity, permission):
-        if permission not in identity.permissions:
+        if permission.upper() not in {str(p).upper() for p in identity.permissions}:
             from fastapi import HTTPException
             raise HTTPException(403, f"Permiso requerido: {permission}")

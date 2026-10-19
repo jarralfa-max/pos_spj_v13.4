@@ -77,6 +77,11 @@ _DEFAULT_SECTION_ORDER = (
     CustomerDisplaySectionCode.TOTAL,
     CustomerDisplaySectionCode.MESSAGE,
     CustomerDisplaySectionCode.LOGO,
+    CustomerDisplaySectionCode.TAX,
+    CustomerDisplaySectionCode.POINTS,
+    CustomerDisplaySectionCode.SCALE,
+    CustomerDisplaySectionCode.PAYMENT,
+    CustomerDisplaySectionCode.BRANDING,
 )
 _DISABLED_BY_DEFAULT = {CustomerDisplaySectionCode.LOGO}
 
@@ -90,23 +95,53 @@ class SalesCustomerDisplayClient:
     def push_sale_state(
         self, gateway: "CustomerDisplayGatewayPort", *, state: "CustomerDisplayStateDTO | None",
         branch_id: str | None = None,
+        preferences: dict | None = None,
+        workstation_id: str | None = None,
     ) -> None:
         mode = CustomerDisplayMode(state.screen) if state is not None else CustomerDisplayMode.IDLE
-        display = self._resolve_or_bootstrap_display(branch_id)
+        display = self._resolve_or_bootstrap_display(branch_id, workstation_id)
         layout = self._resolve_or_bootstrap_layout(mode)
 
         display.set_mode(mode)
         self._displays.save(display)
         self._connection.commit()
 
-        push_state(gateway, display=display, layout=layout, content=_build_content(state))
+        content = _build_content(state)
+        preferences = preferences or {}
+        for setting, code in (("show_items", "ITEMS"), ("show_discounts", "DISCOUNT"),
+                              ("show_tax", "TAX"), ("show_points", "POINTS"), ("show_scale", "SCALE")):
+            if preferences.get(setting) is False:
+                content.pop(code, None)
+        for line in content.get("ITEMS", []):
+            if preferences.get("show_unit_price") is False:
+                line.pop("unit_price", None)
+            if preferences.get("show_discounts") is False:
+                line.pop("discount_total", None)
+        if preferences.get("branding"):
+            content["BRANDING"] = preferences["branding"]
+        if mode == CustomerDisplayMode.THANK_YOU:
+            content["MESSAGE"] = preferences.get("thank_you_message", state.message)
+        elif mode == CustomerDisplayMode.IDLE and "welcome_message" in preferences:
+            content["MESSAGE"] = preferences.get("welcome_message", "")
+        push_state(gateway, display=display, layout=layout, content=content)
 
     # internals -----------------------------------------------------------------
-    def _resolve_or_bootstrap_display(self, branch_id: str | None) -> CustomerDisplay:
+    def _resolve_or_bootstrap_display(self, branch_id: str | None, workstation_id=None) -> CustomerDisplay:
+        if workstation_id:
+            workstation = SqliteWorkstationRepository(self._connection).get(workstation_id)
+            if (workstation is None or workstation.status.value != "ACTIVE"
+                    or workstation.branch_id != branch_id):
+                raise CustomerDisplayBootstrapError("La estación no está activa en la sucursal")
         active = self._displays.list_active()
+        if workstation_id:
+            active = [display for display in active if display.workstation_id == workstation_id]
+        if branch_id:
+            station_ids = {w.id for w in SqliteWorkstationRepository(self._connection).list_active()
+                           if w.branch_id == branch_id}
+            active = [display for display in active if display.workstation_id in station_ids]
         if active:
             return active[0]
-        workstation_id = self._resolve_or_bootstrap_workstation_id(branch_id)
+        workstation_id = workstation_id or self._resolve_or_bootstrap_workstation_id(branch_id)
         display = CustomerDisplay.create(workstation_id=workstation_id, name=_DEFAULT_DISPLAY_NAME)
         self._displays.save(display)
         self._connection.commit()
@@ -115,13 +150,15 @@ class SalesCustomerDisplayClient:
     def _resolve_or_bootstrap_workstation_id(self, branch_id: str | None) -> str:
         workstation_repo = SqliteWorkstationRepository(self._connection)
         workstations = workstation_repo.list_active()
+        if branch_id:
+            workstations = [station for station in workstations if station.branch_id == branch_id]
         if workstations:
             return workstations[0].id
         if not branch_id:
             raise CustomerDisplayBootstrapError(
                 "No hay Workstation activa y no se proporcionó branch_id para crear una.")
         workstation = Workstation.create(
-            branch_id=branch_id, code=f"POS-{new_uuid()[:8]}", name=_DEFAULT_WORKSTATION_NAME,
+            branch_id=branch_id, code=f"POS-{new_uuid()}", name=_DEFAULT_WORKSTATION_NAME,
             workstation_type=WorkstationType.POS,
         )
         workstation_repo.save(workstation)
@@ -151,6 +188,7 @@ def _build_content(state: "CustomerDisplayStateDTO | None") -> dict:
             {
                 "name": line.name, "quantity": str(line.quantity), "unit_price": str(line.unit_price),
                 "line_total": str(line.line_total),
+                "unit": line.unit, "discount_total": str(line.discount_total),
             }
             for line in state.lines
         ],
@@ -158,5 +196,9 @@ def _build_content(state: "CustomerDisplayStateDTO | None") -> dict:
         CustomerDisplaySectionCode.DISCOUNT.value: str(state.discount_total),
         CustomerDisplaySectionCode.TOTAL.value: str(state.total),
         CustomerDisplaySectionCode.MESSAGE.value: state.message,
+        CustomerDisplaySectionCode.TAX.value: str(state.tax_total),
+        CustomerDisplaySectionCode.POINTS.value: state.points_text,
+        CustomerDisplaySectionCode.SCALE.value: state.scale_text,
+        CustomerDisplaySectionCode.PAYMENT.value: state.payment_text,
     }
     return content

@@ -69,15 +69,16 @@ reservado, así que sigue a la explosión sin cambios. NO confundir con la
 reconstrucción inversa de abajo, que es la dirección OPUESTA (parte → base) y
 sale del esquema de corte.
 
-RECONSTRUCCIÓN INVERSA (§15-19, Fase 7) — `_top_up_via_reconstruction_if_short`.
-Cuando el stock directo de un producto no alcanza para la línea pero tiene una
-receta DISASSEMBLY/CUTTING_YIELD marcada `reverse_reconstruction_allowed`
-(§16), se reconstruye el faltante desde sus partes (`ReconstructBaseProductUseCase`)
-ANTES del intento de reserva normal de abajo — que queda sin cambios, porque ya
-hay stock físico real cuando corre. Best-effort silencioso: si no aplica o las
-partes tampoco alcanzan, la reserva normal falla sola con su propio mensaje
-claro de "sin disponibilidad", nunca una segunda forma de bloquear o arreglar
-una venta en silencio.
+PRODUCTO BASE DESDE SUS PARTES = COMPOSICIÓN VIRTUAL (decisión del usuario,
+integración Logística 32cfbf, 2026-10-16). Cuando el stock directo de un producto
+no alcanza y tiene un despiece reversible activo, el FALTANTE se surte con sus
+partes (sin la merma): se reservan, salen y se cobran las partes. Ya NO se
+fabrica un «pollo entero» en existencia que nadie armó (antes
+`ReconstructBaseProductUseCase` consumía las partes y producía el entero en dos
+pasos no atómicos al reservar, y si la venta se cancelaba el entero quedaba en
+existencia). Un kit físicamente armado se hace en Producción, con su lote.
+La disponibilidad incluye lo que la propia venta ya retiene, para que
+`covers()` vea la misma composición antes y después de reservar.
 """
 
 from __future__ import annotations
@@ -88,9 +89,6 @@ from decimal import Decimal
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
 from backend.application.inventory.queries.availability_query_service import (
     InventoryAvailabilityQueryService,
-)
-from backend.application.inventory.use_cases.reconstruction_use_cases import (
-    ReconstructBaseProductUseCase,
 )
 from backend.application.inventory.use_cases.reservation_use_cases import (
     ExpireReservationsUseCase,
@@ -188,14 +186,13 @@ class SalesInventoryClient:
         use_case = ReserveStockForSaleUseCase(self._authorization)
         reservados = 0
         for product_id, cantidad in self._quantities_by_product(sale).items():
-            self._top_up_via_reconstruction_if_short(
-                product_id=product_id, needed=cantidad, sale_id=sale.id)
             result = use_case.execute(
                 self._connection, product_id=product_id, branch_id=self._branch_id,
                 warehouse_id=self.warehouse_id, quantity=cantidad,
                 source_document_id=sale.id,
                 operation_id=_reserve_operation_id(sale.id, product_id),
-                actor_user_id=self._actor_user_id, lot_required=False)
+                actor_user_id=self._actor_user_id, lot_required=False,
+                owns_transaction=False)   # en la transacción de la venta (V06)
             if not result.success:
                 self._release_all(sale.id, reason="reserva incompleta")
                 if result.error_code == "INSUFFICIENT_AVAILABILITY":
@@ -231,7 +228,8 @@ class SalesInventoryClient:
                 warehouse_id=self.warehouse_id, quantity=disponible,
                 source_document_id=sale.id,
                 operation_id=_reserve_operation_id(sale.id, product_id),
-                actor_user_id=self._actor_user_id, lot_required=False)
+                actor_user_id=self._actor_user_id, lot_required=False,
+                owns_transaction=False)   # en la transacción de la venta (V06)
             if not result.success:
                 self._release_all(sale.id, reason="reserva incompleta")
                 raise InventoryReservationFailedError(result.message)
@@ -281,7 +279,8 @@ class SalesInventoryClient:
         except CompositeDefinitionError as exc:
             raise InventoryReservationFailedError(str(exc)) from exc
 
-    def _quantities_by_product(self, sale: Sale) -> dict[str, Decimal]:
+    def _quantities_by_product(self, sale: Sale, *, compose: bool = True
+                               ) -> dict[str, Decimal]:
         """Lo que SALE del inventario por la venta, por producto: un compuesto
         se reemplaza por sus componentes (Productos define cuáles).
 
@@ -294,48 +293,74 @@ class SalesInventoryClient:
             for product_id, cantidad in self._explode(
                     line.product_id, line.quantity.value).items():
                 totales[product_id] = totales.get(product_id, Decimal("0")) + cantidad
-        return totales
+        return self._compose_virtually(totales, sale.id) if compose else totales
 
-    def _top_up_via_reconstruction_if_short(
-        self, *, product_id: str, needed: Decimal, sale_id: str,
-    ) -> None:
-        """§15-19: when direct stock can't cover this line, try reconstructing
-        the shortfall from a reversible recipe's parts BEFORE the normal
-        reservation attempt below — real physical stock exists by the time
-        it runs, so that reservation logic is completely unchanged either
-        way. Best-effort only: if the product isn't reconstructible, or the
-        parts themselves are short, this quietly does nothing and the normal
-        reservation attempt fails on its own with its own clear
-        "insufficient availability" message — reconstruction is a top-up,
-        never a new way to block or silently fix a sale.
-        """
-        availability = InventoryAvailabilityQueryService(self._connection).get_availability(
-            product_id=product_id, branch_id=self._branch_id, warehouse_id=self.warehouse_id)
-        shortfall = needed - availability.available
-        if shortfall <= 0:
-            return
-        try:
-            result = ReconstructBaseProductUseCase(self._authorization).execute(
-                self._connection, product_id=product_id, quantity=shortfall,
-                branch_id=self._branch_id, warehouse_id=self.warehouse_id,
-                actor_user_id=self._actor_user_id,
-                operation_id=f"{sale_id}:reconstruct:{product_id}")
-        except Exception:
-            # Reconstruction reaches into Products' recipe tables — optional
-            # infrastructure a connection may legitimately not have (a
-            # narrower fixture, an environment where that migration hasn't
-            # landed yet). This integration point must never turn "recipes
-            # aren't set up" into "sales are broken": log it and let the
-            # normal reservation attempt below fail on its own, same as any
-            # other declined top-up.
-            logger.exception(
-                "sale %s: reconstruction top-up for %s raised; skipping",
-                sale_id, product_id)
-            return
-        if not result.success:
-            logger.info(
-                "sale %s: %s short by %s, reconstruction not applied (%s: %s)",
-                sale_id, product_id, shortfall, result.error_code, result.message)
+    def virtual_composition(self, sale: Sale) -> dict[str, dict[str, Decimal]]:
+        """Por producto base: las partes con que se surte su faltante (vacío si
+        alcanza su propio stock). Ventas la usa para costear la línea con lo
+        que realmente sale."""
+        composicion: dict[str, dict[str, Decimal]] = {}
+        totales: dict[str, Decimal] = {}
+        for line in sale.goods_lines:
+            for product_id, cantidad in self._explode(
+                    line.product_id, line.quantity.value).items():
+                totales[product_id] = totales.get(product_id, Decimal("0")) + cantidad
+        retenido = self._held(sale.id)
+        demanda = dict(totales)
+        for product_id, necesario in totales.items():
+            faltante = self._shortfall(product_id, necesario, retenido)
+            partes = self._virtual_parts(product_id, faltante) if faltante > 0 else {}
+            if partes and self._parts_cover(partes, demanda, retenido):
+                for parte, cantidad in partes.items():
+                    demanda[parte] = demanda.get(parte, Decimal("0")) + cantidad
+                composicion[product_id] = {"__shortfall__": faltante, **partes}
+        return composicion
+
+    def _held(self, handle: str) -> dict[str, Decimal]:
+        retenido: dict[str, Decimal] = {}
+        for reservation in self._active_reservations(handle):
+            retenido[reservation.product_id] = retenido.get(
+                reservation.product_id, Decimal("0")) + reservation.quantity
+        return retenido
+
+    def _shortfall(self, product_id: str, needed: Decimal, held: dict) -> Decimal:
+        disponible = self._available(product_id) + held.get(product_id, Decimal("0"))
+        return needed - max(disponible, Decimal("0"))
+
+    def _virtual_parts(self, product_id: str, quantity: Decimal) -> dict[str, Decimal]:
+        """Partes (sin merma) del despiece reversible activo para `quantity`;
+        Productos lo define."""
+        return self._composition().reversible_parts(product_id, quantity)
+
+    def _parts_cover(self, partes: dict[str, Decimal], demanda: dict[str, Decimal],
+                     retenido: dict[str, Decimal]) -> bool:
+        """TODO o nada: sólo se compone si cada parte alcanza (sumando lo que la
+        venta ya pide de esa parte). Si no, no se reserva ninguna parte y la
+        línea queda con su faltante del producto base (autorización sin
+        existencia en el cobro), sin dejar partes retenidas a medias."""
+        return all(
+            self._available(parte) + retenido.get(parte, Decimal("0"))
+            >= demanda.get(parte, Decimal("0")) + cantidad
+            for parte, cantidad in partes.items())
+
+    def _compose_virtually(self, totales: dict[str, Decimal], handle: str) -> dict[str, Decimal]:
+        retenido = self._held(handle)
+        resultado = dict(totales)
+        for product_id, necesario in totales.items():
+            faltante = self._shortfall(product_id, necesario, retenido)
+            if faltante <= 0:
+                continue
+            partes = self._virtual_parts(product_id, faltante)
+            if not partes or not self._parts_cover(partes, resultado, retenido):
+                continue        # no es armable (o no alcanza): la reserva normal lo dirá
+            directo = necesario - faltante
+            if directo > 0:
+                resultado[product_id] = directo
+            else:
+                resultado.pop(product_id, None)
+            for parte, cantidad in partes.items():
+                resultado[parte] = resultado.get(parte, Decimal("0")) + cantidad
+        return resultado
 
     # ── confirmar / liberar ──────────────────────────────────────────────
     def confirm(self, reservation_handle: str, *, sale_id: str, folio: str,
@@ -378,7 +403,7 @@ class SalesInventoryClient:
                 # lotes tiene dos reservas, y con la misma identidad la segunda
                 # se tomaría por un reintento de la primera.
                 operation_id=f"{sale_id}:fulfill:{reservation.id}",
-                actor_user_id=self._actor_user_id,
+                actor_user_id=self._actor_user_id, owns_transaction=False,
             )
             if not result.success:
                 raise InventoryReservationFailedError(result.message)
@@ -403,7 +428,9 @@ class SalesInventoryClient:
 
         costos = unit_costs or {}
         lines = []
-        for product_id, cantidad in self._quantities_by_product(sale).items():
+        # Venta AUTORIZADA sin existencia: el faltante va al producto mismo, no
+        # a sus partes (la autorización es sobre ese producto).
+        for product_id, cantidad in self._quantities_by_product(sale, compose=False).items():
             if cantidad <= 0:
                 continue
             # Lo que SÍ hay sale de sus lotes (misma estrategia que la reserva);
@@ -440,6 +467,18 @@ class SalesInventoryClient:
             raise InventoryReservationFailedError(
                 result.message or "No se pudo descontar el inventario de la venta.")
 
+    def _pricing_cost(self, product_id: str):
+        """Costo promedio de Precios (las partes de una composición virtual no
+        vienen en el mapa de costos de la venta)."""
+        try:
+            from backend.application.pricing.queries.pricing_read_facade import (
+                PricingReadFacade,
+            )
+            costo = PricingReadFacade(self._connection).unit_cost(product_id, self._branch_id)
+        except Exception:  # noqa: BLE001 - sin costo conocido no se inventa
+            return None
+        return None if costo is None else Decimal(str(costo))
+
     def _post_sale_issue(self, reservations, *, sale_id: str,
                          unit_costs: dict | None = None) -> None:
         """Registra la salida de mercancía por venta.
@@ -475,7 +514,9 @@ class SalesInventoryClient:
                 from_status=InventoryStatus.AVAILABLE, reason_code="SALE",
                 # El costo con que sale: el del libro de inventario, y el mismo
                 # que Finanzas asienta como costo de venta.
-                unit_cost=(unit_costs or {}).get(reservation.product_id))
+                unit_cost=(unit_costs or {}).get(reservation.product_id)
+                if (unit_costs or {}).get(reservation.product_id) is not None
+                else self._pricing_cost(reservation.product_id))
             for reservation in reservations if reservation.quantity > 0
         ]
         if not lines:
@@ -506,7 +547,7 @@ class SalesInventoryClient:
             result = use_case.execute(
                 self._connection, reservation_id=reservation.id,
                 operation_id=f"{reservation_handle}:release:{reservation.id}",
-                actor_user_id=self._actor_user_id, reason=reason,
+                actor_user_id=self._actor_user_id, reason=reason, owns_transaction=False,
             )
             if not result.success:
                 raise InventoryReservationFailedError(result.message)
@@ -621,6 +662,25 @@ class SalesInventoryClient:
                     costo_total += tomar * costo
                     ultimo_costo = costo
                 pendiente -= tomar
+            if pendiente > 0:
+                # Composición virtual: lo que salió como PARTES vuelve como partes,
+                # a sus lotes; nunca un entero que no existió.
+                for parte, cantidad_parte in self._virtual_parts(componente, pendiente).items():
+                    resto = cantidad_parte
+                    for lot_id, location_id, libre, costo in self._returnable_slices(
+                            sale_id, parte):
+                        if resto <= 0:
+                            break
+                        tomar = min(resto, libre)
+                        lines.append(InventoryMovementLine.create(
+                            product_id=parte, quantity=tomar, lot_id=lot_id,
+                            to_location_id=location_id, to_status=InventoryStatus.AVAILABLE,
+                            reason_code=reason_code, unit_cost=costo))
+                        if costo is not None:
+                            costo_total += tomar * costo
+                        resto -= tomar
+                    if resto < cantidad_parte:
+                        pendiente = Decimal("0")
             if pendiente > 0:
                 lines.append(InventoryMovementLine.create(
                     product_id=componente, quantity=pendiente, to_location_id=self._branch_id,

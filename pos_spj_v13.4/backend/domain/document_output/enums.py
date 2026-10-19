@@ -46,6 +46,8 @@ class DocumentType(str, Enum):
     COUNT_LABEL = "COUNT_LABEL"
     ADJUSTMENT_LABEL = "ADJUSTMENT_LABEL"
     PRODUCT_LABEL = "PRODUCT_LABEL"
+    # Logística (integración 32cfbf): etiqueta con el QR permanente del contenedor.
+    CONTAINER_LABEL = "CONTAINER_LABEL"
 
 
 #: Documentos que diseña e imprime FIDELIDAD (diseñador de tarjetas versionado,

@@ -21,6 +21,9 @@ from backend.domain.forecasting.value_objects.time_series import (
     TimeSeriesObservation,
 )
 
+# Relativa a hoy: una fecha fija vence y el dominio rechaza la recomendación.
+_VALID_UNTIL = date.today() + timedelta(days=60)
+
 
 class _ConstantReader:
     def __init__(self, value: Decimal):
@@ -114,7 +117,7 @@ def test_recommends_production_when_reorder_point_is_crossed():
     rec = service.recommend_production(
         position=_position(), horizon_days=5, as_of=date(2026, 12, 1),
         overstock_threshold_days=Decimal("30"), target_coverage_days=Decimal("7"),
-        confidence=Decimal("0.8"), valid_until=date(2026, 12, 10),
+        confidence=Decimal("0.8"), valid_until=_VALID_UNTIL,
         safety_stock_method=SafetyStockMethod.FIXED_DAYS, fixed_days=Decimal("2"),
     )
     assert rec is not None
@@ -129,7 +132,7 @@ def test_returns_none_when_no_production_is_needed():
         position=_position(current_stock=Decimal("10000")), horizon_days=5,
         as_of=date(2026, 12, 1), overstock_threshold_days=Decimal("1000"),
         target_coverage_days=Decimal("7"), confidence=Decimal("0.8"),
-        valid_until=date(2026, 12, 10), safety_stock_method=SafetyStockMethod.FIXED_DAYS,
+        valid_until=_VALID_UNTIL, safety_stock_method=SafetyStockMethod.FIXED_DAYS,
         fixed_days=Decimal("2"),
     )
     assert rec is None
@@ -141,7 +144,7 @@ def test_uses_capacity_port_for_yield_and_utilization():
     rec = service.recommend_production(
         position=_position(), horizon_days=5, as_of=date(2026, 12, 1),
         overstock_threshold_days=Decimal("30"), target_coverage_days=Decimal("7"),
-        confidence=Decimal("0.8"), valid_until=date(2026, 12, 10),
+        confidence=Decimal("0.8"), valid_until=_VALID_UNTIL,
         safety_stock_method=SafetyStockMethod.FIXED_DAYS, fixed_days=Decimal("2"),
     )
     assert rec is not None
@@ -158,7 +161,7 @@ def test_capacity_utilization_is_capped_at_100_percent():
     rec = service.recommend_production(
         position=_position(), horizon_days=5, as_of=date(2026, 12, 1),
         overstock_threshold_days=Decimal("30"), target_coverage_days=Decimal("7"),
-        confidence=Decimal("0.8"), valid_until=date(2026, 12, 10),
+        confidence=Decimal("0.8"), valid_until=_VALID_UNTIL,
         safety_stock_method=SafetyStockMethod.FIXED_DAYS, fixed_days=Decimal("2"),
     )
     assert rec.capacity_utilization_pct == Decimal("100")

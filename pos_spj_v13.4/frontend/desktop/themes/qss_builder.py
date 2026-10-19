@@ -46,8 +46,35 @@ def build_qss(theme: str = "light", *, density="comfortable") -> str:
         _spin_controls(c, metrics),
         _brand_swatches(),
         _emphasis(c),
+        _customer_display(),
     ]
     return "\n\n".join(parts)
+
+
+def _customer_display() -> str:
+    return f"""
+QWidget#customerDisplayWindow {{ background-color: {BrandColors.CHARCOAL}; }}
+QWidget#customerDisplayWindow QWidget {{ background-color: transparent; }}
+QWidget#customerDisplayWindow QLabel {{ color: {BrandColors.WHITE}; }}
+QWidget#customerDisplayWindow QPushButton {{ color: {BrandColors.WHITE}; }}
+QWidget#customerDisplayWindow QScrollArea {{ border: none; }}
+QWidget#customerDisplayWindow[displayMode="CART"] QLabel#customerDisplayScale,
+QWidget#customerDisplayWindow[displayMode="CART"] QLabel#customerDisplayPoints {{
+    background-color: {BrandColors.FOREST_GREEN};
+    border-radius: {Radii.SM}px;
+    padding: {Spacing.MD}px;
+}}
+QWidget#customerDisplayWindow[displayMode="THANK_YOU"] {{ background-color: {BrandColors.FOREST_GREEN}; }}
+QWidget#customerDisplayWindow[displayMode="THANK_YOU"] QLabel#customerDisplayPoints,
+QWidget#customerDisplayWindow QLabel#customerDisplayConfirmation {{ color: {BrandColors.PREMIUM_GOLD}; }}
+QLabel#customerDisplayConfirmation {{ font-size: {Typography.SIZE_DISPLAY}px; }}
+QWidget#customerDisplayWindow QWidget#customerDisplayLine {{ border-bottom: 1px solid {BrandColors.FOREST_GREEN}; }}
+QWidget#customerDisplayWindow QLabel#customerDisplayStatus {{
+    background-color: {BrandColors.FOREST_GREEN};
+    border-radius: {Radii.SM}px;
+    padding: {Spacing.XS}px {Spacing.SM}px;
+}}
+""".strip()
 
 
 def _emphasis(c) -> str:
@@ -69,6 +96,15 @@ QLabel[role="sectionTitle"] {{
     font-size: {Typography.SIZE_BODY_SM}px;
     font-weight: {Typography.WEIGHT_SEMIBOLD};
     color: {c.TEXT_SECONDARY};
+}}
+QLabel[role="displayTitle"] {{
+    font-size: {Typography.SIZE_DISPLAY}px;
+    font-weight: {Typography.WEIGHT_BOLD};
+    color: {c.TEXT_PRIMARY};
+}}
+QLabel[role="displayBody"] {{
+    font-size: {Typography.SIZE_SUBTITLE}px;
+    color: {c.TEXT_PRIMARY};
 }}
 """.strip()
 
@@ -314,6 +350,8 @@ def _cards(c) -> str:
     return "\n".join([
         "/* ── cards ────────────────────────────────────────────────────────── */",
         card("QFrame#standardCard", c.SURFACE, c.BORDER_DEFAULT),
+        card('QFrame[interactive="true"]:hover', c.SURFACE_ELEVATED, c.PRIMARY_DEFAULT),
+        card('QFrame[interactive="true"]:focus, QFrame[interactive="true"][selected="true"]', c.PRIMARY_SUBTLE, c.PRIMARY_DEFAULT),
         card('QFrame#standardCard[cardVariant="section"], QFrame[cardVariant="section"]', c.SURFACE, c.BORDER_DEFAULT),
         card('QFrame#standardCard[cardVariant="summary"], QFrame[cardVariant="summary"]', c.SURFACE_ELEVATED, c.BORDER_DEFAULT),
         card('QFrame#standardCard[cardVariant="info"], QFrame[cardVariant="info"]', c.INFO_SUBTLE, c.INFO_BORDER),

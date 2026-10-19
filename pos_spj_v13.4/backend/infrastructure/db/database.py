@@ -39,13 +39,16 @@ class DatabaseSettings:
         )
 
 
-def create_connection_factory(settings: DatabaseSettings) -> ConnectionFactory:
+def create_connection_factory(settings: DatabaseSettings, *,
+                              check_same_thread: bool = True) -> ConnectionFactory:
+    """`check_same_thread=False` sólo para un proceso que serializa el acceso a
+    una conexión compartida entre hilos (el host de la API de Logística)."""
     if settings.dialect is DatabaseDialect.SQLITE:
         database_path = _sqlite_path_from_url(settings.database_url)
 
         def connect_sqlite() -> sqlite3.Connection:
             database_path.parent.mkdir(parents=True, exist_ok=True)
-            return sqlite3.connect(database_path)
+            return sqlite3.connect(database_path, check_same_thread=check_same_thread)
 
         return connect_sqlite
 

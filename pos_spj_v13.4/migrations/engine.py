@@ -344,6 +344,10 @@ MIGRATIONS = [
     _Migration("338",  "migrations.standalone.338_software_updates"),
     _Migration("339",  "migrations.standalone.339_seed_software_update_permissions"),
     _Migration("340",  "migrations.standalone.340_backfill_credit_purchase_payables"),
+    _Migration("341",  "migrations.standalone.341_sales_payment_voids"),
+    _Migration("342",  "migrations.standalone.342_ticket_design_branding"),
+    _Migration("343",  "migrations.standalone.343_meat_direct_transformation"),
+    _Migration("344",  "migrations.standalone.344_sales_display_recovery"),
 ]
 
 def _ensure_tracking_table(conn):

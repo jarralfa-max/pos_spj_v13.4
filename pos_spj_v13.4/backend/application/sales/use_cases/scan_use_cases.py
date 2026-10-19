@@ -29,8 +29,15 @@ from backend.domain.sales.exceptions import ProductNotSellableError, ScanCodeNot
 
 
 class ScanCodeRouter:
-    def __init__(self, sales_authorization: SalesAuthorizationPolicy | None = None) -> None:
+    """`pricing` (auditoría V04, 2026-10-15): el escáner agrega la línea por el
+    MISMO caso de uso que el clic, que resuelve el precio en Precios (sucursal,
+    cliente, volumen). Antes el escáner cobraba el precio de la lista base del
+    catálogo y el clic el de Precios: mismo artículo, dos precios."""
+
+    def __init__(self, sales_authorization: SalesAuthorizationPolicy | None = None,
+                 *, pricing=None) -> None:
         self._sales_auth = sales_authorization
+        self._pricing = pricing
 
     def route(
         self, connection, *, sale_id: str, code: str, context: ScanContext,
@@ -57,13 +64,14 @@ class ScanCodeRouter:
                     return SaleResult.fail(
                         f"{product.name} se vende por peso: captura el peso.",
                         "WEIGHT_REQUIRED", operation_id=operation_id, product=product)
-                return AddSaleLineUseCase(self._sales_auth).execute(
+                return AddSaleLineUseCase(self._sales_auth, pricing=self._pricing).execute(
                     connection, sale_id=sale_id, product_id=product.product_id,
                     quantity=Decimal("1"), unit_price=product.effective_price,
                     actor_user_id=actor_user_id, operation_id=operation_id,
                     quantity_unit=product.unit or "PZA",
                     product_snapshot={"name": product.name, "sku": product.sku,
-                                      "unit": product.unit})
+                                      "unit": product.unit,
+                                      "by_weight": bool(product.sold_by_weight)})
             if context is ScanContext.PRODUCT:
                 return fail_from_domain_error(
                     ScanCodeNotResolvedError(f"Ningún producto coincide con {code!r}"),

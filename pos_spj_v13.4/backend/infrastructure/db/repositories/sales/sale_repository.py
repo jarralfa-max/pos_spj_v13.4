@@ -26,7 +26,7 @@ import json
 from backend.domain.sales.entities import Sale, SaleInvoiceRequest, SaleLine
 from backend.domain.sales.enums import InvoiceStatus, PaymentMethod, SaleStatus
 from backend.domain.sales.value_objects.quantity import Quantity
-from backend.domain.sales.value_objects.sale_payment import SalePayment
+from backend.domain.sales.value_objects.sale_payment import SalePayment, SalePaymentVoid
 from backend.domain.sales.value_objects.sale_coupon import SaleCoupon
 from backend.domain.sales.value_objects.sale_return import SaleReturn
 from backend.domain.sales.value_objects.sale_totals import SaleTotals
@@ -139,6 +139,15 @@ class SaleRepository(SalesRepositoryBase):
                     payment.captured_by_user_id, payment.captured_at,
                 ),
             )
+        # Pagos anulados (auditoría V02): sólo se agregan, nunca se reescriben.
+        for void in sale.voided_payments:
+            self._execute(
+                "INSERT OR IGNORE INTO sale_payment_voids (id, sale_id, payment_id, method,"
+                " amount, reference, captured_by_user_id, captured_at, reason,"
+                " voided_by_user_id, voided_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (void.id, void.sale_id, void.payment_id, enum_value(void.method),
+                 dec_str(void.amount), void.reference, void.captured_by_user_id,
+                 void.captured_at, void.reason, void.voided_by_user_id, void.voided_at))
         self._execute("DELETE FROM sale_coupons WHERE sale_id=?", (sale.id,))
         for cupon in sale.coupons:
             self._execute(
@@ -234,6 +243,21 @@ class SaleRepository(SalesRepositoryBase):
         return [self._hydrate(row) for row in rows]
 
     #: Ventas ya cobradas: lo que se puede reimprimir, facturar o devolver.
+    #: Ventas abiertas que un cajero puede retomar, en orden de prioridad.
+    _OPEN_STATUSES = ("CHECKOUT_PENDING", "PAYMENT_PENDING", "ACTIVE", "DRAFT")
+
+    def list_open_for_cashier(self, *, branch_id: str, cashier_user_id: str,
+                              limit: int = 20) -> list[Sale]:
+        """Ventas sin cerrar del cajero en la sucursal: primero las que están en
+        cobro, luego las del carrito; la más reciente primero (auditoría V03)."""
+        rows = self._query(
+            "SELECT * FROM sales WHERE branch_id=? AND cashier_user_id=?"
+            " AND status IN ('CHECKOUT_PENDING','PAYMENT_PENDING','ACTIVE','DRAFT')"
+            " ORDER BY CASE status WHEN 'CHECKOUT_PENDING' THEN 0 WHEN 'PAYMENT_PENDING'"
+            " THEN 0 WHEN 'ACTIVE' THEN 1 ELSE 2 END, created_at DESC, id DESC LIMIT ?",
+            (branch_id, cashier_user_id, limit))
+        return [self._hydrate(row) for row in rows]
+
     _POSTED_STATUSES = ("COMPLETED", "RETURNED_PARTIALLY", "RETURNED_FULLY", "REVERSED")
 
     def list_recent_posted(self, *, branch_id: str, limit: int = 30) -> list[Sale]:
@@ -256,6 +280,16 @@ class SaleRepository(SalesRepositoryBase):
             (branch_id, (sale_number or "").strip(), *self._POSTED_STATUSES))
         return self._hydrate(rows[0]) if rows else None
 
+    def _voids(self, sale_id: str) -> list[dict]:
+        """Bases anteriores a la 341 no tienen la tabla: sin anulaciones."""
+        import sqlite3
+        try:
+            return self._query(
+                "SELECT * FROM sale_payment_voids WHERE sale_id=? ORDER BY voided_at, id",
+                (sale_id,))
+        except sqlite3.OperationalError:
+            return []
+
     def _hydrate(self, row: dict) -> Sale:
         line_rows = self._query(
             "SELECT * FROM sale_lines WHERE sale_id=? ORDER BY created_at", (row["id"],))
@@ -263,6 +297,13 @@ class SaleRepository(SalesRepositoryBase):
         payment_rows = self._query(
             "SELECT * FROM sale_payments WHERE sale_id=? ORDER BY captured_at", (row["id"],))
         payments = [self._hydrate_payment(payment_row) for payment_row in payment_rows]
+        voided_payments = [SalePaymentVoid(
+            id=v["id"], sale_id=v["sale_id"], payment_id=v["payment_id"],
+            method=PaymentMethod(v["method"]), amount=to_decimal(v["amount"]),
+            reference=v["reference"], captured_by_user_id=v["captured_by_user_id"],
+            captured_at=v["captured_at"], reason=v["reason"],
+            voided_by_user_id=v["voided_by_user_id"], voided_at=v["voided_at"])
+            for v in self._voids(row["id"])]
         return_rows = self._query(
             "SELECT * FROM sale_returns WHERE sale_id=? ORDER BY created_at", (row["id"],))
         returns = [self._hydrate_return(return_row) for return_row in return_rows]
@@ -293,6 +334,7 @@ class SaleRepository(SalesRepositoryBase):
             cash_session_id=row["cash_session_id"], customer_id=row["customer_id"],
             channel=row["channel"], currency_code=row["currency_code"],
             lines=lines, payments=payments, returns=returns,
+            voided_payments=voided_payments,
             invoice_requests=invoice_requests, totals=totals,
             created_at=row["created_at"],
             suspended_at=row["suspended_at"], completed_at=row["completed_at"],

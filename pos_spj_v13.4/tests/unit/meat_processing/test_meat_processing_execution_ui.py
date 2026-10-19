@@ -76,15 +76,20 @@ def _textos(tabla):
 
 
 class TestCapturaDeEjecucion:
-    def test_propone_lo_reservado_y_lo_esperado(self, app):
+    def test_propone_lo_reservado_y_deja_las_salidas_por_pesar(self, app):
+        """Auditoría 32cfbf P2 (decisión del usuario): el peso real de cada
+        salida queda vacío hasta pesar; lo esperado sólo entra como ESTIMADO."""
         from frontend.desktop.modules.meat_processing.dialogs_execution import (
             ExecuteProcessingOrderDialog,
         )
 
         dlg = ExecuteProcessingOrderDialog(plan=PLAN)
         assert dlg.inputs() == [{"product_id": INSUMO, "weight": Decimal("10")}]
+        assert all(c.decimal_value() is None for c in dlg._campos.values())
+        dlg._use_expected_for_empty()
         pesos = {o["product_id"]: o["weight"] for o in dlg.outputs()}
         assert pesos == {SALIDA: Decimal("6.5"), MERMA: Decimal("3.5")}
+        assert set(dlg.estimated_product_ids()) == {SALIDA, MERMA}
 
     def test_no_ejecuta_sin_peso_consumido(self, app):
         from frontend.desktop.modules.meat_processing.dialogs_execution import (

@@ -36,6 +36,7 @@ from backend.domain.inventory.entities.inventory_movement import (
 from backend.domain.inventory.enums import (
     InventoryStatus,
     LotOrigin,
+    LotQualityStatus,
     MovementType,
 )
 
@@ -94,28 +95,36 @@ class PurchaseReceiptHandler:
             return None
         lot_id = ln.get("lot_id")
         lot_code = ln.get("lot_code")
+        status = self._receipt_status(ln, quality_hold, product_id=product_id)
         if lot_code and not lot_id:
             lot_id = self._ensure_lot(
                 product_id=product_id, lot_code=str(lot_code), ln=ln,
                 operation_id=operation_id, branch_id=branch_id,
-                document_id=document_id, user=user)
+                document_id=document_id, user=user,
+                released=status is InventoryStatus.AVAILABLE)
         return InventoryMovementLine.create(
             product_id=product_id, quantity=ln.get("quantity", 0),
             weight=ln.get("weight", 0), unit=ln.get("unit", "PZA"), lot_id=lot_id,
             to_location_id=ln.get("to_location_id") or ln.get("location_id"),
-            to_status=self._receipt_status(ln, quality_hold, product_id=product_id),
+            to_status=status,
             unit_cost=ln.get("unit_cost"), reason_code=ln.get("reason_code"))
 
     def _ensure_lot(self, *, product_id: str, lot_code: str, ln: dict,
                     operation_id: str, branch_id: str, document_id: str,
-                    user: str) -> str | None:
+                    user: str, released: bool = False) -> str | None:
+        """`released` (auditoría de Producción 32cfbf, 2026-10-16): si el renglón
+        entra DISPONIBLE (el producto no exige inspección y no hay retención) el
+        lote nace LIBERADO. Antes todo lote de compra nacía «pendiente de
+        inspección» aunque nadie fuera a inspeccionarlo, y Producción —que sólo
+        reserva lotes liberados— no podía transformar nada comprado."""
+        extra = {"quality_status": LotQualityStatus.RELEASED} if released else {}
         res = self._lot_uc.execute(
             self._conn, product_id=product_id, lot_code=lot_code,
             origin_type=LotOrigin.PURCHASE,
             operation_id=f"{operation_id}:lot:{product_id}:{lot_code}",
             actor_user_id=user, supplier_lot_code=ln.get("supplier_lot_code"),
             expiration_date=ln.get("expiration_date") or ln.get("expiration"),
-            origin_document_id=document_id or None, branch_id=branch_id)
+            origin_document_id=document_id or None, branch_id=branch_id, **extra)
         return res.entity_id if res.success else None
 
     def _receipt_status(self, ln: dict, quality_hold: bool, *,

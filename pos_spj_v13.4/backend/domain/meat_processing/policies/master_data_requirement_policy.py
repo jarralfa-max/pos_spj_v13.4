@@ -23,10 +23,13 @@ from backend.domain.meat_processing.entities.processing_recipe_snapshot import (
 )
 from backend.domain.meat_processing.enums import ProcessType
 
-#: Lo mínimo que cada familia necesita para poder ejecutarse. El perfil de
-#: rendimiento es opcional por defecto: cuando existe, afina lo esperado.
+#: Lo mínimo que cada familia necesita para poder ejecutarse. En despiece EL
+#: PERFIL DE RENDIMIENTO MANDA (decisión del usuario, auditoría 32cfbf,
+#: 2026-10-16): es la fuente única de kilos y % esperados; el esquema de corte
+#: es opcional y, si existe, debe coincidir con él. Antes se exigía el esquema
+#: y un producto con perfil activo pero sin esquema no podía prepararse nunca.
 DEFAULT_FAMILY_REQUIREMENTS: dict[ProcessFamily, frozenset[MasterDataKind]] = {
-    ProcessFamily.DISASSEMBLY: frozenset({MasterDataKind.CUTTING_SCHEME}),
+    ProcessFamily.DISASSEMBLY: frozenset({MasterDataKind.YIELD_PROFILE}),
     ProcessFamily.FORMULATION: frozenset({MasterDataKind.RECIPE}),
     ProcessFamily.PACKAGING: frozenset({MasterDataKind.PACKAGING_SPEC}),
     ProcessFamily.CONDITIONING: frozenset(),
@@ -85,7 +88,7 @@ class ProcessingMasterDataRequirementPolicy:
                  "definido; no se puede liberar.",))
         presentes = snapshot.present_master_data if snapshot is not None else frozenset()
         faltan = frozenset(requeridos - presentes)
-        problemas = []
+        problemas = list(snapshot.definition_problems) if snapshot is not None else []
         if snapshot is not None and not faltan:
             if not snapshot.inputs:
                 problemas.append("La definición no tiene ninguna entrada que consumir.")

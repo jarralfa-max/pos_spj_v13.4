@@ -79,14 +79,10 @@ class CompanyProfileDialog(FormDialog):
         apply_tooltip(self.website, "Debe iniciar con http:// o https://.")
         self.form.addRow("Sitio web:", self.website)
 
-        self.logo_asset_id = StandardLineEdit(self)
-        self.logo_asset_id.setAccessibleName("ID de asset del logo")
-        apply_tooltip(
-            self.logo_asset_id,
-            "Referencia (UUID) a un asset ya registrado en otro sistema — §15: nunca una ruta de "
-            "archivo arbitraria. Déjalo vacío si no hay logo todavía.",
-        )
-        self.form.addRow("Logo (ID de asset):", self.logo_asset_id)
+        # El logo ya no se teclea como UUID (comparativa de tickets, 2026-10-16):
+        # se carga desde «Logo para tickets» en esta misma página. Aquí sólo se
+        # conserva el que haya, para que guardar los datos no lo borre.
+        self._logo_asset_id = (getattr(profile, "logo_asset_id", None) or "") if profile else ""
 
         if profile is not None:
             self.legal_name.setText(profile.legal_name)
@@ -101,7 +97,6 @@ class CompanyProfileDialog(FormDialog):
             self.phone.setText(profile.phone or "")
             self.email.setText(profile.email or "")
             self.website.setText(profile.website or "")
-            self.logo_asset_id.setText(profile.logo_asset_id or "")
 
         self.add_button_box(ok_text="Guardar")
 
@@ -116,7 +111,7 @@ class CompanyProfileDialog(FormDialog):
             "fiscal_regime_reference": self.fiscal_regime_reference.text().strip(),
             "address": self.address.value().one_line(), "phone": self.phone.text().strip(),
             "email": self.email.text().strip(), "website": self.website.text().strip(),
-            "logo_asset_id": self.logo_asset_id.text().strip(),
+            "logo_asset_id": self._logo_asset_id,
         }
 
 

@@ -1,0 +1,213 @@
+2026-10-15 17:22:59,458 SPJ.Boot INFO =======================================================
+2026-10-15 17:22:59,460 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-15 17:22:59,461 SPJ.Boot INFO =======================================================
+2026-10-15 17:23:01,411 SPJ.Boot INFO Ubicación de la base: NOT_APPLICABLE — Ruta de base fija (código fuente o SPJ_DB_PATH).
+2026-10-15 17:23:01,893 spj.migrations.336 INFO 336: 0 permisos de RR. HH. concedidos; roles omitidos: ninguno
+2026-10-15 17:23:02,208 spj.migrations.337 INFO 337: esquema de pendientes de RR. HH. listo; 0 solicitud(es) al libro
+2026-10-15 17:23:02,224 spj.migrations INFO Migración 337 ejecutada.
+2026-10-15 17:23:02,273 spj.migrations.338 INFO 338: software_station_settings/software_update_events listos.
+2026-10-15 17:23:02,276 spj.migrations INFO Migración 338 ejecutada.
+2026-10-15 17:23:02,289 spj.migrations.339 INFO 339: 8 permisos de actualizaciones concedidos; roles omitidos: ninguno
+2026-10-15 17:23:02,291 spj.migrations INFO Migración 339 ejecutada.
+2026-10-15 17:23:02,717 spj.migrations.340 INFO 340: 4 CxP de recepciones a crédito encoladas; 0 compras ya facturadas
+2026-10-15 17:23:02,721 spj.migrations INFO Migración 340 ejecutada.
+2026-10-15 17:23:02,721 spj.migrations INFO Migraciones completadas: 4 ejecutadas.
+2026-10-15 17:23:03,045 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-15 17:23:03,047 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-15 17:23:03,240 SPJ.Boot ERROR No se pudo registrar la versión de la estación.
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 268, in _record_station_start
+    from backend.infrastructure.desktop.software_updates_factory import (
+        build_software_update_dependencies,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\desktop\software_updates_factory.py", line 31, in <module>
+    from backend.infrastructure.updater.trusted_keys import embedded_keyring
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\updater\trusted_keys.py", line 28, in <module>
+    from backend.infrastructure.updater.update_manifest import TrustedKey, TrustedKeyring
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\updater\update_manifest.py", line 33, in <module>
+    from cryptography.exceptions import InvalidSignature
+ModuleNotFoundError: No module named 'cryptography'
+2026-10-15 17:23:04,206 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-15 17:23:05,096 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-15 17:23:05,497 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-15 17:23:05,498 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-15 17:23:05,500 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-15 17:23:05,501 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-15 17:23:05,501 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-15 17:23:05,501 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-15 17:23:05,502 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-15 17:23:05,505 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 10 subscriptions
+2026-10-15 17:23:05,505 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-15 17:23:05,506 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-15 17:23:05,952 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\main.py", line 13, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 472, in main
+    if not coordinator.run():
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\auth\authentication_coordinator.py", line 73, in run
+    login_window = self._login_window_factory()
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\desktop_shell_authentication_composition.py", line 104, in login_window_factory
+    primary=Argon2idPasswordHasher(), legacy=(BcryptPasswordHasher(),),
+            ~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\security\credentials\password_hasher.py", line 84, in __init__
+    raise MissingPasswordHashingBackendError(
+    ...<2 lines>...
+    )
+backend.security.credentials.errors.MissingPasswordHashingBackendError: argon2-cffi no está instalado. Ejecute 'pip install argon2-cffi' — no existe una ruta alterna para hashear contraseñas.
+
+2026-10-15 17:27:32,285 SPJ.Boot INFO =======================================================
+2026-10-15 17:27:32,286 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-15 17:27:32,287 SPJ.Boot INFO =======================================================
+2026-10-15 17:27:33,126 SPJ.Boot INFO Ubicación de la base: NOT_APPLICABLE — Ruta de base fija (código fuente o SPJ_DB_PATH).
+2026-10-15 17:27:33,505 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-10-15 17:27:33,753 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-15 17:27:33,754 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-15 17:27:33,940 SPJ.Boot ERROR No se pudo registrar la versión de la estación.
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 268, in _record_station_start
+    from backend.infrastructure.desktop.software_updates_factory import (
+        build_software_update_dependencies,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\desktop\software_updates_factory.py", line 31, in <module>
+    from backend.infrastructure.updater.trusted_keys import embedded_keyring
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\updater\trusted_keys.py", line 28, in <module>
+    from backend.infrastructure.updater.update_manifest import TrustedKey, TrustedKeyring
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\updater\update_manifest.py", line 33, in <module>
+    from cryptography.exceptions import InvalidSignature
+ModuleNotFoundError: No module named 'cryptography'
+2026-10-15 17:27:35,198 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-15 17:27:35,949 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-15 17:27:36,314 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-15 17:27:36,315 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-15 17:27:36,316 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-15 17:27:36,317 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-15 17:27:36,318 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-15 17:27:36,318 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-15 17:27:36,318 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-15 17:27:36,322 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 10 subscriptions
+2026-10-15 17:27:36,322 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-15 17:27:36,324 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-15 17:27:36,582 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\main.py", line 13, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 472, in main
+    if not coordinator.run():
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\auth\authentication_coordinator.py", line 73, in run
+    login_window = self._login_window_factory()
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\desktop_shell_authentication_composition.py", line 104, in login_window_factory
+    primary=Argon2idPasswordHasher(), legacy=(BcryptPasswordHasher(),),
+                                              ~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\security\credentials\password_hasher.py", line 136, in __init__
+    raise MissingPasswordHashingBackendError(
+    ...<2 lines>...
+    )
+backend.security.credentials.errors.MissingPasswordHashingBackendError: bcrypt no está instalado. Ejecute 'pip install bcrypt' — no existe una ruta alterna para hashear contraseñas.
+
+2026-10-15 17:28:18,577 SPJ.Boot INFO =======================================================
+2026-10-15 17:28:18,578 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-15 17:28:18,579 SPJ.Boot INFO =======================================================
+2026-10-15 17:28:19,223 SPJ.Boot INFO Ubicación de la base: NOT_APPLICABLE — Ruta de base fija (código fuente o SPJ_DB_PATH).
+2026-10-15 17:28:19,481 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-10-15 17:28:19,707 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-15 17:28:19,711 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-15 17:28:20,048 SPJ.Boot ERROR No se pudo registrar la versión de la estación.
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 268, in _record_station_start
+    from backend.infrastructure.desktop.software_updates_factory import (
+        build_software_update_dependencies,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\desktop\software_updates_factory.py", line 31, in <module>
+    from backend.infrastructure.updater.trusted_keys import embedded_keyring
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\updater\trusted_keys.py", line 28, in <module>
+    from backend.infrastructure.updater.update_manifest import TrustedKey, TrustedKeyring
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\updater\update_manifest.py", line 33, in <module>
+    from cryptography.exceptions import InvalidSignature
+ModuleNotFoundError: No module named 'cryptography'
+2026-10-15 17:28:21,023 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-15 17:28:21,705 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-15 17:28:22,005 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-15 17:28:22,006 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-15 17:28:22,008 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-15 17:28:22,008 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-15 17:28:22,009 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-15 17:28:22,009 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-15 17:28:22,010 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-15 17:28:22,013 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 10 subscriptions
+2026-10-15 17:28:22,014 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-15 17:28:22,014 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-15 17:28:22,231 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\main.py", line 13, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 472, in main
+    if not coordinator.run():
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\auth\authentication_coordinator.py", line 73, in run
+    login_window = self._login_window_factory()
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\desktop_shell_authentication_composition.py", line 104, in login_window_factory
+    primary=Argon2idPasswordHasher(), legacy=(BcryptPasswordHasher(),),
+                                              ~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\security\credentials\password_hasher.py", line 136, in __init__
+    raise MissingPasswordHashingBackendError(
+    ...<2 lines>...
+    )
+backend.security.credentials.errors.MissingPasswordHashingBackendError: bcrypt no está instalado. Ejecute 'pip install bcrypt' — no existe una ruta alterna para hashear contraseñas.
+
+2026-10-15 17:33:51,609 SPJ.Boot INFO =======================================================
+2026-10-15 17:33:51,610 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-15 17:33:51,611 SPJ.Boot INFO =======================================================
+2026-10-15 17:33:53,617 SPJ.Boot INFO Ubicación de la base: NOT_APPLICABLE — Ruta de base fija (código fuente o SPJ_DB_PATH).
+2026-10-15 17:33:55,456 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-10-15 17:33:55,728 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-15 17:33:55,729 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-15 17:33:55,891 SPJ.Boot ERROR No se pudo registrar la versión de la estación.
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 268, in _record_station_start
+    from backend.infrastructure.desktop.software_updates_factory import (
+        build_software_update_dependencies,
+    )
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\desktop\software_updates_factory.py", line 31, in <module>
+    from backend.infrastructure.updater.trusted_keys import embedded_keyring
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\updater\trusted_keys.py", line 28, in <module>
+    from backend.infrastructure.updater.update_manifest import TrustedKey, TrustedKeyring
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\infrastructure\updater\update_manifest.py", line 33, in <module>
+    from cryptography.exceptions import InvalidSignature
+ModuleNotFoundError: No module named 'cryptography'
+2026-10-15 17:33:57,477 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-15 17:33:58,342 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-15 17:33:58,716 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-15 17:33:58,718 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-15 17:33:58,723 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-15 17:33:58,725 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-15 17:33:58,726 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-15 17:33:58,729 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-15 17:33:58,730 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-15 17:33:58,730 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 10 subscriptions
+2026-10-15 17:33:58,731 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-15 17:33:58,732 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-15 17:33:59,019 SPJ.Boot CRITICAL ERROR NO CAPTURADO:
+Traceback (most recent call last):
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\main.py", line 13, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\app.py", line 472, in main
+    if not coordinator.run():
+           ~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\auth\authentication_coordinator.py", line 73, in run
+    login_window = self._login_window_factory()
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\frontend\desktop\shell\desktop_shell_authentication_composition.py", line 104, in login_window_factory
+    primary=Argon2idPasswordHasher(), legacy=(BcryptPasswordHasher(),),
+                                              ~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Diego Rodriguez\Downloads\pos_spj_v13.4\pos_spj_v13.4\backend\security\credentials\password_hasher.py", line 136, in __init__
+    raise MissingPasswordHashingBackendError(
+    ...<2 lines>...
+    )
+backend.security.credentials.errors.MissingPasswordHashingBackendError: bcrypt no está instalado. Ejecute 'pip install bcrypt' — no existe una ruta alterna para hashear contraseñas.
+

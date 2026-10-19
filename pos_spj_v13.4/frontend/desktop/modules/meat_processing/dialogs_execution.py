@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from PyQt5.QtWidgets import QLabel
+from PyQt5.QtWidgets import QLabel, QPushButton
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -65,9 +65,10 @@ class ExecuteProcessingOrderDialog(FormDialog):
                              self._entradas[_get(entrada, "product_id")])
 
         ayuda = QLabel(
-            "Captura el peso REAL de cada salida. Lo esperado sale de la definición "
-            "congelada; las salidas que requieren inspección entran retenidas hasta que "
-            "Calidad las libere.", self)
+            "Captura el peso REAL de cada salida (báscula o captura manual). Lo esperado "
+            "sale de la definición congelada; las salidas que requieren inspección entran "
+            "retenidas hasta que Calidad las libere. Si una salida no se pesó, «Usar lo "
+            "esperado en las vacías» la marca ESTIMADO y pide motivo.", self)
         ayuda.setWordWrap(True)
         self.form.addRow(ayuda)
 
@@ -76,13 +77,20 @@ class ExecuteProcessingOrderDialog(FormDialog):
             ColumnSpec("Calidad")])
         self.form.addRow(self.table)
         self._campos: dict[str, DecimalInput] = {}
+        self._esperado: dict[str, Decimal] = {}
+        self._estimadas: set[str] = set()
+        self._llenando = False
         self._salidas = list(plan.get("outputs") or [])
         filas = []
         for salida in self._salidas:
             pid = _get(salida, "product_id")
-            campo = DecimalInput(self, precision=3, minimum="0", suffix="kg")
-            campo.set_decimal(_get(salida, "expected_weight") or Decimal("0"))
+            # Vacío hasta pesar (auditoría 32cfbf P2): precargar lo esperado hacía
+            # pasar el plan por "real" y ocultaba la merma.
+            campo = DecimalInput(self, precision=3, minimum="0", suffix="kg", nullable=True)
+            campo.setPlaceholderText("Sin pesar")  # vacío ≠ 0: 0 es «no salió nada»
+            campo.value_changed.connect(lambda pid=pid: self._unmark_estimated(pid))
             self._campos[pid] = campo
+            self._esperado[pid] = Decimal(str(_get(salida, "expected_weight") or 0))
             filas.append([_get(salida, "product_name") or "",
                           _TIPOS.get(_get(salida, "output_type"), _get(salida, "output_type")),
                           f"{_get(salida, 'expected_weight')}",
@@ -92,6 +100,17 @@ class ExecuteProcessingOrderDialog(FormDialog):
             self.form.addRow(f"Real — {_get(salida, 'product_name') or ''}:",
                              self._campos[_get(salida, "product_id")])
 
+        self.estimate_button = QPushButton("Usar lo esperado en las vacías", self)
+        self.estimate_button.clicked.connect(self._use_expected_for_empty)
+        self.form.addRow(self.estimate_button)
+        self.estimate_reason = StandardLineEdit(
+            self, placeholder="Motivo del estimado (obligatorio si hay salidas estimadas)")
+        self.estimate_label = QLabel("Motivo del estimado:", self)
+        self.form.addRow(self.estimate_label, self.estimate_reason)
+        self.estimated_note = QLabel("", self)
+        self.estimated_note.setWordWrap(True)
+        self.form.addRow(self.estimated_note)
+        self._sync_estimated()
         self._error = QLabel("", self)
         self._error.setObjectName("textDanger")
         self._error.setWordWrap(True)
@@ -108,12 +127,54 @@ class ExecuteProcessingOrderDialog(FormDialog):
         return [{"product_id": pid, "weight": campo.decimal_value() or Decimal("0")}
                 for pid, campo in self._campos.items()]
 
+    def estimated_product_ids(self) -> tuple[str, ...]:
+        return tuple(sorted(self._estimadas))
+
+    def estimate_reason_text(self) -> str | None:
+        return self.estimate_reason.value().strip() or None if self._estimadas else None
+
+    def _use_expected_for_empty(self) -> None:
+        self._llenando = True
+        try:
+            for pid, campo in self._campos.items():
+                if campo.decimal_value() is None:
+                    campo.set_decimal(self._esperado.get(pid, Decimal("0")))
+                    self._estimadas.add(pid)
+        finally:
+            self._llenando = False
+        self._sync_estimated()
+
+    def _unmark_estimated(self, pid: str) -> None:
+        """Editar a mano una salida estimada la vuelve capturada."""
+        if not self._llenando and pid in self._estimadas:
+            self._estimadas.discard(pid)
+            self._sync_estimated()
+
+    def _sync_estimated(self) -> None:
+        hay = bool(self._estimadas)
+        self.estimate_label.setVisible(hay)
+        self.estimate_reason.setVisible(hay)
+        nombres = {_get(s, "product_id"): _get(s, "product_name") or "" for s in self._salidas}
+        self.estimated_note.setText(
+            "ESTIMADO (no pesado): " + ", ".join(nombres.get(p, "") for p in sorted(self._estimadas))
+            if hay else "")
+
     def _accept_if_valid(self) -> None:
         if not any((c.decimal_value() or 0) > 0 for c in self._entradas.values()):
             self._error.setText("Captura el peso real consumido.")
             return
+        vacias = [_get(s, "product_name") or "" for s in self._salidas
+                  if self._campos[_get(s, "product_id")].decimal_value() is None]
+        if vacias:
+            self._error.setText(
+                "Falta el peso real de: " + ", ".join(vacias) + ". Pésalas, captura 0 si no "
+                "salió nada, o usa lo esperado (queda como ESTIMADO).")
+            return
         if not any((c.decimal_value() or 0) > 0 for c in self._campos.values()):
             self._error.setText("Captura el peso real de al menos una salida.")
+            return
+        if self._estimadas and not self.estimate_reason.value().strip():
+            self._error.setText("Captura el motivo del estimado.")
             return
         self.accept()
 

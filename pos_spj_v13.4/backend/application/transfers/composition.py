@@ -87,3 +87,81 @@ class TransferUseCaseFactory:
         return CreateTransferRequestUseCase(
             repository=self._repository, authorization=self._policy,
             number_generator=self._number_generator)
+
+    # ── ciclo completo (integración Logística 32cfbf) ─────────────────────────
+    # Antes sólo se cableaba la creación: aprobar, preparar, despachar y recibir
+    # existían como casos de uso sin infraestructura ni pantalla.
+    def _gateway(self):
+        from backend.infrastructure.integrations.transfers_inventory_gateway import (
+            build_transfer_inventory_gateway,
+        )
+        return build_transfer_inventory_gateway(self._connection)
+
+    def _shipments(self):
+        from backend.infrastructure.db.repositories.transfers.transfer_shipment_repository import (
+            TransferShipmentRepository,
+        )
+        return TransferShipmentRepository(self._connection)
+
+    def submit_transfer_request(self):
+        from backend.application.transfers.use_cases.transfer_request_use_cases import (
+            SubmitTransferRequestUseCase,
+        )
+        return SubmitTransferRequestUseCase(self._repository, self._policy)
+
+    def approve_transfer_request(self):
+        from backend.application.transfers.use_cases.transfer_request_use_cases import (
+            ApproveTransferRequestUseCase,
+        )
+        return ApproveTransferRequestUseCase(self._repository, self._policy)
+
+    def reject_transfer_request(self):
+        from backend.application.transfers.use_cases.transfer_request_use_cases import (
+            RejectTransferRequestUseCase,
+        )
+        return RejectTransferRequestUseCase(self._repository, self._policy)
+
+    def reserve_transfer_inventory(self):
+        from backend.application.transfers.use_cases.transfer_reservation_use_cases import (
+            ReserveTransferInventoryUseCase,
+        )
+        return ReserveTransferInventoryUseCase(self._repository, self._gateway(), self._policy)
+
+    def start_transfer_picking(self):
+        from backend.application.transfers.use_cases.transfer_picking_use_cases import (
+            StartTransferPickingUseCase,
+        )
+        return StartTransferPickingUseCase(self._repository, self._policy)
+
+    def confirm_transfer_picking(self):
+        from backend.application.transfers.use_cases.transfer_picking_use_cases import (
+            ConfirmTransferPickingUseCase,
+        )
+        return ConfirmTransferPickingUseCase(self._repository, self._policy)
+
+    def mark_ready_to_dispatch(self):
+        from backend.application.transfers.use_cases.transfer_picking_use_cases import (
+            MarkTransferReadyToDispatchUseCase,
+        )
+        return MarkTransferReadyToDispatchUseCase(self._repository, self._policy)
+
+    def dispatch_transfer(self):
+        from backend.application.transfers.use_cases.transfer_dispatch_use_cases import (
+            DispatchTransferShipmentUseCase,
+        )
+        return DispatchTransferShipmentUseCase(self._repository, self._shipments(),
+                                               self._gateway(), self._policy)
+
+    def receive_transfer(self):
+        from backend.application.transfers.use_cases.transfer_receipt_use_cases import (
+            ConfirmTransferReceiptUseCase,
+        )
+        from backend.infrastructure.db.repositories.transfers.transfer_shipment_repository import (
+            TransferReceiptRepository,
+        )
+        return ConfirmTransferReceiptUseCase(
+            self._repository, self._shipments(), TransferReceiptRepository(self._connection),
+            self._gateway(), self._policy)
+
+    def shipment_repository(self):
+        return self._shipments()

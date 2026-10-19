@@ -13,6 +13,10 @@ producto definido de las dos maneras es un dato maestro inválido: se falla clar
 no se adivina ni se vende "el compuesto como si tuviera existencia".
 
 Un producto que no es compuesto se surte a sí mismo.
+
+`reversible_parts` (integración Logística 32cfbf, composición virtual): con qué
+PARTES se surte el faltante de un producto base que tiene despiece reversible
+activo (esquema de corte, sin merma). Ventas no lee el esquema por su cuenta.
 """
 
 from __future__ import annotations
@@ -107,6 +111,32 @@ class SalesFulfillmentQueryService:
         total: dict[str, Decimal] = {}
         self._expand(product_id, cantidad, total, camino=())
         return total
+
+    def reversible_parts(self, product_id: str, quantity) -> dict[str, Decimal]:
+        """{parte: cantidad} del despiece reversible ACTIVO de ``product_id``
+        para ``quantity`` (sin merma). Vacío si no es armable."""
+        import sqlite3
+
+        from backend.domain.products.exceptions import ProductsDomainError
+        from backend.domain.products.services.reverse_recipe_explosion_service import (
+            ReverseRecipeExplosionService,
+        )
+        from backend.infrastructure.db.repositories.products.cutting_scheme_repository import (
+            CuttingSchemeRepository,
+        )
+        try:
+            version = CuttingSchemeRepository(
+                self._conn).reversible_active_version_for_input(product_id)
+        except sqlite3.OperationalError:
+            return {}
+        if version is None:
+            return {}
+        try:
+            requeridas = ReverseRecipeExplosionService().required_components_for(
+                version, Decimal(str(quantity)))
+        except ProductsDomainError:
+            return {}
+        return {c.component_product_id: Decimal(str(c.quantity)) for c in requeridas}
 
     def _expand(self, product_id, cantidad, total, *, camino) -> None:
         if product_id in camino:

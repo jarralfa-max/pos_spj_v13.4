@@ -79,10 +79,14 @@ class TestSalesPosWorkspaceStructure:
     def test_cashier_bar_present_above_the_splitter(self, app):
         workspace = SalesPosWorkspace(_unwired_presenter())
         assert workspace.cashier_bar is not None
-        layout = workspace.layout()
-        # cashier bar must be the first item, splitter the second — same
-        # "cashier bar on top" structural rule the legacy contract enforces.
-        assert layout.itemAt(0).widget() is workspace.cashier_bar
+        # Auditoría V10 (2026-10-15): el PageHeader compartido de ModuleLayout va
+        # encima de todo; la regla es que la barra de caja sea lo PRIMERO del
+        # cuerpo de la pantalla, antes del divisor catálogo/cobro.
+        body = workspace.cashier_bar.parentWidget().layout()
+        assert body.itemAt(0).widget() is workspace.cashier_bar
+        splitter = workspace.findChildren(QSplitter)[0]
+        positions = [body.indexOf(workspace.cashier_bar), body.indexOf(splitter)]
+        assert positions[1] == -1 or positions[0] < positions[1]
 
     def test_checkout_panel_order_is_cart_before_customer(self, app):
         """Mirrors the REAL legacy order confirmed in SALES-1/POS-19 research
@@ -163,6 +167,18 @@ class TestCustomerDisplayToggle:
     def test_toggle_button_opens_and_closes_the_window(self, app):
         workspace = SalesPosWorkspace(_unwired_presenter())
         assert workspace._customer_display_window is None
+        workspace.cashier_bar._btn_customer_display.setChecked(True)
+        assert workspace._customer_display_window is not None
+        workspace.cashier_bar._btn_customer_display.setChecked(False)
+        assert workspace._customer_display_window is None
+
+    def test_closing_secondary_window_clears_toggle_and_timer(self, app):
+        workspace = SalesPosWorkspace(_unwired_presenter())
+        workspace.cashier_bar._btn_customer_display.setChecked(True)
+        workspace._customer_display_window.close()
+        assert workspace._customer_display_window is None
+        assert not workspace.cashier_bar._btn_customer_display.isChecked()
+        assert not workspace._ad_timer.isActive()
 
         workspace.cashier_bar._btn_customer_display.setChecked(True)
         assert workspace._customer_display_window is not None
@@ -207,7 +223,7 @@ class _FakeAdvertisingQueryService:
     def __init__(self, ads=()) -> None:
         self._ads = list(ads)
 
-    def resolve_active_ads(self, mode):
+    def resolve_display_ads(self, mode):
         return tuple(self._ads)
 
 
@@ -287,7 +303,7 @@ class TestAdvertisingRotation:
 
     def test_a_resolve_failure_never_raises_out_of_the_tick(self, app):
         class _RaisingQueryService:
-            def resolve_active_ads(self, mode):
+            def resolve_display_ads(self, mode):
                 raise RuntimeError("boom")
 
         presenter = SalesPosPresenter(

@@ -16,7 +16,7 @@ from __future__ import annotations
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QComboBox, QHBoxLayout, QVBoxLayout, QWidget
 
-from frontend.desktop.components import SearchInput, StatusBadge
+from frontend.desktop.components import SearchInput, StatusBadge, create_secondary_button
 from frontend.desktop.modules.sales_pos.components.product_grid import ProductGrid
 from frontend.desktop.themes.tokens import Spacing
 
@@ -40,21 +40,33 @@ class CatalogPanel(QWidget):
         self._search.search_submitted.connect(self._on_search_submitted)
         search_row.addWidget(self._search, stretch=1)
 
-        self._scanner = StatusBadge("Escáner: listo", self, status="success")
+        # Auditoría V09: no se afirma "listo" sin haber leído nada — un lector
+        # es un teclado y no hay forma de detectarlo antes de su primera lectura.
+        self._scanner = StatusBadge("Escáner: esperando lectura", self, status="neutral")
         self._scanner.setToolTip("Escanea el código de un producto o la tarjeta de un cliente "
                                  "con el cursor en la búsqueda.")
-        search_row.addWidget(self._scanner)
+        filters = QHBoxLayout()
+        filters.addWidget(self._scanner)
 
         self._category = QComboBox(self)
         self._category.setObjectName("posCategoryFilter")
         self._category.addItem("Todas las categorías", None)
         self._category.currentIndexChanged.connect(self._on_search_changed)
-        search_row.addWidget(self._category)
+        filters.addWidget(self._category)
         root.addLayout(search_row)
+        root.addLayout(filters)
 
         self._grid = ProductGrid(self)
         self._grid.product_selected.connect(self.product_selected)
         root.addWidget(self._grid, stretch=1)
+
+        # Auditoría V08: el catálogo llega por páginas; el resto, a petición.
+        self._page = 0
+        self._more = create_secondary_button(self, "Mostrar más productos")
+        self._more.setObjectName("posCatalogMore")
+        self._more.clicked.connect(self.load_more)
+        self._more.setVisible(False)
+        root.addWidget(self._more)
 
     @property
     def grid(self) -> ProductGrid:
@@ -64,11 +76,25 @@ class CatalogPanel(QWidget):
         for category_id, name in self._presenter.categories():
             self._category.addItem(name, category_id)
 
+    def _fetch(self, page: int):
+        fetch = getattr(self._presenter, "catalog_page", None)
+        if not callable(fetch):
+            return self._presenter.catalog_search(
+                search=self._search.query(), category_id=self._category.currentData()), False
+        return fetch(search=self._search.query(), category_id=self._category.currentData(),
+                     page=page)
+
     def refresh(self) -> None:
-        category = self._category.currentData()
-        products = self._presenter.catalog_search(
-            search=self._search.query(), category_id=category)
+        self._page = 0
+        products, more = self._fetch(0)
         self._grid.set_products(products)
+        self._more.setVisible(more)
+
+    def load_more(self) -> None:
+        self._page += 1
+        products, more = self._fetch(self._page)
+        self._grid.append_products(products)
+        self._more.setVisible(more)
 
     def clear_search(self) -> None:
         self._search.clear_search()

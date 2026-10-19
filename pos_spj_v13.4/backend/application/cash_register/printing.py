@@ -124,6 +124,11 @@ class PrintCashDocumentCommand:
     copies: int = 1
     original_print_id: str | None = None
     reprint_reason: str | None = None
+    #: Auditoría CJA-06 (2026-10-16): el permiso EFECTIVO de este documento (p.
+    #: ej. `CAJA.corte_x.imprimir`). Sin él, el genérico `CAJA.imprimir` /
+    #: `CAJA.reimprimir`. Antes se exigían los dos a la vez y un rol con el
+    #: permiso del corte, pero sin el genérico, no podía imprimirlo.
+    permission_code: str | None = None
 
     def __post_init__(self) -> None:
         validate_uuidv7(self.operation_id)
@@ -223,8 +228,8 @@ class PrintCashDocumentUseCase:
             return existing_print_id
         self._authorization.require(
             user_id=command.actor_user_id,
-            permission_code=(CashPermissions.REPRINT if command.original_print_id
-                             else CashPermissions.PRINT),
+            permission_code=command.permission_code or (
+                CashPermissions.REPRINT if command.original_print_id else CashPermissions.PRINT),
             branch_id=command.document.branch_id,
         )
         if command.original_print_id and not self._audit.original_exists(
@@ -289,9 +294,11 @@ class DispatchCashPrintQueueUseCase:
 
     def execute(self, *, branch_id: str, actor_user_id: str,
                 limit: int = 25) -> CashPrintDispatchSummary:
+        # Entrega trabajos YA autorizados al crearse (cada uno con el permiso de
+        # su documento): aquí basta el acceso a Caja de la sucursal (CJA-06).
         self._authorization.require(
             user_id=actor_user_id,
-            permission_code=CashPermissions.PRINT,
+            permission_code=CashPermissions.ACCESS,
             branch_id=branch_id,
         )
         jobs = self._store.list_pending_jobs(

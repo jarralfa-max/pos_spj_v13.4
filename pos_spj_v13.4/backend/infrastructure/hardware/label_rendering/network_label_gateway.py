@@ -13,7 +13,7 @@ gateway makes it real:
    override; the default `"default"` value takes the routed path.
 2. Renders real bytes per `label_format` (ZPL/ESC-POS/plain text —
    `zpl_renderer.py`/`escpos_label_renderer.py`/`text_label_renderer.py`).
-3. Delivers via `core.services.printer_service.PrintTransport` — the
+3. Delivers via `backend.infrastructure.printing.transport.PrintTransport` — the
    same real, already-relied-upon transport layer ticket printing uses.
 
 Never validated against physical hardware (none available in this

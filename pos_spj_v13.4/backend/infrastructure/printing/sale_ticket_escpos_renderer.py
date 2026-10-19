@@ -84,88 +84,11 @@ def _pair(label: str, value: str, width: int) -> str:
 
 def render_sale_ticket(payload: dict[str, Any], *, header: dict[str, Any] | None = None,
                        paper_width_mm: int = 80, encoding: str = DEFAULT_ENCODING) -> bytes:
-    width = COLUMNS_BY_PAPER_WIDTH_MM.get(int(paper_width_mm or 80), 48)
-    header = header or {}
-    out = bytearray(INIT)
+    """El ticket con el DISEÑO POR OMISIÓN (el de siempre). Desde 2026-10-16 el
+    impresor de Ventas usa `ticket_layout_renderer.render_ticket` con el diseño de
+    la versión ACTIVA de la plantilla; esto queda para quien no tenga plantilla."""
+    from backend.domain.document_output.ticket_layout import default_layout
+    from backend.infrastructure.printing.ticket_layout_renderer import render_ticket
 
-    def line(text: str = "") -> None:
-        out.extend(sanitize_text(text, encoding=encoding).encode(encoding, errors="replace"))
-        out.extend(FEED_LINE)
-
-    rule = "-" * width
-    out.extend(ALIGN_CENTER)
-    nombre = header.get("company_name") or ""
-    if nombre:
-        out.extend(BOLD_ON)
-        for renglon in _wrap(nombre, width):
-            line(renglon)
-        out.extend(BOLD_OFF)
-    for clave in ("branch_name", "address", "phone", "header_text"):
-        if header.get(clave):
-            for renglon in _wrap(str(header[clave]), width):
-                line(renglon)
-    out.extend(ALIGN_LEFT)
-    line(rule)
-    if payload.get("reimpresion"):
-        out.extend(ALIGN_CENTER + BOLD_ON)
-        line("*** REIMPRESION ***")
-        out.extend(BOLD_OFF + ALIGN_LEFT)
-    line(_pair("Folio:", str(payload.get("folio") or ""), width))
-    line(_pair("Fecha:", str(payload.get("fecha") or "")[:19].replace("T", " "), width))
-    line(_pair("Cajero:", str(payload.get("cajero") or ""), width))
-    line(_pair("Cliente:", str(payload.get("cliente") or "Publico General")[: width - 9], width))
-    line(rule)
-
-    for item in payload.get("items") or ():
-        for renglon in _wrap(str(item.get("nombre") or ""), width):
-            line(renglon)
-        detalle = (f"  {_quantity(item.get('cantidad'))} {item.get('unidad') or ''}"
-                   f" x {_money(item.get('precio_unitario'))}")
-        line(_pair(detalle, _money(item.get("total")), width))
-    line(rule)
-
-    totales = payload.get("totales") or {}
-    line(_pair("Subtotal", _money(totales.get("subtotal")), width))
-    if Decimal(str(totales.get("descuento") or 0)) > 0:
-        line(_pair("Descuento", "-" + _money(totales.get("descuento")), width))
-    if Decimal(str(totales.get("impuestos") or 0)) > 0:
-        line(_pair("Impuestos", _money(totales.get("impuestos")), width))
-    out.extend(BOLD_ON)
-    line(_pair("TOTAL", _money(totales.get("total_final")), width))
-    out.extend(BOLD_OFF)
-
-    pago = payload.get("pago") or {}
-    if pago.get("forma_pago"):
-        forma = str(pago["forma_pago"])
-        line(_pair("Forma de pago", PAYMENT_LABELS.get(forma, forma), width))
-    if Decimal(str(pago.get("efectivo_recibido") or 0)) > 0:
-        line(_pair("Efectivo recibido", _money(pago.get("efectivo_recibido")), width))
-        line(_pair("Cambio", _money(pago.get("cambio")), width))
-
-    fidelidad = payload.get("loyalty") or {}
-    if fidelidad.get("available") or fidelidad.get("puntos_totales"):
-        line(rule)
-        if fidelidad.get("puntos_ganados") is not None:
-            line(_pair("Puntos ganados", str(fidelidad["puntos_ganados"]), width))
-        line(_pair("Puntos acumulados", str(fidelidad.get("puntos_totales") or 0), width))
-        if fidelidad.get("nivel"):
-            line(_pair("Nivel", str(fidelidad["nivel"]), width))
-
-    mensajes = list(payload.get("fomo_messages") or ())
-    if mensajes or header.get("footer_text"):
-        line(rule)
-        out.extend(ALIGN_CENTER)
-        for mensaje in mensajes:
-            for renglon in _wrap(str(mensaje), width):
-                line(renglon)
-        if header.get("footer_text"):
-            for renglon in _wrap(str(header["footer_text"]), width):
-                line(renglon)
-        out.extend(ALIGN_LEFT)
-
-    out.extend(ALIGN_CENTER)
-    line("Gracias por su compra")
-    out.extend(ALIGN_LEFT)
-    out.extend(FEED_LINE * 4)
-    out.extend(CUT_PARTIAL)
-    return bytes(out)
+    return render_ticket(default_layout("SALE"), payload, header=header,
+                         paper_width_mm=paper_width_mm, encoding=encoding).data

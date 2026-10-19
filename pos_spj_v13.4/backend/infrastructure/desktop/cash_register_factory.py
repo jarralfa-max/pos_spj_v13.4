@@ -322,7 +322,8 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         ),
         "ledger": resolve_attr(
             "cash_ledger_query_service",
-            lambda: CashLedgerQueryService(CashLedgerRepository(connection)),
+            lambda: CashLedgerQueryService(CashLedgerRepository(connection),
+                                           connection=connection, authorization=authorization),
         ),
         "blind_count": resolve_attr(
             "cash_blind_count_query_service",
@@ -338,7 +339,8 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         ),
         "handover": resolve_attr(
             "cash_handover_query_service",
-            lambda: CashHandoverQueryService(CashHandoverRepository(connection)),
+            lambda: CashHandoverQueryService(CashHandoverRepository(connection),
+                                             connection=connection, authorization=authorization),
         ),
         "differences": resolve_attr(
             "cash_difference_query_service",
@@ -990,6 +992,33 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         prepare_notifications_for_operation(operation_id)
         return result
 
+    def _shift_fields(shift_id: str, generated_by: str) -> tuple:
+        """Auditoría de Caja CJA-05 (2026-10-16): el corte identifica el turno
+        por caja, cajero y apertura, y a quien lo generó por su nombre — antes
+        imprimía los UUID internos del turno, del usuario y del conteo."""
+        def user_name(user_id: str) -> str:
+            try:
+                row = connection.execute(
+                    "SELECT COALESCE(NULLIF(nombre,''), usuario) FROM usuarios WHERE id=?",
+                    (user_id,)).fetchone()
+            except Exception:  # noqa: BLE001 - base sin usuarios legibles
+                row = None
+            return str(row[0]) if row and row[0] else "Usuario"
+        try:
+            shift = connection.execute(
+                "SELECT COALESCE(r.name,''), s.cashier_user_id, s.opened_at FROM cash_shifts s"
+                " LEFT JOIN cash_registers r ON r.id=s.register_id WHERE s.id=?",
+                (shift_id,)).fetchone()
+        except Exception:  # noqa: BLE001
+            shift = None
+        register, cashier, opened = (shift or ("", "", ""))
+        return (
+            ("Caja", register or "-"),
+            ("Cajero", user_name(cashier) if cashier else "-"),
+            ("Turno abierto", str(opened or "")[:16].replace("T", " ")),
+            ("Generado por", user_name(generated_by)),
+        )
+
     def _x_cut_document(*, cut_id: str, branch_id: str,
                         actor_user_id: str) -> CashPrintDocument:
         cut = query_services["x_cut"].get(
@@ -997,10 +1026,8 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             branch_id=branch_id,
             requester_user_id=actor_user_id,
         )
-        fields = (
-            ("Turno", cut.shift_id),
-            ("Generado por", cut.generated_by),
-            ("Generado", cut.generated_at),
+        fields = _shift_fields(cut.shift_id, cut.generated_by) + (
+            ("Generado", str(cut.generated_at)[:16].replace("T", " ")),
             ("Final", "No"),
         )
         totals = ()
@@ -1019,13 +1046,14 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
                 if key.startswith("movement.")
             ),
             totals=totals,
-            qr_value=cut.id,
+            barcode_value=cut.document_number,
             final=False,
         )
 
     def _print_cash_cut(*, document, document_type, route_document: str, label: str,
                         cut_id: str, branch_id: str, actor_user_id: str, reprint: bool,
-                        original_print_id: str | None, reprint_reason: str | None) -> str:
+                        original_print_id: str | None, reprint_reason: str | None,
+                        permission_code: str | None = None) -> str:
         """Imprime de verdad (CASH-26 bloque 2): impresora de Document Output,
         ESC/POS al ancho del papel, cola confirmada y despacho inmediato. Sólo
         devuelve si salió papel; si no, el trabajo queda FALLIDO con su motivo
@@ -1052,6 +1080,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             printer_id=printer_id, output_format=CashPrintFormat.ESC_POS,
             original_print_id=resolved_original_print_id if reprint else None,
             reprint_reason=reprint_reason if reprint else None,
+            permission_code=permission_code,
         ))
         connection.commit()
         DispatchCashPrintQueueUseCase(
@@ -1086,6 +1115,8 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         return _print_cash_cut(
             document=document, document_type=CashPrintDocumentType.X_CUT,
             route_document=DocumentType.X_REPORT.value, label="Corte X",
+            permission_code=(CashPermissions.X_CUT_REPRINT if reprint
+                             else CashPermissions.X_CUT_PRINT),
             cut_id=cut_id, branch_id=branch_id, actor_user_id=actor_user_id,
             reprint=reprint, original_print_id=original_print_id,
             reprint_reason=reprint_reason)
@@ -1128,15 +1159,13 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             branch_id=cut.branch_id,
             reference=cut.document_number,
             title="Corte Z",
-            fields=(
-                ("Turno", cut.shift_id),
-                ("Conteo ciego", cut.blind_count_id or "-"),
-                ("Generado por", cut.generated_by),
-                ("Generado", cut.generated_at),
+            fields=_shift_fields(cut.shift_id, cut.generated_by) + (
+                ("Conteo ciego", "Confirmado" if cut.blind_count_id else "-"),
+                ("Generado", str(cut.generated_at)[:16].replace("T", " ")),
                 ("Final", "Si" if cut.is_final else "No"),
             ),
             totals=totals,
-            qr_value=cut.id,
+            barcode_value=cut.document_number,
             final=cut.is_final,
         )
 
@@ -1162,6 +1191,8 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         return _print_cash_cut(
             document=document, document_type=CashPrintDocumentType.Z_CUT,
             route_document=DocumentType.Z_REPORT.value, label="Corte Z",
+            permission_code=(CashPermissions.Z_CUT_REPRINT if reprint
+                             else CashPermissions.Z_CUT_PRINT),
             cut_id=cut_id, branch_id=branch_id, actor_user_id=actor_user_id,
             reprint=reprint, original_print_id=original_print_id,
             reprint_reason=reprint_reason)
@@ -1314,6 +1345,12 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
 
     def active_context() -> dict[str, object | None]:
         return operational_context.context().as_presenter_dict()
+
+    # Auditoría CJA-07: la caja se elige por nombre en la apertura.
+    query_services["available_registers"] = operational_context.available_registers
+    from backend.application.cash_register.shift_labels import shift_labels as _shift_labels
+    query_services["shift_labels"] = lambda ids: _shift_labels(connection, ids)
+    query_services["choose_register"] = operational_context.choose_register
 
     return CashRegisterPresenter(
         session_context=session,

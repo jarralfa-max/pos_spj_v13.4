@@ -11,7 +11,7 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.modules.cash_register.cash_register_dialogs import ReprintCashDocumentDialog
-from frontend.desktop.modules.cash_register.presentation import display_code, user_facing_error
+from frontend.desktop.modules.cash_register.presentation import user_facing_error
 
 
 class CashZCutsPage(QWidget):
@@ -73,10 +73,11 @@ class CashZCutsPage(QWidget):
             KPIDTO("final", "Finales", str(sum(1 for row in rows if row.is_final))),
             KPIDTO("diff", "Diferencia neta", self._money(total_difference), total_difference),
         ])
+        labels = self._presenter.shift_labels({row.shift_id for row in rows})
         self._table.load_rows([
             [
                 row.document_number,
-                display_code("TUR", row.shift_id),
+                labels.get(row.shift_id, "Turno"),
                 self._money(row.expected_cash),
                 self._money(row.counted_cash),
                 self._money(row.difference),
@@ -120,6 +121,8 @@ class CashZCutsPage(QWidget):
             self,
             document_type="Corte Z",
             document=self._rows_by_id.get(cut_id),
+            shift_label=self._presenter.shift_label(
+                getattr(self._rows_by_id.get(cut_id), "shift_id", None)),
         )
         if dialog.exec_() != dialog.Accepted:
             return

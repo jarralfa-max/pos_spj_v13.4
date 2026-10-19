@@ -22,10 +22,36 @@ def _build_transfers_presenter_and_permission(connection, session_context=None):
     factory = (TransferUseCaseFactory.from_session(session_context, connection=connection)
                if session_context is not None
                else TransferUseCaseFactory.for_tests(connection=connection))
+    from backend.application.transfers.queries.transfer_detail_query_service import (
+        TransferDetailQueryService,
+    )
+    from backend.infrastructure.integrations.transfers_inventory_gateway import (
+        reserved_pick_lines,
+    )
+    from backend.security.authentication.verify_authorizer_credentials_use_case import (
+        build_authorizer_credentials_verifier,
+    )
+    # Ciclo completo (integración Logística 32cfbf): antes sólo se cableaba crear.
+    cycle = {
+        "submit": factory.submit_transfer_request(),
+        "approve": factory.approve_transfer_request(),
+        "reject": factory.reject_transfer_request(),
+        "reserve": factory.reserve_transfer_inventory(),
+        "start_picking": factory.start_transfer_picking(),
+        "confirm_picking": factory.confirm_transfer_picking(),
+        "ready_to_dispatch": factory.mark_ready_to_dispatch(),
+        "dispatch": factory.dispatch_transfer(),
+        "receive": factory.receive_transfer(),
+    }
+    from backend.application.transfers.cycle_service import TransferCycleService
+    ciclo = TransferCycleService(
+        connection, use_cases=cycle, detail_query=TransferDetailQueryService(connection).detail,
+        pick_lines=lambda tid: reserved_pick_lines(connection, factory._repository.get(tid)))
     presenter = TransfersPresenter(
         query, connection=connection,
         create_transfer_request_uc=factory.create_transfer_request(),
-        session_context=session_context)
+        session_context=session_context, cycle_service=ciclo,
+        credentials_verifier=build_authorizer_credentials_verifier(connection).execute)
     return presenter, has_permission
 
 

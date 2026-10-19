@@ -120,14 +120,21 @@ class InventoryAnalyticsService(InventoryRepositoryBase):
             series=(series,), generated_at=_now(), freshness_state=FreshnessState.LIVE)
 
     def waste_by_type_chart(self, *, branch_id: str) -> ChartDataDTO:
-        rows = self._query(
-            "SELECT c.code AS waste_type, "
-            "COALESCE(SUM(CAST(l.quantity AS REAL)),0) AS q "
-            "FROM loss_cases lc "
-            "JOIN loss_classifications c ON c.id=lc.classification_id "
-            "JOIN loss_lines l ON l.loss_case_id=lc.id "
-            "WHERE lc.branch_id=? GROUP BY c.code "
-            " ORDER BY q DESC", (branch_id,))
+        """2026-10-16: la categoría es el NOMBRE de la clasificación («Daño por
+        manipulación»), no su código interno; y una base sin el módulo de
+        Mermas da la gráfica vacía en vez de tumbar toda la analítica."""
+        import sqlite3
+        try:
+            rows = self._query(
+                "SELECT COALESCE(NULLIF(trim(c.display_name),''), c.code) AS waste_type, "
+                "COALESCE(SUM(CAST(l.quantity AS REAL)),0) AS q "
+                "FROM loss_cases lc "
+                "JOIN loss_classifications c ON c.id=lc.classification_id "
+                "JOIN loss_lines l ON l.loss_case_id=lc.id "
+                "WHERE lc.branch_id=? GROUP BY c.id, waste_type "
+                " ORDER BY q DESC", (branch_id,))
+        except sqlite3.OperationalError:
+            rows = []
         if not rows:
             return ChartDataDTO.empty("inv_waste", ChartType.BAR, "Merma por tipo")
         categories = tuple(str(r["waste_type"]) for r in rows)

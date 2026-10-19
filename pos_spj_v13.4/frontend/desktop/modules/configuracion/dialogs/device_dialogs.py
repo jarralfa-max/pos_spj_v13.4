@@ -53,6 +53,7 @@ _PRINTER_PROTOCOLS = (
 # type, so the dialog offers both vocabularies in one combo — whichever
 # one applies is enforced server-side, not by hiding options client-side.
 _SCALE_PROTOCOLS = (
+    ("RHINO_BAR_8RS", "Rhino BAR-8RS (USB / COM)"),
     ("TOLEDO_STANDARD", "Toledo estándar"), ("SICS", "SICS"), ("NCI", "NCI"),
     ("CONTINUOUS", "Continuo"), ("ON_DEMAND", "Bajo demanda"),
 )
@@ -96,7 +97,7 @@ class DeviceProfileCreateDialog(FormDialog):
 
         self.serial_port = StandardLineEdit(self)
         self.serial_port.setAccessibleName("Puerto serie")
-        apply_tooltip(self.serial_port, "Solo si la conexión es Puerto serie. Ej. «COM3».")
+        apply_tooltip(self.serial_port, "Puerto COM asignado por Windows a la báscula USB o serie.")
         self.form.addRow("Puerto (serie):", self.serial_port)
 
         self.baud_rate = SearchableComboBox(self, placeholder="Baud rate…")

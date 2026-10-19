@@ -47,6 +47,16 @@ class StartBlindCountUseCase:
                 "OPEN", "CLOSING"
             }:
                 raise CashInvalidStateError("El conteo requiere un turno abierto o en cierre preliminar")
+            # Auditoría CJA-02: arquear el turno de otro cajero (arqueo sorpresa)
+            # es de supervisor (`CAJA.conteo.sobrescribir`).
+            from backend.application.cash_register.shift_ownership import (
+                ensure_owner_or_intervention,
+            )
+            intervention = ensure_owner_or_intervention(
+                self._auth, shift_cashier_user_id=shift["cashier_user_id"],
+                actor_user_id=counter_user_id, branch_id=branch_id,
+                intervention_permission=CashPermissions.BLIND_COUNT_OVERRIDE,
+                require_reason=False, action="arquear")
             if uow.counts.find_open_for_shift(shift_id):
                 raise CashInvalidStateError("El turno ya tiene una sesión de conteo abierta")
             count = BlindCashCount.start(
@@ -56,7 +66,7 @@ class StartBlindCountUseCase:
             _record(uow, CashEvents.BLIND_COUNT_STARTED, operation_id=operation_id,
                     entity_id=count.id, branch_id=branch_id,
                     actor_user_id=counter_user_id, shift_id=shift_id,
-                    expected_cash_hidden=True)
+                    expected_cash_hidden=True, intervention=intervention)
         return BlindCountCommandResult(count.id, "OPEN", Decimal("0"))
 
 

@@ -29,8 +29,13 @@ class CashRegisterPresentationTests(unittest.TestCase):
         self.assertNotRegex(code, UUID_RE)
 
     def test_origin_label_uses_business_context(self):
+        # Auditoría CJA-05: el folio lo pone el backend (`LedgerRow.origin_label`);
+        # sin él, nunca un fragmento del id.
         sale_id = "01900000-0000-7000-8000-00000000abcd"
-        self.assertEqual(origin_label(sale_id=sale_id), "Venta VTA-00ABCD")
+        self.assertEqual(origin_label(sale_id=sale_id, label="Venta V-COR-000008"),
+                         "Venta V-COR-000008")
+        self.assertEqual(origin_label(sale_id=sale_id), "Venta")
+        self.assertNotIn("ABCD", origin_label(sale_id=sale_id))
 
     def test_error_mapper_masks_technical_identity(self):
         message = user_facing_error(

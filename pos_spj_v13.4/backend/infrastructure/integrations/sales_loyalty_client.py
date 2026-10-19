@@ -62,6 +62,14 @@ class SalesLoyaltyClient:
         self._authorization = authorization or LoyaltyAuthorizationPolicy()
 
     # ── lectura ──────────────────────────────────────────────────────────
+    def credited_points_for_sale(self, sale_id):
+        from backend.infrastructure.db.repositories.loyalty.transaction_repository import LoyaltyTransactionRepository
+        from backend.domain.loyalty.enums import TransactionType, TransactionStatus
+        entries = LoyaltyTransactionRepository(self._connection).list_for_sale(sale_id)
+        credited = [e for e in entries if e.transaction_type in (TransactionType.EARN, TransactionType.BONUS)
+                    and e.status == TransactionStatus.AVAILABLE]
+        return sum((e.points_amount for e in credited), Decimal("0")) if credited else None
+
     def peek_loyalty_summary(self, *, customer_id: str) -> LoyaltySummary:
         """Saldo para imprimir en el ticket. No acumula ni descuenta nada.
 

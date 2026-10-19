@@ -23,7 +23,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QGridLayout, QLabel, QScrollArea, QWidget
 
 from frontend.desktop.components import StatusBadge, apply_tooltip
-from frontend.desktop.components.cards import SummaryCard
+from frontend.desktop.components.cards import SummaryCard, InteractiveSummaryCard
 from frontend.desktop.components.image_thumbnail import ImageThumbnail
 from frontend.desktop.modules.sales_pos.components.cart_table import format_quantity
 from frontend.desktop.themes.tokens import CardMetrics, Spacing
@@ -36,7 +36,7 @@ STATE_LABELS = {
     "NOT_SELLABLE": "No vendible",
 }
 _STATE_VARIANT = {
-    "AVAILABLE": "success", "LOW_STOCK": "warning", "CRITICAL_STOCK": "warning",
+    "AVAILABLE": "success", "LOW_STOCK": "warning", "CRITICAL_STOCK": "danger",
     "OUT_OF_STOCK": "danger", "NOT_SELLABLE": "danger",
 }
 #: Tarjeta del contrato visual (`sales_pos_layout_inventory.md`: 175 px) y
@@ -75,6 +75,7 @@ class ProductGrid(QScrollArea):
     def set_products(self, products) -> None:
         for card in self._cards:
             card.setParent(None)
+            card.deleteLater()
         self._cards.clear()
         products = list(products)
         self._empty.setVisible(not products)
@@ -84,6 +85,19 @@ class ProductGrid(QScrollArea):
         for product in products:
             self._cards.append(self._build_card(product))
         self._layout_cards()
+
+    def append_products(self, products) -> None:
+        """La página siguiente se AGREGA: las tarjetas ya dibujadas no se
+        reconstruyen (auditoría V08)."""
+        start = len(self._cards)
+        for product in products:
+            self._cards.append(self._build_card(product))
+        for index in range(start, len(self._cards)):
+            row, col = divmod(index, self._columns)
+            self._grid.addWidget(self._cards[index], row, col)
+
+    def card_count(self) -> int:
+        return len(self._cards)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
@@ -98,9 +112,10 @@ class ProductGrid(QScrollArea):
             self._grid.addWidget(card, row, col)
 
     def _build_card(self, product) -> SummaryCard:
-        card = SummaryCard(self._container)
+        card = InteractiveSummaryCard(self._container)
         card.setObjectName("posProductCard")
         card.setProperty("sellable", product.sellable)
+        card.setAccessibleName(product.name)
         card.setCursor(Qt.PointingHandCursor)
         card.setFixedWidth(CARD_WIDTH)
 
@@ -143,5 +158,10 @@ class ProductGrid(QScrollArea):
         if product.warnings:
             apply_tooltip(card, "\n".join(product.warnings))
 
-        card.mousePressEvent = lambda _event, p=product: self.product_selected.emit(p)
+        card.activated.connect(lambda p=product, c=card: self._activate(c, p))
         return card
+
+    def _activate(self, selected, product):
+        for card in self._cards:
+            card.set_selected(card is selected)
+        self.product_selected.emit(product)

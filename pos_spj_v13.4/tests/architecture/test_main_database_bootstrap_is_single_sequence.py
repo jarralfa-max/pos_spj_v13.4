@@ -13,8 +13,13 @@ from pathlib import Path
 MAIN_PY = Path(__file__).resolve().parents[2] / "main.py"
 
 
+APP_PY = MAIN_PY.parent / "frontend" / "desktop" / "app.py"
+
+
 def _source() -> str:
-    return MAIN_PY.read_text(encoding="utf-8")
+    # `main.py` sólo prepara sys.path y delega en `frontend.desktop.app.main`,
+    # que es donde vive hoy el arranque real.
+    return MAIN_PY.read_text(encoding="utf-8") + "\n" + APP_PY.read_text(encoding="utf-8")
 
 
 def test_main_calls_the_single_canonical_bootstrap_sequence():

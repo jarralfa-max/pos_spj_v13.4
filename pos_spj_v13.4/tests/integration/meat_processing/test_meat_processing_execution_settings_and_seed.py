@@ -100,7 +100,10 @@ class TestTolerancias:
 
 class TestSiembraDePermisos:
     def test_271_cubre_todo_el_vocabulario_de_carnico(self):
-        assert {f"PRODUCCION.{a}" for a in m271._TODAS} == set(ALL_MEAT_PROCESSING_PERMISSIONS)
+        # La transformación directa (auditoría 32cfbf) se siembra en la 343.
+        posteriores = {MeatProcessingPermissions.DIRECT_TRANSFORMATION_EXECUTE}
+        assert ({f"PRODUCCION.{a}" for a in m271._TODAS} | posteriores
+                == set(ALL_MEAT_PROCESSING_PERMISSIONS))
 
     def test_almacen_produce_y_gerente_aprueba(self):
         c = sqlite3.connect(":memory:")

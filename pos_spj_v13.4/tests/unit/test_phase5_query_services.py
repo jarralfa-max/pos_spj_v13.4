@@ -1,6 +1,5 @@
 from backend.application.queries import (
     BranchQueryService,
-    CashRegisterQueryService,
     CustomerQueryService,
     ProductQueryService,
     QueryFilters,
@@ -46,7 +45,6 @@ def test_query_services_expose_expected_scopes_for_ui_read_models() -> None:
         CustomerQueryService: "customers",
         ProductQueryService: "products",
         BranchQueryService: "branches",
-        CashRegisterQueryService: "cash_register",
     }
 
     assert {service_class: service_class().scope for service_class in expected_scopes} == expected_scopes

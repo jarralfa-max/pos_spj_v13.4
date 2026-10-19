@@ -199,9 +199,11 @@ class ConfiguracionPresenter:
         user_permission_matrix_query=None, save_user_permissions_uc=None,
         import_display_media_uc=None, set_device_windows_printer_uc=None,
         authorization=None, audit_log_repository=None,
-        address_search_factory=None, software_updates=None,
+        address_search_factory=None, software_updates=None, ticket_designer=None,
     ) -> None:
         self._query_service = query_service
+        #: Diseñador de tickets y logos (comparativa de tickets, 2026-10-16).
+        self._ticket_designer = ticket_designer
         #: «Acerca de y actualizaciones» tiene su propio presentador
         #: (`software_updates_presenter.py`): sus casos de uso no son de la
         #: gobernanza de configuración. Se expone aquí porque las páginas se
@@ -1219,6 +1221,116 @@ class ConfiguracionPresenter:
         except Exception:
             logger.exception("ConfiguracionPresenter.create_document_template failed")
             return False, "Error inesperado; revise el log."
+
+    # ── diseñador de tickets y logos (comparativa main ↔ ERP, 2026-10-16) ──
+    def _ticket_branch_id(self) -> str | None:
+        branch = self._session_branch_id()
+        if branch:
+            return branch
+        try:
+            pinned = self.get_installation_branch()
+        except Exception:  # noqa: BLE001 - sin anclaje: vista sin datos de sucursal
+            return None
+        if isinstance(pinned, (tuple, list)) and pinned:
+            return str(pinned[0]) or None
+        return getattr(pinned, "branch_id", None) or None
+
+    def ticket_designer_available(self) -> bool:
+        return self._ticket_designer is not None
+
+    def validate_ticket_layout(self, layout_json: str) -> str | None:
+        if self._ticket_designer is None:
+            return "Diseñador de tickets no disponible."
+        return self._ticket_designer.validate(layout_json)
+
+    def ticket_preview(self, *, layout_json: str, document_type: str, paper_width_mm: int):
+        """(png, avisos, error)."""
+        if self._ticket_designer is None:
+            return None, [], "Diseñador de tickets no disponible."
+        denied = self._authorize(ConfiguracionPermissions.DOCUMENTOS_VIEW)
+        if denied:
+            return None, [], denied
+        try:
+            preview = self._ticket_designer.preview(
+                layout_json, document_type=document_type, branch_id=self._ticket_branch_id(),
+                paper_width_mm=paper_width_mm)
+        except DocumentOutputDomainError as exc:
+            return None, [], str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.ticket_preview failed")
+            return None, [], "No se pudo generar la vista previa; revise el log."
+        return preview.png, preview.warnings, None
+
+    def ticket_print_test(self, *, layout_json: str, document_type: str) -> tuple[bool, str]:
+        if self._ticket_designer is None:
+            return False, "Diseñador de tickets no disponible."
+        denial = self._authorize(ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR)
+        if denial:
+            return False, denial
+        try:
+            warnings = self._ticket_designer.print_test(
+                layout_json, document_type=document_type, branch_id=self._ticket_branch_id())
+        except DocumentOutputDomainError as exc:
+            return False, str(exc)
+        except Exception as exc:  # noqa: BLE001 - impresora sin configurar/apagada: motivo legible
+            return False, str(exc) or "No se pudo imprimir la prueba."
+        text = "Prueba enviada a la impresora."
+        if warnings:
+            text += "\n\nAvisos:\n• " + "\n• ".join(warnings)
+        return True, text
+
+    def logo_preview(self, *, source_path: str, remove_background: bool, tolerance,
+                     preview_dir: str):
+        """(LogoPreview | None, error)."""
+        if self._ticket_designer is None:
+            return None, "Carga de logos no disponible."
+        try:
+            return self._ticket_designer.preview_logo(
+                source_path=source_path, remove_background=remove_background,
+                tolerance=tolerance, preview_dir=preview_dir), None
+        except ValueError as exc:
+            return None, str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.logo_preview failed")
+            return None, "No se pudo procesar la imagen; revise el log."
+
+    def assign_logo(self, *, source_path: str | None, remove_background: bool = False,
+                    tolerance=None, branch_id: str | None = None) -> tuple[bool, str]:
+        """Carga el logo a la biblioteca y lo asigna a la empresa (`branch_id`
+        None) o a una sucursal. `source_path` None QUITA el logo (la sucursal
+        vuelve a heredar el de la empresa)."""
+        if self._ticket_designer is None:
+            return False, "Carga de logos no disponible."
+        denial = self._authorize(ConfiguracionPermissions.EMPRESA_EDITAR)
+        if denial:
+            return False, denial
+        try:
+            asset_id = None
+            if source_path:
+                asset_id = self._ticket_designer.import_logo(
+                    source_path=source_path, remove_background=remove_background,
+                    tolerance=tolerance, actor_user_id=self._actor()).id
+            if branch_id:
+                self._ticket_designer.set_branch_logo(branch_id, asset_id, self._actor())
+            else:
+                self._ticket_designer.set_company_logo(asset_id)
+        except ValueError as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.assign_logo failed")
+            return False, "Error inesperado; revise el log."
+        if not source_path:
+            return True, ("La sucursal usará el logo de la empresa." if branch_id
+                          else "Logo de la empresa quitado.")
+        return True, "Logo guardado. Se imprimirá en los tickets que lo tengan activado."
+
+    def current_logo(self, branch_id: str | None = None) -> tuple[str | None, str]:
+        if self._ticket_designer is None:
+            return None, "NONE"
+        try:
+            return self._ticket_designer.logo_for(branch_id)
+        except Exception:  # noqa: BLE001 - sin logo que mostrar
+            return None, "NONE"
 
     def create_next_template_version(self, *, version_id: str, content: str) -> tuple[bool, str]:
         if self._create_next_template_version_uc is None:

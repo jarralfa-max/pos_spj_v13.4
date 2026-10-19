@@ -31,7 +31,7 @@ _EMOJI_RE = re.compile("[\U0001F300-\U0001FAFF☀-➿]")
 def test_losses_view_uses_sidebar_and_stack_not_horizontal_tabs():
     source = (_LOSSES_MODULE / "losses_view.py").read_text(encoding="utf-8")
     assert "LossesSidebarWidget" in source
-    assert "QStackedWidget" in source
+    assert "QStackedWidget" in source or "PageStack" in source  # PageStack = QStackedWidget común (frontend/desktop/components/page_stack.py)
     assert "QTabWidget" not in source
 
 

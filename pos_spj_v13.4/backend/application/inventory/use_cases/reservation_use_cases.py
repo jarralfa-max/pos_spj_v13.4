@@ -141,14 +141,15 @@ class ReleaseReservationUseCase:
 
     def execute(self, connection, *, reservation_id: str, operation_id: str,
                 actor_user_id: str, reason: str = "",
-                context: InventoryExecutionContext | None = None) -> InventoryResult:
+                context: InventoryExecutionContext | None = None,
+                owns_transaction: bool = True) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.RESERVATION_RELEASE)
         except InventoryPermissionDeniedError as exc:
             return InventoryResult.fail(str(exc), "PERMISSION_DENIED",
                                         operation_id=operation_id)
         try:
-            with InventoryUnitOfWork(connection) as uow:
+            with InventoryUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
                 reservation = uow.reservations.get(reservation_id)
                 if reservation is None:
                     return InventoryResult.fail("Reserva no encontrada",
@@ -298,14 +299,15 @@ class FulfillReservationUseCase:
 
     def execute(self, connection, *, reservation_id: str, operation_id: str,
                 actor_user_id: str,
-                context: InventoryExecutionContext | None = None) -> InventoryResult:
+                context: InventoryExecutionContext | None = None,
+                owns_transaction: bool = True) -> InventoryResult:
         try:
             self._auth.require(actor_user_id, InventoryPermissions.RESERVATION_CREATE)
         except InventoryPermissionDeniedError as exc:
             return InventoryResult.fail(str(exc), "PERMISSION_DENIED",
                                         operation_id=operation_id)
         try:
-            with InventoryUnitOfWork(connection) as uow:
+            with InventoryUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
                 reservation = uow.reservations.get(reservation_id)
                 if reservation is None:
                     return InventoryResult.fail("Reserva no encontrada",

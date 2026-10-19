@@ -142,8 +142,9 @@ def test_the_per_customer_cap_is_respected(conn):
 def test_reprocessing_the_same_sale_does_not_duplicate_tickets(conn):
     """Reintentar el cobro no puede entregar el doble de boletos.
 
-    Cada intento otorga su propio derecho, pero la emisión sólo completa los
-    boletos que le FALTAN a ese derecho.
+    2026-10-16: antes cada intento otorgaba un derecho NUEVO con sus boletos
+    (esta prueba sólo comprobaba que los números no se repitieran) y el cliente
+    recibía el doble. Ahora la venta otorga su derecho una vez por campaña.
     """
     _campaign(conn, chances_per_amount="250")
     venta = _SaleDTO(customer_id=new_uuid(), total=Decimal("500"))
@@ -156,11 +157,10 @@ def test_reprocessing_the_same_sale_does_not_duplicate_tickets(conn):
     client.issue_tickets_for_sale(sale=venta)
     conn.commit()
 
-    # El segundo intento crea otro derecho con sus boletos, pero ninguno
-    # duplica los ya emitidos del primero.
     numeros = [fila["ticket_number"] for fila in _tickets_in_db(conn)]
     assert len(numeros) == len(set(numeros)), "hay números de boleto repetidos"
     assert primeros == 2
+    assert len(numeros) == primeros, "reprocesar la venta duplicó los boletos"
 
 
 def test_ticket_numbers_are_unique_within_a_campaign(conn):

@@ -17,7 +17,8 @@ class _Permissions:
 
 class _Scopes:
     def __init__(self, allowed_branches: set[str]): self.allowed_branches = allowed_branches
-    def can_access_transfer_scope(self, *, user_id, branch_id, warehouse_id, location_id): return branch_id in self.allowed_branches
+    # Contrato real: sucursal ausente o vacía PERMITE (ver TransferAuthorizationPolicy.require).
+    def can_access_transfer_scope(self, *, user_id, branch_id, warehouse_id, location_id): return not branch_id or branch_id in self.allowed_branches
 
 
 class _Audit:

@@ -185,9 +185,54 @@ def _build_meat_processing_wiring(connection, session_context=None):
 
     branch_id = str(getattr(session_context, "active_branch_id", "") or "")
 
+    def direct_transformation_presenter():
+        """Transformación directa (auditoría 32cfbf): las etapas de la orden
+        corren con `DirectTransformationStageAuthorization` — basta el permiso
+        propio —, el AUTORIZADOR de una desviación sigue siendo otro usuario."""
+        from backend.application.meat_processing.authorization import (
+            DirectTransformationStageAuthorization,
+        )
+        from backend.application.meat_processing.queries.direct_transformation_query_service import (
+            DirectTransformationQueryService,
+        )
+        from backend.application.meat_processing.use_cases.direct_transformation_use_cases import (
+            ExecuteDirectTransformationUseCase,
+        )
+        from frontend.desktop.modules.meat_processing.presenters.direct_transformation_presenter import (
+            DirectTransformationPresenter,
+        )
+        etapas = MeatProcessingAuthorizationPolicy(DirectTransformationStageAuthorization(
+            MeatProcessingSessionPermissionChecker(session_context)))
+        sucursal = branch_id or None
+        caso = ExecuteDirectTransformationUseCase(
+            authorization,
+            create_uc=CreateProcessingOrderUseCase(etapas, folio_port=ProcessingOrderFolioAdapter),
+            approve_uc=ApproveProcessingOrderUseCase(etapas),
+            prepare_uc=PrepareProcessingOrderUseCase(
+                etapas, recipe_snapshot_port=ProductsRecipeSnapshotAdapter(connection),
+                reservation_port_factory=reservation_port_factory(connection)),
+            release_uc=ReleaseProcessingOrderUseCase(etapas),
+            execute_uc=ExecuteProcessingOrderUseCase(
+                etapas,
+                ports_factory=execution_ports_factory(dispatch_costing=_dispatch_costing),
+                authorizer_authorization=MeatProcessingAuthorizationPolicy(
+                    AuthorizerPermissionChecker(connection, branch_id=sucursal)),
+                authorizer_checker=AuthorizerPermissionChecker(connection, branch_id=sucursal)),
+            lots_query_factory=DirectTransformationQueryService)
+        return DirectTransformationPresenter(
+            connection_provider=lambda: connection,
+            query_factory=DirectTransformationQueryService, execute_uc=caso,
+            session_context=session_context, context_provider=context_provider,
+            credentials_verifier=orders_presenter.verify_authorizer)
+
     def page_builder(page_id: str):
         if page_id == "mp_processing_orders":
             return ProcessingOrdersPage(orders_presenter)
+        if branch_id and page_id == "mp_direct_transformation":
+            from frontend.desktop.modules.meat_processing.pages.direct_transformation_page import (
+                DirectTransformationPage,
+            )
+            return DirectTransformationPage(direct_transformation_presenter())
         # Literal a propósito: el trinquete de rutas reales lee esta tupla del
         # código. `test_meat_processing_record_pages` exige que sea `_RECORD_ROUTES`.
         if branch_id and page_id in (

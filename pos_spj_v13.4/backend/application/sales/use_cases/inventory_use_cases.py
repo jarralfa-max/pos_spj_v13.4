@@ -37,10 +37,9 @@ class ReserveInventoryForSaleUseCase(_SalesBaseUseCase):
         except SalesDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
             if sale.inventory_reservation_id:
                 return SaleResult.ok(
                     "La venta ya tiene una reserva activa", entity_id=sale.id,
@@ -66,10 +65,9 @@ class ConfirmInventoryReservationUseCase(_SalesBaseUseCase):
         except SalesDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
             if not sale.inventory_reservation_id:
                 return SaleResult.ok(
                     "La venta no tiene reserva de inventario que confirmar",
@@ -95,10 +93,9 @@ class ReleaseInventoryReservationUseCase(_SalesBaseUseCase):
         except SalesDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
             if not sale.inventory_reservation_id:
                 return SaleResult.ok(
                     "La venta no tiene reserva de inventario que liberar",

@@ -210,10 +210,16 @@ class ActualizacionesPage(QWidget):
             self.reload()
 
     def reload(self, search: str = "") -> None:
+        # Sin presentador o con error de lectura el aviso va en la página, no en
+        # un modal: la ruta se construye perezosamente al navegar y un diálogo
+        # en ese momento tumbaba el proceso (2026-10-16).
+        if self._presenter is None:
+            self._show_unavailable("Las actualizaciones no están disponibles en esta sesión.")
+            return
         try:
             status = self._presenter.status()
-        except Exception as exc:
-            QMessageBox.warning(self, self.title, f"No se pudo leer el estado: {exc}")
+        except Exception as exc:  # noqa: BLE001 - se informa en la página
+            self._show_unavailable(f"No se pudo leer el estado: {exc}")
             return
         self._loaded = True
         self._status = status
@@ -294,6 +300,16 @@ class ActualizacionesPage(QWidget):
                 message="Aún no hay búsquedas ni instalaciones registradas en esta estación.")
             self.history_card.add(self.history_empty)
         self.history_table.setVisible(bool(rows))
+
+    def _show_unavailable(self, message: str) -> None:
+        self._loaded = True
+        self.warnings_label.setText(message)
+        self.warnings_card.setVisible(True)
+        for widget in (self.check_button, self.download_button, self.cancel_download_button,
+                       self.offline_button, self.install_button, self.schedule_button,
+                       self.cancel_schedule_button, self.channel_combo, self.save_channel_button,
+                       self.window_input, self.save_window_button, self.clear_window_button):
+            widget.setEnabled(False)
 
     def _apply_permissions(self, status) -> None:
         downloading = self._thread is not None

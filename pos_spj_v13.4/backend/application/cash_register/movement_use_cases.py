@@ -79,6 +79,15 @@ class RegisterSafeDropUseCase:
             shift = uow.shifts.get(shift_id)
             if not shift or shift["branch_id"] != branch_id:
                 raise CashInvalidStateError("El safe drop requiere un turno abierto")
+            # Auditoría CJA-02: el cajón de otro cajero, sólo un supervisor.
+            from backend.application.cash_register.shift_ownership import (
+                ensure_owner_or_intervention,
+            )
+            ensure_owner_or_intervention(
+                self._auth, shift_cashier_user_id=shift["cashier_user_id"],
+                actor_user_id=actor_user_id, branch_id=branch_id,
+                intervention_permission=CashPermissions.SHIFT_FORCE_CLOSE, require_reason=False,
+                action="mover efectivo en")
             CashShiftLifecyclePolicy.ensure_operable(shift["status"])
             reason = uow.movement_reasons.get_active(
                 code=reason_code, movement_type=CashMovementType.SAFE_DROP.value,

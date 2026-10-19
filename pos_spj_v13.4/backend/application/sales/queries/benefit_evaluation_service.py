@@ -56,6 +56,7 @@ class SaleBenefitEvaluationService:
         sale = SaleRepository(self._connection).get(sale_id)
         if sale is None:
             raise SaleNotFoundError(f"Venta {sale_id} no existe")
+        self._auth.require_branch(requester_user_id, sale.branch_id)  # auditoría V05
 
         commercial_discount = sale.totals.discount_total
         requires_manual_authorization = SaleDiscountPolicy.requires_authorization(

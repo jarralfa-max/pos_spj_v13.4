@@ -40,10 +40,13 @@ from backend.infrastructure.integrations.sales_sweepstakes_client import SalesSw
 logger = logging.getLogger(__name__)
 
 
-def _load_receipt_data(uow, sale_id: str, *, cajero_nombre: str, cliente_nombre: str):
+def _load_receipt_data(uow, sale_id: str, *, cajero_nombre: str, cliente_nombre: str,
+                       auth, actor_user_id: str):
     sale = uow.sales.get(sale_id)
     if sale is None:
         raise SaleNotFoundError(f"Venta {sale_id} no existe")
+    # Auditoría V05: el ticket de otra sucursal no se imprime ni se guarda aquí.
+    auth.require_branch(actor_user_id, sale.branch_id)
     if sale.completed_at is None:
         raise ReceiptNotAvailableError(
             f"La venta {sale_id} nunca completó el cobro — no hay ticket que emitir")
@@ -81,26 +84,32 @@ class _ReceiptPrintUseCase(_SalesBaseUseCase):
         with SalesUnitOfWork(connection) as uow:
             try:
                 sale, receipt = _load_receipt_data(
-                    uow, sale_id, cajero_nombre=cajero_nombre, cliente_nombre=cliente_nombre)
+                    uow, sale_id, cajero_nombre=cajero_nombre, cliente_nombre=cliente_nombre,
+                    auth=self._auth, actor_user_id=actor_user_id)
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
+            # Comparativa de tickets (2026-10-16): el documento que se imprime es
+            # el DISEÑO ACTIVO + marca de la sucursal + datos, y se guarda como
+            # FOTO la primera vez. La reimpresión sale de esa foto (decisión del
+            # usuario: «el original, marcado»), no de lo vigente hoy.
+            document = _ticket_document(connection, sale, receipt, is_reprint=self._IS_REPRINT)
             print_job = _try_track_print_job(
                 connection, sale_id=sale.id, branch_id=sale.branch_id, actor_user_id=actor_user_id,
-                is_reprint=self._IS_REPRINT, reprint_reason=reason if self._IS_REPRINT else None)
-            loyalty = _try_peek_loyalty(connection, sale.customer_id)
-            messages = _try_select_messages(
-                connection, subtotal=receipt.subtotal, total=receipt.total,
-                has_customer=sale.customer_id is not None,
-                points_balance=loyalty.points_balance if loyalty else None)
+                is_reprint=self._IS_REPRINT, reprint_reason=reason if self._IS_REPRINT else None,
+                template_version_id=document.get("template_version_id"))
             try:
                 if printer_service is None:
                     raise ReceiptPrintFailedError(
                         "Esta estación no tiene servicio de impresión de tickets.")
-                job_id = SalesReceiptClient(printer_service).print_receipt_data(
-                    receipt, loyalty=loyalty, messages=messages, is_reprint=self._IS_REPRINT,
-                    on_success=_mark_job_printed(connection, print_job),
-                    on_error=_mark_job_failed(connection, print_job))
+                on_success = _mark_job_printed(connection, print_job)
+                on_error = _mark_job_failed(connection, print_job)
+                if hasattr(printer_service, "print_document"):
+                    job_id = printer_service.print_document(
+                        document, on_success=on_success, on_error=on_error)
+                else:   # impresor sin diseño (pruebas, integraciones viejas)
+                    job_id = printer_service.print_ticket(
+                        document["payload"], on_success=on_success, on_error=on_error)
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             self._emit(uow, self._EVENT, entity_id=sale.id,
@@ -127,7 +136,46 @@ class ReprintReceiptUseCase(_ReceiptPrintUseCase):
     _OK_MESSAGE = "Reimpresión enviada"
 
 
-def _try_track_print_job(connection, *, sale_id, branch_id, actor_user_id, is_reprint, reprint_reason):
+def _ticket_document(connection, sale, receipt, *, is_reprint: bool) -> dict:
+    """La foto del ticket si ya existe; si no, se compone con el diseño activo y
+    se guarda (la primera impresión manda)."""
+    import copy
+
+    from backend.application.queries.document_output.ticket_design_query_service import (
+        TicketDesignQueryService,
+    )
+    from backend.infrastructure.db.repositories.sales.receipt_snapshot_repository import (
+        SaleReceiptSnapshotRepository,
+    )
+
+    snapshots = SaleReceiptSnapshotRepository(connection)
+    stored = snapshots.get(sale.id)
+    if stored is None:
+        design = TicketDesignQueryService(connection)
+        active = design.active_layout("SALE_TICKET")
+        branding = design.branding(sale.branch_id)
+        loyalty = _try_peek_loyalty(connection, sale.customer_id)
+        messages = _try_select_messages(
+            connection, subtotal=receipt.subtotal, total=receipt.total,
+            has_customer=sale.customer_id is not None,
+            points_balance=loyalty.points_balance if loyalty else None,
+            limits=active.layout.message_limits())
+        stored = {
+            "document_type": "SALE_TICKET", "layout_json": active.layout.to_json(),
+            "template_version_id": active.template_version_id, "header": branding.header,
+            "logo_path": branding.logo_path,
+            "payload": SalesReceiptClient._to_ticket_payload(
+                receipt, loyalty=loyalty, messages=messages),
+        }
+        snapshots.save_if_absent(sale.id, stored)
+    document = copy.deepcopy(stored)
+    if is_reprint:
+        document["payload"]["reimpresion"] = True
+    return document
+
+
+def _try_track_print_job(connection, *, sale_id, branch_id, actor_user_id, is_reprint,
+                         reprint_reason, template_version_id=None):
     """Best-effort `document_output.PrintJob` audit/routing record for this
     print — see `sales_print_job_client.py`'s own docstring. Never allowed
     to block or fail a real ticket print: any error here is logged and
@@ -136,7 +184,8 @@ def _try_track_print_job(connection, *, sale_id, branch_id, actor_user_id, is_re
     try:
         return SalesPrintJobClient(connection).try_create_or_reprint_job(
             sale_id=sale_id, branch_id=branch_id, actor_user_id=actor_user_id,
-            is_reprint=is_reprint, reprint_reason=reprint_reason)
+            is_reprint=is_reprint, reprint_reason=reprint_reason,
+            template_version_id=template_version_id)
     except Exception:  # noqa: BLE001 - audit-only integration, never break a real print
         logger.exception("No se pudo registrar PrintJob de Document Output para venta %s", sale_id)
         return None
@@ -155,13 +204,15 @@ def _try_peek_loyalty(connection, customer_id: str | None):
         return None
 
 
-def _try_select_messages(connection, *, subtotal, total, has_customer, points_balance):
+def _try_select_messages(connection, *, subtotal, total, has_customer, points_balance,
+                         limits=None):
     """Best-effort marketing message selection — see
     `sales_marketing_client.py`'s own docstring. Never allowed to block a
     real ticket print."""
     try:
         return SalesMarketingClient(connection).select_ticket_messages(
-            subtotal=subtotal, total=total, has_customer=has_customer, points_balance=points_balance)
+            subtotal=subtotal, total=total, has_customer=has_customer,
+            points_balance=points_balance, max_per_category=limits)
     except Exception:  # noqa: BLE001 - audit-only integration, never break a real print
         logger.exception("No se pudo seleccionar mensajes de marketing para el ticket")
         return ()
@@ -230,7 +281,8 @@ class SaveReceiptDocumentUseCase(_SalesBaseUseCase):
         with SalesUnitOfWork(connection) as uow:
             try:
                 sale, receipt = _load_receipt_data(
-                    uow, sale_id, cajero_nombre=cajero_nombre, cliente_nombre=cliente_nombre)
+                    uow, sale_id, cajero_nombre=cajero_nombre, cliente_nombre=cliente_nombre,
+                    auth=self._auth, actor_user_id=actor_user_id)
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
 

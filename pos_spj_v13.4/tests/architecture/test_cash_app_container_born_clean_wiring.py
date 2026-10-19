@@ -34,7 +34,11 @@ class CashAppContainerBornCleanWiringTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("DesktopCashOperationalContextResolver", factory)
         self.assertNotIn("def _first_active_cash_device", factory)
-        self.assertIn("_first_active_cash_device", resolver)
+        # Auditoría de Caja CJA-04 (2026-10-16): la caja se elige por nombre; ya
+        # no se toma «la primera activa».
+        self.assertNotIn("_first_active_cash_device", resolver)
+        self.assertIn("def available_registers", resolver)
+        self.assertIn("def choose_register", resolver)
         self.assertIn("cash_registers", resolver)
         self.assertIn("cash_drawers", resolver)
         self.assertIn("pos_terminals", resolver)

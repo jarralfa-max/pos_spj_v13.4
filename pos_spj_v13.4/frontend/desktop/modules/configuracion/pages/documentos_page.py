@@ -27,6 +27,9 @@ from frontend.desktop.themes.tokens import Spacing
 
 from .base_page import ConfiguracionWorkspacePage
 
+#: Plantillas cuyo contenido es un diseño de ticket (se editan con el diseñador).
+_TICKET_TYPES = ("SALE_TICKET", "SWEEPSTAKES_TICKET")
+
 _VERSION_COLUMNS = [
     ColumnSpec("Versión", "numeric"), ColumnSpec("Estado", "status"), ColumnSpec("Motivo"),
     ColumnSpec("Creado por"),
@@ -180,6 +183,13 @@ class DocumentosPage(ConfiguracionWorkspacePage):
         if dlg.exec_() != QDialog.Accepted:
             return
         values = dlg.values()
+        if values.get("document_type") in _TICKET_TYPES:
+            # Comparativa de tickets (2026-10-16): el contenido de un ticket es
+            # su diseño por bloques; se crea con el diseñador, no a mano.
+            layout_json = self._design_ticket(values["document_type"], None)
+            if layout_json is None:
+                return
+            values["content"], values["content_format"] = layout_json, "ESC_POS"
         if not values["name"] or not values["document_type"] or not values["module"] or not values["content_format"] or not values["content"]:
             QMessageBox.warning(
                 self, "Documentos", "Nombre, tipo, módulo, formato y contenido son obligatorios.",
@@ -232,6 +242,19 @@ class DocumentosPage(ConfiguracionWorkspacePage):
         version_id = self._selected_version_id()
         if not version_id:
             return
+        template = self._presenter.get_template(self._selected_template_id)
+        if template is not None and template.document_type in _TICKET_TYPES:
+            base = next((v.content for v in self._presenter.list_template_versions(
+                self._selected_template_id) if v.entity_id == version_id), None)
+            content = self._design_ticket(template.document_type, base)
+            if content is None:
+                return
+            ok, message = self._presenter.create_next_template_version(
+                version_id=version_id, content=content)
+            (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
+            if ok:
+                self._reload_versions()
+            return
         dlg = NewTemplateVersionDialog(self)
         if dlg.exec_() != QDialog.Accepted:
             return
@@ -243,6 +266,20 @@ class DocumentosPage(ConfiguracionWorkspacePage):
         (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
         if ok:
             self._reload_versions()
+
+    def _design_ticket(self, document_type: str, content: str | None) -> str | None:
+        """El diseñador de tickets; devuelve el diseño (JSON) o None si se canceló."""
+        if not self._presenter.ticket_designer_available():
+            QMessageBox.warning(self, "Documentos", "El diseñador de tickets no está disponible.")
+            return None
+        from frontend.desktop.modules.configuracion.dialogs.ticket_designer_dialog import (
+            TicketDesignerDialog,
+        )
+        dialog = TicketDesignerDialog(self._presenter, document_type=document_type,
+                                      content=content, parent=self)
+        if dialog.exec_() != QDialog.Accepted:
+            return None
+        return dialog.layout_json
 
     def _on_reject(self) -> None:
         version_id = self._selected_version_id()

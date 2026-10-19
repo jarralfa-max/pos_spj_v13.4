@@ -18,8 +18,10 @@ the (harder to cleanly undo) inventory-reservation confirmation run, then
 **Outbox**: `PAYMENT_CONFIRMED`/`COMPLETED` are enqueued to `sales_outbox`
 inside that SAME transaction — if anything above fails, no event survives.
 
-**Cash effects, and the one part of "atomic" this use case cannot deliver
-honestly**: `SalesCashEffectsClient` wraps Caja's real
+**Cash effects — CERRADO 2026-10-15 (auditoría de Ventas V06)**: Caja ya se
+compone en la misma transacción (`CashRegisterUnitOfWork(owns_transaction=
+False)`); si Caja rechaza, la venta no se completa. El texto que sigue es la
+limitación ORIGINAL, conservada como historia: `SalesCashEffectsClient` wraps Caja's real
 `CashSalesIntegrationService.record_completed_sale` — but `Cash Register`'s
 own `CashRegisterUnitOfWork` has no `owns_transaction=False` mode (unlike
 Sales'/Inventory's), so it cannot be composed into the same SAVEPOINT
@@ -100,10 +102,9 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
             return fail_from_domain_error(exc, operation_id=operation_id)
 
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
 
             try:
                 SaleLifecyclePolicy.ensure_transition(
@@ -147,15 +148,39 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
                                             authorizer_user_id=authorizer_user_id,
                                             reason=reason))
 
+            # Caja en la MISMA transacción (auditoría V06, decisión del usuario
+            # "todo o nada"): si Caja rechaza, la venta no se completa, el
+            # inventario no sale y el folio no avanza. Antes corría después del
+            # commit y su error sólo quedaba en `cash_effects_error`, que la
+            # pantalla nunca leía.
+            if sale.payments and self._require_cash_shift:
+                change = max(Decimal("0"), sale.total_paid - sale.totals.total)
+                try:
+                    SalesCashEffectsClient().record_completed_sale(
+                        connection, sale_id=sale.id, branch_id=sale.branch_id,
+                        cashier_user_id=sale.cashier_user_id, operation_id=operation_id,
+                        payments=sale.payments, change=change, sale_number=sale.sale_number)
+                except Exception as exc:  # noqa: BLE001 - se informa y se deshace todo
+                    uow.rollback()
+                    logger.warning("Caja rechazó la venta %s: %s", sale.id, exc)
+                    return SaleResult.fail(
+                        f"Caja no pudo registrar el cobro: {exc}. La venta NO se completó; "
+                        "corrige el problema y vuelve a cobrar.", "CASH_EFFECTS_FAILED",
+                        operation_id=operation_id)
+
         cash_effects_error: str | None = None
-        if sale.payments:
+        if sale.payments and not self._require_cash_shift:
+            # Pedidos/Delivery (sin turno de mostrador; el efectivo lo liquida
+            # el repartidor): conserva el efecto de Caja de siempre, después
+            # del commit y sin deshacer la venta. Ver `orders_delivery_sales_client`.
             change = max(Decimal("0"), sale.total_paid - sale.totals.total)
             try:
                 SalesCashEffectsClient().record_completed_sale(
                     connection, sale_id=sale.id, branch_id=sale.branch_id,
                     cashier_user_id=sale.cashier_user_id, operation_id=operation_id,
-                    payments=sale.payments, change=change)
-            except Exception as exc:  # noqa: BLE001 - never un-complete a sale over a ledger side effect
+                    payments=sale.payments, change=change, owns_transaction=True,
+                    sale_number=sale.sale_number)
+            except Exception as exc:  # noqa: BLE001 - Pedidos no se deshace por Caja
                 cash_effects_error = str(exc)
                 logger.warning("Efecto de caja no registrado para venta %s: %s", sale.id, exc)
 
@@ -187,7 +212,8 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
                     "cobrar: sin turno, el dinero de la venta no entra a ningún corte.")
         return None
 
-    def _unit_costs(self, connection, sale) -> tuple[dict, list[str]]:
+    def _unit_costs(self, connection, sale, *, virtual: dict | None = None
+                    ) -> tuple[dict, list[str]]:
         """Costo unitario por producto para la salida de inventario y el costo
         de venta. Un producto nunca costeado queda fuera y se informa: el costo
         no se inventa (§18).
@@ -219,7 +245,39 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
 
         costos: dict[str, Decimal] = {}
         sin_costo: set[str] = set()
+        virtual = virtual or {}
+        cantidades: dict[str, Decimal] = {}
+        for line in sale.goods_lines:
+            cantidades[line.product_id] = cantidades.get(
+                line.product_id, Decimal("0")) + line.quantity.value
         for product_id in {line.product_id for line in sale.goods_lines}:
+            if product_id in virtual:
+                # Composición virtual (integración Logística 32cfbf): la línea
+                # cuesta su parte directa a su costo y el faltante a lo que
+                # cuestan las partes con que se surte.
+                partes = dict(virtual[product_id])
+                faltante = partes.pop("__shortfall__")
+                total, completo = Decimal("0"), True
+                for parte, cantidad in partes.items():
+                    costo = costo_de(parte)
+                    if costo is None:
+                        sin_costo.add(parte)
+                        completo = False
+                        continue
+                    costos[parte] = costo
+                    total += cantidad * costo
+                directo = cantidades[product_id] - faltante
+                if directo > 0:
+                    propio = costo_de(product_id)
+                    if propio is None:
+                        completo = False
+                    else:
+                        total += directo * propio
+                if completo and cantidades[product_id] > 0:
+                    costos[product_id] = total / cantidades[product_id]
+                else:
+                    sin_costo.add(product_id)
+                continue
             try:
                 partes = composicion.explode(product_id, Decimal("1"))
             except CompositeDefinitionError:
@@ -281,7 +339,9 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
         except SalesDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
 
-        costos, sin_costo = self._unit_costs(connection, sale)
+        virtual = (inv_client.virtual_composition(sale)
+                   if faltante is None and hasattr(inv_client, "virtual_composition") else {})
+        costos, sin_costo = self._unit_costs(connection, sale, virtual=virtual)
         if faltante is None:
             try:
                 inv_client.confirm(sale.inventory_reservation_id, sale_id=sale.id,

@@ -99,10 +99,9 @@ class _DiscountUseCase(_SalesBaseUseCase):
         except SalesDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
 
             authorized = False
             if authorizer_user_id is not None:
@@ -166,10 +165,9 @@ class ApplySaleDiscountPercentUseCase(ApplySaleDiscountUseCase):
         from backend.domain.sales.policies.discount_policy import SaleDiscountPolicy
 
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-        if sale is None:
-            return fail_from_domain_error(
-                SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+        if denied is not None:
+            return denied
         try:
             amount = SaleDiscountPolicy.amount_for_percent(
                 base_amount=sale.totals.gross_subtotal, percent=discount_percent)

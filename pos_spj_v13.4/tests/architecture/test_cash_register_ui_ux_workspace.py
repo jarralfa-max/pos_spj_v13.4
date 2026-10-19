@@ -11,7 +11,7 @@ class CashRegisterUiUxWorkspaceTests(unittest.TestCase):
         source = (MODULE / "cash_register_workspace.py").read_text(encoding="utf-8")
         for required in (
             "SideNav",
-            "QStackedWidget",
+            "PageStack",  # el QStackedWidget común (components/page_stack.py)
             "ModuleLayout",
             "self._header = self.module_layout.header",
             "self._header.add_action(refresh)",

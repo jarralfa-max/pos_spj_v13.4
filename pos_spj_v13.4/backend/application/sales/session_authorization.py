@@ -39,3 +39,15 @@ class SalesSessionPermissionChecker:
             return False
         check = getattr(session, "tiene_permiso", None)
         return bool(callable(check) and check(permission_code))
+
+    def can_access_branch(self, user_id: str, branch_id: str) -> bool:
+        """Auditoría V05: la venta debe ser de la sucursal ACTIVA de la sesión
+        (decisión del usuario 2026-10-15: sólo la propia)."""
+        session = self._session
+        if session is None or not bool(getattr(session, "is_active", False)):
+            return False
+        session_user_id = str(getattr(session, "user_id", "") or "").strip()
+        if not session_user_id or session_user_id != str(user_id or "").strip():
+            return False
+        active = str(getattr(session, "active_branch_id", "") or "").strip()
+        return bool(active) and active == str(branch_id or "").strip()

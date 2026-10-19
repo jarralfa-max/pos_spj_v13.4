@@ -65,6 +65,12 @@ class CreditSaleEligibilityPolicy:
         if is_public_customer:
             violations.append(
                 "Para vender a crédito debe seleccionar un cliente con crédito autorizado.")
+            # Medido 2026-10-16 en la base real: un cliente «Público en general»
+            # CON crédito autorizado recibía sólo la línea de arriba, que no
+            # explica nada a quien ve su crédito autorizado en pantalla.
+            violations.append(
+                "El cliente está registrado como «Público en general» y a ese tipo no se le "
+                "vende a crédito: cambia su tipo en Clientes.")
         if customer_blocked:
             violations.append("El cliente está bloqueado.")
 

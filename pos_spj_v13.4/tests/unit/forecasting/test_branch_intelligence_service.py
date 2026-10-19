@@ -24,6 +24,9 @@ from backend.domain.forecasting.value_objects.time_series import (
     TimeSeriesObservation,
 )
 
+# Relativa a hoy: una fecha fija vence y el dominio rechaza la recomendación.
+_VALID_UNTIL = date.today() + timedelta(days=60)
+
 
 class _ByProductReader:
     def __init__(self, demand_by_product: dict[str, Decimal]):
@@ -110,7 +113,7 @@ def test_recommends_increase_stock_when_stockout_share_dominates():
     rec = service.analyze_stock_risk(
         branch_id="b1", positions=positions, horizon_days=5, as_of=date(2026, 12, 1),
         overstock_threshold_days=Decimal("30"), confidence=Decimal("0.8"),
-        valid_until=date(2026, 12, 10), safety_stock_method=SafetyStockMethod.FIXED_DAYS,
+        valid_until=_VALID_UNTIL, safety_stock_method=SafetyStockMethod.FIXED_DAYS,
         fixed_days=Decimal("2"),
     )
     assert rec is not None
@@ -131,7 +134,7 @@ def test_recommends_reduce_stock_when_overstock_share_dominates():
     rec = service.analyze_stock_risk(
         branch_id="b1", positions=positions, horizon_days=5, as_of=date(2026, 12, 1),
         overstock_threshold_days=Decimal("30"), confidence=Decimal("0.8"),
-        valid_until=date(2026, 12, 10), safety_stock_method=SafetyStockMethod.FIXED_DAYS,
+        valid_until=_VALID_UNTIL, safety_stock_method=SafetyStockMethod.FIXED_DAYS,
         fixed_days=Decimal("2"),
     )
     assert rec is not None
@@ -146,7 +149,7 @@ def test_no_recommendation_when_all_products_are_healthy():
     rec = service.analyze_stock_risk(
         branch_id="b1", positions=positions, horizon_days=5, as_of=date(2026, 12, 1),
         overstock_threshold_days=Decimal("30"), confidence=Decimal("0.8"),
-        valid_until=date(2026, 12, 10), safety_stock_method=SafetyStockMethod.FIXED_DAYS,
+        valid_until=_VALID_UNTIL, safety_stock_method=SafetyStockMethod.FIXED_DAYS,
         fixed_days=Decimal("2"),
     )
     assert rec is None
@@ -180,7 +183,7 @@ def test_recommend_transfer_from_surplus_branch_to_deficit_branch():
         product_id="p1", source_position=source, destination_position=destination,
         horizon_days=5, as_of=date(2026, 12, 1), overstock_threshold_days=Decimal("30"),
         target_coverage_days=Decimal("7"), confidence=Decimal("0.8"),
-        valid_until=date(2026, 12, 10), safety_stock_method=SafetyStockMethod.FIXED_DAYS,
+        valid_until=_VALID_UNTIL, safety_stock_method=SafetyStockMethod.FIXED_DAYS,
         fixed_days=Decimal("2"),
     )
     assert rec is not None
@@ -213,7 +216,7 @@ def test_recommend_transfer_returns_none_when_source_has_no_surplus():
         product_id="p1", source_position=source, destination_position=destination,
         horizon_days=5, as_of=date(2026, 12, 1), overstock_threshold_days=Decimal("30"),
         target_coverage_days=Decimal("7"), confidence=Decimal("0.8"),
-        valid_until=date(2026, 12, 10), safety_stock_method=SafetyStockMethod.FIXED_DAYS,
+        valid_until=_VALID_UNTIL, safety_stock_method=SafetyStockMethod.FIXED_DAYS,
         fixed_days=Decimal("2"),
     )
     assert rec is None

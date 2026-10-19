@@ -64,6 +64,8 @@ class LogisticsRepository:
         self.connection.execute(
             "INSERT INTO logistics_physical_containers VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
             " ON CONFLICT(id) DO UPDATE SET current_location_id=excluded.current_location_id,"
+            " serial_number=excluded.serial_number,tare_weight=excluded.tare_weight,"
+            " capacity_weight=excluded.capacity_weight,capacity_volume=excluded.capacity_volume,"
             " current_custodian_id=excluded.current_custodian_id,status=excluded.status,"
             " condition=excluded.condition,qr_version=excluded.qr_version,"
             " qr_signature=excluded.qr_signature,last_inspection_at=excluded.last_inspection_at,"
@@ -85,6 +87,21 @@ class LogisticsRepository:
             Decimal(row[6]) if row[6] is not None else None,
             ContainerOwnerType(row[7]), row[8], row[9], row[10], ContainerStatus(row[11]),
             row[12], row[13], row[14], row[15], row[16], row[17]) if row else None
+
+    def next_container_code(self, prefix: str) -> str:
+        """Siguiente código del prefijo; se llama DENTRO de la transacción del
+        alta (el código es UNIQUE: un choque entre estaciones se reintenta)."""
+        from backend.domain.logistics.container_codes import next_code
+        rows = self.connection.execute(
+            "SELECT container_code FROM logistics_physical_containers"
+            " WHERE container_code LIKE ?", (f"{prefix}-%",)).fetchall()
+        return next_code(prefix, (r[0] for r in rows))
+
+    def get_container_by_code(self, code: str) -> PhysicalContainer | None:
+        row = self.connection.execute(
+            "SELECT id FROM logistics_physical_containers WHERE container_code=?",
+            ((code or "").strip().upper(),)).fetchone()
+        return self.get_container(row[0]) if row else None
 
     def container_in_active_shipment(self, container_id: str) -> bool:
         row = self.connection.execute(

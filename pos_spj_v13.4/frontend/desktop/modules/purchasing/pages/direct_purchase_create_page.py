@@ -13,7 +13,7 @@ borrador sí se guardaba (medido 2026-09-25 sobre la base real).
 
 from decimal import Decimal
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QSplitter, QVBoxLayout, QWidget
 
 from backend.shared.ids import new_uuid
@@ -42,6 +42,8 @@ _NOT_SAVED = "Sin guardar"
 
 
 class DirectPurchaseCreatePage(QWidget):
+    #: (id de la compra, modo de surtido) al confirmarse.
+    purchase_confirmed = pyqtSignal(str, str)
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("directPurchaseCreatePage")
@@ -173,6 +175,14 @@ class DirectPurchaseCreatePage(QWidget):
 
     def start_create(self):
         self._supplier.setFocus()
+
+    def start_pickup(self) -> None:
+        """Compra de mercancía con «Recolección en proveedor» ya elegida: la abre
+        «Compra en origen → Nueva recolección» para salir sin orden de compra."""
+        self._kind.set_current_id("GOODS")
+        self._fulfillment.set_current_id("SUPPLIER_PICKUP")
+        self._fulfillment_changed()
+        self.start_create()
 
     # destino (sucursal + almacén) --------------------------------------------
     def _load_destination(self) -> None:
@@ -399,6 +409,9 @@ class DirectPurchaseCreatePage(QWidget):
             return
         folio = self._folio
         received = data.get("status") == "RECEIVED"
+        # (id, surtido): «Compra en origen» abre el embarque desde esta compra.
+        self.purchase_confirmed.emit(str(self._current_id or ""),
+                                     str(self._fulfillment.current_id() or ""))
         destination = self._warehouse.currentText()
         self._new_capture()
         self._render()

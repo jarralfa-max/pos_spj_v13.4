@@ -14,7 +14,7 @@ from frontend.desktop.modules.cash_register.cash_register_dialogs import (
     CashShiftOpeningDialog,
     SuspendCashShiftDialog,
 )
-from frontend.desktop.modules.cash_register.presentation import display_code, status_label, user_facing_error
+from frontend.desktop.modules.cash_register.presentation import status_label, user_facing_error
 
 
 class CashShiftsPage(QWidget):
@@ -67,7 +67,7 @@ class CashShiftsPage(QWidget):
     @staticmethod
     def _money(value) -> str:
         if value is None:
-            return "Oculto por arqueo"
+            return "Oculto"
         return f"${value:,.2f}"
 
     def refresh(self) -> None:
@@ -86,7 +86,7 @@ class CashShiftsPage(QWidget):
                 row.register_name,
                 row.drawer_name,
                 row.terminal_name,
-                row.cashier_name or display_code("USR", row.cashier_user_id),
+                row.cashier_name or "Cajero",
                 status_label(row.status),
                 self._money(row.opening_amount),
                 self._money(row.expected_cash),
@@ -98,12 +98,15 @@ class CashShiftsPage(QWidget):
         return self._table.selected_row_id() or self._presenter.optional_active_shift_id()
 
     def _request_open_shift(self) -> None:
-        dialog = CashShiftOpeningDialog(self)
+        registers = getattr(self._presenter, "available_registers", None)
+        dialog = CashShiftOpeningDialog(
+            self, registers=registers() if callable(registers) else None)
         if dialog.exec_() != dialog.Accepted:
             return
+        value = dialog.result_value()
         try:
             result = self._presenter.open_cash_shift(
-                opening_amount=dialog.result_value().opening_amount,
+                opening_amount=value.opening_amount, register_id=value.register_id,
             )
         except (CashRegisterError, RuntimeError, ValueError) as exc:
             self._show_error(user_facing_error(exc))

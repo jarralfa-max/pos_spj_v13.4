@@ -1,0 +1,75 @@
+2026-10-16 19:17:13,622 SPJ.Boot INFO =======================================================
+2026-10-16 19:17:13,626 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-16 19:17:13,628 SPJ.Boot INFO =======================================================
+2026-10-16 19:17:18,360 SPJ.Boot INFO Ubicación de la base: NOT_APPLICABLE — Ruta de base fija (código fuente o SPJ_DB_PATH).
+2026-10-16 19:17:19,481 spj.migrations.341 INFO 341: sale_payment_voids lista.
+2026-10-16 19:17:19,499 spj.migrations INFO Migración 341 ejecutada.
+2026-10-16 19:17:19,636 spj.migrations.342 INFO 342: logos, foto del ticket y 2 diseño(s) por omisión activos.
+2026-10-16 19:17:19,641 spj.migrations INFO Migración 342 ejecutada.
+2026-10-16 19:17:19,643 spj.migrations INFO Migraciones completadas: 2 ejecutadas.
+2026-10-16 19:17:21,056 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-16 19:17:21,065 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-16 19:17:24,857 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-16 19:17:26,335 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-16 19:17:26,811 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-16 19:17:26,828 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-16 19:17:26,842 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-16 19:17:26,850 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-16 19:17:26,853 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-16 19:17:26,853 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-16 19:17:26,866 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-16 19:17:26,883 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 10 subscriptions
+2026-10-16 19:17:26,901 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-16 19:17:26,904 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-16 19:18:21,680 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-16 19:23:33,437 spj.finance.bootstrap INFO Finance: perfil EMPLOYEE_LOAN agregado
+2026-10-16 19:23:34,578 backend.infrastructure.integrations.sales_print_job_client INFO Sin ruta de impresión configurada para SALE_TICKET (venta 01a136a3-7bad-792f-a902-c2deebbb2c0e): No hay PrintRoute activa para document_type='SALE_TICKET' en este contexto
+2026-10-16 20:02:16,864 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-10-16 21:40:20,019 SPJ.Boot INFO =======================================================
+2026-10-16 21:40:20,020 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-16 21:40:20,020 SPJ.Boot INFO =======================================================
+2026-10-16 21:40:22,571 SPJ.Boot INFO Ubicación de la base: NOT_APPLICABLE — Ruta de base fija (código fuente o SPJ_DB_PATH).
+2026-10-16 21:40:23,653 spj.migrations.343 INFO 343: transformación directa; 5 lote(s) de compra liberados; permiso a 4 rol(es).
+2026-10-16 21:40:23,655 spj.migrations INFO Migración 343 ejecutada.
+2026-10-16 21:40:23,655 spj.migrations INFO Migraciones completadas: 1 ejecutadas.
+2026-10-16 21:40:24,074 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-16 21:40:24,075 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-16 21:40:25,055 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-16 21:40:25,448 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-16 21:40:25,600 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-16 21:40:25,600 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-16 21:40:25,601 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-16 21:40:25,601 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-16 21:40:25,603 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-16 21:40:25,603 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-16 21:40:25,603 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-16 21:40:25,604 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 9 subscriptions
+2026-10-16 21:40:25,604 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-16 21:40:25,604 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-16 21:40:55,260 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-16 21:45:16,811 spj.security.system_integration INFO integración meat_processing→inventory: 01a0d664-e618-7659-ad9e-cdaad8f61247 pide INVENTARIO.reserva.crear → concedido
+2026-10-16 21:45:16,842 spj.security.system_integration INFO integración meat_processing→costing: 01a0d664-e618-7659-ad9e-cdaad8f61247 pide COSTOS.produccion.costear → concedido
+2026-10-16 21:47:54,499 SPJ.Boot INFO Sistema cerrado. Código: 0
+2026-10-16 21:48:22,440 SPJ.Boot INFO =======================================================
+2026-10-16 21:48:22,440 SPJ.Boot INFO   SPJ POS Enterprise v13.4.0
+2026-10-16 21:48:22,441 SPJ.Boot INFO =======================================================
+2026-10-16 21:48:23,120 SPJ.Boot INFO Ubicación de la base: NOT_APPLICABLE — Ruta de base fija (código fuente o SPJ_DB_PATH).
+2026-10-16 21:48:24,924 spj.migrations INFO Base de datos al día — sin migraciones pendientes.
+2026-10-16 21:48:25,403 SPJ.Boot WARNING Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%).
+2026-10-16 21:48:25,469 SPJ.Boot INFO Base de datos lista (RUNNING).
+2026-10-16 21:48:26,606 spj.procurement.wiring INFO procurement integrations wired: 9 subscriptions
+2026-10-16 21:48:26,961 spj.pricing.wiring INFO pricing integrations wired: 2 subscriptions
+2026-10-16 21:48:27,099 spj.bootstrap.event_wiring INFO cross-context wiring: procurement -> 9 subscriptions
+2026-10-16 21:48:27,099 spj.bootstrap.event_wiring INFO cross-context wiring: sales -> 7 subscriptions
+2026-10-16 21:48:27,100 spj.bootstrap.event_wiring INFO cross-context wiring: customers -> 2 subscriptions
+2026-10-16 21:48:27,100 spj.bootstrap.event_wiring INFO cross-context wiring: cash_register -> 5 subscriptions
+2026-10-16 21:48:27,100 spj.bootstrap.event_wiring INFO cross-context wiring: pricing -> 2 subscriptions
+2026-10-16 21:48:27,100 spj.bootstrap.event_wiring INFO cross-context wiring: costing -> 1 subscriptions
+2026-10-16 21:48:27,101 spj.bootstrap.event_wiring INFO cross-context wiring: quality -> 4 subscriptions
+2026-10-16 21:48:27,101 spj.bootstrap.event_wiring INFO cross-context wiring: procurement_downstream_bridges -> 9 subscriptions
+2026-10-16 21:48:27,101 spj.bootstrap.event_wiring INFO cross-context wiring: hr -> 3 subscriptions
+2026-10-16 21:48:27,101 spj.bootstrap.event_wiring INFO cross-context wiring: hr_attendance -> 2 subscriptions
+2026-10-16 21:48:45,759 SPJ.Boot INFO Sesión iniciada: Jose Rodriguez en Corregidora.
+2026-10-16 21:51:43,023 spj.security.system_integration INFO integración meat_processing→inventory: 01a0d664-e618-7659-ad9e-cdaad8f61247 pide INVENTARIO.reserva.crear → concedido
+2026-10-16 21:51:43,044 spj.security.system_integration INFO integración meat_processing→costing: 01a0d664-e618-7659-ad9e-cdaad8f61247 pide COSTOS.produccion.costear → concedido
+2026-10-16 21:52:07,206 SPJ.Boot INFO Sistema cerrado. Código: 0

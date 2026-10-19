@@ -38,6 +38,7 @@ from __future__ import annotations
 
 from backend.bootstrap.application_context import ApplicationContext
 from backend.bootstrap.permission_evaluator import PermissionEvaluator
+from backend.shared.ids import is_uuidv7
 
 
 class LegacySessionAdapter:
@@ -72,6 +73,16 @@ class LegacySessionAdapter:
     @property
     def active_branch_id(self) -> str:
         return self._context.branch_id
+
+    @property
+    def company_id(self) -> str:
+        return self._context.company_id
+
+    @property
+    def workstation_id(self) -> str | None:
+        """Only a registered UUID identifies a configuration scope; a host name does not."""
+        value = self._context.workstation_id
+        return value if is_uuidv7(value) else None
 
     @property
     def active_warehouse_id(self) -> str:

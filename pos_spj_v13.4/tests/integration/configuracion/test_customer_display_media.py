@@ -101,6 +101,43 @@ def test_the_display_receives_the_managed_file_path(conn, storage, tmp_path):
     assert query._media_path(content) is None  # el archivo desapareció: la pantalla lo dice
 
 
+def test_configured_image_campaign_reaches_cart_and_renders(app, conn, storage, tmp_path):
+    from backend.domain.customer_display.entities.content_campaign import ContentCampaign
+    from backend.domain.customer_display.entities.advertising_slot import AdvertisingSlot
+    from backend.domain.customer_display.enums import CustomerDisplayMode
+    from backend.domain.customer_display.policies.campaign_placement_policy import assign_placement
+    from backend.infrastructure.db.repositories.customer_display.content_campaign_repository import SqliteContentCampaignRepository
+    from backend.infrastructure.db.repositories.customer_display.advertising_slot_repository import SqliteAdvertisingSlotRepository
+    from backend.infrastructure.db.repositories.customer_display.campaign_placement_repository import SqliteCampaignPlacementRepository
+    from backend.shared.ids import new_uuid
+    from frontend.desktop.modules.sales_pos.customer_display_window import CustomerDisplayWindow
+
+    media = ImportDisplayMediaUseCase(conn, storage).execute(
+        source_path=_file(tmp_path, "configured.png"), media_type="IMAGE")
+    content = CreateContentUseCase(conn).execute(title="Promo", content_type="IMAGE", body=media.id)
+    campaign = ContentCampaign.create(name="Configurada", content_id=content.id)
+    campaign.submit_for_approval()
+    actor = new_uuid()
+    campaign.approve(approved_by_user_id=actor)
+    campaign.activate(activated_by_user_id=actor)
+    SqliteContentCampaignRepository(conn).save(campaign)
+    slot = AdvertisingSlot.create(code="PUBLICIDAD", mode=CustomerDisplayMode.IDLE)
+    SqliteAdvertisingSlotRepository(conn).save(slot)
+    SqliteCampaignPlacementRepository(conn).save(assign_placement(campaign, slot))
+    conn.commit()
+    ad, = AdvertisingQueryService(conn, storage).resolve_display_ads("CART")
+    window = CustomerDisplayWindow()
+    try:
+        window.render_content("CART", {"ITEMS": [], "TOTAL": "100"})
+        window.render_idle_ad(ad.content_type, ad.title, ad.body, ad.media_path, during_sale=True)
+        app.processEvents()
+        assert window._media_region.isVisible()
+        assert not window._ad_label.pixmap().isNull()
+        assert window._totals_labels["TOTAL"].isVisible()
+    finally:
+        window.close()
+
+
 @pytest.fixture(scope="module")
 def app():
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")

@@ -24,9 +24,6 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
-from backend.application.inventory.use_cases.reconstruction_use_cases import (
-    ReconstructBaseProductUseCase,
-)
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.commands.product_cutting_commands import (
     SetCuttingReverseReconstructionCommand,
@@ -176,36 +173,11 @@ def test_fijar_la_marca_exige_el_permiso_de_despiece(conn):
 
 
 # ── armar: transformación y costo promedio ─────────────────────────────────
-def test_armar_es_una_transformacion_y_su_costo_entra_al_promedio(conn):
-    branch = new_uuid()
-    pollo, pechuga, pierna, ala = _pollo_armable(conn, branch)
-    caso = ReconstructBaseProductUseCase(InventoryAuthorizationPolicy.permissive_for_tests())
-
-    r = caso.execute(conn, product_id=pollo, quantity="2", branch_id=branch,
-                     warehouse_id=branch, actor_user_id="u", operation_id="op-armar")
-
-    assert r.success, r.message
-    tipos = [t for (t,) in conn.execute("SELECT movement_type FROM inventory_ledger ORDER BY rowid")]
-    assert tipos[-2:] == ["PRODUCTION_CONSUMPTION", "PRODUCTION_OUTPUT"]
-    assert not {"ADJUSTMENT_IN", "ADJUSTMENT_OUT"} & set(tipos)
-    # 1.2×80 + 0.8×60 + 0.4×40 = 160 por pollo; la merma no se cobra.
-    promedio = conn.execute("SELECT average_cost FROM product_cost WHERE product_id=?",
-                            (pollo,)).fetchone()[0]
-    assert Decimal(promedio) == Decimal("160")
-    assert _saldo(conn, pollo) == Decimal("2.000")
-    assert (_saldo(conn, pechuga), _saldo(conn, pierna), _saldo(conn, ala)) == (
-        Decimal("9.600"), Decimal("6.400"), Decimal("0.400"))
-
-    # Reintentar la misma operación no duplica ni existencia ni costo.
-    caso.execute(conn, product_id=pollo, quantity="2", branch_id=branch,
-                 warehouse_id=branch, actor_user_id="u", operation_id="op-armar")
-    assert _saldo(conn, pollo) == Decimal("2.000")
-    assert conn.execute("SELECT COUNT(*) FROM price_change_log WHERE product_id=?"
-                        " AND field='cost'", (pollo,)).fetchone()[0] == 1
-
-
-# ── el cobro real arma el pollo y asienta el costo de sus partes ───────────
-def test_el_cobro_arma_el_pollo_sin_suspender_y_el_costo_de_venta_es_el_de_sus_partes(conn, bus):
+# ── el cobro surte el pollo con sus PARTES (composición virtual) ───────────
+def test_el_cobro_surte_el_pollo_con_sus_partes_y_cobra_su_costo(conn, bus):
+    """Integración Logística 32cfbf (decisión del usuario): vender el pollo
+    cuando sólo hay partes descuenta las PARTES; no se fabrica un pollo entero
+    en existencia (ni PRODUCTION_CONSUMPTION/OUTPUT)."""
     from frontend.desktop.modules.sales_pos.composition import build_sales_pos_presenter
 
     branch = new_uuid()
@@ -223,8 +195,10 @@ def test_el_cobro_arma_el_pollo_sin_suspender_y_el_costo_de_venta_es_el_de_sus_p
     r = pos.checkout_sale(sale_id=sid)
 
     assert r.success, r.message
-    assert _saldo(conn, pollo) == Decimal("0.000")        # armados y vendidos
+    assert _saldo(conn, pollo) == Decimal("0")             # nunca existió un entero
     assert _saldo(conn, pechuga) == Decimal("9.600")
+    tipos = {t for (t,) in conn.execute("SELECT movement_type FROM inventory_ledger")}
+    assert not {"PRODUCTION_CONSUMPTION", "PRODUCTION_OUTPUT"} & tipos
     evento = json.loads(conn.execute("SELECT payload_json FROM sales_outbox"
                                      " WHERE event_name='SALE_COMPLETED'").fetchone()[0])
     assert evento["payload"]["cogs_total"] == "320.00"
@@ -337,3 +311,79 @@ def test_269_agrega_la_columna_a_esquemas_viejos_y_esta_registrada():
         r[1] for r in c.execute("PRAGMA table_info(cutting_schemes)")}
     from migrations.engine import MIGRATIONS
     assert "269" in {m.version for m in MIGRATIONS}
+
+
+# ── composición virtual: casos del encargo (integración Logística 32cfbf) ───
+def _venta(producto, cantidad, *otras):
+    from types import SimpleNamespace
+    lineas = [SimpleNamespace(product_id=producto, quantity=SimpleNamespace(value=Decimal(cantidad)))]
+    lineas += [SimpleNamespace(product_id=p, quantity=SimpleNamespace(value=Decimal(q)))
+               for p, q in otras]
+    return SimpleNamespace(id=new_uuid(), goods_lines=lineas)
+
+
+def _cliente(conn, branch):
+    from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+    from backend.infrastructure.integrations.sales_inventory_client import SalesInventoryClient
+    return SalesInventoryClient(conn, branch_id=branch, actor_user_id=new_uuid(),
+                                authorization=InventoryAuthorizationPolicy.permissive_for_tests())
+
+
+def test_con_un_pollo_propio_el_faltante_sale_de_las_partes(conn):
+    branch = new_uuid()
+    pollo, pechuga, pierna, ala = _pollo_armable(conn, branch)
+    stock_product(conn, product_id=pollo, branch_id=branch, quantity="1")
+    cliente = _cliente(conn, branch)
+    venta = _venta(pollo, "2")
+    assert cliente._quantities_by_product(venta) == {
+        pollo: Decimal("1"), pechuga: Decimal("1.2"), pierna: Decimal("0.8"),
+        ala: Decimal("0.4")}
+    handle = cliente.reserve_for_sale(venta)
+    assert cliente.covers(handle, venta)            # misma composición tras reservar
+    cliente.confirm(handle, sale_id=venta.id, folio="V-1")
+    assert _saldo(conn, pollo) == Decimal("0")
+    assert _saldo(conn, pechuga) == Decimal("10.800")
+
+
+def test_cancelar_suelta_las_partes_y_no_deja_un_pollo(conn):
+    branch = new_uuid()
+    pollo, pechuga, _pierna, _ala = _pollo_armable(conn, branch)
+    cliente = _cliente(conn, branch)
+    venta = _venta(pollo, "2")
+    cliente.reserve_for_sale(venta)
+    cliente.release(venta.id, reason="cancelada")
+    assert _saldo(conn, pollo) == Decimal("0")
+    assert _saldo(conn, pechuga) == Decimal("12.000")
+    assert conn.execute("SELECT COUNT(*) FROM inventory_ledger").fetchone()[0] == 0  # nada se movió
+
+
+def test_una_parte_vendida_suelta_no_se_promete_dos_veces(conn):
+    branch = new_uuid()
+    pollo, pechuga, _pierna, _ala = _pollo_armable(conn, branch)
+    cliente = _cliente(conn, branch)
+    # 10 kg de pechuga suelta + 2 pollos (2.4 kg de pechuga) = 12.4 > 12 disponibles
+    venta = _venta(pollo, "2", (pechuga, "10"))
+    # Todo o nada: las partes no alcanzan para los dos pollos, así que NO se
+    # compone (no se retienen partes a medias); el pollo queda como faltante.
+    cantidades = cliente._quantities_by_product(venta)
+    assert cantidades[pechuga] == Decimal("10") and cantidades[pollo] == Decimal("2")
+    from backend.domain.sales.exceptions import InventoryShortageError
+    with pytest.raises(InventoryShortageError):
+        cliente.reserve_for_sale(venta)
+    reservado = conn.execute("SELECT SUM(CAST(reserved_quantity AS REAL)) FROM inventory_balances"
+                             ).fetchone()[0]
+    assert Decimal(str(reservado or 0)) == 0
+
+
+def test_devolver_un_pollo_vendido_por_partes_repone_las_partes(conn):
+    branch = new_uuid()
+    pollo, pechuga, pierna, ala = _pollo_armable(conn, branch)
+    cliente = _cliente(conn, branch)
+    venta = _venta(pollo, "1")
+    cliente.confirm(cliente.reserve_for_sale(venta), sale_id=venta.id, folio="V-2")
+    assert _saldo(conn, pechuga) == Decimal("10.800")
+    cliente.restore_for_return(product_id=pollo, quantity=Decimal("1"), sale_id=venta.id,
+                               operation_id=new_uuid(), actor_user_id=new_uuid(),
+                               reason_code="RETURN", source_document_type="SALE_RETURN")
+    assert _saldo(conn, pechuga) == Decimal("12.000")
+    assert _saldo(conn, pollo) == Decimal("0")       # nunca un entero fantasma

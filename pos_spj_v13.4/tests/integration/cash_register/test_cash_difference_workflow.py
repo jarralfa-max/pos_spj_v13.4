@@ -74,9 +74,11 @@ class CashDifferenceWorkflowTests(unittest.TestCase):
         ConfirmBlindCountUseCase(self.auth).execute(
             self.db, count_id=count_id, branch_id=self.branch,
             actor_user_id=self.cashier, operation_id=new_uuid())
+        # Auditoría CJA-02: el supervisor interviene el turno del cajero con motivo.
         BeginCashShiftClosingUseCase(self.auth).execute(
             self.db, shift_id=shift_id, branch_id=self.branch,
-            actor_user_id=self.supervisor, operation_id=new_uuid())
+            actor_user_id=self.supervisor, operation_id=new_uuid(),
+            reason="Cierre del turno por el supervisor")
         self.difference_id = GenerateZCutUseCase(self.auth).execute(
             self.db, shift_id=shift_id, branch_id=self.branch,
             actor_user_id=self.supervisor, operation_id=new_uuid()).difference_id

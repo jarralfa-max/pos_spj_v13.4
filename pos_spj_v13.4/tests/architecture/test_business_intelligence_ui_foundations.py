@@ -19,7 +19,7 @@ _EMOJI_PATTERN = re.compile(
 def test_view_uses_sidebar_and_stack_not_horizontal_tabs():
     source = (MODULE_DIR / "business_intelligence_view.py").read_text(encoding="utf-8")
     assert "BusinessIntelligenceSidebarWidget" in source
-    assert "QStackedWidget" in source
+    assert "QStackedWidget" in source or "PageStack" in source  # PageStack = QStackedWidget común (frontend/desktop/components/page_stack.py)
     assert "QTabWidget" not in source
 
 

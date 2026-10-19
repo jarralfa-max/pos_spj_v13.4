@@ -66,6 +66,16 @@ def _saved_profile(conn) -> DeviceProfile:
 
 
 class TestRegisterDeviceProfileUseCase:
+    def test_usb_rhino_retains_configured_serial_transport(self, conn):
+        profile = RegisterDeviceProfileUseCase(conn).execute(
+            name="Rhino caja", device_type="SCALE", connection_type="USB",
+            manufacturer="Rhino", model="BAR-8RS", protocol="RHINO_BAR_8RS",
+            serial_port="COM7", baud_rate=9600,
+        )
+        saved = SqliteDeviceProfileRepository(conn).get(profile.id)
+        assert saved.connection_profile.serial_port.port == "COM7"
+        assert saved.connection_profile.serial_port.baud_rate == 9600
+
     def test_registers_a_usb_profile(self, conn):
         use_case = RegisterDeviceProfileUseCase(conn)
         profile = use_case.execute(
@@ -186,6 +196,31 @@ class TestRegisterDeviceProfileUseCase:
 
 
 class TestRegisterDeviceUseCase:
+    def test_pos_resolves_assigned_scale_and_rejects_ambiguous_branch(self, conn, branch_id):
+        from backend.application.sales.authorization import SalesAuthorizationPolicy, AllowAllSalesPermissionCheckerForTests
+        from backend.application.sales.queries.scale_configuration_query import ScaleConfigurationQuery
+        from backend.domain.device_management.entities.workstation_device_assignment import WorkstationDeviceAssignment
+        from backend.domain.device_management.enums import AssignmentRole
+        from backend.domain.settings.entities.workstation import Workstation
+        from backend.domain.settings.enums import WorkstationType
+        from backend.infrastructure.db.repositories.settings.workstation_repository import SqliteWorkstationRepository
+        from backend.infrastructure.db.repositories.device_management.workstation_device_assignment_repository import SqliteWorkstationDeviceAssignmentRepository
+        profile = RegisterDeviceProfileUseCase(conn).execute(name="Rhino", device_type="SCALE",
+            connection_type="USB", model="BAR-8RS", protocol="RHINO_BAR_8RS", serial_port="COM7", baud_rate=9600)
+        for code in ("SCALE-A", "SCALE-B"):
+            device = RegisterDeviceUseCase(conn).execute(branch_id=branch_id, profile_id=profile.id, code=code, name=code)
+        query = ScaleConfigurationQuery(conn, SalesAuthorizationPolicy(AllowAllSalesPermissionCheckerForTests()))
+        with pytest.raises(ValueError, match="varias"):
+            query.resolve(actor_user_id=new_uuid(), branch_id=branch_id)
+        station = Workstation.create(branch_id=branch_id, code="POS-TEST", name="Caja", workstation_type=WorkstationType.POS)
+        SqliteWorkstationRepository(conn).save(station)
+        assignment = WorkstationDeviceAssignment.assign(workstation_id=station.id, device_id=device.id, role=AssignmentRole.SCALE)
+        SqliteWorkstationDeviceAssignmentRepository(conn).save(assignment)
+        resolved, _ = query.resolve(actor_user_id=new_uuid(), branch_id=branch_id, workstation_id=station.id)
+        assert resolved.id == device.id
+        with pytest.raises(ValueError, match="sucursal"):
+            query.resolve(actor_user_id=new_uuid(), branch_id=new_uuid(), workstation_id=station.id)
+
     def test_registers_a_device_against_an_existing_profile(self, conn, branch_id):
         profile = _saved_profile(conn)
         use_case = RegisterDeviceUseCase(conn)

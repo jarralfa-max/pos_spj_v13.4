@@ -51,6 +51,7 @@ from backend.infrastructure.db.repositories.orders_delivery.customer_order_repos
 from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
 from backend.infrastructure.db.schema.orders_delivery_schema import create_orders_delivery_schema
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema
+from tests.integration._pos_ready import create_cash_schema
 from backend.shared.ids import new_uuid
 from tests.integration._audit_trail_table import create_audit_logs_table
 
@@ -70,6 +71,7 @@ def conn():
     create_audit_logs_table(connection)
     create_inventory_schema(connection)
     create_sales_schema(connection)
+    create_cash_schema(connection)   # el reverso pasa por Caja en su transacción (V06)
     yield connection
     connection.close()
 

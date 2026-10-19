@@ -13,7 +13,7 @@ Si Fidelidad no responde, vuelve a decirlo.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from frontend.desktop.components import apply_tooltip
 from frontend.desktop.themes.tokens import Spacing
@@ -46,10 +46,12 @@ class TotalsCard(QFrame):
         root.setSpacing(Spacing.XS)
 
         row_sub, self._subtotal_value = _row(self, "Subtotal")
-        root.addLayout(row_sub)
+        details = QGridLayout()
+        details.setSpacing(Spacing.XS)
+        details.addLayout(row_sub, 0, 0)
 
         row_disc, self._discount_value = _row(self, "Descuento")
-        root.addLayout(row_disc)
+        details.addLayout(row_disc, 0, 1)
 
         # Sólo aparece si la venta trae cupón: no le quita altura al cobro.
         self._coupon_row = QWidget(self)
@@ -58,21 +60,22 @@ class TotalsCard(QFrame):
         self._coupon_row.setLayout(row_coupon)
         self._coupon_value.setObjectName("posCouponTotal")
         self._coupon_row.setVisible(False)
-        root.addWidget(self._coupon_row)
+        details.addWidget(self._coupon_row, 2, 0, 1, 2)
 
         row_loyalty, self._loyalty_value = _row(self, "Fidelidad")
-        root.addLayout(row_loyalty)
+        details.addLayout(row_loyalty, 1, 0)
 
         row_tax, self._tax_value = _row(self, "Impuestos")
-        root.addLayout(row_tax)
+        details.addLayout(row_tax, 1, 1)
+        root.addLayout(details)
 
         divider = QFrame(self)
         divider.setFrameShape(QFrame.HLine)
         root.addWidget(divider)
 
         row_total = QHBoxLayout()
-        points_box = QVBoxLayout()
-        points_title = QLabel("Puntos a ganar", self)
+        points_box = QHBoxLayout()
+        points_title = QLabel("Puntos estimados", self)
         points_title.setProperty("role", "muted")
         points_box.addWidget(points_title)
         self._points_value = QLabel(NO_ACCRUAL_RULE, self)

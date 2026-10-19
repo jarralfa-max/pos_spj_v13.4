@@ -38,6 +38,7 @@ from backend.domain.sales.exceptions import (
     SalesConfigurationError,
     SalesDomainError,
     SalesPermissionDeniedError,
+    SaleOutOfBranchScopeError,
     SaleResumeNotAllowedError,
     SaleReturnNotAllowedError,
     SaleReversalNotAllowedError,
@@ -68,6 +69,7 @@ class SaleResult:
 
 
 _ERROR_CODES: tuple[tuple[type[SalesDomainError], str], ...] = (
+    (SaleOutOfBranchScopeError, "OUT_OF_BRANCH_SCOPE"),
     (SalesPermissionDeniedError, "PERMISSION_DENIED"),
     (PricingUnavailableError, "PRICING_UNAVAILABLE"),
     (ProductNotSellableError, "PRODUCT_NOT_SELLABLE"),

@@ -18,6 +18,8 @@ from typing import Protocol
 
 from backend.application.sales.permissions import ALL_SALES_PERMISSIONS
 from backend.domain.sales.exceptions import (
+    SaleOutOfBranchScopeError,
+    SalesDomainError,
     SalesConfigurationError,
     SalesPermissionDeniedError,
     SalesSegregationOfDutiesError,
@@ -38,12 +40,18 @@ class AllowAllSalesPermissionCheckerForTests:
     def has_permission(self, user_id: str, permission_code: str) -> bool:
         return True
 
+    def can_access_branch(self, user_id: str, branch_id: str) -> bool:
+        return True
+
 
 class DenyAllSalesPermissionCheckerForTests:
     """Test-only checker that denies every permission (for fail-closed
     tests)."""
 
     def has_permission(self, user_id: str, permission_code: str) -> bool:
+        return False
+
+    def can_access_branch(self, user_id: str, branch_id: str) -> bool:
         return False
 
 
@@ -83,6 +91,31 @@ class SalesAuthorizationPolicy:
         if not self._checker.has_permission(user_id, permission_code):
             raise SalesPermissionDeniedError(
                 f"El usuario {user_id} no tiene el permiso {permission_code}")
+
+    def require_branch(self, user_id: str, branch_id: str | None) -> None:
+        """Alcance por sucursal sobre el RECURSO (auditoría V05, 2026-10-15).
+
+        Tener `POS.ver` no basta para leer u operar una venta: debe ser de la
+        sucursal activa del usuario (decisión del usuario: sólo la propia; una
+        excepción entre sucursales sería un permiso explícito y auditado que
+        hoy no existe). Falla cerrado: un verificador que no sabe responder por
+        sucursal no concede."""
+        if self._checker is None:
+            raise SalesConfigurationError(
+                "SalesAuthorizationPolicy requiere un PermissionChecker; "
+                "usa permissive_for_tests() en pruebas aisladas")
+        check = getattr(self._checker, "can_access_branch", None)
+        if not user_id or not branch_id or not callable(check)                 or not check(user_id, branch_id):
+            raise SaleOutOfBranchScopeError(
+                "La venta es de otra sucursal: sólo se consulta y opera desde la "
+                "sucursal donde se hizo")
+
+    def can_access_branch(self, user_id: str, branch_id: str | None) -> bool:
+        try:
+            self.require_branch(user_id, branch_id)
+        except SalesDomainError:
+            return False
+        return True
 
     def authorize_exception(
         self,

@@ -17,6 +17,14 @@ Ninguna regla de pago vive aquí:
 * los métodos visibles son los que el usuario puede cobrar; Crédito sólo con
   cliente asignado (§36), y si su línea alcanza lo decide el caso de uso.
 
+AUDITORÍA V03 (2026-10-15): el avance vivía sólo en memoria. Si un pago fallaba
+a la mitad y se cerraba la ventana, la venta quedaba en cobro con pagos ya
+guardados y el siguiente F9 abría un cobro en ceros que no podía iniciar. Ahora
+el diálogo arranca DESDE LA VENTA: retoma su cobro, muestra los pagos ya
+registrados y el saldo real, y permite quitar uno ya registrado (se anula y se
+compensa: CxC, vale; el diálogo dice qué devolver al cliente). "Cerrar" sólo
+cierra la ventana; sin pagos, la venta regresa al carrito.
+
 "Pago mixto" no es un método: es lo que una venta es cuando registra dos
 métodos distintos (`Sale.is_mixed_payment`). Mercado Pago registra un pago YA
 confirmado (folio como referencia); la liga de cobro es de Pagos (§35).
@@ -49,6 +57,8 @@ METHOD_LABELS = {
 
 
 class PaymentDialog(StandardDialog):
+    from PyQt5.QtCore import pyqtSignal
+    public_state_changed = pyqtSignal(str)
     def __init__(self, presenter, *, sale_id: str, total_due: Decimal,
                  has_customer: bool = False, parent=None) -> None:
         super().__init__(parent, title="Cobrar", width=640)
@@ -58,6 +68,8 @@ class PaymentDialog(StandardDialog):
         self._sale_id = sale_id
         self._total_due = Decimal(str(total_due))
         self._lines: list[tuple[str, Decimal, str | None]] = []
+        #: Id del pago en la venta para cada línea ya registrada (None: local).
+        self._payment_ids: list[str | None] = []
         self.completed = False
         self.change = Decimal("0")
         #: Avance ya aplicado al backend (ver docstring del módulo).
@@ -116,7 +128,8 @@ class PaymentDialog(StandardDialog):
         footer = QWidget(self)
         actions = QHBoxLayout(footer)
         actions.setContentsMargins(0, 0, 0, 0)
-        btn_cancel = create_secondary_button(self, "Cancelar")
+        # "Cerrar" cierra la ventana; cancelar la VENTA es F8 (auditoría V03).
+        btn_cancel = create_secondary_button(self, "Cerrar")
         btn_cancel.clicked.connect(self.reject)
         actions.addWidget(btn_cancel)
 
@@ -128,8 +141,35 @@ class PaymentDialog(StandardDialog):
         self.add_footer_widget(footer)
 
         self._method.currentIndexChanged.connect(self._on_method_changed)
+        self._load_persisted()
         self._on_method_changed()
         self._refresh_remaining()
+
+    def _load_persisted(self) -> None:
+        """Retoma un cobro ya iniciado: sus pagos guardados cuentan."""
+        get_sale = getattr(self._presenter, "get_sale", None)
+        sale = get_sale(self._sale_id) if callable(get_sale) else None
+        if sale is None or sale.status not in ("CHECKOUT_PENDING", "PAYMENT_PENDING"):
+            return
+        self._checkout_started = True
+        for payment in sale.payments:
+            self._append_line(payment.method, Decimal(str(payment.amount)),
+                              payment.reference, payment_id=payment.id)
+        self._recorded = len(self._lines)
+        if self._lines:
+            self._show_hint(f"Cobro retomado: ya hay ${self._recorded_total():,.2f} "
+                            "registrados en esta venta.")
+
+    def _append_line(self, method: str, amount: Decimal, reference: str | None, *,
+                     payment_id: str | None = None) -> None:
+        self._lines.append((method, amount, reference))
+        self._payment_ids.append(payment_id)
+        label = f"{METHOD_LABELS.get(method, method)}: ${amount:,.2f}"
+        if reference:
+            label += f" ({reference})"
+        if payment_id:
+            label += " — registrado"
+        self._list.addItem(QListWidgetItem(label))
 
     # ── líneas de pago locales (no persistidas hasta confirmar) ──────────
     def set_amount(self, amount: Decimal) -> None:
@@ -208,11 +248,7 @@ class PaymentDialog(StandardDialog):
                     self._show_hint("El vale no tiene saldo.")
                     return
                 amount = min(amount, Decimal(str(saldo["balance"])))
-        self._lines.append((method, amount, reference))
-        label = f"{METHOD_LABELS.get(method, method)}: ${amount:,.2f}"
-        if reference:
-            label += f" ({reference})"
-        self._list.addItem(QListWidgetItem(label))
+        self._append_line(method, amount, reference)
         self._refresh_remaining()
         self._on_method_changed()
 
@@ -221,19 +257,58 @@ class PaymentDialog(StandardDialog):
         if row < 0:
             return
         if row < self._recorded:
-            self._show_hint("Ese pago ya quedó registrado en la venta; no se puede quitar aquí.")
+            self._void_recorded(row)
             return
         self._list.takeItem(row)
         del self._lines[row]
+        del self._payment_ids[row]
         self._refresh_remaining()
+
+    def _void_recorded(self, row: int) -> None:
+        """Anula un pago YA registrado en la venta (auditoría V02/V03)."""
+        from frontend.desktop.modules.sales_pos.dialogs.cancel_sale_dialog import (
+            CancelSaleDialog,
+        )
+        method, amount, _reference = self._lines[row]
+        payment_id = self._payment_ids[row]
+        dialog = CancelSaleDialog(
+            title="Anular pago", ok_text="Anular pago", parent=self,
+            message=(f"Se anulará el pago de {METHOD_LABELS.get(method, method)} por "
+                     f"${amount:,.2f} que ya está registrado en la venta."))
+        if not dialog.exec_() or not dialog.reason or not payment_id:
+            return
+        result = self._presenter.void_payment(
+            sale_id=self._sale_id, payment_id=payment_id, reason=dialog.reason)
+        if not result.success:
+            QMessageBox.warning(self, "No se pudo anular el pago", result.message)
+            return
+        self._list.takeItem(row)
+        del self._lines[row]
+        del self._payment_ids[row]
+        self._recorded -= 1
+        self._refresh_remaining()
+        self._on_method_changed()
+        refund = result.data.get("refund") or {}
+        if refund.get("text"):
+            QMessageBox.information(self, "Pago anulado", refund["text"])
+
+    def reject(self) -> None:
+        """Cerrar sin pagos registrados regresa la venta al carrito; con pagos,
+        la venta queda en cobro y F9 la retoma (auditoría V03)."""
+        back = getattr(self._presenter, "return_to_cart", None)
+        if self._checkout_started and self._recorded == 0 and not self.completed                 and callable(back):
+            back(sale_id=self._sale_id)
+        super().reject()
 
     # ── aplicación real, sólo al confirmar ───────────────────────────────
     def _confirm(self) -> None:
+        self.public_state_changed.emit("PENDING")
         self._btn_confirm.setEnabled(False)
 
         if not self._checkout_started:
             checkout = self._presenter.begin_checkout(sale_id=self._sale_id)
             if not checkout.success:
+                self.public_state_changed.emit("FAILED")
                 QMessageBox.warning(self, "No se pudo iniciar el cobro", checkout.message)
                 self._btn_confirm.setEnabled(True)
                 return
@@ -244,13 +319,20 @@ class PaymentDialog(StandardDialog):
             result = self._presenter.record_payment(
                 sale_id=self._sale_id, method=method, amount=amount, reference=reference)
             if not result.success:
+                self.public_state_changed.emit("FAILED")
                 QMessageBox.warning(
                     self, "Pago no registrado",
-                    f"{result.message}\n\nLos pagos ya registrados quedan aplicados a la venta; "
-                    "puedes corregir el pago restante o cancelar la venta completa desde "
-                    "«Cancelar» en la pantalla principal.")
+                    f"{result.message}\n\nLos pagos ya registrados quedan aplicados a la venta: "
+                    "corrige el pago restante, quita uno registrado con «Quitar pago "
+                    "seleccionado», o cierra y cancela la venta con F8 (se anularán sus "
+                    "pagos y verás qué devolver).")
                 self._btn_confirm.setEnabled(True)
                 return
+            sale = result.data.get("sale")
+            known = {pid for pid in self._payment_ids if pid}
+            nuevos = [p.id for p in (sale.payments if sale is not None else ())
+                      if p.id not in known]
+            self._payment_ids[self._recorded] = nuevos[-1] if nuevos else None
             self._recorded += 1
 
         result = self._presenter.checkout_sale(sale_id=self._sale_id)
@@ -265,6 +347,7 @@ class PaymentDialog(StandardDialog):
                     sale_id=self._sale_id, authorizer_user_id=dialog.authorizer_user_id,
                     reason=dialog.reason)
         if not result.success:
+            self.public_state_changed.emit("FAILED")
             QMessageBox.warning(self, "No se pudo finalizar la venta", result.message)
             self._btn_confirm.setEnabled(True)
             return

@@ -32,26 +32,6 @@ def conn():
     c.close()
 
 
-class TestProductCatalogRepoint:
-    def _svc(self, conn):
-        from core.services.sales.product_catalog_query_service import (
-            ProductCatalogQueryService,
-        )
-        return ProductCatalogQueryService(conn)
-
-    def test_flag_off_reads_legacy_inventory_stock(self, conn, monkeypatch):
-        monkeypatch.delenv("INVENTORY_CANONICAL_CUTOVER", raising=False)
-        rows = self._svc(conn).list_visible_products(branch_id="b1")
-        assert rows[0]["existencia"] == 50.0
-
-    def test_flag_on_reads_canonical_balances(self, conn, monkeypatch):
-        monkeypatch.setenv("INVENTORY_CANONICAL_CUTOVER", "1")
-        rows = self._svc(conn).list_visible_products(branch_id="b1")
-        assert rows[0]["existencia"] == 9.0  # 9 available (quantity − reserved)
-
-
-
-
 class TestBiInventoryRepoint:
     def _svc(self, conn):
         from backend.application.analytics.queries.bi_inventory_query_service import (

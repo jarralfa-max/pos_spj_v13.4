@@ -173,8 +173,9 @@ def test_supplier_pickup_requires_origin_and_flows_through_origin_purchase(env):
     shipment = detail["id"]
     ok, msg, kind = buyer.origin_register_container_type(code="CAJA", name="Caja",
                                                          category="CRATE")
-    assert buyer.origin_register_container(code="CJ-1", container_type_id=kind["id"])[0]
-    ok, msg, detail = buyer.origin_attach_container(shipment, "CJ-1")
+    ok, msg, nuevo = buyer.origin_register_container(container_type_id=kind["id"])
+    assert ok, msg
+    ok, msg, detail = buyer.origin_attach_container(shipment, nuevo["code"])
     (loading,) = buyer.origin_loading_lines(shipment)
     ok, msg, detail = buyer.origin_assign_line(
         shipment, node_id=detail["nodes"][0]["id"], source_line_id=loading["source_line_id"],

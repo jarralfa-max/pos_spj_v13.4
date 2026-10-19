@@ -63,6 +63,29 @@ class Receivable:
                        else ReceivableStatus.PARTIALLY_COLLECTED)
         self.updated_at = _utcnow()
 
+    def remove_charge(self, amount: Money) -> None:
+        """Retira un cargo a crédito (auditoría de Ventas V02): el pago a crédito
+        se anuló antes de cerrar la venta, así que esa deuda nunca existió. No
+        es una nota de crédito (no hubo venta que acreditar). En cero, la CxP se
+        cancela."""
+        if self.status in (ReceivableStatus.CANCELLED, ReceivableStatus.WRITTEN_OFF):
+            raise FinanceDomainError(f"Cannot adjust a {self.status.value} receivable")
+        if not amount.is_positive():
+            raise FinanceDomainError("Charge amount must be positive")
+        if amount > self.outstanding_amount:
+            raise InsufficientOutstandingError(
+                f"Charge {amount.to_string()} exceeds outstanding "
+                f"{self.outstanding_amount.to_string()}")
+        self.original_amount = self.original_amount.subtract(amount)
+        self.outstanding_amount = self.outstanding_amount.subtract(amount)
+        if self.original_amount.is_zero():
+            self.status = ReceivableStatus.CANCELLED
+        else:
+            self.status = (ReceivableStatus.OPEN
+                           if self.outstanding_amount.amount == self.original_amount.amount
+                           else ReceivableStatus.PARTIALLY_COLLECTED)
+        self.updated_at = _utcnow()
+
     def apply_collection(self, amount: Money) -> None:
         if self.status in (ReceivableStatus.CANCELLED, ReceivableStatus.WRITTEN_OFF):
             raise FinanceDomainError(f"Cannot collect a {self.status.value} receivable")

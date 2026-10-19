@@ -99,6 +99,7 @@ Name: "nucleo"; Description: "Núcleo: punto de venta, caja, productos, inventar
 Name: "modulos"; Description: "Módulos"; Types: pos_essential erp_full
 Name: "modulos\fidelidad"; Description: "Fidelidad y tarjetas"; Types: pos_essential erp_full
 Name: "modulos\orders_delivery"; Description: "Pedidos y entregas"; Types: erp_full
+Name: "modulos\logistics"; Description: "Logística (contenedores, embarques y compra en origen)"; Types: erp_full
 Name: "modulos\purchasing"; Description: "Compras y proveedores"; Types: erp_full
 Name: "modulos\transfers"; Description: "Transferencias"; Types: erp_full
 Name: "modulos\losses"; Description: "Mermas"; Types: erp_full
@@ -108,6 +109,7 @@ Name: "modulos\hr"; Description: "Recursos humanos y nómina (incluye Finanzas)"
 Name: "modulos\business_intelligence"; Description: "Inteligencia de negocio"; Types: erp_full
 Name: "modulos\assets"; Description: "Activos (incluye Finanzas)"; Types: erp_full
 Name: "whatsapp_local"; Description: "Servicio WhatsApp local (opcional; en producción se recomienda el servicio remoto)"
+Name: "mobile_api"; Description: "API y PWA de Logística para teléfonos (opcional; atiende sólo en la red configurada)"
 
 [Tasks]
 Name: "desktopicon"; Description: "Crear acceso directo en el escritorio"; GroupDescription: "Accesos directos:"
@@ -136,11 +138,15 @@ Name: "{autodesktop}\{#AppName}"; Filename: "{app}\SPJ.exe"; WorkingDir: "{app}"
 [Run]
 Filename: "{app}\spj_whatsapp.exe"; Parameters: "--startup auto install"; Flags: runhidden waituntilterminated; Components: whatsapp_local; Check: IsMachineScope; StatusMsg: "Registrando el servicio WhatsApp local…"
 Filename: "{app}\spj_whatsapp.exe"; Parameters: "start"; Flags: runhidden waituntilterminated; Components: whatsapp_local; Check: IsMachineScope
+Filename: "{app}\spj_api.exe"; Parameters: "--startup auto install"; Flags: runhidden waituntilterminated; Components: mobile_api; Check: IsMachineScope; StatusMsg: "Registrando la API de Logística…"
+Filename: "{app}\spj_api.exe"; Parameters: "start"; Flags: runhidden waituntilterminated; Components: mobile_api; Check: IsMachineScope
 Filename: "{app}\SPJ.exe"; Description: "Abrir {#AppName}"; Flags: nowait postinstall skipifsilent; Check: not IsUpdaterRun
 
 [UninstallRun]
 Filename: "{app}\spj_whatsapp.exe"; Parameters: "stop"; Flags: runhidden waituntilterminated; RunOnceId: "StopWhatsApp"
 Filename: "{app}\spj_whatsapp.exe"; Parameters: "remove"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveWhatsApp"
+Filename: "{app}\spj_api.exe"; Parameters: "stop"; Flags: runhidden waituntilterminated; RunOnceId: "StopMobileAPI"
+Filename: "{app}\spj_api.exe"; Parameters: "remove"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveMobileAPI"
 
 [UninstallDelete]
 Type: files; Name: "{app}\install_config.json"
@@ -235,6 +241,13 @@ begin
            mbError, MB_OK);
     Result := False;
   end;
+  if Result and (CurPageID = wpSelectComponents) and WizardIsComponentSelected('mobile_api')
+     and not IsMachineScope then
+  begin
+    MsgBox('La API de Logística se instala como servicio: necesita los datos para todos los '
+           + 'usuarios del equipo.', mbError, MB_OK);
+    Result := False;
+  end;
 end;
 
 function JsonEscape(const S: String): String;
@@ -275,6 +288,18 @@ begin
   end;
 end;
 
+function IsUpgrade: Boolean;
+{ Antes de escribir la configuración nueva: ¿había una instalación previa? }
+begin
+  Result := RegValueExists(HKA, 'Software\SPJ\SPJ ERP POS', 'InstalledVersion');
+end;
+
+procedure RegisterPreviousData(PreviousDataKey: Integer);
+begin
+  { Marca que esta instalación ya conoce la capacidad Logística (catálogo 2). }
+  SetPreviousData(PreviousDataKey, 'CapabilityCatalog', '2');
+end;
+
 function SelectedCapabilities: String;
 begin
   { The runtime closes dependencies (hr/assets -> finance) and always adds the
@@ -282,6 +307,17 @@ begin
   Result := '';
   AddIfSelected(Result, 'fidelidad');
   AddIfSelected(Result, 'orders_delivery');
+  AddIfSelected(Result, 'logistics');
+  { Catálogo 1 -> 2: Logística era parte de «Pedidos y entregas». Una
+    actualización (también silenciosa) de una instalación que la tenía la
+    conserva aunque el componente nuevo no venga marcado. }
+  if WizardIsComponentSelected('modulos\orders_delivery') and
+     not WizardIsComponentSelected('modulos\logistics') and
+     (GetPreviousData('CapabilityCatalog', '') = '') and IsUpgrade then
+  begin
+    if Result <> '' then Result := Result + ',';
+    Result := Result + 'logistics';
+  end;
   AddIfSelected(Result, 'purchasing');
   AddIfSelected(Result, 'transfers');
   AddIfSelected(Result, 'losses');
@@ -324,7 +360,7 @@ begin
     Json := Json + 'local'
   else
     Json := Json + 'remote';
-  Json := Json + '",' + #13#10 + '  "install_mode": "';
+  Json := Json + '",' + #13#10 + '  "capability_catalog": 2,' + #13#10 + '  "install_mode": "';
   if IsAdminInstallMode then
     Json := Json + 'admin'
   else
@@ -395,6 +431,10 @@ begin
   if FileExists(ExpandConstant('{app}\spj_whatsapp.exe')) then
     Exec(ExpandConstant('{app}\spj_whatsapp.exe'), 'stop', '', SW_HIDE,
          ewWaitUntilTerminated, Code);
+  // Igual con la API de Logística (integración 32cfbf).
+  if FileExists(ExpandConstant('{app}\spj_api.exe')) then
+    Exec(ExpandConstant('{app}\spj_api.exe'), 'stop', '', SW_HIDE,
+         ewWaitUntilTerminated, Code);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -409,6 +449,10 @@ begin
     if not WizardIsComponentSelected('whatsapp_local') and
        FileExists(ExpandConstant('{app}\spj_whatsapp.exe')) then
       Exec(ExpandConstant('{app}\spj_whatsapp.exe'), 'remove', '', SW_HIDE,
+           ewWaitUntilTerminated, Code);
+    if not WizardIsComponentSelected('mobile_api') and
+       FileExists(ExpandConstant('{app}\spj_api.exe')) then
+      Exec(ExpandConstant('{app}\spj_api.exe'), 'remove', '', SW_HIDE,
            ewWaitUntilTerminated, Code);
   end;
 end;

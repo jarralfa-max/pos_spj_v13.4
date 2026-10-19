@@ -45,7 +45,7 @@ _BASE_QUERY = """
         CASE WHEN COALESCE(p.bundle_allowed,0)=1 OR COALESCE(p.recipe_allowed,0)=1
              THEN 1 ELSE 0 END AS is_composite,
         COALESCE(rr.min_quantity, '0') AS minimum_quantity,
-        COALESCE(icanon.qty, '0') AS available_quantity
+        '0' AS available_quantity   -- se suma exacto en Python (auditoría V08)
     FROM products p
     LEFT JOIN product_price ppb
         ON ppb.product_id = p.id AND ppb.branch_id = :branch AND ppb.branch_id <> ''
@@ -62,13 +62,6 @@ _BASE_QUERY = """
     LEFT JOIN product_images pi ON pi.product_id = p.id AND pi.is_primary = 1
     LEFT JOIN product_barcodes pb
         ON pb.product_id = p.id AND pb.is_primary = 1 AND COALESCE(pb.active,1) = 1
-    LEFT JOIN (
-        SELECT product_id, branch_id,
-               SUM(CAST(quantity AS REAL) - CAST(reserved_quantity AS REAL)) AS qty
-        FROM inventory_balances
-        WHERE inventory_status = 'AVAILABLE'
-        GROUP BY product_id, branch_id
-    ) icanon ON icanon.product_id = p.id AND icanon.branch_id = :branch
     WHERE p.lifecycle_status = 'ACTIVE' AND COALESCE(p.internal_only, 0) = 0
 """
 
@@ -106,8 +99,10 @@ class SalesCatalogQueryService:
 
     def search(
         self, *, branch_id: str, search: str = "", category_id: str | None = None,
-        limit: int = 200,
+        limit: int = 200, offset: int = 0,
     ) -> tuple[ProductCatalogEntryDTO, ...]:
+        """`offset` (auditoría V08): la cuadrícula pide por páginas en vez de
+        traer y dibujar 200 tarjetas cada vez."""
         query = _BASE_QUERY
         params = self._base_params(branch_id)
         if search:
@@ -120,14 +115,40 @@ class SalesCatalogQueryService:
         if category_id:
             query += " AND p.category_id = :category"
             params["category"] = category_id
-        query += " ORDER BY p.name LIMIT :limit"
+        query += " ORDER BY p.name, p.id LIMIT :limit OFFSET :offset"
         params["limit"] = limit
+        params["offset"] = max(0, int(offset or 0))
 
         cursor = self._conn.execute(query, params)
         columns = [col[0] for col in cursor.description]
         rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        self._fill_available(rows, branch_id)
         armables = self._reconstructible(rows, branch_id)
         return tuple(self._to_dto(row, armables.get(row["product_id"])) for row in rows)
+
+    def _fill_available(self, rows: list[dict], branch_id: str) -> None:
+        """Existencia disponible EXACTA (auditoría V08, 2026-10-15): antes se
+        sumaba con `CAST(... AS REAL)` en SQL y el kilo fraccionado podía
+        mostrar 0.30000000000000004 o quedar del lado equivocado del mínimo. Se
+        leen los saldos como texto y se suman en Decimal, sólo de los productos
+        de esta página."""
+        ids = [row["product_id"] for row in rows]
+        totals: dict[str, Decimal] = {}
+        for start in range(0, len(ids), 500):
+            chunk = ids[start:start + 500]
+            marks = ",".join("?" for _ in chunk)
+            try:
+                found = self._conn.execute(
+                    "SELECT product_id, quantity, reserved_quantity FROM inventory_balances"
+                    f" WHERE branch_id = ? AND inventory_status = 'AVAILABLE'"
+                    f" AND product_id IN ({marks})", (branch_id or "", *chunk)).fetchall()
+            except Exception:  # noqa: BLE001 - base sin Inventario canónico: sin existencia
+                found = []
+            for product_id, quantity, reserved in found:
+                totals[product_id] = (totals.get(product_id, Decimal("0"))
+                                      + to_decimal(quantity) - to_decimal(reserved))
+        for row in rows:
+            row["available_quantity"] = str(totals.get(row["product_id"], Decimal("0")))
 
     def _reconstructible(self, rows: list[dict], branch_id: str) -> dict:
         """ATP (§17, Fase 7): cuánto se puede ARMAR de cada producto con las
@@ -172,6 +193,7 @@ class SalesCatalogQueryService:
         if row is None:
             return None
         fila = dict(zip(columns, row))
+        self._fill_available([fila], branch_id)
         return self._to_dto(fila, self._reconstructible([fila], branch_id).get(fila["product_id"]))
 
     def category_options(self) -> tuple[tuple[str, str], ...]:

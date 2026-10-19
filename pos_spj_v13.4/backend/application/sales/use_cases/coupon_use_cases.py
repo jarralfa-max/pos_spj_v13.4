@@ -34,10 +34,9 @@ class ApplyCouponToSaleUseCase(_SalesBaseUseCase):
         except SalesDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
             if any(c.code.upper() == str(code or "").strip().upper() for c in sale.coupons):
                 return SaleResult.fail("Ese cupón ya está aplicado", "COUPON_REJECTED",
                                        operation_id=operation_id)
@@ -72,10 +71,9 @@ class RemoveCouponFromSaleUseCase(_SalesBaseUseCase):
         except SalesDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
             try:
                 cupon = sale.remove_coupon(coupon_instance_id)
             except SalesDomainError as exc:
@@ -114,10 +112,9 @@ class SellPrepaidVoucherUseCase(_SalesBaseUseCase):
             return SaleResult.fail("El vale debe tener un monto mayor a cero", "VALIDATION",
                                    operation_id=operation_id)
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
             vale = SalesInstrumentsClient(connection, actor_branch_id=sale.branch_id) \
                 .prepare_prepaid(sale=sale, definition_id=definition_id)
             if not vale["approved"]:

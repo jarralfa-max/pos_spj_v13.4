@@ -59,9 +59,17 @@ def build_logistics_services(connection, session_context, *, secret_store=None):
     from backend.domain.logistics.qr_identity import PermanentContainerQrService
     from backend.infrastructure.db.repositories.logistics_repository import LogisticsRepository
 
+    from backend.infrastructure.hardware.logistics_label_printer import (
+        LogisticsContainerLabelPrinter,
+    )
     service = LogisticsApplicationService(
         connection,
         LogisticsAuthorizationPolicy(SessionLogisticsPermissionChecker(session_context)),
-        PermanentContainerQrService(qr_signing_secret(secret_store)))
+        PermanentContainerQrService(qr_signing_secret(secret_store)),
+        # Etiqueta QR por la ruta de impresión de Document Output (antes no se
+        # inyectaba ninguna impresora y reimprimir fallaba siempre).
+        printer_gateway=LogisticsContainerLabelPrinter(
+            connection, branch_id=str(getattr(session_context, "active_branch_id", "") or "")
+            or None))
     queries = LogisticsShipmentQueryService(connection, LogisticsRepository(connection))
     return service, queries

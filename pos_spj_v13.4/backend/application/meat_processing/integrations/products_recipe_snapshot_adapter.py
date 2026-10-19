@@ -9,9 +9,13 @@ aquí: lee la foto congelada.
 
 Qué se lee según la familia del proceso (nunca según la especie):
 
-- DISASSEMBLY: esquema de corte y perfil de rendimiento de la ENTRADA
-  (`target_product_id`). Cada salida del esquema trae su factor (kg de salida
-  por kg de entrada); el perfil, si existe, añade % esperado/mínimo/máximo.
+- DISASSEMBLY: perfil de rendimiento de la ENTRADA (`target_product_id`).
+  EL PERFIL MANDA (decisión del usuario, auditoría 32cfbf, 2026-10-16):
+  kg esperados = entrada × % del perfil / 100, y el % mostrado es ese mismo.
+  El esquema de corte es opcional; si existe debe decir lo mismo que el perfil
+  (mismas salidas, factor × 100 = %), o la orden no se congela y se dice qué
+  salida difiere. Antes los kilos salían del esquema y el % del perfil, y
+  podían contradecirse (70 kg esperados junto a un 65 %).
 - FORMULATION: receta de producción del producto a FABRICAR
   (`target_product_id`): componentes y salidas. Una receta de venta
   (`SALES_EXPLOSION`) es de Ventas y aquí no cuenta.
@@ -95,10 +99,42 @@ def _single_active_version(*, label: str, product_id: str, rows, list_versions,
     return version_detail(candidates[0]["id"])
 
 
+#: Diferencia admitida entre el factor del esquema (× 100) y el % del perfil:
+#: redondeo de captura, no una segunda opinión sobre el rendimiento.
+SCHEME_PROFILE_EPSILON_PCT = Decimal("0.01")
+
+
+def scheme_profile_mismatches(scheme: dict | None, rendimiento: dict,
+                              names=None) -> list[str]:
+    """Qué dice distinto el esquema de corte respecto al perfil de rendimiento
+    (el perfil manda). Vacío = coinciden, o no hay esquema."""
+    if not scheme:
+        return []
+    nombre = names or (lambda pid: pid)
+    del_esquema = {o["product_id"]: Decimal(str(o["quantity"])) * _HUNDRED
+                   for o in scheme.get("outputs", [])}
+    problemas = []
+    for pid in sorted(set(del_esquema) | set(rendimiento)):
+        pct = _dec(rendimiento.get(pid, {}).get("expected_yield_pct")) or Decimal("0")
+        if pid not in rendimiento:
+            problemas.append(f"El esquema de corte tiene una salida ({nombre(pid)}) que el "
+                             "perfil de rendimiento no tiene.")
+        elif pid not in del_esquema:
+            problemas.append(f"El perfil de rendimiento tiene una salida ({nombre(pid)}) que "
+                             "el esquema de corte no tiene.")
+        elif abs(del_esquema[pid] - pct) > SCHEME_PROFILE_EPSILON_PCT:
+            problemas.append(
+                f"El esquema de corte espera {del_esquema[pid].normalize():f} % de "
+                f"{nombre(pid)} y el perfil de rendimiento {pct.normalize():f} %. El perfil "
+                "manda: corrige el esquema o retíralo.")
+    return problemas
+
+
 class ProductsRecipeSnapshotAdapter:
     """Implementa `RecipeSnapshotPort` contra los catálogos reales de Productos."""
 
     def __init__(self, connection) -> None:
+        self._conn = connection
         self._recipes = ProductRecipeQueryService(connection)
         self._yields = ProductYieldQueryService(connection)
         self._cutting = ProductCuttingQueryService(connection)
@@ -190,6 +226,7 @@ class ProductsRecipeSnapshotAdapter:
         salidas: list[SnapshotOutput] = []
         base = Decimal("1")
         packaging_spec: dict = {}
+        problemas: list[str] = []
 
         def salida(pid, tipo, factor, *, medida="BY_WEIGHT", unidad=None, orden=0, origen=""):
             perfil = rendimiento.get(pid, {})
@@ -209,21 +246,19 @@ class ProductsRecipeSnapshotAdapter:
                                  quantity_per_basis=Decimal("1"), lot_controlled=lote)
 
         if familia is ProcessFamily.DISASSEMBLY:
-            if scheme is None and not rendimiento:
-                return self._empty(process_type, target, yield_profile)
+            if not rendimiento:
+                # Sin perfil no hay de dónde sacar lo esperado: la política dirá
+                # que falta el perfil (aunque haya esquema de corte).
+                return self._empty_disassembly(process_type, target, scheme)
             entradas.append(fuente())
-            for o in (scheme or {}).get("outputs", []):
+            for o in rendimiento.values():
                 salidas.append(salida(
-                    o["product_id"], o["output_type"], Decimal(str(o["quantity"])),
-                    medida=o.get("measure_kind") or "BY_WEIGHT", unidad=o.get("unit_id"),
-                    orden=o.get("sequence") or 0, origen="CUTTING_SCHEME"))
-            if scheme is None:
-                for o in rendimiento.values():
-                    salidas.append(salida(
-                        o["product_id"], o["output_type"],
-                        (_dec(o.get("expected_yield_pct")) or Decimal("0")) / _HUNDRED,
-                        unidad=o.get("unit_id"), orden=o.get("sequence") or 0,
-                        origen="YIELD_PROFILE"))
+                    o["product_id"], o["output_type"],
+                    (_dec(o.get("expected_yield_pct")) or Decimal("0")) / _HUNDRED,
+                    unidad=o.get("unit_id"), orden=o.get("sequence") or 0,
+                    origen="YIELD_PROFILE"))
+            problemas = scheme_profile_mismatches(scheme, rendimiento,
+                                                  names=self._product_name)
         elif familia is ProcessFamily.FORMULATION:
             if recipe is None:
                 return self._empty(process_type, target, yield_profile)
@@ -279,6 +314,7 @@ class ProductsRecipeSnapshotAdapter:
         return ProcessingRecipeSnapshot(
             process_type=process_type, target_product_id=target,
             inputs=tuple(entradas), outputs=tuple(salidas),
+            definition_problems=tuple(problemas),
             recipe_version_id=(recipe or packaging_recipe or {}).get("id"),
             cutting_scheme_version_id=(scheme or {}).get("id"),
             yield_profile_version_id=(yield_profile or {}).get("id"),
@@ -286,6 +322,15 @@ class ProductsRecipeSnapshotAdapter:
             tolerance_pct=_dec((yield_profile or {}).get("tolerance_pct")),
             technical_parameters=self._classification_of(target),
             effective_version=" · ".join(versiones))
+
+    def _product_name(self, product_id: str) -> str:
+        """Nombre para los mensajes: nunca se muestra un UUID a quien opera."""
+        try:
+            row = self._conn.execute("SELECT name FROM products WHERE id=?",
+                                     (product_id,)).fetchone()
+        except Exception:  # noqa: BLE001 - sin catálogo, una descripción genérica
+            row = None
+        return str(row[0]) if row and row[0] else "un producto sin nombre"
 
     def _classification_of(self, product_id: str) -> dict:
         """Especie y categoría como DATOS: sirven para resolver tolerancias por
@@ -295,6 +340,16 @@ class ProductsRecipeSnapshotAdapter:
             return {}
         return {k: v for k, v in (("species_id", dto.species_id),
                                   ("category_id", dto.category_id)) if v}
+
+    @staticmethod
+    def _empty_disassembly(process_type, target, scheme) -> ProcessingRecipeSnapshot | None:
+        """Despiece sin perfil: se devuelve el esquema (si lo hay) para que la
+        política diga que falta el perfil, no 'nada'."""
+        if scheme is None:
+            return None
+        return ProcessingRecipeSnapshot(
+            process_type=process_type, target_product_id=target,
+            cutting_scheme_version_id=scheme["id"])
 
     @staticmethod
     def _empty(process_type, target, yield_profile) -> ProcessingRecipeSnapshot | None:

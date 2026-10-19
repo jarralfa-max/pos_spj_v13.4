@@ -66,11 +66,14 @@ class ContextFilters(QFrame):
 class PurchasingModuleShell(QWidget):
     """Single stacked-navigation root for the Procurement desktop experience."""
 
-    def __init__(self, presenter, parent=None, *, direct_purchase_views=None) -> None:
+    def __init__(self, presenter, parent=None, *, direct_purchase_views=None,
+                 direct_purchase_factory=None) -> None:
         super().__init__(parent)
         self.setObjectName("purchasingModuleShell")
         self._presenter = presenter
         self._direct_purchase_views = direct_purchase_views or {}
+        #: Vista NUEVA de compra rápida para «Nueva recolección» (Compra en origen).
+        self._direct_purchase_factory = direct_purchase_factory
         self._loaded = False
         self._row_to_page: dict[int, int] = {}
         self._route_to_page: dict[str, int] = {}
@@ -145,7 +148,8 @@ class PurchasingModuleShell(QWidget):
             PurchasingRoutes.DIRECT_PURCHASE_CREATE: lambda: direct_purchase_views.get("create"),
             PurchasingRoutes.DIRECT_PURCHASE_HISTORY: lambda: direct_purchase_views.get("history"),
             PurchasingRoutes.ORIGIN_LOADING: lambda: LogisticsRelatedPage(
-                self._presenter, self, capabilities=capabilities),
+                self._presenter, self, capabilities=capabilities,
+                direct_purchase_factory=self._direct_purchase_factory),
             PurchasingRoutes.RECEIPTS: lambda: PurchaseHistoryPage(
                 self._presenter, self),
             PurchasingRoutes.INVOICES: lambda: InvoicesPage(self._presenter, self),

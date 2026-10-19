@@ -54,11 +54,23 @@ class _Presentador:
     def verify_authorizer(self, usuario, clave):
         return self.autorizador
 
+    def payment_methods(self, *, has_customer=False):
+        return ("CASH",)
+
+    # Sin políticas inyectadas el presentador real responde None (ver
+    # `SalesPosPresenter.cash_tender` / `payment_amount_problem`).
+    def cash_tender(self, **kw):
+        return None
+
+    def payment_amount_problem(self, **kw):
+        return None
+
 
 def _pago(presentador):
     from frontend.desktop.modules.sales_pos.dialogs.payment_dialog import PaymentDialog
     d = PaymentDialog(presentador, sale_id="v1", total_due=Decimal("100"))
     d._lines = [("CASH", Decimal("100"), None)]
+    d._payment_ids = [None]          # paralelo a _lines (como lo deja _add_line)
     return d
 
 
@@ -155,7 +167,6 @@ def test_sin_turno_el_cobro_ni_siquiera_se_abre(app, monkeypatch):
 
     avisos, abiertos = [], []
     monkeypatch.setattr(ws_mod.QMessageBox, "warning", lambda *a, **k: avisos.append(a[2]))
-    monkeypatch.setattr(ws_mod, "PaymentDialog", lambda *a, **k: abiertos.append(1))
     presenter = SalesPosPresenter(
         session_context=_Sesion(),
         query_services={"sale_query": SimpleNamespace(
@@ -163,7 +174,9 @@ def test_sin_turno_el_cobro_ni_siquiera_se_abre(app, monkeypatch):
                                 total=Decimal("100"), lines=[1])),
                         "cash_shift": lambda **kw: "No tienes un turno de caja abierto."})
     ws = ws_mod.SalesPosWorkspace(presenter)
+    ws.dialogs["payment"] = lambda *a, **k: abiertos.append(1)
     ws._sale_id = "v1"
+    ws._sale = SimpleNamespace(total=Decimal("100"), lines=[1], customer_id=None)
 
     ws._on_checkout_requested()
 

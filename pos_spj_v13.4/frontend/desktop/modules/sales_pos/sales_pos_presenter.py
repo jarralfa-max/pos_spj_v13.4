@@ -82,12 +82,26 @@ class SalesPosPresenter:
 
     # ── catalog (SALES-7) ────────────────────────────────────────────────
 
+    #: Tarjetas por página de la cuadrícula (auditoría V08).
+    CATALOG_PAGE_SIZE = 60
+
     def catalog_search(self, *, search: str = "", category_id: str | None = None) -> tuple:
         service = self.query_service("catalog")
         if service is None:
             return ()
         return service.search(
             branch_id=self.current_branch_id(), search=search, category_id=category_id)
+
+    def catalog_page(self, *, search: str = "", category_id: str | None = None,
+                     page: int = 0) -> tuple[tuple, bool]:
+        """(productos de la página, ¿hay más?) — pide uno de más para saberlo."""
+        service = self.query_service("catalog")
+        if service is None:
+            return (), False
+        size = self.CATALOG_PAGE_SIZE
+        rows = service.search(branch_id=self.current_branch_id(), search=search,
+                              category_id=category_id, limit=size + 1, offset=page * size)
+        return tuple(rows[:size]), len(rows) > size
 
     def categories(self) -> tuple:
         service = self.query_service("catalog")
@@ -103,6 +117,18 @@ class SalesPosPresenter:
             return None
         return service.get(sale_id, requester_user_id=self.current_user_id())
 
+    def open_sale(self, *, recover: bool = False,
+                  workstation_id: str | None = None) -> SaleResult:
+        """La venta con la que trabaja la caja: la en curso (``recover``) o un
+        borrador reutilizado; sólo si no hay, una nueva (auditoría V03)."""
+        if self.command_handler("open_sale") is None:
+            return self.start_sale(workstation_id=workstation_id)
+        return self._run(
+            "open_sale", branch_id=self.current_branch_id(),
+            cashier_user_id=self.current_user_id(), operation_id=_new_op(),
+            actor_user_id=self.current_user_id(), recover=recover,
+            workstation_id=workstation_id)
+
     def start_sale(self, *, workstation_id: str | None = None) -> SaleResult:
         return self._run(
             "start_sale", branch_id=self.current_branch_id(),
@@ -112,14 +138,17 @@ class SalesPosPresenter:
     def add_line(self, *, sale_id: str, product_id: str, quantity: Decimal,
                  unit_price: Decimal, product_snapshot: dict | None = None,
                  weight_source: str | None = None, quantity_unit: str = "PZA") -> SaleResult:
-        resolved = self._resolve_effective_price(
-            sale_id=sale_id, product_id=product_id, quantity=quantity)
+        # `unit_price` es el del catálogo y sólo vale si Precios no tiene uno:
+        # el precio que se cobra lo resuelve el caso de uso (auditoría V04).
+        extra = {}
+        if weight_source == "SCALE":
+            extra["scale_state"] = self.scale_service().current()
         return self._run(
             "add_line", sale_id=sale_id, product_id=product_id, quantity=quantity,
-            unit_price=unit_price if resolved is None else resolved,
+            unit_price=unit_price,
             actor_user_id=self.current_user_id(),
             operation_id=_new_op(), product_snapshot=product_snapshot,
-            weight_source=weight_source, quantity_unit=quantity_unit or "PZA")
+            weight_source=weight_source, quantity_unit=quantity_unit or "PZA", **extra)
 
     def add_product(self, *, sale_id: str, product, quantity: Decimal | None = None,
                     weight_source: str | None = None) -> SaleResult:
@@ -140,6 +169,15 @@ class SalesPosPresenter:
             product_snapshot={"name": product.name, "sku": product.sku, "unit": product.unit,
                               "by_weight": bool(product.sold_by_weight)})
 
+    def price_preview(self, *, sale_id: str, product_id: str, quantity) -> Decimal | None:
+        """Precio que se cobrará (misma regla que el caso de uso); None si no se
+        puede saber y manda el del catálogo."""
+        service = self.query_service("price_preview")
+        if service is None:
+            return None
+        return service.price(sale_id=sale_id, product_id=product_id, quantity=quantity,
+                             requester_user_id=self.current_user_id())
+
     def validate_weight(self, weight) -> tuple[Decimal | None, str]:
         """(peso, "") si el dominio lo acepta; si no, (None, motivo)."""
         check = self.query_service("weight_policy")
@@ -147,38 +185,41 @@ class SalesPosPresenter:
             return None, "La captura de peso no está disponible."
         return check(weight)
 
+    def scale_service(self, *, reload=False):
+        if reload and hasattr(self, "_live_scale"):
+            del self._live_scale
+        if not hasattr(self, "_live_scale"):
+            from backend.application.sales.scale_reading_service import ScaleReadingService
+            factory = self.query_service("scale_factory")
+            try:
+                self._live_scale = (factory(actor_user_id=self.current_user_id(),
+                                           branch_id=self.current_branch_id(),
+                                           workstation_id=getattr(self._session, "workstation_id", None))
+                                    if factory else ScaleReadingService())
+            except Exception:
+                logger.exception("No se pudo configurar la báscula")
+                self._live_scale = ScaleReadingService()
+                self._live_scale.invalidate("ERROR", "revisar configuración o permisos")
+        return self._live_scale
 
-    def _resolve_effective_price(self, *, sale_id: str, product_id: str,
-                                 quantity: Decimal) -> Decimal | None:
-        """§20 (master prompt): the price actually charged must come from the
-        canonical Pricing engine (branch/customer/volume-aware), not from
-        whatever static BASE-list price the catalog grid showed for
-        browsing (`SalesCatalogQueryService.search()` stays on that flat
-        price deliberately — one bulk query for the whole grid, see its own
-        docstring). Resolving per-line here is cheap (one product) and is
-        exactly the moment `SalesPricingClient`'s own docstring names as its
-        intended call site. Returns None — caller's own price wins — when
-        pricing isn't wired, nothing is configured for this product, or the
-        lookup fails; never blocks a sale over a pricing lookup problem."""
-        service = self.query_service("pricing")
+    def weight_amount(self, *, sale_id, product_id, quantity):
+        service = self.query_service("price_preview")
         if service is None:
             return None
-        sale = self.get_sale(sale_id)
-        customer_id = sale.customer_id if sale is not None else None
-        try:
-            return service.effective_price(
-                product_id, branch_id=self.current_branch_id(),
-                customer_id=customer_id, quantity=quantity)
-        except Exception:
-            logger.exception(
-                "No se pudo resolver el precio canónico de %s; se usa el precio "
-                "de catálogo.", product_id)
-            return None
+        return service.amount(sale_id=sale_id, product_id=product_id, quantity=quantity,
+                              requester_user_id=self.current_user_id())
 
-    def update_line_quantity(self, *, sale_id: str, line_id: str, quantity: Decimal) -> SaleResult:
+
+    def update_line_quantity(self, *, sale_id: str, line_id: str, quantity: Decimal,
+                             weight_source=None) -> SaleResult:
+        extra = {}
+        if weight_source:
+            extra["weight_source"] = weight_source
+        if weight_source == "SCALE":
+            extra["scale_state"] = self.scale_service().current()
         return self._run(
             "update_line_quantity", sale_id=sale_id, line_id=line_id, quantity=quantity,
-            actor_user_id=self.current_user_id(), operation_id=_new_op())
+            actor_user_id=self.current_user_id(), operation_id=_new_op(), **extra)
 
     def remove_line(self, *, sale_id: str, line_id: str) -> SaleResult:
         return self._run(
@@ -353,6 +394,11 @@ class SalesPosPresenter:
 
     # ── payment / checkout (SALES-13/14) ─────────────────────────────────
 
+    def remove_line_discount(self, *, sale_id: str, line_id: str) -> SaleResult:
+        return self.apply_line_discount(sale_id=sale_id, line_id=line_id,
+                                        discount_amount=Decimal("0"),
+                                        reason="Retirar descuento manual de línea")
+
     def record_payment(self, *, sale_id: str, method: str, amount: Decimal,
                        reference: str | None = None) -> SaleResult:
         return self._run(
@@ -424,6 +470,19 @@ class SalesPosPresenter:
             "resume_sale", sale_id=sale_id, actor_user_id=self.current_user_id(),
             operation_id=_new_op())
 
+    def void_payment(self, *, sale_id: str, payment_id: str, reason: str) -> SaleResult:
+        """Quita un pago ya registrado (auditoría V02/V03). `data["refund"]` dice
+        qué devolver al cliente."""
+        return self._run(
+            "void_payment", sale_id=sale_id, payment_id=payment_id, reason=reason,
+            actor_user_id=self.current_user_id(), operation_id=_new_op())
+
+    def return_to_cart(self, *, sale_id: str) -> SaleResult:
+        """Cobro cerrado sin pagos: la venta vuelve a ser editable (auditoría V03)."""
+        return self._run(
+            "return_to_cart", sale_id=sale_id, actor_user_id=self.current_user_id(),
+            operation_id=_new_op())
+
     def cancel_sale(self, *, sale_id: str, reason: str) -> SaleResult:
         return self._run(
             "cancel_sale", sale_id=sale_id, reason=reason,
@@ -489,6 +548,18 @@ class SalesPosPresenter:
             branch_id=self.current_branch_id(), sale_number=folio.strip(),
             requester_user_id=self.current_user_id())
 
+    def mark_invoice_issued(self, *, sale_id: str, invoice_request_id: str,
+                            uuid_fiscal: str) -> SaleResult:
+        return self._run("mark_invoice_issued", sale_id=sale_id,
+                         invoice_request_id=invoice_request_id, uuid_fiscal=uuid_fiscal,
+                         actor_user_id=self.current_user_id(), operation_id=_new_op())
+
+    def mark_invoice_error(self, *, sale_id: str, invoice_request_id: str,
+                           error_message: str) -> SaleResult:
+        return self._run("mark_invoice_error", sale_id=sale_id,
+                         invoice_request_id=invoice_request_id, error_message=error_message,
+                         actor_user_id=self.current_user_id(), operation_id=_new_op())
+
     def request_invoice(self, *, sale_id: str, tax_identifier: str | None = None,
                         legal_name: str | None = None, cfdi_use: str | None = None) -> SaleResult:
         return self._run(
@@ -520,18 +591,62 @@ class SalesPosPresenter:
             return None
         return service.current_state(sale_id, requester_user_id=self.current_user_id())
 
-    def push_customer_display(self, *, gateway, sale_id: str | None) -> None:
+    def display_preferences(self):
+        query = self.query_service("display_preferences")
+        return query.resolve(branch_id=self.current_branch_id(),
+                             company_id=getattr(self._session, "company_id", None),
+                             workstation_id=getattr(self._session, "workstation_id", None)) if query else {}
+
+    def push_customer_display(self, *, gateway, sale_id: str | None,
+                              public_payment=None, change=None) -> None:
+        from dataclasses import replace
         state = self.customer_display_state(sale_id) if sale_id else None
         handler = self.command_handler("push_customer_display")
         if handler is None:
             return
-        handler(gateway=gateway, state=state, branch_id=self.current_branch_id())
+        preferences = self.display_preferences()
+        if state is not None:
+            sale = self.get_sale(sale_id)
+            points = self.points_to_earn(sale)
+            points_text = ("Puntos pendientes" if state.screen == "THANK_YOU" and sale and sale.customer_id
+                           else f"Puntos estimados: {points or 'No disponibles'}")
+            if state.screen == "THANK_YOU" and (not sale or not sale.customer_id):
+                points_text = "Puntos: no aplican sin cliente"
+            if state.screen == "CART" and not state.lines:
+                state = replace(state, screen="IDLE")
+                points_text = ""
+            if state.screen == "THANK_YOU" and sale and sale.customer_id:
+                loyalty = self.query_service("loyalty_summary")
+                try:
+                    credited = loyalty.credited_points_for_sale(sale_id) if loyalty else None
+                    if credited is not None:
+                        points_text = f"+{credited:g} puntos acreditados"
+                except Exception:
+                    logger.exception("Acreditación de puntos aún no disponible")
+            payment_text = ""
+            if public_payment == "FAILED":
+                payment_text = "El pago no se confirmó. Espera la indicación del cajero."
+            elif public_payment == "PENDING":
+                payment_text = "Estamos procesando tu compra."
+            elif state.screen == "THANK_YOU" and change is not None and preferences.get("show_change", True):
+                payment_text = f"Cambio: ${change:,.2f}"
+            state = replace(state, points_text=points_text,
+                            scale_text=self.scale_service().current().text,
+                            screen="PAYMENT_PENDING" if public_payment else state.screen,
+                            payment_text=payment_text)
+        kwargs = dict(gateway=gateway, state=state, branch_id=self.current_branch_id())
+        workstation_id = getattr(self._session, "workstation_id", None)
+        if workstation_id:
+            kwargs["workstation_id"] = workstation_id
+        if preferences:
+            kwargs["preferences"] = preferences
+        handler(**kwargs)
 
     def resolve_idle_ads(self, mode: str = "IDLE") -> tuple:
         service = self.query_service("advertising")
         if service is None:
             return ()
-        return service.resolve_active_ads(mode)
+        return service.resolve_display_ads(mode)
 
     def record_ad_impression(self, *, placement_id: str, duration_shown_seconds: int) -> None:
         handler = self.command_handler("record_ad_impression")

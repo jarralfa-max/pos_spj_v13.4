@@ -47,6 +47,7 @@ class CustomerDisplayQueryService:
         sale = SaleRepository(self._connection).get(sale_id)
         if sale is None:
             raise SaleNotFoundError(f"Venta {sale_id} no existe")
+        self._auth.require_branch(requester_user_id, sale.branch_id)  # auditoría V05
 
         customer_name = self._resolve_customer_name(sale.customer_id)
         screen = _SCREEN_BY_STATUS.get(sale.status, "IDLE")
@@ -56,6 +57,7 @@ class CustomerDisplayQueryService:
                 name=str(line.product_snapshot.get("name") or line.product_snapshot.get("nombre")
                           or line.product_id),
                 quantity=line.quantity.value, unit_price=line.unit_price, line_total=line.line_total,
+                unit=line.quantity.unit, discount_total=line.discount_total,
             )
             for line in sale.lines
         )
@@ -63,6 +65,7 @@ class CustomerDisplayQueryService:
             sale_id=sale.id, screen=screen, customer_name=customer_name, lines=lines,
             subtotal=sale.totals.gross_subtotal, discount_total=sale.totals.discount_total,
             total=sale.totals.total, message=message,
+            tax_total=sale.totals.tax_total,
         )
 
     def _resolve_customer_name(self, customer_id: str | None) -> str | None:

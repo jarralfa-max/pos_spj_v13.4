@@ -43,7 +43,8 @@ def enabled_capabilities_for(paths: AppPaths) -> EnabledCapabilities:
         profile = InstallProfile(config.profile)
     except ValueError:
         return EnabledCapabilities.everything()
-    return EnabledCapabilities.resolve(profile, config.capabilities)
+    return EnabledCapabilities.resolve(profile, config.capabilities,
+                                       catalog_version=config.capability_catalog)
 
 
 @dataclass(frozen=True)

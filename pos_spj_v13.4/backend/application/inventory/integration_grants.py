@@ -30,7 +30,13 @@ QUALITY_GRANT = IntegrationGrant(
     permissions=frozenset({P.QUARANTINE_RELEASE, P.QUALITY_RELEASE, P.QUALITY_BLOCK,
                            P.LOT_RELEASE, P.LOT_BLOCK, P.MOVEMENT_CREATE}))
 
-GRANTS = {g.source_module: g for g in (MEAT_PROCESSING_GRANT, QUALITY_GRANT)}
+#: Transferencias reserva en el origen, despacha (salida) y recibe (entrada) en
+#: el destino. No crea lotes: la mercancía viaja con los lotes que ya tenía.
+TRANSFERS_GRANT = IntegrationGrant(
+    owner_context="inventory", source_module="transfers",
+    permissions=frozenset({P.RESERVATION_CREATE, P.RESERVATION_RELEASE, P.MOVEMENT_CREATE}))
+
+GRANTS = {g.source_module: g for g in (MEAT_PROCESSING_GRANT, QUALITY_GRANT, TRANSFERS_GRANT)}
 
 
 def inventory_policy_for(source_module: str, actor_user_id: str

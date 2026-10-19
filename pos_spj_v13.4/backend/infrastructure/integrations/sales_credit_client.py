@@ -47,6 +47,7 @@ from backend.application.customer_credit.use_cases.check_credit_sale_eligibility
 from backend.application.customers.authorization import CustomerAuthorizationPolicy
 from backend.application.use_cases.finance.receivable_use_cases import (
     RegisterSaleCreditChargeUseCase,
+    VoidSaleCreditChargeUseCase,
 )
 
 
@@ -121,3 +122,10 @@ class SalesCreditClient:
             # deuda vive o muere con la venta (auditoría CRM F01).
             owns_transaction=False,
         )
+
+    def void(self, *, sale_id: str, payment_id: str) -> None:
+        """Retira de CxC el cargo de un pago a crédito anulado antes de cerrar la
+        venta (auditoría de Ventas V02). Dentro de la transacción del cobro."""
+        VoidSaleCreditChargeUseCase().execute(
+            self._connection, sale_id=sale_id, payment_id=payment_id,
+            owns_transaction=False)

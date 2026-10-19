@@ -142,6 +142,10 @@ async function ensureShipment() {
 
 async function addContainer(tokenValue, parentNodeId = null) {
   if (!state.selectedDocument) throw new Error("Selecciona primero un documento");
+  // QR escaneado (SPJC/…) tal cual; un código tecleado se normaliza.
+  tokenValue = String(tokenValue || "").trim();
+  if (!tokenValue.includes("/")) tokenValue = tokenValue.toUpperCase();
+  if (!tokenValue) throw new Error("Escanea el QR o teclea el código del contenedor");
   await ensureShipment();
   let resolved;
   try {
@@ -291,16 +295,83 @@ function renderSyncIssues(conflicts) {
   host.hidden = conflicts.length === 0;
 }
 
+// ── Lector de QR con la cámara del teléfono (2026-10-17) ─────────────────
+// BarcodeDetector cuando el navegador lo trae (Chrome/Android); si no
+// (Safari/iPhone, Firefox), jsQR local, cargado sólo al abrir la cámara.
+let jsQRLoading = null;
+function loadJsQR() {
+  if (window.jsQR) return Promise.resolve(window.jsQR);
+  jsQRLoading ||= new Promise((resolve, reject) => {
+    const script = document.createElement("script"); script.src = "vendor/jsQR.js";
+    script.onload = () => resolve(window.jsQR);
+    script.onerror = () => { jsQRLoading = null; reject(new Error("No se pudo cargar el lector de QR")); };
+    document.head.append(script);
+  });
+  return jsQRLoading;
+}
+
+async function makeQrReader() {
+  if ("BarcodeDetector" in window) {
+    try {
+      const formats = await window.BarcodeDetector.getSupportedFormats?.();
+      if (!formats || formats.includes("qr_code")) {
+        const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+        return async (video) => (await detector.detect(video).catch(() => []))[0]?.rawValue || null;
+      }
+    } catch (_error) { /* se usa jsQR */ }
+  }
+  const jsQR = await loadJsQR();
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  return async (video) => {
+    const width = video.videoWidth, height = video.videoHeight;
+    if (!width || !height) return null;
+    const scale = Math.min(1, 720 / Math.max(width, height));
+    canvas.width = Math.round(width * scale); canvas.height = Math.round(height * scale);
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const frame = context.getImageData(0, 0, canvas.width, canvas.height);
+    return jsQR(frame.data, frame.width, frame.height, { inversionAttempts: "dontInvert" })?.data || null;
+  };
+}
+
+function cameraError(error) {
+  if (error?.name === "NotAllowedError") return "Permite el acceso a la cámara para escanear (ajustes del navegador → Cámara).";
+  if (error?.name === "NotFoundError") return "Este dispositivo no tiene cámara disponible; teclea el código impreso.";
+  if (error?.name === "NotReadableError") return "Otra aplicación está usando la cámara; ciérrala e intenta de nuevo.";
+  return `No se pudo abrir la cámara: ${error?.message || error}`;
+}
+
 async function startScanner() {
-  if (!navigator.mediaDevices?.getUserMedia) throw new Error("La cámara no está disponible");
-  scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-  $("scannerVideo").srcObject = scanStream; await $("scannerVideo").play(); $("scannerPanel").hidden = false;
-  if (!("BarcodeDetector" in window)) { toast("Escaneo automático no disponible; captura el token manualmente"); return; }
-  const detector = new BarcodeDetector({ formats: ["qr_code"] });
+  if (scanStream) return;
+  if (!window.isSecureContext) {
+    throw new Error("La cámara sólo funciona con conexión segura: abre la app con la dirección https:// del equipo (o teclea el código impreso de la etiqueta).");
+  }
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error("Este navegador no permite usar la cámara; teclea el código impreso.");
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+  } catch (error) { throw new Error(cameraError(error)); }
+  const video = $("scannerVideo");
+  video.srcObject = scanStream; await video.play(); $("scannerPanel").hidden = false;
+  $("scanHint").textContent = "Apunta al QR de la etiqueta…";
+  let read;
+  try { read = await makeQrReader(); } catch (error) { stopScanner(); throw error; }
+  let busy = false, last = "", lastAt = 0;
   scanTimer = setInterval(async () => {
-    const codes = await detector.detect($("scannerVideo")).catch(() => []);
-    if (codes[0]?.rawValue) { stopScanner(); await addContainer(codes[0].rawValue, $("parentNode").value || null).catch((error) => toast(error.message)); }
-  }, 450);
+    if (busy || !scanStream) return;
+    busy = true;
+    try {
+      const value = (await read(video))?.trim();
+      // El mismo QR frente a la cámara no se agrega dos veces seguidas.
+      if (!value || (value === last && Date.now() - lastAt < 3000)) return;
+      last = value; lastAt = Date.now();
+      navigator.vibrate?.(60);
+      try {
+        await addContainer(value, $("parentNode").value || null);
+        $("scanHint").textContent = "Agregado. Apunta al siguiente QR…";
+      } catch (error) { toast(error.message); $("scanHint").textContent = error.message; }
+      if (!$("continuousScan").checked) stopScanner();
+    } finally { busy = false; }
+  }, 250);
 }
 
 function stopScanner() { if (scanTimer) clearInterval(scanTimer); scanTimer = null; scanStream?.getTracks().forEach((track) => track.stop()); scanStream = null; $("scannerPanel").hidden = true; }

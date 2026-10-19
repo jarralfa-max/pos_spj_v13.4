@@ -109,6 +109,15 @@ class GrantSweepstakesEntryFromSaleUseCase(_SweepstakesBaseUseCase):
                     return SweepstakesResult.ok(
                         "La campaña no otorga derechos por monto de compra",
                         operation_id=operation_id, granted=False)
+                # Una venta otorga su derecho UNA vez por campaña (2026-10-16):
+                # reprocesarla (reintento del cobro, ticket reemitido) devolvía
+                # otro derecho con sus boletos — el cliente recibía el doble.
+                previous = uow.entries.find_for_sale(campaign_id, source_sale_id)                     if source_sale_id else None
+                if previous is not None:
+                    return SweepstakesResult.ok(
+                        "La venta ya tenía su derecho en la campaña", entity_id=previous.id,
+                        operation_id=operation_id, granted=True,
+                        chances_granted=previous.chances_granted)
                 chances = rule.chances_for_amount(sale_amount)
                 if chances <= 0:
                     return SweepstakesResult.ok(

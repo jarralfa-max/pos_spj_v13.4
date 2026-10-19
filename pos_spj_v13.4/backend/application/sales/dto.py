@@ -118,6 +118,7 @@ class SaleDTO:
     version: int = 1
     #: Cupones aplicados: ({"coupon_instance_id", "code", "amount"}, ...).
     coupons: tuple[dict, ...] = field(default_factory=tuple)
+    sale_level_discount: Decimal = Decimal("0")
 
     def returnable_quantity(self, line_id: str) -> Decimal:
         """Lo que aún se puede devolver de una línea: lo vendido menos lo ya
@@ -146,6 +147,7 @@ class SaleDTO:
                 SaleInvoiceRequestDTO.from_entity(i) for i in sale.invoice_requests),
             gross_subtotal=sale.totals.gross_subtotal,
             discount_total=sale.totals.discount_total,
+            sale_level_discount=sale.sale_level_discount,
             promotion_total=sale.totals.promotion_total,
             coupon_total=sale.totals.coupon_total,
             loyalty_total=sale.totals.loyalty_total,
@@ -186,6 +188,8 @@ class CustomerDisplayLineDTO:
     quantity: Decimal
     unit_price: Decimal
     line_total: Decimal
+    unit: str = ""
+    discount_total: Decimal = Decimal("0")
 
 
 @dataclass(frozen=True, slots=True)
@@ -209,6 +213,10 @@ class CustomerDisplayStateDTO:
     discount_total: Decimal
     total: Decimal
     message: str = ""
+    tax_total: Decimal = Decimal("0")
+    points_text: str = ""
+    scale_text: str = ""
+    payment_text: str = ""
 
 
 @dataclass(frozen=True, slots=True)

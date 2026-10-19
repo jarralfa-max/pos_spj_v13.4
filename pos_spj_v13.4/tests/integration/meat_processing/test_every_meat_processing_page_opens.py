@@ -66,7 +66,7 @@ RUTAS_REALES = {
     "mp_weighings_consumptions", "mp_cutting", "mp_derived_products",
     "mp_packaging_labeling", "mp_produced_lots", "mp_yields", "mp_quality",
     "mp_rework", "mp_incidents", "mp_audit", "mp_settings", "mp_traceability", "mp_overview",
-    "mp_production_plan",
+    "mp_production_plan", "mp_direct_transformation",
 }
 
 TODOS_LOS_PERMISOS = frozenset(

@@ -21,6 +21,11 @@ class SalesPermissionDeniedError(SalesDomainError):
     """The user lacks the granular permission the action requires."""
 
 
+class SaleOutOfBranchScopeError(SalesPermissionDeniedError):
+    """La venta es de otra sucursal (auditoría V05, 2026-10-15): cada caja sólo
+    lee y opera las ventas de su sucursal activa."""
+
+
 class SalesConfigurationError(SalesDomainError):
     """A security-sensitive component was built without its mandatory wiring
     (e.g. an authorization policy with no PermissionChecker). Fail closed:

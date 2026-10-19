@@ -48,7 +48,6 @@ UI_FILES: list[str] = []
 # Lo que queda vivo del alcance, y por eso este archivo no se borra entero.
 SERVICE_AND_PERSISTENCE_FILES = [
     "backend/application/commands/settings_commands.py",
-    "backend/application/queries/hardware_settings_query_service.py",
 ]
 
 SCOPE_FILES = UI_FILES + SERVICE_AND_PERSISTENCE_FILES
@@ -93,10 +92,6 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 # ---------------------------------------------------------------------------
 BASELINE: dict[str, dict[str, int]] = {
     "backend/application/commands/settings_commands.py": {},
-    # Una sola lectura, documentada: el servicio de consulta de hardware.
-    "backend/application/queries/hardware_settings_query_service.py": {
-        "sql_select": 1,
-    },
 }
 
 

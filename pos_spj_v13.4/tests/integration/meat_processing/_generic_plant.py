@@ -89,7 +89,10 @@ from backend.infrastructure.integrations.meat_processing_ports import (
     ProcessingOrderFolioAdapter,
 )
 from backend.shared.ids import new_uuid
-from tests.integration._reversible_cutting import reversible_cutting_scheme
+from tests.integration._reversible_cutting import (
+    active_yield_profile,
+    reversible_cutting_scheme,
+)
 
 KG = "unit-kg"
 
@@ -149,7 +152,8 @@ def build_db():
                     "272_meat_processing_frozen_definition_and_real_reservations",
                     "273_costing_and_quality_contexts",
                     "275_processing_order_folio",
-                    "276_meat_processing_production_plan"):
+                    "276_meat_processing_production_plan",
+                    "343_meat_direct_transformation"):
         importlib.import_module(f"migrations.standalone.{version}").run(c)
     c.commit()
     return c
@@ -222,10 +226,16 @@ class Planta:
 
     def despiece(self, fuente: str, salidas: list[tuple[str, str, str]], *,
                  especie: str) -> str:
-        """salidas: (producto, tipo, kg de salida por kg de entrada)."""
+        """salidas: (producto, tipo, kg de salida por kg de entrada). Crea el
+        esquema de corte y su perfil de rendimiento EQUIVALENTE (el perfil manda
+        desde la auditoría 32cfbf; el esquema debe decir lo mismo)."""
         _, version = reversible_cutting_scheme(self.conn, product_id=fuente, reversible=False,
                                                species_id=especie, outputs=[
             {"product_id": p, "output_type": t, "quantity": q, "unit_id": KG}
+            for p, t, q in salidas])
+        active_yield_profile(self.conn, product_id=fuente, species_id=especie, outputs=[
+            {"product_id": p, "output_type": t,
+             "expected_yield_pct": str(Decimal(q) * 100), "unit_id": KG}
             for p, t, q in salidas])
         return version
 

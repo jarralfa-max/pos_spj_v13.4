@@ -13,7 +13,7 @@ from backend.shared.ids import new_uuid
 _COLUMNS = ("product_id", "output_type", "input_product_id", "input_weight",
             "expected_weight", "actual_weight", "difference_weight",
             "expected_yield_pct", "yield_pct", "variance_pct", "input_lot_id",
-            "output_lot_id")
+            "output_lot_id", "weight_source", "estimate_reason")
 
 
 class ProcessingOutputResultsRepository:
@@ -26,6 +26,9 @@ class ProcessingOutputResultsRepository:
                            (processing_order_id,))
         ahora = datetime.now(timezone.utc).isoformat(timespec="seconds")
         for row in rows:
+            # Sin origen declarado el peso es capturado (migración 343).
+            row = {"weight_source": "CAPTURED", **{k: v for k, v in row.items()
+                                                   if v is not None}}
             valores = [None if row.get(c) is None else str(row[c]) for c in _COLUMNS]
             self._conn.execute(
                 f"INSERT INTO processing_output_results (id, processing_order_id,"

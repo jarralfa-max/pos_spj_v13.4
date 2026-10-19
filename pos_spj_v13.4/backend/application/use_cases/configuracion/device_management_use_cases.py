@@ -103,7 +103,9 @@ class RegisterDeviceProfileUseCase:
         connection_type = ConnectionType(connection_type)
 
         serial_port_vo = None
-        if connection_type is ConnectionType.SERIAL:
+        if connection_type is ConnectionType.SERIAL or (
+            connection_type is ConnectionType.USB and device_type in SCALE_DEVICE_TYPES and serial_port
+        ):
             serial_port_vo = SerialPortProfile.create(port=serial_port, baud_rate=baud_rate)
 
         network_endpoint_vo = None

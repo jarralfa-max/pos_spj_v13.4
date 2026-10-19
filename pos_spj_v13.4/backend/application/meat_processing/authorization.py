@@ -42,6 +42,39 @@ class DenyAllMeatProcessingPermissionCheckerForTests:
         return False
 
 
+class DirectTransformationStageAuthorization:
+    """Checker de las ETAPAS internas de una transformación directa (auditoría
+    32cfbf, decisión del usuario: permiso propio). El orquestador ya exigió
+    `DIRECT_TRANSFORMATION_EXECUTE`; para cada etapa del flujo normal (crear,
+    aprobar, preparar, liberar, iniciar, capturar, completar, cerrar) basta ese
+    permiso. Fuera de la lista se pregunta al checker real: las excepciones
+    (sobrescribir rendimiento, consumo o peso manual, decidir calidad,
+    cancelar, reversar) siguen exigiendo su propio permiso.
+    La delegación queda en la auditoría de la orden (`APPROVED_BY_DIRECT_TRANSFORMATION`
+    y el registro de `direct_transformations`)."""
+
+    STAGES = frozenset({
+        "PRODUCCION.orden.crear", "PRODUCCION.orden.aprobar",
+        "PRODUCCION.material.asignar", "PRODUCCION.orden.liberar",
+        "PRODUCCION.orden.iniciar", "PRODUCCION.orden.completar",
+        "PRODUCCION.orden.cerrar", "PRODUCCION.consumo.capturar",
+        "PRODUCCION.peso.capturar", "PRODUCCION.output.capturar",
+        "PRODUCCION.output.coproducto.capturar", "PRODUCCION.output.subproducto.capturar",
+        "PRODUCCION.output.derivado.capturar", "PRODUCCION.output.merma.capturar",
+        "PRODUCCION.calidad.solicitar_inspeccion", "PRODUCCION.rendimiento.revisar",
+        "PRODUCCION.rendimiento.aprobar", "PRODUCCION.merma.solicitar",
+    })
+    DIRECT = "PRODUCCION.transformacion_directa.ejecutar"
+
+    def __init__(self, checker: PermissionChecker) -> None:
+        self._checker = checker
+
+    def has_permission(self, user_id: str, permission_code: str) -> bool:
+        if permission_code in self.STAGES and self._checker.has_permission(user_id, self.DIRECT):
+            return True
+        return bool(self._checker.has_permission(user_id, permission_code))
+
+
 class MeatProcessingAuthorizationPolicy:
     def __init__(self, checker: PermissionChecker | None = None) -> None:
         self._checker = checker

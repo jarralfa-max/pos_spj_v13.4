@@ -51,7 +51,10 @@ class CashUxPresentationContractTests(unittest.TestCase):
     def test_cash_pages_do_not_present_print_or_shift_ids_in_cuts(self):
         for filename in ("cash_x_cuts_page.py", "cash_z_cuts_page.py"):
             source = (CASH_UI / filename).read_text(encoding="utf-8")
-            self.assertIn("display_code(\"TUR\"", source)
+            # Auditoría de Caja CJA-05 (2026-10-16): el turno se muestra como
+            # «Caja · cajero · fecha», nunca como fragmento del id.
+            self.assertNotIn("display_code(", source)
+            self.assertIn("shift_labels(", source)
             self.assertNotIn("Impresion en cola", source)
 
     def test_sensitive_workflows_use_semantic_dialogs(self):

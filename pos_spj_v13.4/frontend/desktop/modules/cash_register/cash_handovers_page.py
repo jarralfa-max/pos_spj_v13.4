@@ -14,7 +14,7 @@ from frontend.desktop.modules.cash_register.cash_register_dialogs import (
     CashHandoverDenominationDialog,
     DisputeCashHandoverDialog,
 )
-from frontend.desktop.modules.cash_register.presentation import display_code, status_label, user_facing_error
+from frontend.desktop.modules.cash_register.presentation import status_label, user_facing_error
 
 
 class CashHandoversPage(QWidget):
@@ -52,10 +52,18 @@ class CashHandoversPage(QWidget):
 
     @staticmethod
     def _money(value):
-        return f"${value:,.2f}"
+        return "Oculto" if value is None else f"${value:,.2f}"
+
+    @staticmethod
+    def _person(name: str, user_id: str) -> str:
+        if not user_id:
+            return "-"
+        return name or "Usuario"
 
     def refresh(self):
-        rows = self._query.list_for_branch(self._presenter.active_branch_id())
+        rows = self._query.list_for_branch(
+            self._presenter.active_branch_id(),
+            requester_user_id=self._presenter.actor_user_id())
         self._rows_by_id = {row.id: row for row in rows}
         pending = sum(1 for row in rows if row.status in {"PREPARED", "DELIVERED"})
         disputed = sum(1 for row in rows if row.status == "DISPUTED")
@@ -67,9 +75,9 @@ class CashHandoversPage(QWidget):
         self._table.load_rows([
             [
                 row.prepared_at, status_label(row.status), self._money(row.amount),
-                display_code("USR", row.prepared_by),
-                display_code("USR", row.delivered_by) if row.delivered_by else "-",
-                display_code("USR", row.received_by) if row.received_by else "-",
+                self._person(row.prepared_by_name, row.prepared_by),
+                self._person(row.delivered_by_name, row.delivered_by),
+                self._person(row.received_by_name, row.received_by),
                 row.dispute_reason or "-",
             ]
             for row in rows
@@ -92,6 +100,7 @@ class CashHandoversPage(QWidget):
             title=title,
             handover=handover,
             denominations=denominations,
+            shift_label=self._presenter.shift_label(getattr(handover, "shift_id", None)),
         )
         if dialog.exec_() != dialog.Accepted:
             return None

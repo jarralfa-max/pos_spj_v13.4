@@ -29,6 +29,13 @@ class SweepstakesEntryRepository(SweepstakesRepositoryBase):
         row = self._query_one("SELECT * FROM sweepstakes_entries WHERE id=?", (entry_id,))
         return self._hydrate(row) if row else None
 
+    def find_for_sale(self, campaign_id: str, source_sale_id: str) -> SweepstakesEntry | None:
+        """El derecho que ESTA venta ya generó en la campaña (2026-10-16)."""
+        row = self._query_one(
+            "SELECT * FROM sweepstakes_entries WHERE campaign_id=? AND source_sale_id=?"
+            " ORDER BY created_at LIMIT 1", (campaign_id, source_sale_id))
+        return self._hydrate(row) if row else None
+
     def list_for_customer(self, campaign_id: str, customer_id: str) -> list[SweepstakesEntry]:
         rows = self._query(
             "SELECT * FROM sweepstakes_entries WHERE campaign_id=? AND customer_id=?"

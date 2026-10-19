@@ -100,7 +100,9 @@ class CashSalesIntegrationService:
                               cashier_user_id: str, operation_id: str,
                               payment_lines: object,
                               change: object = "0",
-                              amount_to_settle: object | None = None) -> SaleCashResult:
+                              amount_to_settle: object | None = None,
+                              owns_transaction: bool = True,
+                              sale_number: str | None = None) -> SaleCashResult:
         lines = _settlement_lines(payment_lines)
         if not lines:
             raise CashInvalidStateError("La venta requiere al menos un medio de pago")
@@ -149,7 +151,7 @@ class CashSalesIntegrationService:
             raise CashInvalidStateError(
                 "La liquidación de Caja debe coincidir con el total confirmado por Ventas"
             )
-        with CashRegisterUnitOfWork(connection) as uow:
+        with CashRegisterUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
             shift = uow.shifts.find_open_for_cashier(
                 branch_id=branch_id, cashier_user_id=cashier_user_id)
             if not shift:
@@ -198,7 +200,8 @@ class CashSalesIntegrationService:
                     movement_type=CashMovementType.CASH_SALE,
                     direction=CashMovementDirection.INFLOW, amount=cash_amount,
                     operation_id=operation_id, recorded_by=cashier_user_id,
-                    concept=f"Venta {sale_id}", reference_id=sale_id)
+                    # Auditoría CJA-05: el folio comercial, no el UUID interno.
+                    concept=f"Venta {sale_number or sale_id}", reference_id=sale_id)
                 uow.ledger.add(entry)
                 _record(uow, CashEvents.MOVEMENT_RECORDED, operation_id=operation_id,
                         entity_id=entry.id, branch_id=branch_id,
@@ -212,10 +215,10 @@ class CashSalesIntegrationService:
 
     def reverse_sale_cash(self, connection, *, sale_id: str, branch_id: str,
                           actor_user_id: str, operation_id: str,
-                          reason: str) -> LedgerCommandResult:
+                          reason: str, owns_transaction: bool = True) -> LedgerCommandResult:
         if not reason.strip():
             raise CashInvalidStateError("La cancelación o reverso requiere motivo")
-        with CashRegisterUnitOfWork(connection) as uow:
+        with CashRegisterUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
             prior_operation = uow.ledger.get_by_operation(operation_id)
             if prior_operation:
                 return LedgerCommandResult(prior_operation["id"], "Compensación ya registrada", True)

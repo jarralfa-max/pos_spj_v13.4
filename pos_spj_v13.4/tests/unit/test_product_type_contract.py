@@ -226,7 +226,8 @@ def test_19_from_connection_builds_with_all_required_methods(db):
     assert callable(getattr(svc, "type_rules", None))
     assert callable(getattr(svc, "type_labels_es", None))
     assert callable(getattr(svc, "list_categories", None))
-    assert callable(getattr(svc, "get_product", None))
+    # get_product salió de aquí en cebf67a7: el formulario lee la fila por el
+    # repositorio de escritura (ProductsPresenter.get_product).
     assert callable(getattr(svc, "find_duplicate_name", None))
 
 

@@ -175,6 +175,11 @@ class AppPaths:
         return self.user_data_dir / "imagenes_productos"
 
     @property
+    def branding_dir(self) -> Path:
+        """Logos de los documentos impresos (registro `branding_assets`)."""
+        return self.user_data_dir / "media" / "marca"
+
+    @property
     def display_media_dir(self) -> Path:
         """Imágenes y videos de la pantalla del cliente (registro `display_media`)."""
         return self.user_data_dir / "media" / "pantalla_cliente"
@@ -246,6 +251,7 @@ class AppPaths:
             self.logs_dir,
             self.product_images_dir,
             self.display_media_dir,
+            self.branding_dir,
             self.downloads_dir,
             self.manifests_dir,
         ):

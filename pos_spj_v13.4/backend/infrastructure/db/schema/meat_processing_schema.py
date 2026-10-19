@@ -107,6 +107,7 @@ MEAT_PROCESSING_TABLES: tuple[str, ...] = (
     "processing_execution_steps",
     "production_plans",
     "production_plan_lines",
+    "direct_transformations",
 )
 
 _DDL = (
@@ -727,6 +728,10 @@ _DDL_OUTPUT_RESULTS = (
         variance_pct TEXT,
         input_lot_id TEXT,
         output_lot_id TEXT,
+        -- CAPTURED (pesado o capturado) | ESTIMATED (se tomó lo esperado, con
+        -- motivo). Migración 343, auditoría de Producción 32cfbf.
+        weight_source TEXT NOT NULL DEFAULT 'CAPTURED',
+        estimate_reason TEXT,
         created_at TEXT NOT NULL,
         UNIQUE (processing_order_id, product_id)
     )
@@ -934,6 +939,48 @@ def create_meat_processing_plan_schema(conn) -> None:
     for statement in _DDL_PLANS:
         conn.execute(statement)
     for index in _INDEXES_PLANS:
+        conn.execute(index)
+
+
+# ── 343 — Transformación directa (auditoría de Producción 32cfbf) ──────────
+# Bitácora idempotente de la acción única «despiezar este lote recibido»: un
+# renglón por `operation_id`, con la orden que creó y el UUIDv7 de cada etapa
+# (se generan una vez y se reutilizan al reintentar, igual que la saga de
+# ejecución). Si una etapa falla, la orden queda visible en Órdenes y repetir
+# la acción con el mismo `operation_id` la retoma.
+_DDL_DIRECT_TRANSFORMATIONS = (
+    f"""
+    CREATE TABLE IF NOT EXISTS direct_transformations (
+        id TEXT NOT NULL PRIMARY KEY,
+        operation_id TEXT NOT NULL UNIQUE CHECK (operation_id <> id),
+        branch_id TEXT NOT NULL,
+        warehouse_id TEXT NOT NULL,
+        input_product_id TEXT NOT NULL,
+        lot_id TEXT NOT NULL,
+        input_weight TEXT NOT NULL CHECK ({_DEC.format('input_weight')}),
+        processing_order_id TEXT REFERENCES processing_orders(id),
+        step_operations_json TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'STARTED'
+            CHECK (status IN ('STARTED','FAILED','COMPLETED')),
+        last_error TEXT,
+        created_by_user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+)
+
+_INDEXES_DIRECT_TRANSFORMATIONS = (
+    "CREATE INDEX IF NOT EXISTS idx_direct_transformations_lot"
+    " ON direct_transformations(lot_id)",
+)
+
+
+def create_meat_processing_direct_transformation_schema(conn) -> None:
+    """343 (idempotente): bitácora de la transformación directa."""
+    for statement in _DDL_DIRECT_TRANSFORMATIONS:
+        conn.execute(statement)
+    for index in _INDEXES_DIRECT_TRANSFORMATIONS:
         conn.execute(index)
 
 

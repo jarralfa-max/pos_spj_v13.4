@@ -14,8 +14,8 @@ oculta mientras no haya resultados.
 
 from __future__ import annotations
 
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
+from PyQt5.QtCore import QPoint, Qt, pyqtSignal
+from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QSizePolicy
 
 from frontend.desktop.components import (
     CustomerSearchBox,
@@ -43,17 +43,18 @@ class CustomerPanel(QFrame):
         self._presenter = presenter
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(Spacing.MD, Spacing.SM, Spacing.MD, Spacing.SM)
+        root.setContentsMargins(Spacing.MD, Spacing.XXS, Spacing.MD, Spacing.XXS)
         root.setSpacing(Spacing.XS)
 
         title = QLabel("CLIENTE", self)
         title.setObjectName("posClientSectionLabel")
         title.setProperty("role", "sectionTitle")
-        root.addWidget(title)
+        title.hide()
 
         info_row = QHBoxLayout()
         self._display = QLabel(WALK_IN_LABEL, self)
         self._display.setObjectName("posClientName")
+        self._display.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         info_row.addWidget(self._display, stretch=1)
         self._tier = StatusBadge("", self, status="neutral")
         self._tier.setVisible(False)
@@ -65,7 +66,13 @@ class CustomerPanel(QFrame):
         self._btn_quick_create = create_secondary_button(
             self, "Nuevo", tooltip="Registrar un cliente con nombre y teléfono")
         IconProvider.bind(self._btn_quick_create, Icons.ADD)
-        info_row.addWidget(self._btn_quick_create)
+        self._popup = QFrame(self, Qt.Popup)
+        popup_layout = QVBoxLayout(self._popup)
+        popup_layout.addWidget(self._btn_quick_create)
+        self._btn_customer = create_secondary_button(self, "Cliente",
+                                                      tooltip="Buscar cliente, cupones y puntos")
+        self._btn_customer.clicked.connect(self._show_popup)
+        info_row.addWidget(self._btn_customer)
         root.addLayout(info_row)
 
         # Beneficios del ticket en su propia fila (2026-10-03): canje de puntos,
@@ -78,11 +85,11 @@ class CustomerPanel(QFrame):
         self._details.setVisible(False)
         benefits_row.addWidget(self._details, stretch=1)
         self._btn_redeem = create_secondary_button(
-            self, "Canjear puntos", tooltip="Pagar parte del ticket con puntos del cliente")
+            self, "Puntos", tooltip="Canjear puntos del cliente para pagar parte del ticket")
         self._btn_redeem.setObjectName("posRedeemPointsButton")
         self._btn_redeem.setVisible(False)
         self._btn_redeem.clicked.connect(self.redeem_requested)
-        benefits_row.addWidget(self._btn_redeem)
+        info_row.insertWidget(1, self._btn_redeem)
         self._btn_coupon = create_secondary_button(
             self, "Cupón", tooltip="Aplicar o retirar un cupón del ticket")
         self._btn_coupon.setObjectName("posCouponButton")
@@ -93,13 +100,24 @@ class CustomerPanel(QFrame):
         self._btn_prepaid.setObjectName("posPrepaidButton")
         self._btn_prepaid.clicked.connect(self.prepaid_requested)
         benefits_row.addWidget(self._btn_prepaid)
-        root.addLayout(benefits_row)
+        popup_layout.addLayout(benefits_row)
 
 
         self._search = CustomerSearchBox(self, provider=self._search_provider,
                                          collapse_when_empty=True)
         self._search.selected.connect(self._on_selected)
-        root.addWidget(self._search)
+        popup_layout.addWidget(self._search)
+
+    def _show_popup(self):
+        self._popup.setMinimumWidth(self.width())
+        self._popup.adjustSize()
+        position = self.mapToGlobal(QPoint(0, self.height()))
+        screen = self.screen().availableGeometry()
+        if position.y() + self._popup.height() > screen.bottom():
+            position.setY(self.mapToGlobal(QPoint(0, 0)).y() - self._popup.height())
+        self._popup.move(position)
+        self._popup.show()
+        self._search.focus_search()
 
     def set_customer(self, summary, *, can_redeem: bool = True) -> None:
         """`summary`: `CustomerSummary` del presentador, o None (mostrador).
@@ -146,4 +164,5 @@ class CustomerPanel(QFrame):
         ]
 
     def _on_selected(self, option) -> None:
+        self._popup.hide()
         self.customer_selected.emit(option.id)

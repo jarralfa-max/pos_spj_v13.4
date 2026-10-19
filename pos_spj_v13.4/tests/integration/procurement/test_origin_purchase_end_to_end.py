@@ -109,10 +109,10 @@ def test_origin_purchase_from_supplier_warehouse_to_inventory(conn):
         code="CAJA-20", name="Caja azul 20 kg", category="PLASTIC_BOX",
         maximum_net_weight=Decimal("25"))
     assert ok, msg
-    ok, msg, _ = buyer.origin_register_container(code="cj-0001",
-                                                 container_type_id=data["id"])
+    ok, msg, nuevo = buyer.origin_register_container(container_type_id=data["id"])
     assert ok, msg
-    ok, msg, detail = buyer.origin_attach_container(shipment_id, "CJ-0001")
+    assert nuevo["code"] == "CJ-000001"          # el sistema asigna el código
+    ok, msg, detail = buyer.origin_attach_container(shipment_id, nuevo["code"])
     assert ok, msg
     node_id = detail["nodes"][0]["id"]
     (line,) = buyer.origin_loading_lines(shipment_id)
@@ -257,8 +257,10 @@ def test_closing_a_shipment_with_several_containers(conn):
     ok, msg, data = buyer.origin_register_container_type(
         code="HUACAL", name="Huacal", category="CRATE")
     assert ok, msg
-    for code in ("HC-1", "HC-2"):
-        assert buyer.origin_register_container(code=code, container_type_id=data["id"])[0]
+    ok, msg, nuevos = buyer.origin_register_container(container_type_id=data["id"],
+                                                      quantity=2)
+    assert ok, msg and nuevos["codes"] == ["RJ-000001", "RJ-000002"]
+    for code in nuevos["codes"]:
         ok, msg, detail = buyer.origin_attach_container(shipment_id, code)
         assert ok, msg
     (line,) = buyer.origin_loading_lines(shipment_id)

@@ -30,13 +30,7 @@ class LegacyEntry:
 
 
 LEGACY_ALLOWLIST: tuple[LegacyEntry, ...] = (
-    LegacyEntry(
-        path="modulos/planeacion_compras.py",
-        reason="Planeación pertenece a un alcance separado y aún emite necesidades.",
-        owner="procurement-team",
-        created_at="2026-07-17",
-        removal_condition="Reconectar al intake canónico en la fase de Planeación.",
-        classification="REWRITE"),
+    # 2026-10-16: modulos/planeacion_compras.py se borró con modulos/; la lista queda vacía.
 )
 
 MAX_ENTRIES = 1

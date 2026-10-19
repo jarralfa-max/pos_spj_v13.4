@@ -106,7 +106,11 @@ class ReserveStockForProductionUseCase:
                 quantity, source_document_id: str, operation_id: str, actor_user_id: str,
                 lot_required: bool, strategy: AllocationStrategy | None = None,
                 preferred_lot_ids: tuple[str, ...] = (),
-                context: InventoryExecutionContext | None = None) -> InventoryResult:
+                context: InventoryExecutionContext | None = None,
+                owns_transaction: bool = True) -> InventoryResult:
+        """`owns_transaction=False` (auditoría de Ventas V06, 2026-10-15): se une
+        a la transacción de quien llama — el cobro — en vez de confirmar a la
+        mitad. Antes la reserva quedaba confirmada aunque el cobro fallara."""
         try:
             self._auth.require(actor_user_id, InventoryPermissions.RESERVATION_CREATE)
         except InventoryPermissionDeniedError as exc:
@@ -134,7 +138,7 @@ class ReserveStockForProductionUseCase:
                 "La asignación manual necesita los lotes elegidos", "MANUAL_LOTS_REQUIRED",
                 operation_id=operation_id)
         try:
-            with InventoryUnitOfWork(connection) as uow:
+            with InventoryUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
                 previas = [r for r in uow.reservations.list_active_for_source_document(
                     source_document_id) if r.source is self._SOURCE
                     and r.product_id == product_id]

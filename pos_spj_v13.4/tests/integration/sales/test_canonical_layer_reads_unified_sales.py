@@ -235,37 +235,6 @@ def test_cashier_ranking_moved_from_the_legacy_engine(conn):
     assert rows[0]["ticket_promedio"] == 100.0
 
 
-def test_the_legacy_engine_no_longer_exposes_the_moved_queries():
-    """Movido, no copiado: no pueden quedar dos implementaciones (§3)."""
-    import ast
-
-    tree = ast.parse(
-        (ROOT / "core/services/analytics/analytics_engine.py").read_text(
-            encoding="utf-8"))
-    cls = next(n for n in tree.body if isinstance(n, ast.ClassDef))
-    names = {n.name for n in cls.body if isinstance(n, ast.FunctionDef)}
-    assert "get_ranking_cajeros" not in names
-    assert "product_profitability_detail" not in names
-
-
-def test_the_legacy_screen_calls_the_canonical_service():
-    """La pantalla legacy ya no consume `AnalyticsEngine` para estas dos.
-
-    Sobre el AST y no sobre el texto: los docstrings de la pantalla CITAN los
-    métodos retirados para explicar de dónde vienen, y un `in source` los
-    marcaría como si siguieran llamándose.
-    """
-    tree = ast.parse((ROOT / "modulos/reportes_bi_v2.py").read_text(encoding="utf-8"))
-    called = {
-        node.func.attr for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-    }
-    assert "cashier_ranking" in called
-    assert "profitability_by_product" in called
-    assert "get_ranking_cajeros" not in called
-    assert "product_profitability_detail" not in called
-
-
 def test_operational_dashboard_compares_against_the_previous_window(conn):
     """La comparativa debe mirar el periodo ANTERIOR, no el mismo.
 
@@ -293,26 +262,3 @@ def test_operational_dashboard_compares_against_the_previous_window(conn):
     assert data["comparativa"]["num_ventas"] == 1
 
 
-def test_the_legacy_bi_screen_is_off_the_legacy_engine():
-    """La pantalla ya no consume `AnalyticsEngine` para NADA.
-
-    Sobre el AST: sus docstrings citan los métodos retirados para explicar de
-    dónde vienen, y un `in source` los daría por vivos.
-    """
-    import ast
-
-    tree = ast.parse((ROOT / "modulos/reportes_bi_v2.py").read_text(encoding="utf-8"))
-    called = {
-        node.func.attr for node in ast.walk(tree)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-    }
-    assert "operational_dashboard" in called
-    for retirado in ("get_dashboard_data", "get_ranking_cajeros",
-                     "product_profitability_detail"):
-        assert retirado not in called, f"volvió al motor legacy: {retirado}"
-
-    attributes = {
-        node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
-    }
-    assert "analytics_engine" not in attributes, (
-        "la pantalla volvió a tomar el motor del contenedor")

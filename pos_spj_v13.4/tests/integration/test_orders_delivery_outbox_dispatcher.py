@@ -107,13 +107,13 @@ class TestDispatchSuccess:
 
 class TestRealEventBus:
     def test_publishes_onto_the_real_process_wide_event_bus(self, conn):
-        """`EventBus` is a process-wide singleton (`core/events/event_bus.py`)
-        — this proves the dispatcher genuinely calls its real `publish()`,
-        not just something shaped like it. The subscribed handler is
-        removed in `finally` so this test never leaks state into others."""
-        from core.events.event_bus import EventBus
+        """El bus del proceso (`backend/shared/events/application_bus.get_bus`,
+        que reemplazó al `core/events/event_bus.py` borrado) — prueba que el
+        despachador llama su `publish()` real. La suscripción se retira en
+        `finally` para no contaminar otras pruebas."""
+        from backend.shared.events.application_bus import get_bus
 
-        bus = EventBus()
+        bus = get_bus()
         received: list[dict] = []
 
         def _handler(payload: dict) -> None:

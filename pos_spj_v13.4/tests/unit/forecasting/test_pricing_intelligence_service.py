@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from backend.application.forecasting.services.pricing_intelligence_service import (
@@ -11,13 +11,16 @@ _PERFECT_UNIT_ELASTIC_HISTORY = tuple(
     for p in (1, 2, 4, 5, 8, 10, 20, 25, 40, 50)
 )
 
+# Relativa a hoy: una fecha fija vencía y la recomendación dejaba de ser válida.
+_VALID_UNTIL = date.today() + timedelta(days=30)
+
 
 def test_end_to_end_hold_price_for_unit_elastic_history():
     service = PricingIntelligenceService()
     rec = service.recommend_price(
         product_id="p1", branch_id="b1", current_price=Decimal("100"),
         current_cost=Decimal("50"), price_quantity_history=_PERFECT_UNIT_ELASTIC_HISTORY,
-        margin_review_threshold_pct=Decimal("20"), valid_until=date(2026, 9, 10),
+        margin_review_threshold_pct=Decimal("20"), valid_until=_VALID_UNTIL,
     )
     assert rec.recommendation_type == PriceRecommendationType.HOLD_PRICE
     assert rec.suggested_price == Decimal("100")
@@ -30,7 +33,7 @@ def test_end_to_end_review_required_with_insufficient_history():
     rec = service.recommend_price(
         product_id="p1", branch_id="b1", current_price=Decimal("100"),
         current_cost=Decimal("50"), price_quantity_history=thin_history,
-        margin_review_threshold_pct=Decimal("20"), valid_until=date(2026, 9, 10),
+        margin_review_threshold_pct=Decimal("20"), valid_until=_VALID_UNTIL,
     )
     assert rec.recommendation_type == PriceRecommendationType.REVIEW_REQUIRED
     assert rec.confidence == Decimal("0")

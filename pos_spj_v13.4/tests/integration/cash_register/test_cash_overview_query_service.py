@@ -8,12 +8,16 @@ from backend.shared.ids import new_uuid
 
 
 class AllowAuth:
-    def __init__(self):
+    def __init__(self, sensitive=True):
         self.calls = []
+        self.sensitive = sensitive
     def require(self, **kwargs):
         self.calls.append(kwargs)
         if kwargs["permission_code"] != CashPermissions.ACCESS:
             raise AssertionError(kwargs)
+    def has_permission(self, **kwargs):
+        # Auditoría CJA-01: los importes del resumen son `importes sensibles`.
+        return self.sensitive and kwargs["permission_code"] == CashPermissions.VIEW_SENSITIVE_AMOUNTS
 
 
 class CashOverviewQueryServiceTest(unittest.TestCase):
@@ -101,6 +105,17 @@ class CashOverviewQueryServiceTest(unittest.TestCase):
         self.assertEqual(len(dto.terminal_alerts), 1)
         self.assertIn("entregas de valores pendientes", dto.next_action)
         self.assertEqual(auth.calls[0]["permission_code"], CashPermissions.ACCESS)
+
+    def test_without_sensitive_amounts_the_dashboard_shows_no_money(self):
+        """Auditoría CJA-01: fondo inicial, montos de entrega y esperado son
+        importes sensibles; antes los veía cualquiera con acceso a Caja."""
+        dto = CashOverviewQueryService(self.db, AllowAuth(sensitive=False)).dashboard(
+            branch_id=self.branch, requester_user_id=self.user)
+        expected = next(kpi for kpi in dto.kpis if kpi.key == "expected_cash")
+        self.assertEqual(expected.value, "Oculto")
+        self.assertIsNone(expected.numeric_value)
+        self.assertNotIn("$", dto.active_shifts[0].detail)
+        self.assertNotIn("$", dto.pending_handovers[0].detail)
 
     def test_dashboard_hides_expected_cash_while_blind_count_is_open(self):
         self.db.execute(

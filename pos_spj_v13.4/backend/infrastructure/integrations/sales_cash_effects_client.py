@@ -10,6 +10,12 @@ writes a real `CashLedgerEntry` (`CASH_SALE`, INFLOW) for the cash-affecting
 portion — but NO handler anywhere subscribes it to a Sales event, so it has
 never actually run for a real sale.
 
+**ACTUALIZACIÓN 2026-10-15 (auditoría de Ventas V06, decisión del usuario
+"todo o nada")**: `CashRegisterUnitOfWork` ya acepta `owns_transaction=False`,
+así que este cliente corre DENTRO de la transacción de Ventas — si Caja
+rechaza, la venta o la devolución no se registran. Lo que sigue es la
+historia de por qué antes no se podía.
+
 **Not composed into the same atomic transaction as the sale's own
 completion** — a real, load-bearing finding, not an oversight:
 `CashRegisterUnitOfWork` (unlike `SalesUnitOfWork`/`InventoryUnitOfWork`)
@@ -61,19 +67,16 @@ class SalesCashEffectsClient:
     def record_completed_sale(
         self, connection, *, sale_id: str, branch_id: str, cashier_user_id: str,
         operation_id: str, payments: list, change: Decimal = Decimal("0"),
+        owns_transaction: bool = False, sale_number: str | None = None,
     ) -> SaleCashResult:
         """`payments` is `Sale.payments` (a list of `SalePayment`) — grouped
         by method into the settlement-line shape Caja's service expects.
         Lines with the same method are summed (a sale can legitimately
         record two CASH lines, e.g. a correction)."""
-        totals: dict[str, Decimal] = {}
-        for payment in payments:
-            settlement_type = _SETTLEMENT_TYPE_BY_METHOD[payment.method]
-            totals[settlement_type] = totals.get(settlement_type, Decimal("0")) + payment.amount
-        payment_lines = [{"type": t, "amount": str(a)} for t, a in totals.items()]
         return self._service.record_completed_sale(
             connection, sale_id=sale_id, branch_id=branch_id, cashier_user_id=cashier_user_id,
-            operation_id=operation_id, payment_lines=payment_lines, change=str(change))
+            operation_id=operation_id, payment_lines=_payment_lines(payments),
+            change=str(change), owns_transaction=owns_transaction, sale_number=sale_number)
 
     def reverse_completed_sale(
         self, connection, *, sale_id: str, branch_id: str, actor_user_id: str,
@@ -90,7 +93,7 @@ class SalesCashEffectsClient:
         (see this module's own docstring)."""
         return self._service.reverse_sale_cash(
             connection, sale_id=sale_id, branch_id=branch_id, actor_user_id=actor_user_id,
-            operation_id=operation_id, reason=reason)
+            operation_id=operation_id, reason=reason, owns_transaction=False)
 
     def refund_returned_line(
         self, connection, refund_service, *, refund_id: str, sale_id: str, branch_id: str,
@@ -106,20 +109,41 @@ class SalesCashEffectsClient:
         operación, y que autorice OTRA persona. El crédito no pasa por Caja (no
         mueve dinero): baja la CxC en Finanzas con el evento de la devolución.
         """
-        originales: dict[str, Decimal] = {}
-        for payment in payments:
-            tipo = _SETTLEMENT_TYPE_BY_METHOD[payment.method]
-            originales[tipo] = originales.get(tipo, Decimal("0")) + payment.amount
-        if "CASH" in originales:
-            originales["CASH"] = max(originales["CASH"] - Decimal(str(change)), Decimal("0"))
+        originales = _payment_lines(payments)
+        for line in originales:
+            if line["type"] == "CASH":
+                line["amount"] = str(max(Decimal(line["amount"]) - Decimal(str(change)),
+                                         Decimal("0")))
+        # Ni el crédito ni el vale pasan por Caja: el crédito baja la CxC en
+        # Finanzas y el vale recupera su saldo en Fidelidad, ambos con el evento
+        # de la devolución. Antes el vale se mandaba a Caja sin su referencia y
+        # Caja rechazaba TODA la devolución de una venta pagada con vale.
         pedidos = [{"type": _SETTLEMENT_TYPE_BY_METHOD[PaymentMethod(m)], "amount": str(a)}
-                   for m, a in refunds if PaymentMethod(m) is not PaymentMethod.CREDIT]
+                   for m, a in refunds
+                   if PaymentMethod(m) not in (PaymentMethod.CREDIT, PaymentMethod.VOUCHER)]
         if not pedidos:
             return None
         return refund_service.process(
             connection, refund_id=refund_id, sale_id=sale_id, branch_id=branch_id,
             cashier_user_id=actor_user_id, authorized_by=authorized_by,
-            operation_id=operation_id,
-            original_payment_lines=[{"type": t, "amount": str(a)} for t, a in originales.items()],
-            refund_lines=pedidos, reason=reason)
+            operation_id=operation_id, original_payment_lines=originales,
+            refund_lines=pedidos, reason=reason, owns_transaction=False)
+
+
+def _payment_lines(payments) -> list[dict]:
+    """Los pagos de la venta en la forma de Caja: uno por método, y el vale uno
+    por instrumento CON su referencia — Caja exige identificar el instrumento
+    (`REFUND_VOUCHER` requiere referencia validada). Medido 2026-10-15: sin ella
+    Caja rechazaba la venta entera y el efectivo de un cobro vale+efectivo
+    nunca llegaba al cajón (el error se tragaba después del commit)."""
+    totals: dict[str, Decimal] = {}
+    lines: list[dict] = []
+    for payment in payments:
+        settlement_type = _SETTLEMENT_TYPE_BY_METHOD[payment.method]
+        if payment.method is PaymentMethod.VOUCHER:
+            lines.append({"type": settlement_type, "amount": str(payment.amount),
+                          "voucher_id": payment.reference or payment.id})
+            continue
+        totals[settlement_type] = totals.get(settlement_type, Decimal("0")) + payment.amount
+    return [{"type": t, "amount": str(a)} for t, a in totals.items()] + lines
 

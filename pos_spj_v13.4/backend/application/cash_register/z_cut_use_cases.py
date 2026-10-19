@@ -51,6 +51,16 @@ class GenerateZCutUseCase:
             shift = uow.shifts.get(shift_id)
             if not shift or shift["branch_id"] != branch_id or shift["status"] != "CLOSING":
                 raise CashInvalidStateError("El Corte Z requiere cierre preliminar del turno")
+            # Auditoría CJA-02: el Corte Z cierra el turno; el de otro cajero, sólo
+            # un supervisor.
+            from backend.application.cash_register.shift_ownership import (
+                ensure_owner_or_intervention,
+            )
+            ensure_owner_or_intervention(
+                self._auth, shift_cashier_user_id=shift["cashier_user_id"],
+                actor_user_id=actor_user_id, branch_id=branch_id,
+                intervention_permission=CashPermissions.SHIFT_FORCE_CLOSE, require_reason=False,
+                action="cerrar")
             if uow.cuts.find_final_for_shift(shift_id):
                 raise CashInvalidStateError("El turno ya tiene un Corte Z final")
             if uow.handovers.unresolved_safe_drop_count(shift_id):
@@ -170,7 +180,7 @@ class PrintZCutUseCase:
                 reprint: bool = False) -> ZCutResult:
         self._auth.require(
             user_id=actor_user_id,
-            permission_code=CashPermissions.Z_CUT_REPRINT if reprint else CashPermissions.PRINT,
+            permission_code=CashPermissions.Z_CUT_REPRINT if reprint else CashPermissions.Z_CUT_PRINT,
             branch_id=branch_id)
         self._auth.require(user_id=actor_user_id,
                            permission_code=CashPermissions.Z_CUT_VIEW,

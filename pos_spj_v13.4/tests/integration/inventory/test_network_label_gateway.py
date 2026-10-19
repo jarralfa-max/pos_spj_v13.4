@@ -34,7 +34,9 @@ from backend.infrastructure.db.repositories.device_management.print_route_reposi
 from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
 from backend.infrastructure.hardware.label_rendering.network_label_gateway import NetworkLabelPrintGateway
 from backend.shared.ids import new_uuid
-from core.services import printer_service
+# 2026-10-16: el transporte vive en backend/infrastructure/printing/transport.py
+# (el `core/services/printer_service.py` legacy se borró con `core/`).
+from backend.infrastructure.printing import transport as printer_service
 from tests.integration._born_clean_db import make_db
 
 

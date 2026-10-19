@@ -642,6 +642,24 @@ class EnterprisePurchasingPresenter:
         return self._origin_value(self._origin.register_container,
                                   actor_user_id=self._actor(), **fields)
 
+    def origin_next_code_preview(self, container_type_id=None, category=None) -> str:
+        if self._origin is None:
+            return ""
+        try:
+            return self._origin.next_code_preview(container_type_id, category)
+        except Exception:
+            logger.exception("vista previa del código de contenedor no disponible")
+            return ""
+
+    def origin_container_options(self, search: str = "") -> list[dict]:
+        if self._origin is None:
+            return []
+        try:
+            return self._origin.container_options(search)
+        except Exception:
+            logger.exception("contenedores no disponibles")
+            raise
+
     def origin_attach_container(self, shipment_id: str, reference: str,
                                 parent_node_id: str | None = None) -> tuple[bool, str, dict]:
         return self._origin_run(self._origin.attach_container, actor_user_id=self._actor(),

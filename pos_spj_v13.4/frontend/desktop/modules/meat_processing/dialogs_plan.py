@@ -22,16 +22,19 @@ class AddPlanLineDialog(FormDialog):
         super().__init__(parent, title="Línea del plan")
         self._presenter = presenter
         prefill = prefill or {}
+        # Selección retenida (auditoría 32cfbf P0): no se lee del renglón resaltado.
         self.product = ProductSearchBox(
             self, provider=presenter.product_options,
-            empty_reason_provider=lambda q: presenter.product_search_reason(q, producible=True))
+            empty_reason_provider=lambda q: presenter.product_search_reason(q, producible=True),
+            keep_selection=True)
         self.process = QComboBox(self)
         for code, label in presenter.process_types():
             self.process.addItem(label, code)
         self.input_label = QLabel("Entrada a despiezar:", self)
         self.input_product = ProductSearchBox(
             self, provider=presenter.input_options,
-            empty_reason_provider=lambda q: presenter.product_search_reason(q, producible=False))
+            empty_reason_provider=lambda q: presenter.product_search_reason(q, producible=False),
+            keep_selection=True)
         self.weight = DecimalInput(self, precision=3, minimum="0", suffix="kg")
         self.quantity = DecimalInput(self, precision=3, minimum="0")
         self.priority = QSpinBox(self)
@@ -54,7 +57,27 @@ class AddPlanLineDialog(FormDialog):
             self.weight.set_decimal(Decimal(str(prefill["quantity"])))
         self.process.currentIndexChanged.connect(self._sync_input)
         self._sync_input()
-        self.add_button_box(ok_text="Agregar al plan")
+        self._error = QLabel("", self)
+        self._error.setObjectName("textDanger")
+        self._error.setWordWrap(True)
+        self.form.addRow(self._error)
+        self.add_button_box(ok_text="Agregar al plan", on_accept=self._accept_if_valid)
+
+    def problem(self) -> str | None:
+        if self.product_id() is None:
+            return "Elige el producto necesario de la lista (clic o Intro sobre el resultado)."
+        if (self._presenter.needs_input_product(self.process_type())
+                and self.input_product.picked_option() is None):
+            return "Elige la entrada a despiezar de la lista."
+        if not (self.weight.decimal_value() or 0) and not (self.quantity.decimal_value() or 0):
+            return "Captura el peso o la cantidad."
+        return None
+
+    def _accept_if_valid(self) -> None:
+        problema = self.problem()
+        self._error.setText(problema or "")
+        if problema is None:
+            self.accept()
 
     def _sync_input(self) -> None:
         visible = self._presenter.needs_input_product(self.process_type())
@@ -67,11 +90,11 @@ class AddPlanLineDialog(FormDialog):
     def product_id(self) -> str | None:
         if self._prefilled_product:
             return self._prefilled_product
-        opcion = self.product.selected_option()
+        opcion = self.product.picked_option()
         return opcion.id if opcion is not None else None
 
     def values(self) -> dict:
-        entrada = self.input_product.selected_option()
+        entrada = self.input_product.picked_option()
         return {
             "product_id": self.product_id(), "process_type": self.process_type(),
             "target_product_id": (entrada.id if entrada is not None and

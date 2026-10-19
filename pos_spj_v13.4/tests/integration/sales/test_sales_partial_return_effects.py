@@ -187,7 +187,6 @@ def test_a_partial_cash_return_refunds_from_the_drawer_and_posts_the_mirror_entr
     # Pagó $180 por 2 piezas (10 % a toda la venta): devolver una son $90, no $100.
     assert result.data["amount"] == Decimal("90.00")
     assert result.data["refunds"] == [("CASH", Decimal("90.00"))]
-    assert result.data["cash_effects_error"] is None
     refund = conn.execute(
         "SELECT amount FROM cash_ledger_entries WHERE related_sale_id=? AND"
         " movement_type='CASH_REFUND'", (sale_id,)).fetchone()

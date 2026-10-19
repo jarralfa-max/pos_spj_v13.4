@@ -213,5 +213,19 @@ class SalesInstrumentsClient:
             self._conn, reservation_transaction_id=reservation_id,
             actor_branch_id=self._branch, operation_id=new_uuid(), actor_user_id=actor_user_id)
 
+    def release_voucher_payment(self, *, sale_id: str, voucher_instance_id: str,
+                                amount: Decimal, actor_user_id: str) -> bool:
+        """Suelta el apartado del vale de UN pago anulado (auditoría V02). True
+        si había algo que soltar; reintentar no hace nada."""
+        uow = CommercialInstrumentsUnitOfWork(self._conn)
+        reservas = [r for r in uow.voucher_transactions.list_reserved_for_sale(sale_id)
+                    if r.voucher_instance_id == voucher_instance_id]
+        reserva = next((r for r in reservas if Decimal(str(r.amount)) == Decimal(str(amount))),
+                       reservas[0] if reservas else None)
+        if reserva is None:
+            return False
+        self.release_voucher(reservation_id=reserva.id, actor_user_id=actor_user_id)
+        return True
+
 
 __all__ = ["SalesInstrumentsClient"]

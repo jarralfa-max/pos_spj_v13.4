@@ -11,7 +11,7 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.modules.cash_register.cash_register_dialogs import ReprintCashDocumentDialog
-from frontend.desktop.modules.cash_register.presentation import display_code, user_facing_error
+from frontend.desktop.modules.cash_register.presentation import user_facing_error
 
 
 class CashXCutsPage(QWidget):
@@ -66,10 +66,11 @@ class CashXCutsPage(QWidget):
             KPIDTO("visible", "Con importes", str(visible_amounts), visible_amounts),
             KPIDTO("redacted", "Restringidos", str(len(rows) - visible_amounts)),
         ])
+        labels = self._presenter.shift_labels({row.shift_id for row in rows})
         self._table.load_rows([
             [
                 row.document_number,
-                display_code("TUR", row.shift_id),
+                labels.get(row.shift_id, "Turno"),
                 self._money(row.expected_cash),
                 (row.snapshot or {}).get("movement_count", "Restringido"),
                 "No",
@@ -103,6 +104,8 @@ class CashXCutsPage(QWidget):
             self,
             document_type="Corte X",
             document=self._rows_by_id.get(cut_id),
+            shift_label=self._presenter.shift_label(
+                getattr(self._rows_by_id.get(cut_id), "shift_id", None)),
         )
         if dialog.exec_() != dialog.Accepted:
             return

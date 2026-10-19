@@ -18,7 +18,7 @@ from decimal import Decimal
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QKeySequence
 from PyQt5.QtWidgets import (
-    QFrame, QHBoxLayout, QLabel, QShortcut, QStackedWidget, QVBoxLayout, QWidget,
+    QFrame, QHBoxLayout, QLabel, QMenu, QShortcut, QSizePolicy, QStackedWidget, QVBoxLayout, QWidget,
 )
 
 from frontend.desktop.components import (
@@ -33,14 +33,13 @@ from frontend.desktop.themes.tokens import Spacing
 #: Anchos de un panel de 380-600 px: el producto absorbe el sobrante y el
 #: Total nunca queda fuera de la vista (con los 160 px por omisión de la tabla
 #: estándar, Precio y Total quedaban detrás de una barra horizontal). El
-#: descuento es lo primero que se oculta si no cabe.
+#: descuento permanece visible; es necesario para corregir la venta.
 _COLUMNS = (
     ColumnSpec("Producto", "text", min_width=90, preferred_width=110, stretch=True),
     ColumnSpec("Cant.", "numeric", min_width=56, preferred_width=60, stretch=False),
     ColumnSpec("Ud.", "text", min_width=40, preferred_width=44, stretch=False),
     ColumnSpec("Precio", "numeric", min_width=64, preferred_width=70, stretch=False),
-    ColumnSpec("Desc.", "numeric", min_width=56, preferred_width=60, stretch=False,
-               priority=1),
+    ColumnSpec("Desc.", "numeric", min_width=56, preferred_width=60, stretch=False),
     ColumnSpec("Total", "numeric", min_width=72, preferred_width=80, stretch=False),
 )
 
@@ -61,10 +60,16 @@ class CartTable(QWidget):
     quantity_requested = pyqtSignal(str)     # line_id
     remove_requested = pyqtSignal(str)       # line_id
     clear_requested = pyqtSignal()
+    discount_remove_requested = pyqtSignal(str)
+    sale_discount_remove_requested = pyqtSignal()
 
-    def __init__(self, parent=None, *, can_edit: bool = True) -> None:
+    def __init__(self, parent=None, *, can_edit: bool = True, can_discount: bool = False) -> None:
         super().__init__(parent)
         self.setObjectName("posCartGroup")
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self._discount_lines = set()
+        self._can_discount = can_discount
+        self._sale_discount = Decimal("0")
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -101,6 +106,28 @@ class CartTable(QWidget):
         header_row.addWidget(self.btn_clear)
         root.addWidget(header)
 
+        self.btn_remove_discount = create_ghost_button(
+            header, "Quitar descuento", tooltip="Retirar sólo el descuento manual de la línea seleccionada")
+        self.btn_remove_discount.clicked.connect(self._remove_discount)
+        # Secondary tools live in a menu; they cannot widen or displace the cart.
+        self._tools = QMenu(self)
+        for button in (self.btn_quantity, self.btn_remove, self.btn_remove_discount, self.btn_clear):
+            header_row.removeWidget(button)
+            button.hide()
+            action = self._tools.addAction(button.text())
+            action.triggered.connect(button.click)
+            button._menu_action = action
+        tools = create_ghost_button(header, "Opciones", tooltip="Acciones de la línea seleccionada")
+        tools.setMenu(self._tools)
+        header_row.addWidget(tools)
+        self._tools.aboutToShow.connect(self._sync_menu)
+        self.btn_remove_sale_discount = create_ghost_button(header, "Quitar descuento de venta")
+        self.btn_remove_sale_discount.hide()
+        self.btn_remove_sale_discount.clicked.connect(self.sale_discount_remove_requested)
+        action = self._tools.addAction(self.btn_remove_sale_discount.text())
+        action.triggered.connect(self.btn_remove_sale_discount.click)
+        self.btn_remove_sale_discount._menu_action = action
+
         self._stack = QStackedWidget(self)
         root.addWidget(self._stack, stretch=1)
 
@@ -115,7 +142,12 @@ class CartTable(QWidget):
         self._empty_label.setObjectName("posCartEmpty")
         self._empty_label.setProperty("role", "empty")
         self._empty_label.setAlignment(Qt.AlignCenter)
+        self._empty_label.setWordWrap(True)
         self._stack.addWidget(self._empty_label)
+        self._table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        from frontend.desktop.themes.theme_manager import ThemeManager
+        ThemeManager.instance().density_changed.connect(self._reserve_rows)
+        self._reserve_rows()
 
         self._remove_shortcut = QShortcut(QKeySequence(Qt.Key_Delete), self._table,
                                           activated=lambda: self._emit_for_selected(
@@ -123,7 +155,10 @@ class CartTable(QWidget):
         self._can_edit = can_edit
         self._refresh_line_actions()
 
-    def set_lines(self, lines) -> None:
+    def set_lines(self, lines, *, sale_discount=Decimal("0")) -> None:
+        selected = self.selected_line_id()
+        self._sale_discount = sale_discount
+        self._discount_lines = {line.id for line in lines if line.discount_total > 0}
         if not lines:
             self._stack.setCurrentWidget(self._empty_label)
             self._table.setRowCount(0)
@@ -138,7 +173,14 @@ class CartTable(QWidget):
              f"${line.line_total:,.2f}"]
             for line in lines
         ]
-        self._table.load_rows(rows, row_ids=[line.id for line in lines])
+        row_ids = [line.id for line in lines]
+        if sale_discount > 0:
+            # A sale adjustment is not a product line and carries no line UUID.
+            rows.insert(0, ["Descuento de venta", "", "", "", f"${sale_discount:,.2f}", f"-${sale_discount:,.2f}"])
+            row_ids.insert(0, None)
+        self._table.load_rows(rows, row_ids=row_ids)
+        if selected:
+            self.select_line(selected)
         self.btn_clear.setEnabled(True)
         self._refresh_line_actions()
 
@@ -166,6 +208,26 @@ class CartTable(QWidget):
         has_selection = bool(self.selected_line_id()) and self._can_edit
         self.btn_quantity.setEnabled(has_selection)
         self.btn_remove.setEnabled(has_selection)
+        self.btn_remove_discount.setEnabled(
+            self._can_discount and self.selected_line_id() in self._discount_lines)
+        self.btn_remove_sale_discount.setEnabled(self._can_discount and self._sale_discount > 0)
+
+    def _remove_discount(self):
+        line_id = self.selected_line_id()
+        if self._can_discount and line_id in self._discount_lines:
+            self.discount_remove_requested.emit(line_id)
+
+    def _sync_menu(self):
+        for button in (self.btn_quantity, self.btn_remove, self.btn_remove_discount, self.btn_clear,
+                       self.btn_remove_sale_discount):
+            button._menu_action.setEnabled(button.isEnabled())
+
+    def _reserve_rows(self, *_):
+        from frontend.desktop.themes.tokens import density_metrics
+        height = density_metrics().table_row_height
+        self._table.verticalHeader().setDefaultSectionSize(height)
+        self._stack.setMinimumHeight(3 * height + max(height, self._table.horizontalHeader().sizeHint().height())
+                                     + 2 * self._table.frameWidth())
 
     def _on_selection_changed(self) -> None:
         self._refresh_line_actions()

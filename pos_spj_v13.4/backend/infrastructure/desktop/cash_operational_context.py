@@ -64,31 +64,61 @@ class DesktopCashOperationalContextResolver:
             return row["id"]
         return None
 
+    def available_registers(self) -> list[dict]:
+        """Cajas ACTIVAS de la sucursal con su cajón y terminal activos, y si
+        ya las ocupa un turno (auditoría CJA-07: se elige por nombre, nunca «la
+        primera activa»)."""
+        branch_id = self._branch_id()
+        if not branch_id:
+            return []
+        rows = self._connection.execute(
+            """SELECT r.id, r.name,
+                      (SELECT d.id FROM cash_drawers d WHERE d.register_id=r.id
+                         AND d.branch_id=r.branch_id AND d.status='ACTIVE'
+                       ORDER BY d.updated_at DESC, d.id LIMIT 1),
+                      (SELECT d.name FROM cash_drawers d WHERE d.register_id=r.id
+                         AND d.branch_id=r.branch_id AND d.status='ACTIVE'
+                       ORDER BY d.updated_at DESC, d.id LIMIT 1),
+                      (SELECT t.id FROM pos_terminals t WHERE t.register_id=r.id
+                         AND t.branch_id=r.branch_id AND t.status='ACTIVE'
+                       ORDER BY t.updated_at DESC, t.id LIMIT 1),
+                      (SELECT t.name FROM pos_terminals t WHERE t.register_id=r.id
+                         AND t.branch_id=r.branch_id AND t.status='ACTIVE'
+                       ORDER BY t.updated_at DESC, t.id LIMIT 1)
+               FROM cash_registers r
+               WHERE r.branch_id=? AND r.status='ACTIVE' ORDER BY r.name""",
+            (branch_id,)).fetchall()
+        marks = ",".join("?" for _ in _ACTIVE_SHIFT_STATUSES)
+        busy = {str(r[0]) for r in self._connection.execute(
+            f"SELECT register_id FROM cash_shifts WHERE branch_id=? AND status IN ({marks})",
+            (branch_id, *_ACTIVE_SHIFT_STATUSES)).fetchall()}
+        return [{"register_id": str(r[0]), "register_name": str(r[1] or ""),
+                 "drawer_id": r[2], "drawer_name": str(r[3] or ""),
+                 "terminal_id": r[4], "terminal_name": str(r[5] or ""),
+                 "busy": str(r[0]) in busy}
+                for r in rows if r[2] and r[4]]
+
+    def _chosen_register(self) -> dict | None:
+        """La caja elegida en esta estación si sigue siendo válida (de la
+        sucursal, activa y libre); si no, la ÚNICA libre; si hay varias, ninguna
+        (el cajero elige). Antes: la primera activa, aunque fuera de otra
+        persona o de otra sucursal."""
+        options = [o for o in self.available_registers() if not o["busy"]]
+        chosen = self._root_value("active_cash_register_id")
+        match = next((o for o in options if o["register_id"] == chosen), None)
+        if match is not None:
+            return match
+        return options[0] if len(options) == 1 else None
+
+    def choose_register(self, register_id: str | None) -> None:
+        setattr(self._composition_root, "active_cash_register_id", register_id or None)
+
     def context(self) -> CashOperationalContext:
         branch_id = self._branch_id()
-        cash_register_id = (
-            self._root_value("active_cash_register_id")
-            or self._first_active_cash_device(
-                table="cash_registers",
-                branch_id=branch_id,
-            )
-        )
-        cash_drawer_id = (
-            self._root_value("active_cash_drawer_id")
-            or self._first_active_cash_device(
-                table="cash_drawers",
-                branch_id=branch_id,
-                register_id=cash_register_id,
-            )
-        )
-        pos_terminal_id = (
-            self._root_value("active_pos_terminal_id")
-            or self._first_active_cash_device(
-                table="pos_terminals",
-                branch_id=branch_id,
-                register_id=cash_register_id,
-            )
-        )
+        chosen = self._chosen_register()
+        cash_register_id = chosen["register_id"] if chosen else None
+        cash_drawer_id = chosen["drawer_id"] if chosen else None
+        pos_terminal_id = chosen["terminal_id"] if chosen else None
         active_shift = (
             self._current_active_cash_shift(
                 branch_id=branch_id,
@@ -159,33 +189,6 @@ class DesktopCashOperationalContextResolver:
         value = getattr(self._composition_root, name, None)
         text = str(value or "").strip()
         return text or None
-
-    def _first_active_cash_device(
-        self,
-        *,
-        table: str,
-        branch_id: str | None,
-        register_id: str | None = None,
-    ) -> str | None:
-        if table not in {"cash_registers", "cash_drawers", "pos_terminals"}:
-            raise ValueError("Unsupported Caja device table")
-        if not branch_id:
-            return None
-        if register_id and table in {"cash_drawers", "pos_terminals"}:
-            row = self._connection.execute(
-                f"""SELECT id FROM {table}
-                WHERE branch_id=? AND register_id=? AND status='ACTIVE'
-                ORDER BY updated_at DESC,id LIMIT 1""",
-                (branch_id, register_id),
-            ).fetchone()
-        else:
-            row = self._connection.execute(
-                f"""SELECT id FROM {table}
-                WHERE branch_id=? AND status='ACTIVE'
-                ORDER BY updated_at DESC,id LIMIT 1""",
-                (branch_id,),
-            ).fetchone()
-        return str(row[0]) if row else None
 
     def _current_active_cash_shift(
         self,

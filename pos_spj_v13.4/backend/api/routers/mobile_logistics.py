@@ -80,7 +80,7 @@ def products(document_id: str, q: str = Query("", max_length=120),
 
 
 @router.get("/logistics/containers/resolve")
-def resolve_container(token: str = Query(min_length=20, max_length=1000),
+def resolve_container(token: str = Query(min_length=3, max_length=1000),
                       user: MobileIdentity = Depends(mobile_identity),
                       service: OriginPurchaseWorkflow = Depends(workflow)) -> dict:
     return service.resolve_container(user, token)

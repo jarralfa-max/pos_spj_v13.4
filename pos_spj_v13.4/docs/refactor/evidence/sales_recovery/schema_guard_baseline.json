@@ -1,0 +1,252 @@
+{
+  "head_already_violates_rule": 40,
+  "files": [
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/repositories/products/unit_repository.py",
+      "current_count": 1,
+      "head_count": 1,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/account_recovery_schema.py",
+      "current_count": 1,
+      "head_count": 1,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/appearance_schema.py",
+      "current_count": 4,
+      "head_count": 4,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/authentication_schema.py",
+      "current_count": 1,
+      "head_count": 1,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/branding_schema.py",
+      "current_count": 2,
+      "head_count": null,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/commercial_instruments_schema.py",
+      "current_count": 8,
+      "head_count": 8,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/configuracion_security_schema.py",
+      "current_count": 2,
+      "head_count": 2,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/costing_schema.py",
+      "current_count": 3,
+      "head_count": 3,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/crm_schema.py",
+      "current_count": 24,
+      "head_count": 24,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/customer_credit_schema.py",
+      "current_count": 4,
+      "head_count": 4,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/customer_display_schema.py",
+      "current_count": 8,
+      "head_count": 8,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/customer_privacy_schema.py",
+      "current_count": 7,
+      "head_count": 7,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/customer_service_schema.py",
+      "current_count": 9,
+      "head_count": 9,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/customers_crm_schema.py",
+      "current_count": 13,
+      "head_count": 13,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/device_management_schema.py",
+      "current_count": 6,
+      "head_count": 6,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/document_output_schema.py",
+      "current_count": 6,
+      "head_count": 6,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/feature_flags_schema.py",
+      "current_count": 3,
+      "head_count": 3,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/forecasting_schema.py",
+      "current_count": 4,
+      "head_count": 4,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/hr_schema.py",
+      "current_count": 27,
+      "head_count": 27,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/installation_schema.py",
+      "current_count": 2,
+      "head_count": 2,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/integrations_schema.py",
+      "current_count": 4,
+      "head_count": 4,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/loyalty_cards_schema.py",
+      "current_count": 13,
+      "head_count": 13,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/loyalty_schema.py",
+      "current_count": 17,
+      "head_count": 17,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/meat_processing_schema.py",
+      "current_count": 34,
+      "head_count": 33,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/notifications_schema.py",
+      "current_count": 3,
+      "head_count": 3,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/offline_schema.py",
+      "current_count": 2,
+      "head_count": 2,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/orders_delivery_schema.py",
+      "current_count": 15,
+      "head_count": 15,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/pricing_schema.py",
+      "current_count": 9,
+      "head_count": 10,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/procurement_schema.py",
+      "current_count": 39,
+      "head_count": 40,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/products_schema.py",
+      "current_count": 54,
+      "head_count": 54,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/quality_schema.py",
+      "current_count": 2,
+      "head_count": 2,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/quotes_schema.py",
+      "current_count": 4,
+      "head_count": 4,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/sales_schema.py",
+      "current_count": 9,
+      "head_count": 7,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/settings_schema.py",
+      "current_count": 5,
+      "head_count": 5,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/software_updates_schema.py",
+      "current_count": 2,
+      "head_count": 2,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/supplier_schema.py",
+      "current_count": 16,
+      "head_count": 16,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/sweepstakes_schema.py",
+      "current_count": 8,
+      "head_count": 8,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/transfers_schema.py",
+      "current_count": 23,
+      "head_count": 23,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/db/schema/whatsapp_schema.py",
+      "current_count": 18,
+      "head_count": 18,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/backend/infrastructure/integrations/orders_delivery_internal_notifier.py",
+      "current_count": 2,
+      "head_count": 2,
+      "allowed": 0
+    },
+    {
+      "path": "pos_spj_v13.4/scripts/release/ci_data_marker.py",
+      "current_count": 1,
+      "head_count": 1,
+      "allowed": 0
+    }
+  ],
+  "repository": "outer repository, HEAD 32cfbf27"
+}

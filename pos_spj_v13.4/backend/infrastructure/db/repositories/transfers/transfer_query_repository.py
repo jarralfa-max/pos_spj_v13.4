@@ -7,7 +7,10 @@ from backend.application.transfers.queries.workspace_query_service import (
 _STATUS_BY_PAGE = {
     "transfers_requests": ("DRAFT", "PENDING_APPROVAL"),
     "transfers_approvals": ("PENDING_APPROVAL",),
-    "transfers_picking": ("RESERVED", "PICKING", "PARTIALLY_PICKED"),
+    # APROBADAS también: se preparan (reservar y surtir) desde aquí; antes no
+    # aparecían en ninguna página (integración Logística 32cfbf).
+    "transfers_picking": ("APPROVED", "RESERVATION_PENDING", "RESERVED", "PICKING",
+                          "PARTIALLY_PICKED"),
     "transfers_ready_to_dispatch": ("PICKED", "READY_TO_DISPATCH"),
     "transfers_in_transit": ("PARTIALLY_DISPATCHED", "IN_TRANSIT"),
     "transfers_receipts": ("IN_TRANSIT", "PARTIALLY_RECEIVED", "RECEIVED"),

@@ -17,8 +17,15 @@ from .printing_repository import CashPrintRepository
 
 
 class CashRegisterUnitOfWork:
-    def __init__(self, connection: Any) -> None:
+    """``owns_transaction=False`` (auditoría de Ventas V06, 2026-10-15): Caja se
+    compone dentro de la transacción de quien la llama — el cobro o la
+    devolución de Ventas — en vez de confirmar por su cuenta. Así el efectivo
+    de una venta y la venta misma viven o mueren juntos: antes Caja corría
+    DESPUÉS del commit de la venta y un fallo sólo quedaba en el log."""
+
+    def __init__(self, connection: Any, *, owns_transaction: bool = True) -> None:
         self.connection = connection
+        self._owns_transaction = owns_transaction
         self.shifts = CashShiftRepository(connection)
         self.devices = CashDeviceRepository(connection)
         self.ledger = CashLedgerRepository(connection)
@@ -56,11 +63,13 @@ class CashRegisterUnitOfWork:
     def commit(self) -> None:
         if self._completed:
             raise RuntimeError("Cash Register UnitOfWork already completed")
-        self.connection.commit()
+        if self._owns_transaction:
+            self.connection.commit()
         self._completed = True
 
     def rollback(self) -> None:
         if self._completed:
             return
-        self.connection.rollback()
+        if self._owns_transaction:
+            self.connection.rollback()
         self._completed = True

@@ -40,19 +40,82 @@ class LogisticsApplicationService:
         return item.id
 
     def register_container(self, *, actor_user_id: str,
-                           container: PhysicalContainer, operation_id: str) -> dict:
+                           container: PhysicalContainer, operation_id: str,
+                           code_prefix: str | None = None) -> dict:
+        """Alta del contenedor. Sin código (`container_code` vacío) el sistema
+        asigna el siguiente de `code_prefix` DENTRO de la transacción; el código
+        es UNIQUE, así que un choque con otra estación se reintenta."""
+        import sqlite3
+
         self._auth.require(actor_user_id, LogisticsPermissions.CONTAINER_MANAGE)
         previous = self._operation_result(operation_id)
         if previous is not None:
             return previous
         token = self._qr.issue(container)
-        result = {"container_id": container.id, "qr_url": token}
+        automatico = not container.container_code
+        for intento in range(5):
+            try:
+                with self._connection:
+                    if automatico:
+                        container.container_code = self._repo.next_container_code(
+                            code_prefix or "CT")
+                    result = {"container_id": container.id, "qr_url": token,
+                              "code": container.container_code}
+                    self._repo.save_container(container)
+                    self._audit(actor_user_id, operation_id, "PhysicalContainer",
+                                container.id, "CREATED", "")
+                    self._record_operation(operation_id, "REGISTER_CONTAINER", container.id,
+                                           result)
+                return result
+            except sqlite3.IntegrityError as exc:
+                if not automatico or intento == 4 or "container_code" not in str(exc):
+                    if "container_code" in str(exc):
+                        raise ValueError(
+                            f"Ya existe un contenedor con el código {container.container_code}"
+                        ) from exc
+                    raise
+        raise RuntimeError("unreachable")
+
+    def update_container(self, *, actor_user_id: str, container_id: str, operation_id: str,
+                         tare_weight=None, capacity_weight=None, serial_number=None,
+                         current_location_id=None) -> None:
+        """Logística → Contenedores: datos editables (tara, capacidad, serie,
+        ubicación). Auditado."""
+        self._auth.require(actor_user_id, LogisticsPermissions.CONTAINER_MANAGE)
+        if self._operation_result(operation_id) is not None:
+            return
+        container = self._required_container(container_id)
+        container.update_details(tare_weight=tare_weight, capacity_weight=capacity_weight,
+                                 serial_number=serial_number,
+                                 current_location_id=current_location_id)
         with self._connection:
             self._repo.save_container(container)
             self._audit(actor_user_id, operation_id, "PhysicalContainer", container.id,
-                        "CREATED", "")
-            self._record_operation(operation_id, "REGISTER_CONTAINER", container.id, result)
-        return result
+                        "UPDATED", "")
+            self._record_operation(operation_id, "UPDATE_CONTAINER", container.id,
+                                   {"container_id": container.id})
+
+    def set_container_status(self, *, actor_user_id: str, container_id: str, status,
+                             reason: str, operation_id: str) -> None:
+        """Limpieza, mantenimiento, cuarentena, baja o disponible. No mientras
+        el contenedor viaja en un embarque activo."""
+        self._auth.require(actor_user_id, LogisticsPermissions.CONTAINER_MANAGE)
+        if self._operation_result(operation_id) is not None:
+            return
+        if not (reason or "").strip():
+            raise ValueError("Captura el motivo del cambio de estado")
+        if self._repo.container_in_active_shipment(container_id):
+            raise ValueError("El contenedor está en un embarque activo: libéralo del embarque "
+                             "antes de cambiar su estado")
+        container = self._required_container(container_id)
+        anterior = container.status.value
+        container.set_operational_status(status)
+        with self._connection:
+            self._repo.save_container(container)
+            self._audit(actor_user_id, operation_id, "PhysicalContainer", container.id,
+                        f"STATUS {anterior}->{container.status.value}", reason.strip())
+            self._record_operation(operation_id, "SET_CONTAINER_STATUS", container.id,
+                                   {"container_id": container.id})
 
     def create_shipment(self, *, actor_user_id: str,
                         shipment: LogisticsShipment) -> LogisticsShipment:
@@ -180,6 +243,9 @@ class LogisticsApplicationService:
         shipment.touch()
         with self._connection:
             self._repo.save_shipment(shipment)
+            # Quién despachó: la recepción lo compara (segregación de funciones).
+            self._audit(actor_user_id, operation_id, "LogisticsShipment", shipment.id,
+                        "DISPATCHED", "")
             self._event("LOGISTICS_SHIPMENT_DISPATCHED", shipment.id, operation_id,
                         {"shipment_id": shipment.id})
             self._record_operation(operation_id, "DISPATCH_SHIPMENT", shipment.id,
@@ -196,8 +262,27 @@ class LogisticsApplicationService:
     def get_type(self, type_id: str):
         return self._repo.get_type(type_id)
 
+    def next_container_code(self, prefix: str) -> str:
+        return self._repo.next_container_code(prefix)
+
+    def find_container(self, reference: str) -> PhysicalContainer | None:
+        """Por el código impreso o por el QR escaneado (lector de escritorio o
+        cámara del teléfono). Un QR rotado/ajeno es error, no «no existe»."""
+        ref = (reference or "").strip()
+        if not ref:
+            return None
+        if self._qr.looks_like_token(ref):
+            return self._repo.get_container(self.resolve_qr(ref))
+        return self._repo.get_container_by_code(ref)
+
     def resolve_qr(self, token: str) -> str:
-        container_id, _version = self._qr.resolve(token)
+        """Etiqueta VIGENTE → id. Compara con la firma guardada (válido desde
+        cualquier usuario o proceso del equipo, p. ej. el servicio de la API)."""
+        container_id, _version, _signature = self._qr.parse(token)
+        container = self._repo.get_container(container_id)
+        if container is None or not self._qr.matches(token, container):
+            from backend.domain.logistics.exceptions import LogisticsDomainError
+            raise LogisticsDomainError("QR revocado o de otro contenedor")
         return container_id
 
     # ── llegada y recepción (§28) ─────────────────────────────────────────────
@@ -227,6 +312,7 @@ class LogisticsApplicationService:
         self._auth.require(actor_user_id, LogisticsPermissions.SHIPMENT_RECEIVE)
         if self._operation_result(operation_id) is not None:
             return self._required_shipment(shipment_id)
+        self._require_receiver_is_not_dispatcher(actor_user_id, shipment_id)
         shipment = self._required_shipment(shipment_id)
         shipment.arrive()
         shipment.touch()
@@ -313,11 +399,14 @@ class LogisticsApplicationService:
                     container.status = ContainerStatus.AVAILABLE
                     container.current_custodian_id = None
                 self._repo.save_container(container)
-                # `logistics_custody_events.operation_id` es ÚNICO: un evento por
-                # contenedor necesita su propia operación derivada.
+                # `logistics_custody_events.operation_id` es ÚNICO: cada evento
+                # lleva su propio UUIDv7. El reintento lo cubre la operación del
+                # cierre (`logistics_operations`), que es atómica con estos
+                # eventos — no se deriva identidad concatenando (integración
+                # Logística 32cfbf).
                 self._custody(container, actor_user_id,
                               CustodyAction.RETURNED if supplier_owned else CustodyAction.RELEASED,
-                              f"{operation_id}:{container.id}", "Embarque recibido y cerrado")
+                              new_uuid(), "Embarque recibido y cerrado")
             self._repo.save_shipment(shipment)
             self._event("LOGISTICS_SHIPMENT_CLOSED", shipment.id, operation_id,
                         {"shipment_id": shipment.id})
@@ -417,18 +506,42 @@ class LogisticsApplicationService:
             self._record_operation(operation_id, "RELEASE_CONTAINER", container.id,
                                    {"container_id": container.id})
 
+    def label_token(self, container_id: str) -> str:
+        """Contenido del QR VIGENTE (firma guardada). Un contenedor anterior a
+        la firma guardada recibe la suya aquí, una sola vez."""
+        container = self._required_container(container_id)
+        compacta = self._qr.is_compact_signature(container.qr_signature)
+        if container.qr_signature and (compacta or self._label_printed(container_id)):
+            return self._qr.token_for(container)
+        # Sin firma, o con la firma larga anterior y SIN etiqueta impresa: se
+        # emite la compacta (nadie tiene todavía la anterior en papel).
+        token = self._qr.issue(container)
+        with self._connection:
+            self._repo.save_container(container)
+        return token
+
+    def _label_printed(self, container_id: str) -> bool:
+        return self._connection.execute(
+            "SELECT 1 FROM logistics_container_labels WHERE container_id=? LIMIT 1",
+            (container_id,)).fetchone() is not None
+
     def create_label_and_print(self, *, actor_user_id: str, container_id: str,
                                printer_id: str, operation_id: str,
                                shipment_id: str | None = None, copies: int = 1,
-                               reprint_reason: str | None = None) -> PrintJob:
+                               reprint_reason: str | None = None,
+                               printer=None) -> PrintJob:
+        """Registra la etiqueta y su trabajo de impresión (auditoría y
+        reimpresiones) y lo entrega a `printer` (por omisión, la impresora
+        térmica enrutada; el PDF pasa un destino que sólo lo registra)."""
         self._auth.require(actor_user_id, LogisticsPermissions.LABEL_PRINT)
+        gateway = printer or self._printer
         previous = self._operation_result(operation_id)
         if previous is not None:
             row = self._connection.execute(
                 "SELECT * FROM logistics_print_jobs WHERE id=?",
                 (previous["print_job_id"],)).fetchone()
             return PrintJob(*row) if row else None
-        if self._printer is None:
+        if gateway is None:
             raise RuntimeError("PrinterGateway no configurado")
         existing_row = self._connection.execute(
             "SELECT * FROM logistics_print_jobs WHERE operation_id=?", (operation_id,)).fetchone()
@@ -439,9 +552,9 @@ class LogisticsApplicationService:
             token = self._connection.execute(
                 "SELECT token FROM logistics_container_labels WHERE id=?",
                 (existing.label_id,)).fetchone()[0]
-            return self._submit_print(existing, token)
+            return self._submit_print(existing, token, gateway)
         container = self._required_container(container_id)
-        token = self._qr.issue(container)
+        token = self.label_token(container_id)
         label = ContainerLabel(new_uuid(), container.id, shipment_id,
                                "SHIPMENT" if shipment_id else "PERMANENT_QR",
                                container.qr_version, token, "ACTIVE", utcnow(), operation_id)
@@ -457,7 +570,7 @@ class LogisticsApplicationService:
                 (job.id, job.label_id, job.printer_id, job.copies, job.status,
                  job.operation_id, job.requested_by_user_id, job.requested_at,
                  job.reprint_reason, job.completed_at, job.error))
-        return self._submit_print(job, token)
+        return self._submit_print(job, token, gateway)
 
     def _required_shipment(self, shipment_id: str) -> LogisticsShipment:
         item = self._repo.get_shipment(shipment_id)
@@ -482,6 +595,25 @@ class LogisticsApplicationService:
             (event.id, event.container_id, event.action.value, event.from_custodian_id,
              event.to_custodian_id, event.location_id, event.actor_user_id, event.reason,
              event.operation_id, event.occurred_at))
+
+    def _require_receiver_is_not_dispatcher(self, actor_user_id: str, shipment_id: str) -> None:
+        """Segregación (integración Logística 32cfbf): quien despachó el embarque
+        no registra su llegada, salvo con `LOGISTICA.embarque.forzar`. Los
+        embarques despachados antes de registrar al despachador no se bloquean."""
+        fila = self._connection.execute(
+            "SELECT actor_user_id FROM logistics_audit_log WHERE entity_id=?"
+            " AND action='DISPATCHED' ORDER BY occurred_at DESC LIMIT 1",
+            (shipment_id,)).fetchone()
+        if fila is None or str(fila[0]) != str(actor_user_id):
+            return
+        if self._auth.allows(actor_user_id, LogisticsPermissions.SHIPMENT_OVERRIDE):
+            return
+        from backend.application.logistics.authorization import (
+            LogisticsPermissionDeniedError,
+        )
+        raise LogisticsPermissionDeniedError(
+            "Quien despachó el embarque no puede registrar su llegada: debe recibirlo "
+            "otra persona (o alguien con permiso para forzar).")
 
     def _audit(self, actor, operation, entity_type, entity_id, action, reason) -> None:
         self._connection.execute(
@@ -509,9 +641,9 @@ class LogisticsApplicationService:
             "INSERT INTO logistics_operations VALUES (?,?,?,?,?)",
             (operation_id, operation_type, entity_id, json.dumps(result), utcnow()))
 
-    def _submit_print(self, job: PrintJob, token: str) -> PrintJob:
+    def _submit_print(self, job: PrintJob, token: str, gateway=None) -> PrintJob:
         try:
-            self._printer.submit(job, token)
+            (gateway or self._printer).submit(job, token)
         except Exception as exc:
             job.status = "ERROR"
             job.error = str(exc)

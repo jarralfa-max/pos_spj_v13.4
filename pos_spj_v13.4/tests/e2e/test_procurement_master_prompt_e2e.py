@@ -353,8 +353,9 @@ def test_6_origin_purchase_reaches_inventory(env):
     ok, msg, kind = buyer.origin_register_container_type(code="HUACAL", name="Huacal",
                                                          category="CRATE")
     assert ok, msg
-    assert buyer.origin_register_container(code="HC-1", container_type_id=kind["id"])[0]
-    ok, msg, detail = buyer.origin_attach_container(shipment, "HC-1")
+    ok, msg, nuevo = buyer.origin_register_container(container_type_id=kind["id"])
+    assert ok, msg
+    ok, msg, detail = buyer.origin_attach_container(shipment, nuevo["code"])
     assert ok, msg
     (line,) = buyer.origin_loading_lines(shipment)
     ok, msg, detail = buyer.origin_assign_line(

@@ -40,6 +40,7 @@ from backend.domain.sales.value_objects.quantity import Quantity
 from backend.infrastructure.db.repositories.sales.sale_repository import SaleRepository
 from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema
+from tests.integration._pos_ready import create_cash_schema
 from backend.shared.ids import new_uuid
 
 # Fase 6: estas pruebas usan una venta completada como PREPARACIÓN; ni el
@@ -145,6 +146,7 @@ def conn():
     c.row_factory = sqlite3.Row
     create_sales_schema(c)
     create_inventory_schema(c)
+    create_cash_schema(c)   # Caja corre dentro de la transacción (auditoría V06)
     c.commit()
     yield c
     c.close()
@@ -272,17 +274,36 @@ class TestReverseSaleUseCase:
             product_id=product_id, branch_id=branch).available
         assert available == Decimal("3")
 
-    def test_cash_effects_error_is_captured_without_blocking_reversal(self, conn):
-        """No Caja shift schema exists in this fixture — the same honest,
-        best-effort limit `CheckoutSaleUseCase` already documents (SALES-14):
-        the reversal still succeeds even though the cash ledger side effect
-        can't be composed atomically and has nothing real to reverse here."""
+    def test_a_sale_without_cash_in_caja_reverses_with_nothing_to_compensate(self, conn):
+        """Venta sin movimiento de efectivo en Caja: el reverso no tiene nada que
+        compensar y procede (Caja responde "sin efectivo")."""
         sale_id, cashier, _branch, _product, _line = _completed_sale(conn)
         result = ReverseSaleUseCase(_allow_all()).execute(
             conn, sale_id=sale_id, reason="motivo", actor_user_id=cashier,
             authorizer_user_id=new_uuid(), operation_id=new_uuid())
-        assert result.success is True
+        assert result.success is True, result.message
         assert SaleRepository(conn).get(sale_id).status is SaleStatus.REVERSED
+
+    def test_a_caja_failure_leaves_the_sale_and_inventory_untouched(self, conn, monkeypatch):
+        """Auditoría V06 ("todo o nada"): antes el reverso quedaba hecho aunque
+        Caja fallara, con el error en `cash_effects_error`, que nadie leía."""
+        from backend.infrastructure.integrations import sales_cash_effects_client as client
+        sale_id, cashier, branch, product_id, _line = _completed_sale(conn)
+        before = InventoryAvailabilityQueryService(conn).get_availability(
+            product_id=product_id, branch_id=branch).available
+
+        def boom(self, *args, **kwargs):
+            raise RuntimeError("cajón bloqueado")
+        monkeypatch.setattr(client.SalesCashEffectsClient, "reverse_completed_sale", boom)
+        result = ReverseSaleUseCase(_allow_all()).execute(
+            conn, sale_id=sale_id, reason="motivo", actor_user_id=cashier,
+            authorizer_user_id=new_uuid(), operation_id=new_uuid())
+
+        assert result.success is False and result.error_code == "CASH_EFFECTS_FAILED"
+        assert "cajón bloqueado" in result.message
+        assert SaleRepository(conn).get(sale_id).status is SaleStatus.COMPLETED
+        assert InventoryAvailabilityQueryService(conn).get_availability(
+            product_id=product_id, branch_id=branch).available == before
 
 
 # ── Re-auditoría POS (2026-10-01) ─────────────────────────────────────────

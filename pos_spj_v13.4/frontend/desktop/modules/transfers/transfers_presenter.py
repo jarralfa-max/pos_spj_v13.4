@@ -21,11 +21,15 @@ logger = logging.getLogger("spj.transfers.presenter")
 class TransfersPresenter:
     def __init__(self, query_service: TransfersWorkspaceQueryService, *,
                  connection=None, create_transfer_request_uc=None,
-                 session_context=None) -> None:
+                 session_context=None, cycle_service=None,
+                 credentials_verifier=None) -> None:
         self._query_service = query_service
         self._connection = connection
         self._create_transfer_request_uc = create_transfer_request_uc
         self._session = session_context
+        #: `TransferCycleService` (integración Logística 32cfbf).
+        self._cycle = cycle_service
+        self._verify_credentials = credentials_verifier
 
     def load_page(self, page_id: str, search: str = "") -> TransferPageViewModel:
         return self._query_service.page(page_id=page_id, search=search)
@@ -117,3 +121,51 @@ class TransfersPresenter:
         except Exception:
             logger.exception("TransfersPresenter.create_transfer_request failed")
             return False, "Error inesperado; revise el log.", {}
+
+    # ── ciclo completo (integración Logística 32cfbf) ─────────────────────────
+    # La orquestación y la atomicidad viven en `TransferCycleService`
+    # (aplicación); aquí sólo se pasa la identidad de la sesión.
+    def can_run(self, action: str) -> bool:
+        return self._cycle is not None and self._cycle.available(action)
+
+    def detail(self, transfer_id: str) -> dict | None:
+        if self._cycle is None:
+            return None
+        try:
+            return self._cycle.detail(transfer_id)
+        except Exception:
+            logger.exception("TransfersPresenter.detail failed")
+            return None
+
+    def verify_verifier(self, usuario: str, clave: str) -> tuple[str | None, str]:
+        if self._verify_credentials is None:
+            return None, "La verificación de credenciales no está disponible."
+        from backend.security.authentication.errors import AuthenticationFailedError
+        from backend.security.sessions.errors import AccountLockedError
+        try:
+            return self._verify_credentials(username=usuario, password=clave), ""
+        except (AuthenticationFailedError, AccountLockedError) as exc:
+            return None, str(exc)
+
+    def _run(self, action: str, *args, **kwargs):
+        if not self.can_run(action):
+            return False, "Acción no disponible en este equipo.", {}
+        return getattr(self._cycle, action)(*args, **kwargs)
+
+    def submit(self, transfer_id: str):
+        return self._run("submit", transfer_id, self._actor())
+
+    def approve(self, transfer_id: str):
+        return self._run("approve", transfer_id, self._actor())
+
+    def reject(self, transfer_id: str, reason: str):
+        return self._run("reject", transfer_id, self._actor(), reason)
+
+    def prepare(self, transfer_id: str):
+        return self._run("prepare", transfer_id, self._actor())
+
+    def dispatch(self, transfer_id: str, **fields):
+        return self._run("dispatch", transfer_id, self._actor(), **fields)
+
+    def receive(self, transfer_id: str, shipment_id: str, lines: list[dict]):
+        return self._run("receive", transfer_id, self._actor(), shipment_id, lines)

@@ -133,6 +133,39 @@ class PhysicalContainer:
     def mark_lost(self) -> None:
         self.status = ContainerStatus.LOST
 
+    #: Estados que se fijan desde el catálogo de contenedores (no desde un viaje).
+    OPERATIONAL_STATUSES = frozenset({
+        ContainerStatus.AVAILABLE, ContainerStatus.CLEANING, ContainerStatus.MAINTENANCE,
+        ContainerStatus.QUARANTINED, ContainerStatus.RETIRED})
+
+    def update_details(self, *, tare_weight=None, capacity_weight=None, serial_number=None,
+                       current_location_id=None) -> None:
+        """Datos editables; nunca el código, el tipo ni el dueño (identidad del QR)."""
+        if tare_weight is not None:
+            self.tare_weight = decimal(tare_weight)
+        if capacity_weight is not None:
+            self.capacity_weight = decimal(capacity_weight) if str(capacity_weight) else None
+        if serial_number is not None:
+            self.serial_number = serial_number.strip() or None
+        if current_location_id is not None:
+            self.current_location_id = current_location_id or None
+        if self.tare_weight < 0 or (self.capacity_weight is not None and self.capacity_weight < 0):
+            raise LogisticsDomainError("Tara y capacidad no pueden ser negativas")
+
+    def set_operational_status(self, status: ContainerStatus) -> None:
+        """Limpieza, mantenimiento, cuarentena, baja o regreso a disponible. Un
+        contenedor perdido o retirado no vuelve a operar desde aquí."""
+        status = ContainerStatus(status)
+        if status not in self.OPERATIONAL_STATUSES:
+            raise InvalidLogisticsStateError(f"Estado no asignable desde el catálogo: {status.value}")
+        if self.status in (ContainerStatus.LOST, ContainerStatus.RETIRED):
+            raise InvalidLogisticsStateError("Un contenedor perdido o dado de baja no vuelve a operar")
+        self.status = status
+        if status is ContainerStatus.RETIRED:
+            self.retired_at = utcnow()
+        elif status is ContainerStatus.AVAILABLE:
+            self.condition = "GOOD"
+
     def release(self, *, return_to_supplier: bool = False) -> None:
         if self.status is ContainerStatus.LOST:
             raise InvalidLogisticsStateError("Un contenedor perdido no puede liberarse")

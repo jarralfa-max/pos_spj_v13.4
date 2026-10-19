@@ -28,12 +28,10 @@ from backend.domain.logistics.entities import (
 from backend.domain.logistics.enums import ContainerCategory, ContainerOwnerType, SourceDocumentType
 from backend.shared.ids import new_uuid
 
-CONTAINER_CATEGORY_ES = {
-    "MASTER_CONTAINER": "Contenedor maestro", "TRAILER_CONTAINER": "Caja de tráiler",
-    "PALLET": "Tarima", "CAGE": "Jaula", "CRATE": "Huacal", "PLASTIC_BOX": "Caja de plástico",
-    "CARDBOARD_BOX": "Caja de cartón", "TOTE": "Contenedor apilable", "COOLER": "Hielera",
-    "TRAY": "Charola", "BAG": "Bolsa", "BIN": "Contenedor a granel",
-}
+from backend.application.logistics.container_catalog import (  # noqa: E402
+    CONTAINER_CATEGORY_ES,
+    ContainerCatalogService,
+)
 
 
 def _dec(value, default: str = "0") -> Decimal:
@@ -150,57 +148,39 @@ class OriginPurchaseWorkspaceService:
                 "shipment_id": shipment_id, "requires_login": True}
 
     # ── contenedores (bounded context Logística; nada paralelo en Compras) ─────
+    # ── catálogo de contenedores: una sola puerta (`ContainerCatalogService`) ──
+    def _containers(self) -> ContainerCatalogService:
+        return ContainerCatalogService(self._logistics, self._conn)
+
     def container_types(self) -> list[tuple[str, str]]:
-        rows = self._conn.execute(
-            "SELECT id, name, category FROM logistics_container_types WHERE active=1"
-            " ORDER BY name").fetchall()
-        return [(r[0], f"{r[1]} ({CONTAINER_CATEGORY_ES.get(r[2], r[2])})") for r in rows]
+        return self._containers().container_types()
 
-    def register_container_type(self, *, actor_user_id, code, name, category,
-                                allows_children=False, maximum_net_weight=None,
-                                seal_required=False, tare_weight="0") -> str:
-        item = ContainerType.create(
-            code=code, name=name, category=ContainerCategory(category),
-            allows_children=bool(allows_children),
-            maximum_children=None, maximum_depth_below=2 if allows_children else 0,
-            default_tare_weight=str(tare_weight or "0"),
-            maximum_net_weight=str(maximum_net_weight) if maximum_net_weight else None,
-            seal_required=bool(seal_required))
-        return self._logistics.register_type(actor_user_id=actor_user_id, item=item)
+    def register_container_type(self, **fields) -> str:
+        return self._containers().register_container_type(**fields)
 
-    def register_container(self, *, actor_user_id, code, container_type_id,
-                           tare_weight=None) -> dict:
-        ctype = self._logistics.get_type(container_type_id)
-        if ctype is None:
-            raise ValueError("Elige el tipo de contenedor")
-        if self._find_by_code(code) is not None:
-            raise ValueError(f"Ya existe un contenedor con el código {code.strip().upper()}")
-        container = PhysicalContainer.create(
-            container_code=code, container_type_id=container_type_id,
-            owner_type=ContainerOwnerType.COMPANY,
-            tare_weight=str(tare_weight) if tare_weight not in (None, "") else
-            str(ctype.default_tare_weight))
-        return self._logistics.register_container(
-            actor_user_id=actor_user_id, container=container, operation_id=new_uuid())
+    def register_container(self, **fields) -> dict:
+        return self._containers().register_container(**fields)
 
-    def _find_by_code(self, code: str):
-        row = self._conn.execute(
-            "SELECT id FROM logistics_physical_containers WHERE container_code=?",
-            ((code or "").strip().upper(),)).fetchone()
-        return row[0] if row else None
+    def next_code_preview(self, container_type_id=None, category=None) -> str:
+        return self._containers().next_code_preview(container_type_id, category)
+
+    def container_options(self, search: str = "", limit: int = 30) -> list[dict]:
+        """Contenedores para el selector del embarque: los que se pueden cargar
+        primero; los demás con el motivo (no se ocultan: se explica)."""
+        from backend.application.logistics.queries import LogisticsContainerQueryService
+        filas = LogisticsContainerQueryService(self._conn).containers(
+            search=search or "", limit=limit)
+        return sorted(filas, key=lambda f: (not f["loadable"], f["code"]))
 
     def find_container(self, reference: str) -> dict:
         """Por código impreso o por el QR escaneado (URL/token firmado)."""
         reference = (reference or "").strip()
         if not reference:
             raise ValueError("Captura o escanea el código del contenedor")
-        container_id = self._find_by_code(reference)
-        if container_id is None and "." in reference:
-            try:
-                container_id = self._logistics.resolve_qr(reference)
-            except Exception as exc:
-                raise ValueError("QR de contenedor inválido") from exc
-        container = self._logistics.get_container(container_id) if container_id else None
+        try:
+            container = self._logistics.find_container(reference)
+        except Exception as exc:
+            raise ValueError(f"QR de contenedor inválido: {exc}") from exc
         if container is None:
             raise ValueError(f"No existe el contenedor {reference}")
         ctype = self._logistics.get_type(container.container_type_id)
@@ -400,12 +380,28 @@ class OriginPurchaseWorkspaceService:
             temperature=temperature, notes=notes, operation_id=new_uuid())
         return self.open(shipment_id)
 
+    def _receipt_of_shipment(self, shipment_id, kind, order_id) -> str | None:
+        """Folio de la recepción de Compras que ya registró este documento desde
+        este embarque (clave de negocio de la deduplicación), o None."""
+        if self._conn is None:
+            return None
+        columna = "purchase_order_id" if kind == "PURCHASE_ORDER" else "direct_purchase_id"
+        try:
+            fila = self._conn.execute(
+                f"SELECT document_number FROM goods_receipts WHERE shipment_id=? AND {columna}=?"
+                " AND status <> 'REVERSED' ORDER BY created_at LIMIT 1",
+                (shipment_id, order_id)).fetchone()
+        except Exception:  # noqa: BLE001 - sin esquema de Compras no hay previa
+            return None
+        return str(fila[0]) if fila else None
+
     def receive_and_close(self, *, actor_user_id, shipment_id) -> dict:
         """Todo contado → una recepción (GoodsReceipt) por orden de compra del
         embarque, vinculada a él → inventario (por el flujo canónico de Compras) →
-        embarque cerrado. Reintentar no duplica recepciones (operación
-        determinística por embarque y orden)."""
-        import uuid
+        embarque cerrado. Reintentar no duplica recepciones: la clave de negocio
+        (embarque, documento) se consulta en Compras antes de recibir, y cada
+        recepción nueva lleva su propio UUIDv7 (antes se derivaba con `uuid5`,
+        prohibido por la regla de identidad — integración Logística 32cfbf)."""
         if self._receive_order is None:
             raise ValueError("La recepción de compras no está disponible en este equipo")
         shipment = self._logistics.get_shipment(shipment_id)
@@ -438,12 +434,14 @@ class OriginPurchaseWorkspaceService:
             })
         receipts = []
         for (kind, order_id), receipt_lines in by_order.items():
-            operation_id = str(uuid.uuid5(uuid.NAMESPACE_URL,
-                                          f"spj:arrival:{shipment_id}:{order_id}"))
+            previa = self._receipt_of_shipment(shipment_id, kind, order_id)
+            if previa is not None:          # reintento: ya se recibió ese documento
+                receipts.append(previa)
+                continue
             receive = self._receive_order if kind == "PURCHASE_ORDER" else self._receive_direct
             ok, message, data = receive(
                 actor_user_id=actor_user_id, order_id=order_id, lines=receipt_lines,
-                shipment_id=shipment_id, operation_id=operation_id)
+                shipment_id=shipment_id, operation_id=new_uuid())
             if not ok:
                 raise ValueError(message)
             receipts.append(data.get("document_number") or data.get("entity_id"))

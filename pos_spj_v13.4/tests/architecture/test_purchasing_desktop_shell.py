@@ -13,7 +13,7 @@ def test_purchasing_root_is_sidebar_shell_not_tab_widget():
     shell = source("purchasing_module_shell.py")
     compatibility = source("enterprise_view.py")
     assert "class PurchasingModuleShell" in shell
-    assert "SideNav" in shell and "QStackedWidget" in shell
+    assert "SideNav" in shell and ("QStackedWidget" in shell or "PageStack" in shell)  # PageStack = QStackedWidget común (frontend/desktop/components/page_stack.py)
     # ContextFilters (branch/warehouse/period) is the shell's only remaining
     # global chrome — genuinely cross-page, unlike the KPIs/alerts that used
     # to duplicate each page's own PageHeader/KPIBar. Those now live only on

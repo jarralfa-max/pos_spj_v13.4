@@ -34,6 +34,13 @@ from backend.shared.ids import new_uuid
 from tests.integration._born_clean_db import make_db
 
 
+
+# Desde 2026-10-16 el contenido de una plantilla de ticket es su diseño por bloques.
+from backend.domain.document_output.ticket_layout import default_layout as _default_layout  # noqa: E402
+
+_TICKET = _default_layout("SALE").to_json()
+_TICKET_V2 = _TICKET.replace('"feed_lines": 4', '"feed_lines": 5')
+
 @pytest.fixture
 def conn():
     connection = make_db()
@@ -44,7 +51,7 @@ def conn():
 def _template_and_v1(conn, **overrides):
     kwargs = dict(
         document_type="SALE_TICKET", name="Ticket de venta estandar", module="ventas",
-        content_format="ESC_POS", content="{{items}}", created_by_user_id="admin-1",
+        content_format="ESC_POS", content=_TICKET, created_by_user_id="admin-1",
     )
     kwargs.update(overrides)
     return CreateDocumentTemplateUseCase(conn).execute(**kwargs)
@@ -71,7 +78,7 @@ class TestCreateNextTemplateVersionUseCase:
     def test_chains_from_the_given_version(self, conn):
         template, v1 = _template_and_v1(conn)
         use_case = CreateNextTemplateVersionUseCase(conn)
-        v2 = use_case.execute(version_id=v1.id, content="{{items}} v2", created_by_user_id="admin-1")
+        v2 = use_case.execute(version_id=v1.id, content=_TICKET_V2, created_by_user_id="admin-1")
         assert v2.version == 2
         assert v2.previous_version_id == v1.id
         assert v2.status is DocumentTemplateVersionStatus.DRAFT
@@ -130,7 +137,7 @@ class TestChangeTemplateVersionStatusUseCase:
         use_case.execute(version_id=v1.id, action=TemplateVersionAction.APPROVE, actor_user_id="admin-2")
         use_case.execute(version_id=v1.id, action=TemplateVersionAction.ACTIVATE, actor_user_id="admin-2")
 
-        v2 = CreateNextTemplateVersionUseCase(conn).execute(version_id=v1.id, content="v2")
+        v2 = CreateNextTemplateVersionUseCase(conn).execute(version_id=v1.id, content=_TICKET_V2)
         use_case.execute(version_id=v2.id, action=TemplateVersionAction.SUBMIT_FOR_APPROVAL)
         use_case.execute(version_id=v2.id, action=TemplateVersionAction.APPROVE, actor_user_id="admin-2")
         use_case.execute(version_id=v2.id, action=TemplateVersionAction.ACTIVATE, actor_user_id="admin-2")

@@ -18,6 +18,10 @@ Two executables share one `_internal` folder:
                          (`whatsapp_service/service_host.py`), console, run as
                          a Windows service only when the installer component
                          is chosen.
+* `spj_api.exe`       — the OPTIONAL Logistics API + PWA host
+                         (`backend/api/service_host.py`, integración Logística
+                         32cfbf), console, Windows service «SPJMobileAPI» only
+                         when its installer component is chosen.
 
 Everything is bundled in phase 1 ("same core for every profile"); install
 profiles enable capabilities, they do not remove files.
@@ -45,7 +49,8 @@ for _root in reversed(PATHEX):
 # module activators, the WhatsApp service routers): PyInstaller's static
 # analysis cannot see them, so every submodule is listed explicitly.
 HIDDEN = sorted(set(
-    collect_submodules("backend")
+    ["PyQt5.QtMultimedia", "PyQt5.QtMultimediaWidgets", "serial", "serial.tools.list_ports"]
+    + collect_submodules("backend")
     + collect_submodules("frontend")
     + collect_submodules("migrations")
     + collect_submodules("security")
@@ -99,6 +104,15 @@ whatsapp = Analysis(
     noarchive=False,
 )
 
+api = Analysis(
+    [str(PACKAGE_ROOT / "backend" / "api" / "service_host.py")],
+    pathex=PATHEX,
+    hiddenimports=sorted(set(HIDDEN + collect_submodules("uvicorn") + ["win32timezone"])),
+    datas=DATAS,          # frontend/web/logistics (PWA) + migraciones + assets
+    excludes=EXCLUDES + ["PyQt5"],
+    noarchive=False,
+)
+
 # The PyQtWebEngine hook drags in the whole QML tree (~21 MB, the deepest
 # paths of the bundle). SPJ has no QML: QtWebEngineWidgets renders without it
 # (`--self-test-ui` checks WebEngine on every build).
@@ -111,6 +125,7 @@ desktop.binaries = _without_qml(desktop.binaries)
 
 desktop_pyz = PYZ(desktop.pure)
 whatsapp_pyz = PYZ(whatsapp.pure)
+api_pyz = PYZ(api.pure)
 
 desktop_exe = EXE(
     desktop_pyz, desktop.scripts, [],
@@ -132,9 +147,20 @@ whatsapp_exe = EXE(
     upx=False,
 )
 
+api_exe = EXE(
+    api_pyz, api.scripts, [],
+    exclude_binaries=True,
+    name="spj_api",
+    console=True,
+    icon=ICON,
+    version=VERSION_FILE,
+    upx=False,
+)
+
 COLLECT(
     desktop_exe, desktop.binaries, desktop.datas,
     whatsapp_exe, whatsapp.binaries, whatsapp.datas,
+    api_exe, api.binaries, api.datas,
     name="SPJ",
     upx=False,
 )

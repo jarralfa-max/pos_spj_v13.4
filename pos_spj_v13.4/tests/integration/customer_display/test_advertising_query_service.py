@@ -71,6 +71,26 @@ def _slot(conn, *, mode=CustomerDisplayMode.IDLE, order=0) -> AdvertisingSlot:
 
 
 class TestResolveActiveAds:
+    def test_cart_reuses_configured_idle_campaign_when_no_cart_campaign_exists(self, conn):
+        campaign = _active_campaign(conn)
+        slot = _slot(conn)
+        SqliteCampaignPlacementRepository(conn).save(assign_placement(campaign, slot))
+        conn.commit()
+        service = AdvertisingQueryService(conn)
+        assert service.resolve_display_ads("CART")[0].campaign_id == campaign.id
+        assert service.resolve_display_ads("PAYMENT_PENDING") == ()
+        cart_campaign = _active_campaign(conn, name="Venta")
+        cart_slot = _slot(conn, mode=CustomerDisplayMode.CART, order=1)
+        SqliteCampaignPlacementRepository(conn).save(assign_placement(cart_campaign, cart_slot))
+        conn.commit()
+        assert [ad.campaign_id for ad in service.resolve_display_ads("CART")] == [cart_campaign.id]
+        cart_campaign.deactivate()
+        campaign.deactivate()
+        SqliteContentCampaignRepository(conn).save(cart_campaign)
+        SqliteContentCampaignRepository(conn).save(campaign)
+        conn.commit()
+        assert service.resolve_display_ads("CART") == ()
+
     def test_resolves_a_real_slot_placement_campaign_content_chain(self, conn):
         campaign = _active_campaign(conn)
         slot = _slot(conn)

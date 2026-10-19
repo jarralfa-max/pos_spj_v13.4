@@ -69,6 +69,9 @@ from frontend.desktop.modules.orders_delivery.shell_registration import (
 from frontend.desktop.modules.pricing.shell_registration import (
     PRICING_MODULE_ID, PRICING_REQUIRED_PERMISSION, PRICING_ROUTE_ID,
 )
+from frontend.desktop.modules.logistics.shell_registration import (
+    LOGISTICS_MODULE_ID, LOGISTICS_REQUIRED_PERMISSION, LOGISTICS_ROUTE_ID,
+)
 from frontend.desktop.modules.products.shell_registration import (
     PRODUCTS_MODULE_ID, PRODUCTS_REQUIRED_PERMISSION, PRODUCTS_ROUTE_ID,
 )
@@ -103,6 +106,8 @@ _EXPECTED = {
     LOSSES_MODULE_ID: (LOSSES_ROUTE_ID, LOSSES_REQUIRED_PERMISSION),
     MEAT_PROCESSING_MODULE_ID: (MEAT_PROCESSING_ROUTE_ID, MEAT_PROCESSING_REQUIRED_PERMISSION),
     ORDERS_DELIVERY_MODULE_ID: (ORDERS_DELIVERY_ROUTE_ID, ORDERS_DELIVERY_REQUIRED_PERMISSION),
+    # Logística como módulo propio (integración 32cfbf, decisión del usuario).
+    LOGISTICS_MODULE_ID: (LOGISTICS_ROUTE_ID, LOGISTICS_REQUIRED_PERMISSION),
     FIDELIDAD_MODULE_ID: (FIDELIDAD_ROUTE_ID, FIDELIDAD_REQUIRED_PERMISSION),
     # Tarjetas de fidelidad: sección DENTRO de Fidelidad desde LOY-29 (§5-6).
     ASSETS_MODULE_ID: (ASSETS_ROUTE_ID, ASSETS_REQUIRED_PERMISSION),

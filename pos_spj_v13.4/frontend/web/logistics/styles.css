@@ -5,3 +5,4 @@
 @media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}}
 .tree-depth-1{margin-left:18px}.tree-depth-2{margin-left:36px}.tree-depth-3{margin-left:54px}.tree-depth-4{margin-left:72px}.tree-depth-5{margin-left:90px}
 .sync-issues{display:grid;gap:8px;margin:12px 0}.sync-issue{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--danger);background:#feeceb;padding:12px;border-radius:10px}.sync-issue small{display:block;color:var(--danger);margin-top:4px}
+.scan-hint{position:absolute;left:12px;right:12px;top:12px;margin:0;color:#fff;font-weight:700;text-shadow:0 1px 3px #000}.scan-option{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:8px;color:#fff;font-weight:700}.scan-option input{width:22px;min-height:22px}

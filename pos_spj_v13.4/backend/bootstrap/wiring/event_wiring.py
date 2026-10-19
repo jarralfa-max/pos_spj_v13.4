@@ -89,6 +89,14 @@ def wire_cross_context_events(connection) -> dict:
         dispatch_procurement_outbox(connection, bus)
     except Exception:
         logger.exception("despacho inicial de procurement_outbox fallido")
+    # Caja (auditoría CJA-04, 2026-10-16): un Corte Z o una entrega de valores
+    # que quedó sin llegar a Finanzas (la app se cerró tras el commit) se entrega
+    # al arrancar; antes esperaba a la siguiente operación de Caja, sin plazo.
+    try:
+        from backend.application.cash_register.finance_wiring import dispatch_cash_outbox
+        dispatch_cash_outbox(connection, bus)
+    except Exception:
+        logger.exception("despacho inicial de cash_outbox fallido")
     try:
         from backend.application.services.finance.outbox_dispatcher import (
             dispatch_finance_outbox,
@@ -110,12 +118,11 @@ def wire_procurement_downstream_bridges(bus, connection) -> dict:
     and tested (`tests/integration/procurement/test_pipeline_end_to_end.py`,
     docstring: "the CANONICAL stock handler") as procurement's real canonical
     stock-entry path — it posts a `PURCHASE_RECEIPT` movement + creates
-    traceability lots. `CanonicalPurchaseRecipeExplosionHandler` is
-    independent, additional behaviour on the SAME event (transformación-en-
-    compra: buying a formulated product like marinated chicken also consumes
-    its raw-material components as a separate `ADJUSTMENT_OUT`) — different
-    products, different movement type, no overlap with the stock-entry
-    handler. `ProcurementPayableBridgeHandler` (finance) creates the CxP for
+    traceability lots. (Until 2026-10-16 a `CanonicalPurchaseRecipeExplosionHandler`
+    also consumed the components of any purchased product with an active
+    recipe — of ANY type, allowing negative stock. Removed by user decision,
+    production audit 32cfbf: Compras records what was received; every
+    transformation is recorded once, in Producción.) `ProcurementPayableBridgeHandler` (finance) creates the CxP for
     a CREDIT purchase AND its balanced recognition journal entry (CLAUDE.md
     §11) — its own docstring: "nothing subscribed it to this event. A
     matched supplier invoice therefore created no Payable... at all in
@@ -152,9 +159,6 @@ def wire_procurement_downstream_bridges(bus, connection) -> dict:
     from backend.application.event_handlers.finance.procurement_payable_bridge import (
         ProcurementPayableBridgeHandler,
     )
-    from backend.application.event_handlers.inventory.purchase_recipe_explosion_bridge import (
-        CanonicalPurchaseRecipeExplosionHandler,
-    )
     from backend.application.event_handlers.inventory.purchase_stock_entry_bridge import (
         CanonicalPurchaseStockEntryHandler,
     )
@@ -173,7 +177,6 @@ def wire_procurement_downstream_bridges(bus, connection) -> dict:
     payable_bridge = ProcurementPayableBridgeHandler(connection)
     immediate_payment_bridge = ProcurementImmediatePaymentBridgeHandler(connection)
     stock_entry = CanonicalPurchaseStockEntryHandler(connection)
-    recipe_explosion = CanonicalPurchaseRecipeExplosionHandler(connection)
 
     bus.subscribe(payable_bridge.event_name, payable_bridge.handle, priority=50,
                   label="procurement_payable_bridge")
@@ -181,8 +184,6 @@ def wire_procurement_downstream_bridges(bus, connection) -> dict:
                   priority=50, label="procurement_immediate_payment_bridge")
     bus.subscribe(stock_entry.event_name, stock_entry.handle, priority=100,
                   label="procurement_purchase_stock_entry")
-    bus.subscribe(recipe_explosion.event_name, recipe_explosion.handle, priority=100,
-                  label="procurement_purchase_recipe_explosion")
 
     # Auditoría Compras d9f2bca C12: reversos y devoluciones COMPENSAN. Antes
     # estos cuatro eventos no tenían consumidor: cambiar el documento dejaba
@@ -216,7 +217,6 @@ def wire_procurement_downstream_bridges(bus, connection) -> dict:
             f"{payable_bridge.event_name}->ProcurementPayableBridgeHandler",
             f"{immediate_payment_bridge.event_name}->ProcurementImmediatePaymentBridgeHandler",
             f"{stock_entry.event_name}->CanonicalPurchaseStockEntryHandler",
-            f"{recipe_explosion.event_name}->CanonicalPurchaseRecipeExplosionHandler",
             "GOODS_RECEIPT_REVERSED->GoodsReceiptReversedHandler",
             "DIRECT_PURCHASE_REVERSED->GoodsReceiptReversedHandler",
             "DIRECT_PURCHASE_REVERSED->ProcurementImmediatePaymentReversalHandler",
@@ -224,5 +224,5 @@ def wire_procurement_downstream_bridges(bus, connection) -> dict:
             "PURCHASE_RETURN_CONFIRMED->ProcurementReturnCreditHandler",
             "PURCHASE_PAYABLE_CREDIT_REQUESTED->ProcurementReturnCreditHandler",
         ],
-        "count": 10,
+        "count": 9,
     }

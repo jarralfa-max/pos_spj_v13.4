@@ -95,16 +95,15 @@ class ProcessingOrdersPage(QWidget):
         return oid
 
     def _on_create(self) -> None:
+        _almacen, problema = self._presenter.warehouse_and_problem()
         dlg = CreateProcessingOrderDialog(
             self, process_types=self._presenter.process_types(),
             product_provider=self._presenter.product_options,
-            empty_reason_provider=self._presenter.product_search_reason)
+            empty_reason_provider=self._presenter.product_search_reason,
+            blocking_problem=problema)
         if dlg.exec_() != QDialog.Accepted:
             return
         product_id = dlg.product_id()
-        if not product_id:
-            QMessageBox.warning(self, "Órdenes", "Selecciona un producto de la lista.")
-            return
         ok, message, _ = self._presenter.create_order(
             process_type=dlg.process_type(), target_product_id=product_id,
             planned_quantity=dlg.planned_quantity(), planned_weight=dlg.planned_weight())
@@ -181,7 +180,9 @@ class ProcessingOrdersPage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         nombres = {s["product_id"]: s["product_name"] for s in plan.get("outputs") or []}
-        datos = {"order_id": oid, "inputs": dlg.inputs(), "outputs": dlg.outputs()}
+        datos = {"order_id": oid, "inputs": dlg.inputs(), "outputs": dlg.outputs(),
+                 "estimated_product_ids": dlg.estimated_product_ids(),
+                 "estimate_reason": dlg.estimate_reason_text()}
         for _ in range(2):   # a lo sumo una autorización de rendimiento
             ok, message, resultado = self._presenter.execute_order(**datos)
             if ok:

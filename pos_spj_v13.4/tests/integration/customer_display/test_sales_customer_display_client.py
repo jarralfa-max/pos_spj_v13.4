@@ -77,6 +77,59 @@ def _cart_state(sale_id="sale-1") -> CustomerDisplayStateDTO:
 
 
 class TestBootstrap:
+    def test_two_registered_workstations_have_independent_displays(self, conn):
+        branch = _existing_branch_id(conn)
+        stations = [Workstation.create(branch_id=branch, code=f"POS-{i}", name=f"Caja {i}",
+                    workstation_type=WorkstationType.POS) for i in (1, 2)]
+        for station in stations:
+            SqliteWorkstationRepository(conn).save(station)
+        client, gateway = SalesCustomerDisplayClient(conn), _FakeGateway()
+        for station in stations:
+            client.push_sale_state(gateway, state=_cart_state(), branch_id=branch, workstation_id=station.id)
+        assert gateway.calls[0]["display_id"] != gateway.calls[1]["display_id"]
+        with pytest.raises(CustomerDisplayBootstrapError):
+            client.push_sale_state(gateway, state=_cart_state(), branch_id=new_uuid(), workstation_id=stations[0].id)
+
+    def test_preferences_resolve_company_branch_and_workstation_overrides(self, conn):
+        from backend.application.customer_display.queries.display_preferences_query import DisplayPreferencesQuery
+        from backend.domain.settings.enums import ScopeType
+        from tests.integration._governed_settings import set_setting
+        company, branch, station = new_uuid(), _existing_branch_id(conn), new_uuid()
+        set_setting(conn, "customer_display.show_points", False, scope_type=ScopeType.COMPANY, scope_id=company)
+        query = DisplayPreferencesQuery(conn)
+        assert query.resolve(company_id=company, branch_id=branch)["show_points"] is False
+        set_setting(conn, "customer_display.show_points", True, scope_type=ScopeType.BRANCH, scope_id=branch)
+        assert query.resolve(company_id=company, branch_id=branch)["show_points"] is True
+        set_setting(conn, "customer_display.show_points", False, scope_type=ScopeType.WORKSTATION, scope_id=station)
+        assert query.resolve(company_id=company, branch_id=branch, workstation_id=station)["show_points"] is False
+
+    def test_display_is_scoped_to_branch(self, conn):
+        client = SalesCustomerDisplayClient(conn)
+        gateway = _FakeGateway()
+        first, second = _existing_branch_id(conn), _existing_branch_id(conn)
+        client.push_sale_state(gateway, state=_cart_state(), branch_id=first)
+        client.push_sale_state(gateway, state=_cart_state(), branch_id=second)
+        assert gateway.calls[0]["display_id"] != gateway.calls[1]["display_id"]
+
+    def test_upgrade_adds_sections_without_enabling_an_explicitly_hidden_section(self, conn):
+        import importlib
+        from backend.domain.customer_display.entities.display_layout import DisplayLayout
+        from backend.domain.customer_display.value_objects.display_section import DisplaySection
+        layout = DisplayLayout.create(mode=CustomerDisplayMode.CART, sections=(
+            DisplaySection.create(code=CustomerDisplaySectionCode.TOTAL, order=0),
+            DisplaySection.create(code=CustomerDisplaySectionCode.SCALE, order=1, enabled=False),
+        ))
+        repo = SqliteDisplayLayoutRepository(conn)
+        repo.save(layout)
+        migration = importlib.import_module("migrations.standalone.344_sales_display_recovery")
+        migration.run(conn)
+        migration.run(conn)
+        upgraded = repo.get(layout.id)
+        assert CustomerDisplaySectionCode.PAYMENT in upgraded.enabled_codes()
+        assert CustomerDisplaySectionCode.SCALE not in upgraded.enabled_codes()
+        codes = [s.code for s in upgraded.sections]
+        assert len(codes) == len(set(codes))
+
     def test_first_push_bootstraps_a_display_and_a_layout(self, conn):
         branch_id = _existing_branch_id(conn)
         client = SalesCustomerDisplayClient(conn)

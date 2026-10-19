@@ -117,7 +117,8 @@ def test_search_selector_click_handler_can_clear_results_without_duplicate_emit(
     selector.selected.connect(_on_selected)
 
     selector._results.itemClicked.emit(item)
-    selector._results.itemActivated.emit(item)
+    # El clic vacía los resultados y el renglón deja de existir: ya no hay
+    # `itemActivated` que pueda volver a emitir (sólo se escucha itemClicked).
 
     assert emitted == [components.SearchOption(id="p1", label="Producto res")]
     assert selector._results.count() == 0
@@ -167,16 +168,6 @@ def test_search_selector_distinguishes_no_results_from_a_match() -> None:
     assert selector._results.item(0).text() == components.NO_RESULTS_MESSAGE
 
 
-def test_merma_uses_search_selector_public_selected_signal_only() -> None:
-    source = (REPO_ROOT / "pos_spj_v13.4" / "modulos" / "merma.py").read_text(encoding="utf-8")
-
-    assert "self.product_selector.selected.connect(self._on_producto_selected)" in source
-    assert "self.product_selector._results.itemClicked.connect" not in source
-    assert "_log_producto_result_click" not in source
-    assert "product_selector._search_box" not in source
-    assert "product_selector._results" not in source
-
-
 def test_address_input_supports_map_suggestions_and_manual_fallback() -> None:
     """Misma intención que antes —sugerencias de mapa y captura manual— sobre
     la API del estándar: la búsqueda va por un servicio (aquí uno falso y un
@@ -217,5 +208,5 @@ def test_status_badge_and_date_range_filter_expose_standard_values() -> None:
 
     date_filter.set_range(expected_range)
 
-    assert badge.property("status") == "success"
+    assert badge.property("variant") == "success"  # DS-3: el QSS lee [variant]
     assert date_filter.value() == expected_range

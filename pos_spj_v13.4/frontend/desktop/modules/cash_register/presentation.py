@@ -179,11 +179,16 @@ def scope_label(value: object) -> str:
     return SCOPE_LABELS.get(key, key.replace("_", " ").title() if key else "")
 
 
-def origin_label(*, reference_id: str | None = None, sale_id: str | None = None) -> str:
+def origin_label(*, reference_id: str | None = None, sale_id: str | None = None,
+                 label: str | None = None) -> str:
+    """El origen legible lo calcula el backend (`LedgerRow.origin_label`); sin
+    él, una descripción genérica — nunca un fragmento del id (CJA-05)."""
+    if label:
+        return label
     if sale_id:
-        return f"Venta {display_code('VTA', sale_id)}"
+        return "Venta"
     if reference_id:
-        return f"Documento {display_code('DOC', reference_id)}"
+        return "Documento de Caja"
     return "Sin documento origen"
 
 

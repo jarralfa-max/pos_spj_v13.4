@@ -40,6 +40,11 @@ class CustomerDisplaySectionCode(str, Enum):
     TOTAL = "TOTAL"
     MESSAGE = "MESSAGE"
     LOGO = "LOGO"
+    TAX = "TAX"
+    POINTS = "POINTS"
+    SCALE = "SCALE"
+    PAYMENT = "PAYMENT"
+    BRANDING = "BRANDING"
 
 
 class ContentType(str, Enum):

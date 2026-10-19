@@ -233,6 +233,16 @@ class StandardTable(QTableWidget):
             item.setData(Qt.UserRole, row_ids[row_index])
         self.setItem(row_index, col_index, item)
 
+    def selected_row_ids(self) -> list[str]:
+        """Identidades de TODAS las filas elegidas (con selección múltiple)."""
+        ids = []
+        for row in sorted({index.row() for index in self.selectedIndexes()}):
+            item = self.item(row, 0)
+            value = item.data(Qt.UserRole) if item is not None else None
+            if value:
+                ids.append(value)
+        return ids
+
     def selected_row_id(self) -> str | None:
         row = self.currentRow()
         if row < 0:

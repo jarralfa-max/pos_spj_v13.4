@@ -282,8 +282,9 @@ class ProcessingOrderPresenter:
             return None
 
     def execute_order(self, *, order_id: str, inputs: list[dict], outputs: list[dict],
-                      variance_authorizer_user_id=None,
-                      variance_reason=None) -> tuple[bool, str, dict]:
+                      variance_authorizer_user_id=None, variance_reason=None,
+                      estimated_product_ids=(), estimate_reason=None,
+                      ) -> tuple[bool, str, dict]:
         if self._execute_uc is None:
             return False, "Ejecución de órdenes no disponible.", {}
         try:
@@ -291,7 +292,9 @@ class ProcessingOrderPresenter:
                 self._conn(), order_id=order_id, inputs=inputs, outputs=outputs,
                 actor_user_id=self._actor(), operation_id=new_uuid(),
                 variance_authorizer_user_id=variance_authorizer_user_id,
-                variance_reason=variance_reason, context=self._context())
+                variance_reason=variance_reason, context=self._context(),
+                estimated_product_ids=tuple(estimated_product_ids or ()),
+                estimate_reason=estimate_reason)
         except Exception:
             logger.exception("ProcessingOrderPresenter.execute_order failed")
             return False, "Error inesperado; revise el log.", {}

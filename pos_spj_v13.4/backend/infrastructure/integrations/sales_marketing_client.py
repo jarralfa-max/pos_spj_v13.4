@@ -41,14 +41,22 @@ class SalesMarketingClient:
 
     def select_ticket_messages(
         self, *, subtotal: Decimal, total: Decimal, has_customer: bool, points_balance: int | None,
+        max_per_category: dict[str, int] | None = None,
     ) -> tuple[str, ...]:
+        """`max_per_category` viene del bloque «Mensajes» del diseño del ticket
+        (comparativa de tickets, 2026-10-16); antes era fijo en código."""
         context = {
             "subtotal": subtotal, "total": total, "has_customer": has_customer,
             "points_balance": Decimal(points_balance) if points_balance is not None else None,
         }
+        limits = _MAX_PER_CATEGORY if max_per_category is None else {
+            MarketingMessageCategory(k): int(v) for k, v in max_per_category.items()
+            if k in MarketingMessageCategory.__members__}
+        if not any(limits.values()):
+            return ()           # el diseño no imprime mensajes: ni se consultan
         campaigns = SqliteMarketingCampaignRepository(self._connection).list_active()
         try:
-            selected = select_messages(campaigns, context, max_per_category=_MAX_PER_CATEGORY)
+            selected = select_messages(campaigns, context, max_per_category=limits)
         except (DocumentInvalidValueError, MarketingClaimNotAllowedError) as exc:
             # An individual campaign violating an invariant (e.g. a FOMO
             # campaign left without rules) must not suppress every other

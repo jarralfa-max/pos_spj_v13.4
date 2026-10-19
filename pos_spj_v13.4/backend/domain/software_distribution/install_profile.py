@@ -71,7 +71,13 @@ CAPABILITY_CATALOG: tuple[Capability, ...] = (
     Capability("fidelidad", "Fidelidad y tarjetas",
                permission_modules=("GROWTH_ENGINE", "TARJETAS_FIDELIDAD")),
     Capability("orders_delivery", "Pedidos y entregas",
-               permission_modules=("DELIVERY", "LOGISTICA")),
+               permission_modules=("DELIVERY",)),
+    # Integración Logística 32cfbf (decisión del usuario): Logística es su propia
+    # capacidad. No exige Compras — «Compra en origen» lo pide sólo en su ruta.
+    # Las instalaciones de un catálogo anterior que tenían «Pedidos y entregas»
+    # la reciben al leer su configuración (ver `migrate_legacy_capabilities`).
+    Capability("logistics", "Logística (contenedores y embarques)",
+               permission_modules=("LOGISTICA",)),
     Capability("purchasing", "Compras y proveedores",
                permission_modules=("COMPRAS", "PROVEEDORES"),
                flat_permission_prefixes=("SUPPLIERS_",)),
@@ -103,6 +109,20 @@ PROFILE_DEFAULTS: dict[InstallProfile, frozenset[str]] = {
 }
 
 
+#: Versión del catálogo que escribe el instalador en `install_config.json`.
+#: 1 = antes de separar Logística; 2 = con la capacidad `logistics`.
+CAPABILITY_CATALOG_VERSION = 2
+
+
+def migrate_legacy_capabilities(selected: Iterable[str], catalog_version: int) -> set[str]:
+    """Una selección personalizada hecha con un catálogo anterior conserva los
+    accesos que ya tenía: «Pedidos y entregas» incluía Logística (LOGISTICA)."""
+    migrated = set(selected)
+    if catalog_version < 2 and "orders_delivery" in migrated:
+        migrated.add("logistics")
+    return migrated
+
+
 def capability(capability_id: str) -> Capability:
     try:
         return _BY_ID[capability_id]
@@ -120,9 +140,10 @@ class EnabledCapabilities:
     @classmethod
     def resolve(
         cls, profile: InstallProfile, selected: Iterable[str] = (),
+        catalog_version: int = CAPABILITY_CATALOG_VERSION,
     ) -> "EnabledCapabilities":
         if profile is InstallProfile.CUSTOM:
-            requested = set(selected)
+            requested = migrate_legacy_capabilities(selected, catalog_version)
             unknown = requested - ALL_CAPABILITIES
             if unknown:
                 raise UnknownCapabilityError(

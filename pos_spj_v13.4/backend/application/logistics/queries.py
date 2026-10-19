@@ -173,3 +173,158 @@ class LogisticsShipmentQueryService:
                 item["blocking"] = False
                 item["reason"] = "Variación autorizada"
         return result
+
+
+#: Estado del contenedor → por qué no se puede cargar (vacío = se puede).
+_NOT_LOADABLE = {
+    "ASSIGNED": "Asignado a un embarque", "LOADING": "En carga en un embarque",
+    "SEALED": "Sellado en un embarque", "IN_TRANSIT": "En tránsito",
+    "AT_DESTINATION": "En destino, falta cerrar el embarque",
+    "IN_INSPECTION": "En inspección", "DAMAGED": "Dañado", "LOST": "Perdido",
+    "QUARANTINED": "En cuarentena", "CLEANING": "En limpieza",
+    "MAINTENANCE": "En mantenimiento", "RELEASED": "Devuelto / liberado",
+    "RETIRED": "Dado de baja",
+}
+CONTAINER_STATUS_LABELS = {"AVAILABLE": "Disponible", **_NOT_LOADABLE}
+
+
+class LogisticsContainerQueryService:
+    """Catálogo de contenedores (Logística → Contenedores): lista con el motivo
+    por el que uno no puede cargarse y su historial (custodia + auditoría)."""
+
+    def __init__(self, connection) -> None:
+        self._connection = connection
+
+    def containers(self, *, search: str = "", status: str | None = None,
+                   limit: int = 500) -> list[dict]:
+        like = f"%{search.strip().upper()}%"
+        sql = (
+            "SELECT c.id, c.container_code, t.name, c.status, c.owner_type, c.tare_weight,"
+            " c.capacity_weight, c.serial_number, c.current_location_id, c.condition,"
+            " (SELECT s.shipment_number FROM logistics_shipment_nodes n"
+            "  JOIN logistics_shipments s ON s.id=n.shipment_id WHERE n.container_id=c.id"
+            "  AND n.detached_at IS NULL AND s.status NOT IN ('CANCELLED','CLOSED','RECEIVED')"
+            "  LIMIT 1)"
+            " FROM logistics_physical_containers c"
+            " LEFT JOIN logistics_container_types t ON t.id=c.container_type_id"
+            " WHERE (UPPER(c.container_code) LIKE ? OR UPPER(COALESCE(t.name,'')) LIKE ?)")
+        params: list = [like, like]
+        if status:
+            sql += " AND c.status=?"
+            params.append(status)
+        sql += " ORDER BY c.container_code LIMIT ?"
+        params.append(limit)
+        try:
+            filas = self._connection.execute(sql, tuple(params)).fetchall()
+        except sqlite3.OperationalError:
+            return []
+        resultado = []
+        for (cid, code, type_name, estado, owner, tare, capacity, serial, location,
+             condition, shipment_number) in filas:
+            motivo = ""
+            if shipment_number:
+                motivo = f"En el embarque {shipment_number}"
+            elif estado != "AVAILABLE":
+                motivo = _NOT_LOADABLE.get(estado, estado)
+            resultado.append({
+                "id": cid, "code": code, "type_name": type_name or "", "status": estado,
+                "status_label": CONTAINER_STATUS_LABELS.get(estado, estado),
+                "owner_type": owner, "tare_weight": tare, "capacity_weight": capacity,
+                "serial_number": serial or "", "location_id": location or "",
+                "condition": condition, "shipment_number": shipment_number or "",
+                "loadable": not motivo, "not_loadable_reason": motivo})
+        return resultado
+
+    def label_rows(self, container_ids) -> list[dict]:
+        """Lo legible de la etiqueta, en el orden pedido."""
+        ids = [str(i) for i in container_ids if i]
+        if not ids:
+            return []
+        marcas = ",".join("?" * len(ids))
+        filas = self._connection.execute(
+            "SELECT c.id, c.container_code, t.name, t.category, c.tare_weight,"
+            " c.capacity_weight, c.qr_version FROM logistics_physical_containers c"
+            " LEFT JOIN logistics_container_types t ON t.id=c.container_type_id"
+            f" WHERE c.id IN ({marcas})", tuple(ids)).fetchall()
+        por_id = {str(f[0]): {"id": str(f[0]), "code": f[1], "type_name": f[2] or "",
+                              "category": f[3] or "", "tare_weight": str(f[4] or "0"),
+                              "capacity_weight": str(f[5]) if f[5] else None,
+                              "qr_version": int(f[6] or 1)} for f in filas}
+        return [por_id[i] for i in ids if i in por_id]
+
+    def printed_codes(self, container_ids) -> list[str]:
+        """Contenedores cuya etiqueta YA se imprimió (otra impresión es
+        reimpresión y exige motivo)."""
+        ids = [str(i) for i in container_ids if i]
+        if not ids:
+            return []
+        marcas = ",".join("?" * len(ids))
+        try:
+            filas = self._connection.execute(
+                "SELECT DISTINCT c.container_code FROM logistics_print_jobs j"
+                " JOIN logistics_container_labels l ON l.id=j.label_id"
+                " JOIN logistics_physical_containers c ON c.id=l.container_id"
+                f" WHERE j.status='COMPLETED' AND c.id IN ({marcas})"
+                " ORDER BY c.container_code", tuple(ids)).fetchall()
+        except sqlite3.OperationalError:
+            return []
+        return [str(f[0]) for f in filas]
+
+    def owner_name(self) -> str:
+        try:
+            fila = self._connection.execute(
+                "SELECT commercial_name, legal_name FROM company_profiles WHERE active=1"
+                " LIMIT 1").fetchone()
+        except sqlite3.OperationalError:
+            return ""
+        return str((fila[0] or fila[1] or "") if fila else "").strip()
+
+    def history(self, container_id: str, *, limit: int = 200) -> list[dict]:
+        eventos = []
+        for consulta, origen in (
+                ("SELECT occurred_at, action, reason, actor_user_id FROM logistics_custody_events"
+                 " WHERE container_id=?", "Custodia"),
+                ("SELECT occurred_at, action, reason, actor_user_id FROM logistics_audit_log"
+                 " WHERE entity_id=?", "Cambio")):
+            try:
+                eventos += [{"at": r[0], "action": r[1], "reason": r[2] or "", "actor": r[3],
+                             "source": origen}
+                            for r in self._connection.execute(consulta, (container_id,))]
+            except sqlite3.OperationalError:
+                continue
+        nombres = self._user_names({e["actor"] for e in eventos})
+        for e in eventos:
+            e["actor_name"] = nombres.get(e["actor"], "")
+        return sorted(eventos, key=lambda e: e["at"] or "", reverse=True)[:limit]
+
+    def _user_names(self, ids) -> dict:
+        ids = sorted(i for i in ids if i)
+        if not ids:
+            return {}
+        try:
+            filas = self._connection.execute(
+                "SELECT id, COALESCE(NULLIF(trim(nombre),''), usuario) FROM usuarios"
+                f" WHERE id IN ({','.join('?' for _ in ids)})", tuple(ids)).fetchall()
+        except sqlite3.OperationalError:
+            return {}
+        return {str(r[0]): str(r[1] or "") for r in filas}
+
+    def shipments(self, *, search: str = "", limit: int = 200) -> list[dict]:
+        like = f"%{search.strip()}%"
+        try:
+            filas = self._connection.execute(
+                "SELECT s.id, s.shipment_number, s.status, s.origin_location,"
+                " s.dispatched_at, s.arrived_at, s.closed_at,"
+                " (SELECT COUNT(*) FROM logistics_shipment_nodes n WHERE n.shipment_id=s.id"
+                "  AND n.detached_at IS NULL)"
+                " FROM logistics_shipments s WHERE s.shipment_number LIKE ?"
+                " OR s.origin_location LIKE ? ORDER BY COALESCE(s.dispatched_at, '') DESC,"
+                " s.rowid DESC LIMIT ?", (like, like, limit)).fetchall()
+        except sqlite3.OperationalError:
+            return []
+        return [{"id": r[0], "number": r[1], "status": r[2], "origin": r[3] or "",
+                 "dispatched_at": (r[4] or "")[:16].replace("T", " "),
+                 "arrived_at": (r[5] or "")[:16].replace("T", " "),
+                 "closed_at": (r[6] or "")[:16].replace("T", " "), "containers": r[7]}
+                for r in filas]
+

@@ -25,7 +25,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout
+from PyQt5.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QMenu
 
 from frontend.desktop.components import (
     IconProvider,
@@ -56,8 +56,8 @@ class ActionsPanel(QFrame):
         self.setObjectName("posCobrarFrame")
 
         root = QVBoxLayout(self)
-        root.setContentsMargins(Spacing.SM, Spacing.SM, Spacing.SM, Spacing.SM)
-        root.setSpacing(Spacing.SM)
+        root.setContentsMargins(Spacing.SM, Spacing.XXS, Spacing.SM, Spacing.XXS)
+        root.setSpacing(Spacing.XS)
 
         discount_bar = QHBoxLayout()
         discount_bar.setSpacing(Spacing.XS)
@@ -91,21 +91,21 @@ class ActionsPanel(QFrame):
         secondary = QHBoxLayout()
         secondary.setSpacing(Spacing.XS)
         self.btn_suspender = create_secondary_button(
-            self, "Suspender (F6)", tooltip="Guardar la venta para continuarla después (F6)")
+            self, "Suspender\nF6", tooltip="Guardar la venta para continuarla después (F6)")
         IconProvider.bind(self.btn_suspender, Icons.PENDING)
         self.btn_suspender.setEnabled(capabilities.sale_suspend)
         self.btn_suspender.clicked.connect(self.suspend_requested)
         secondary.addWidget(self.btn_suspender)
 
         self.btn_reanudar = create_secondary_button(
-            self, "Reanudar (0) (F7)", tooltip="Continuar una venta suspendida (F7)")
+            self, "Reanudar (0)\nF7", tooltip="Continuar una venta suspendida (F7)")
         IconProvider.bind(self.btn_reanudar, Icons.REDO)
         self.btn_reanudar.setEnabled(capabilities.sale_resume)
         self.btn_reanudar.clicked.connect(self.resume_requested)
         secondary.addWidget(self.btn_reanudar)
 
         self.btn_cancelar = create_danger_button(
-            self, "Cancelar (F8)", tooltip="Cancelar la venta en curso; pide motivo (F8)")
+            self, "Cancelar\nF8", tooltip="Cancelar la venta en curso; pide motivo (F8)")
         IconProvider.bind(self.btn_cancelar, Icons.CLOSE)
         self.btn_cancelar.setEnabled(capabilities.sale_cancel)
         self.btn_cancelar.clicked.connect(self.cancel_requested)
@@ -139,8 +139,29 @@ class ActionsPanel(QFrame):
         utility.addWidget(self.btn_reimprimir)
         root.addLayout(utility)
 
+        # Keep payment and lifecycle actions permanently visible. Secondary
+        # actions remain available by keyboard and through one contextual menu.
+        root.removeItem(discount_bar)
+        root.removeItem(utility)
+        self._more_menu = QMenu(self)
+        for button in (*self.quick_discount_buttons, self.btn_descuento,
+                       self.btn_devolucion, self.btn_factura, self.btn_reimprimir):
+            discount_bar.removeWidget(button)
+            utility.removeWidget(button)
+            button.hide()
+            action = self._more_menu.addAction(button.text())
+            action.setEnabled(button.isEnabled())
+            action.triggered.connect(button.click)
+        primary = QHBoxLayout()
+        root.removeWidget(self.btn_cobrar)
+        primary.addWidget(self.btn_cobrar, stretch=1)
+        self.btn_more = create_secondary_button(self, "Más", tooltip="Descuentos y postventa")
+        self.btn_more.setMenu(self._more_menu)
+        primary.addWidget(self.btn_more)
+        root.insertLayout(0, primary)
+
     def set_total(self, total_text: str) -> None:
         self.btn_cobrar.setText(f"COBRAR {total_text}   (F9)")
 
     def set_suspended_count(self, count: int) -> None:
-        self.btn_reanudar.setText(f"Reanudar ({count}) (F7)")
+        self.btn_reanudar.setText(f"Reanudar ({count})\nF7")

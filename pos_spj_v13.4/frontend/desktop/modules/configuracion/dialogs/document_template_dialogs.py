@@ -53,7 +53,9 @@ class DocumentTemplateCreateDialog(FormDialog):
 
         self.content = StandardTextArea(self)
         self.content.setAccessibleName("Contenido de la plantilla")
-        apply_tooltip(self.content, "Plantilla con placeholders — nunca datos ya renderizados (§27).")
+        apply_tooltip(self.content, "Plantilla con placeholders — nunca datos ya renderizados (§27). "
+                      "Para «Ticket de venta» o «Boleto de sorteo» déjalo vacío: al crear se "
+                      "abre el diseñador de tickets.")
         self.form.addRow("Contenido:", self.content)
 
         self.add_button_box(ok_text="Crear plantilla")

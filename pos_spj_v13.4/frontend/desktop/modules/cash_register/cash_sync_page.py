@@ -15,7 +15,7 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.modules.cash_register.cash_register_dialogs import ResolveCashSyncConflictDialog
-from frontend.desktop.modules.cash_register.presentation import display_code, status_label, user_facing_error
+from frontend.desktop.modules.cash_register.presentation import status_label, user_facing_error
 
 
 class CashSyncPage(QWidget):
@@ -116,7 +116,7 @@ class CashSyncPage(QWidget):
                     row.get("attempt_count", ""),
                     row.get("next_attempt_at", ""),
                     row.get("remote_revision", ""),
-                    display_code("OP", row.get("operation_id", "")),
+                    f"Operación #{row.get('sequence_no', '')}",
                     user_facing_error(row.get("last_error", "")) if row.get("last_error") else "",
                 ]
                 for row in rows

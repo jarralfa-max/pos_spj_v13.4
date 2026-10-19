@@ -35,6 +35,13 @@ ALL_PAGE_IDS = (
 )
 
 
+
+# Desde 2026-10-16 el contenido de una plantilla de ticket es su diseño por bloques.
+from backend.domain.document_output.ticket_layout import default_layout as _default_layout  # noqa: E402
+
+_TICKET = _default_layout("SALE").to_json()
+_TICKET_V2 = _TICKET.replace('"feed_lines": 4', '"feed_lines": 5')
+
 @pytest.fixture
 def conn():
     connection = make_db()
@@ -398,7 +405,7 @@ class TestDocumentosQuerySupport:
 
         template, _version = CreateDocumentTemplateUseCase(conn).execute(
             document_type="SALE_TICKET", name="Ticket de venta", module="ventas",
-            content_format="ESC_POS", content="{{items}}",
+            content_format="ESC_POS", content=_TICKET,
         )
         detail = query_service.get_template(template.id)
         assert detail is not None
@@ -421,7 +428,7 @@ class TestDocumentosQuerySupport:
 
         template, _version = CreateDocumentTemplateUseCase(conn).execute(
             document_type="SALE_TICKET", name="Ticket de venta", module="ventas",
-            content_format="ESC_POS", content="{{items}}",
+            content_format="ESC_POS", content=_TICKET,
         )
         ChangeDocumentTemplateStatusUseCase(conn).execute(
             template_id=template.id, action=DocumentTemplateStatusAction.DEACTIVATE,
@@ -439,9 +446,9 @@ class TestDocumentosQuerySupport:
 
         template, v1 = CreateDocumentTemplateUseCase(conn).execute(
             document_type="SALE_TICKET", name="Ticket de venta", module="ventas",
-            content_format="ESC_POS", content="{{items}}",
+            content_format="ESC_POS", content=_TICKET,
         )
-        CreateNextTemplateVersionUseCase(conn).execute(version_id=v1.id, content="{{items}} v2")
+        CreateNextTemplateVersionUseCase(conn).execute(version_id=v1.id, content=_TICKET_V2)
 
         versions = query_service.list_template_versions(template.id)
         assert len(versions) == 2

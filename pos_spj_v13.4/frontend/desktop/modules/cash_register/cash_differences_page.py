@@ -87,7 +87,8 @@ class CashDifferencesPage(QWidget):
     def _explain(self) -> None:
         self._run_text_transition(
             dialog_factory=lambda difference: ExplainCashDifferenceDialog(
-                self, difference=difference),
+                self, difference=difference,
+                shift_label=self._presenter.shift_label(getattr(difference, "shift_id", None))),
             command=lambda difference_id, text: self._presenter.explain_cash_difference(
                 difference_id=difference_id, explanation=text),
             success="Diferencia explicada",

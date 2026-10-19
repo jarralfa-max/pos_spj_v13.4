@@ -30,6 +30,7 @@ DOCUMENT_TYPE_LABELS: tuple[tuple[str, str], ...] = (
     (DocumentType.DISPOSITION_CERTIFICATE.value, "Certificado de disposición"),
     (DocumentType.CUSTOMER_STATEMENT.value, "Estado de cuenta"),
     (DocumentType.PAYROLL_RECEIPT.value, "Recibo de nómina"),
+    (DocumentType.CONTAINER_LABEL.value, "Etiqueta de contenedor"),
     (DocumentType.LOT_LABEL.value, "Etiqueta de lote"),
     (DocumentType.WEIGHT_LABEL.value, "Etiqueta de peso"),
     (DocumentType.TRANSFER_LABEL.value, "Etiqueta de transferencia"),

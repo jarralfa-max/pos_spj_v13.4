@@ -47,6 +47,10 @@ class OpenCashShiftUseCase:
         self._auth.require(user_id=actor_user_id,
                            permission_code=CashPermissions.SHIFT_OPEN,
                            branch_id=branch_id)
+        # Auditoría CJA-02: cada quien abre SU turno; a nombre de otro, reasignar.
+        from backend.application.cash_register.shift_ownership import ensure_can_open_for
+        ensure_can_open_for(self._auth, cashier_user_id=cashier_user_id,
+                            actor_user_id=actor_user_id, branch_id=branch_id)
         decision = self._limit.require_operable(opening_amount)
         if decision is CashLimitDecision.REQUIRES_AUTHORIZATION:
             raise CashAuthorizationRequiredError(
@@ -97,6 +101,7 @@ class OpenCashShiftUseCase:
 
 class _TransitionUseCase:
     permission = ""
+    action_label = "operar"
     target_status: CashShiftStatus
     event_name = ""
 
@@ -110,6 +115,16 @@ class _TransitionUseCase:
             shift = uow.shifts.get(shift_id)
             if not shift or shift["branch_id"] != branch_id:
                 raise CashInvalidStateError("Turno no encontrado en la sucursal")
+            # Auditoría CJA-02: el turno de otro cajero sólo lo interviene un
+            # supervisor, con motivo, y queda dicho en el evento.
+            from backend.application.cash_register.shift_ownership import (
+                ensure_owner_or_intervention,
+            )
+            intervention = ensure_owner_or_intervention(
+                self._auth, shift_cashier_user_id=shift["cashier_user_id"],
+                actor_user_id=actor_user_id, branch_id=branch_id,
+                intervention_permission=CashPermissions.SHIFT_FORCE_CLOSE, reason=reason,
+                action=self.action_label)
             CashShiftLifecyclePolicy.ensure_transition(
                 current=shift["status"],
                 target=self.target_status,
@@ -119,23 +134,28 @@ class _TransitionUseCase:
                                      suspended_reason=reason.strip() or None)
             _record(uow, self.event_name, operation_id=operation_id,
                     entity_id=shift_id, branch_id=branch_id,
-                    actor_user_id=actor_user_id, reason=reason)
+                    actor_user_id=actor_user_id, reason=reason,
+                    intervention=intervention,
+                    shift_cashier_user_id=shift["cashier_user_id"])
         return ShiftResult(shift_id, f"Turno {self.target_status.value}")
 
 
 class SuspendCashShiftUseCase(_TransitionUseCase):
     permission = CashPermissions.SHIFT_SUSPEND
+    action_label = "suspender"
     target_status = CashShiftStatus.SUSPENDED
     event_name = CashEvents.SHIFT_SUSPENDED
 
 
 class ResumeCashShiftUseCase(_TransitionUseCase):
     permission = CashPermissions.SHIFT_RESUME
+    action_label = "reanudar"
     target_status = CashShiftStatus.OPEN
     event_name = CashEvents.SHIFT_RESUMED
 
 
 class BeginCashShiftClosingUseCase(_TransitionUseCase):
     permission = CashPermissions.SHIFT_PREPARE_CLOSE
+    action_label = "pre-cerrar"
     target_status = CashShiftStatus.CLOSING
     event_name = CashEvents.SHIFT_CLOSING_STARTED

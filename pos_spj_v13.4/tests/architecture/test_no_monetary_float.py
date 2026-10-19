@@ -45,7 +45,7 @@ _SKIP_PARTS = {".venv", "venv", "site-packages", "node_modules", "__pycache__", 
 # 2026-10-07 (CASH-26): las carpetas legacy desaparecieron y Caja borró su capa
 # «FASE 7.7» con montos float; las áreas en cero salen de la tabla.
 _LEGACY_BASELINE = {
-    "backend": 24,
+    "backend": 16,
     "scripts": 4,
     "utils": 3,
     "frontend": 2,

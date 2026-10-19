@@ -38,6 +38,10 @@ class SaleLifecyclePolicy:
         (SaleStatus.ACTIVE, SaleStatus.CANCELLED),
         (SaleStatus.SUSPENDED, SaleStatus.CANCELLED),
         (SaleStatus.CHECKOUT_PENDING, SaleStatus.CANCELLED),
+        # Auditoría V03: cerrar el cobro sin pagos regresa la venta al carrito.
+        (SaleStatus.CHECKOUT_PENDING, SaleStatus.ACTIVE),
+        (SaleStatus.PAYMENT_PENDING, SaleStatus.ACTIVE),
+        (SaleStatus.PAYMENT_PENDING, SaleStatus.CANCELLED),
         (SaleStatus.COMPLETED, SaleStatus.RETURNED_PARTIALLY),
         (SaleStatus.COMPLETED, SaleStatus.RETURNED_FULLY),
         (SaleStatus.RETURNED_PARTIALLY, SaleStatus.RETURNED_FULLY),
@@ -86,9 +90,15 @@ class SaleCancellationPolicy:
     confirmed. A COMPLETED sale must be reversed (§44), never cancelled."""
 
     @staticmethod
-    def ensure_can_cancel(*, status: SaleStatus, reason: str) -> None:
+    def ensure_can_cancel(*, status: SaleStatus, reason: str, live_payments: int = 0) -> None:
         if not (reason or "").strip():
             raise SaleCancellationNotAllowedError("La cancelación requiere un motivo")
+        if live_payments:
+            # Auditoría V02: nunca CANCELLED con dinero o deuda vivos. Quien
+            # cancela anula antes cada pago (CancelSaleUseCase lo hace y dice
+            # al cajero qué devolver).
+            raise SaleCancellationNotAllowedError(
+                "La venta tiene pagos registrados: anúlalos antes de cancelarla")
         try:
             SaleLifecyclePolicy.ensure_transition(current=status, target=SaleStatus.CANCELLED)
         except SaleInvalidStateError as exc:

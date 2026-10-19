@@ -80,7 +80,7 @@ def test_idempotent_shipment_tree_content_seals_dispatch_and_custody(connection)
     assert retried_qr == root_qr
     app.register_container(actor_user_id="u", container=child_container,
                            operation_id="register-child")
-    assert root_qr["qr_url"].startswith("https://app.spj.mx/c/")
+    assert root_qr["qr_url"].startswith("SPJC/")      # sin dominio inventado
     shipment = LogisticsShipment.create(
         shipment_number="SHIP-1", origin_type="SUPPLIER", origin_location="Proveedor",
         destination_branch_id="branch", destination_warehouse_id="warehouse",

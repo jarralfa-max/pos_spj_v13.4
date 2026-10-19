@@ -69,6 +69,18 @@ class AdvertisingQueryService:
         path = self._media_storage.path_for(media.stored_name)
         return str(path) if path.is_file() else None
 
+    def resolve_display_ads(self, mode: CustomerDisplayMode | str) -> tuple[ResolvedAdDTO, ...]:
+        """Cart campaigns take precedence; reuse configured idle media otherwise.
+
+        The caller gates advertising during sales with the governed preference.
+        Payment and completion never inherit idle advertising.
+        """
+        mode = CustomerDisplayMode(mode)
+        ads = self.resolve_active_ads(mode)
+        if not ads and mode == CustomerDisplayMode.CART:
+            return self.resolve_active_ads(CustomerDisplayMode.IDLE)
+        return ads
+
     def resolve_active_ads(self, mode: CustomerDisplayMode | str) -> tuple[ResolvedAdDTO, ...]:
         mode = CustomerDisplayMode(mode)
         now = _now_iso()

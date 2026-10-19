@@ -1,4 +1,7 @@
-"""SET-15 cutover — real raffle ticket issuance (at checkout) and
+"""2026-10-16: migrada al contexto canónico de Sorteos. Antes armaba la rifa y
+leía los boletos con el `LoyaltyService` legacy (`core/`, borrado) y no corría.
+
+SET-15 cutover — real raffle ticket issuance (at checkout) and
 printing (via reprint) for `sales_pos`. `SalesSweepstakesClient` needs no
 identity bridge (unlike `SalesLoyaltyClient`) — see its own docstring.
 """
@@ -32,7 +35,6 @@ from backend.infrastructure.db.schema.sales_schema import create_sales_schema
 from backend.infrastructure.db.schema.sweepstakes_schema import create_sweepstakes_schema
 from backend.infrastructure.integrations.sales_sweepstakes_client import SalesSweepstakesClient
 from backend.shared.ids import new_uuid
-from core.services.loyalty_service import LoyaltyService
 
 # Fase 6: estas pruebas usan una venta completada como PREPARACIÓN; ni el
 # turno de caja ni el descuento de inventario son su tema (los prueba
@@ -77,22 +79,40 @@ def conn():
     c.close()
 
 
-def _mk_raffle(conn, *, branch_id: str, **rules) -> str:
-    svc = LoyaltyService(conn, sucursal_id=branch_id)
-    return svc.create_raffle_with_rules(
-        {
-            "nombre": "Rifa de Verano", "premio": "Refrigerador", "premio_costo_estimado": 10,
-            "presupuesto_maximo": 20, "ventas_objetivo": 20, "monto_por_boleto": 10,
-            "estado": "activa", "financial_status": "reservada",
-            "fecha_inicio": "2020-01-01 00:00:00", "fecha_fin": "2099-12-31 23:59:59",
-            "sucursal_id": branch_id,
-        },
-        rules, [{"nombre": "P1", "cantidad": 5, "costo_estimado": 10, "orden": 1}],
-        {"branches": [branch_id]},
-    )
+def _mk_raffle(conn, *, branch_id: str = "", amount_per_ticket: str = "100", **_legacy) -> str:
+    """Campaña ACTIVA con regla «un boleto por cada $amount_per_ticket» por el
+    flujo canónico (crear → aprobar → activar → regla)."""
+    auth = LoyaltyAuthorizationPolicy.permissive_for_tests()
+    create = CreateSweepstakesCampaignUseCase(auth).execute(
+        conn, code=f"R{new_uuid()[-6:]}", name="Rifa de Verano", actor_user_id=new_uuid(),
+        operation_id=new_uuid())
+    for use_case in (ApproveSweepstakesCampaignUseCase, ActivateSweepstakesCampaignUseCase):
+        use_case(auth).execute(conn, campaign_id=create.entity_id, actor_user_id=new_uuid(),
+                               operation_id=new_uuid())
+    ConfigureSweepstakesRuleUseCase(auth).execute(
+        conn, campaign_id=create.entity_id, entry_method=SweepstakesEntryMethod.PURCHASE_AMOUNT,
+        actor_user_id=new_uuid(), operation_id=new_uuid(),
+        amount_per_ticket=Decimal(amount_per_ticket))
+    return create.entity_id
 
 
-def _completed_sale(conn, *, price="100.00", branch_id=None):
+def _tickets_for(conn, sale_id: str) -> list:
+    with SweepstakesUnitOfWork(conn) as uow:
+        return list(uow.tickets.list_for_sale(sale_id))
+
+
+def _with_customer(conn, sale_id: str) -> str:
+    """El sorteo canónico sólo participa con cliente: se asigna uno directo en el
+    agregado (la existencia en Clientes no es el tema de estas pruebas)."""
+    repo = SaleRepository(conn)
+    sale = repo.get(sale_id)
+    sale.customer_id = new_uuid()
+    repo.save(sale)
+    conn.commit()
+    return sale.customer_id
+
+
+def _completed_sale(conn, *, price="100.00", branch_id=None, customer=False):
     branch_id = branch_id or new_uuid()
     cashier = new_uuid()
     sale_id = StartSaleUseCase(_allow_all()).execute(
@@ -101,6 +121,8 @@ def _completed_sale(conn, *, price="100.00", branch_id=None):
     AddSaleLineUseCase(_allow_all()).execute(
         conn, sale_id=sale_id, product_id=new_uuid(), quantity=Decimal("1"),
         unit_price=Decimal(price), actor_user_id=cashier, operation_id=new_uuid())
+    if customer:
+        _with_customer(conn, sale_id)
     BeginSaleCheckoutUseCase(_allow_all()).execute(
         conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
     RecordSalePaymentUseCase(_allow_all()).execute(
@@ -116,30 +138,30 @@ class TestSalesSweepstakesClient:
     def test_issues_a_real_ticket_for_an_eligible_sale(self, conn):
         branch_id = new_uuid()
         _mk_raffle(conn, branch_id=branch_id, ticket_strategy="per_sale", tickets_per_sale=1)
-        sale_id, _cashier, _branch = _completed_sale(conn, price="100.00", branch_id=branch_id)
+        sale_id, _cashier, _branch = _completed_sale(conn, price="100.00", branch_id=branch_id, customer=True)
         sale = SaleDTO.from_entity(SaleRepository(conn).get(sale_id))
 
         SalesSweepstakesClient(conn).issue_tickets_for_sale(sale=sale)
 
-        tickets = LoyaltyService(conn)._app.repo.get_tickets_for_venta(sale_id)
+        tickets = _tickets_for(conn, sale_id)
         assert len(tickets) == 1
 
     def test_no_active_raffle_is_a_silent_no_op(self, conn):
         sale_id, _cashier, _branch = _completed_sale(conn)
         sale = SaleDTO.from_entity(SaleRepository(conn).get(sale_id))
         SalesSweepstakesClient(conn).issue_tickets_for_sale(sale=sale)  # must not raise
-        assert LoyaltyService(conn)._app.repo.get_tickets_for_venta(sale_id) == []
+        assert _tickets_for(conn, sale_id) == []
 
     def test_get_printable_tickets_for_sale_returns_what_was_issued(self, conn):
         branch_id = new_uuid()
         _mk_raffle(conn, branch_id=branch_id, ticket_strategy="per_sale", tickets_per_sale=1)
-        sale_id, _cashier, _branch = _completed_sale(conn, price="100.00", branch_id=branch_id)
+        sale_id, _cashier, _branch = _completed_sale(conn, price="100.00", branch_id=branch_id, customer=True)
         sale = SaleDTO.from_entity(SaleRepository(conn).get(sale_id))
         SalesSweepstakesClient(conn).issue_tickets_for_sale(sale=sale)
 
         payloads = SalesSweepstakesClient(conn).get_printable_tickets_for_sale(sale_id=sale_id)
         assert len(payloads) == 1
-        assert payloads[0]["venta_id"] == sale_id
+        assert payloads[0]["sale_reference"] == sale_id
 
 
 class TestCheckoutIssuesRaffleTickets:
@@ -153,6 +175,7 @@ class TestCheckoutIssuesRaffleTickets:
         AddSaleLineUseCase(_allow_all()).execute(
             conn, sale_id=sale_id, product_id=new_uuid(), quantity=Decimal("1"),
             unit_price=Decimal("100.00"), actor_user_id=cashier, operation_id=new_uuid())
+        _with_customer(conn, sale_id)
         BeginSaleCheckoutUseCase(_allow_all()).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
         RecordSalePaymentUseCase(_allow_all()).execute(
@@ -164,7 +187,7 @@ class TestCheckoutIssuesRaffleTickets:
 
         assert result.success is True
         assert result.data["raffle_issue_error"] is None
-        assert len(LoyaltyService(conn)._app.repo.get_tickets_for_venta(sale_id)) == 1
+        assert len(_tickets_for(conn, sale_id)) == 1
 
     def test_raffle_issuance_failure_never_blocks_checkout(self, conn, monkeypatch):
         branch_id = new_uuid()
@@ -254,7 +277,7 @@ class TestReprintPrintsRaffleTickets:
     def test_reprint_prints_issued_raffle_tickets_alongside_the_receipt(self, conn):
         branch_id = new_uuid()
         _mk_raffle(conn, branch_id=branch_id, ticket_strategy="per_sale", tickets_per_sale=1)
-        sale_id, cashier, _branch = _completed_sale(conn, price="100.00", branch_id=branch_id)
+        sale_id, cashier, _branch = _completed_sale(conn, price="100.00", branch_id=branch_id, customer=True)
         printer = _FakePrinterService()
 
         result = ReprintReceiptUseCase(_allow_all()).execute(
@@ -264,7 +287,7 @@ class TestReprintPrintsRaffleTickets:
         assert result.success is True
         assert result.data["raffle_tickets_printed"] == 1
         assert len(printer.raffle_tickets_printed) == 1
-        assert printer.raffle_tickets_printed[0]["venta_id"] == sale_id
+        assert printer.raffle_tickets_printed[0]["sale_reference"] == sale_id
 
     def test_no_tickets_issued_prints_nothing_extra(self, conn):
         sale_id, cashier, _branch = _completed_sale(conn)
@@ -281,7 +304,7 @@ class TestReprintPrintsRaffleTickets:
     def test_raffle_ticket_print_failure_never_blocks_the_receipt(self, conn):
         branch_id = new_uuid()
         _mk_raffle(conn, branch_id=branch_id, ticket_strategy="per_sale", tickets_per_sale=1)
-        sale_id, cashier, _branch = _completed_sale(conn, price="100.00", branch_id=branch_id)
+        sale_id, cashier, _branch = _completed_sale(conn, price="100.00", branch_id=branch_id, customer=True)
         printer = _RaisingPrinterService()
 
         result = ReprintReceiptUseCase(_allow_all()).execute(

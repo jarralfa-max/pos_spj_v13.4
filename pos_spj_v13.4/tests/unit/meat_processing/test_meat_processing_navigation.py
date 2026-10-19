@@ -7,7 +7,8 @@ from frontend.desktop.modules.meat_processing.navigation.meat_processing_sidebar
 
 
 EXPECTED_STANDARD_TITLES = (
-    "Resumen", "Plan de producción", "Órdenes", "Preparación", "En proceso",
+    "Resumen", "Plan de producción", "Órdenes", "Transformación directa",
+    "Preparación", "En proceso",
     "Pesajes y consumos", "Despiece", "Productos derivados",
     "Empaque y etiquetado", "Lotes producidos", "Rendimientos", "Calidad",
     "Reprocesos", "Incidencias", "Trazabilidad", "Alertas", "Análisis",

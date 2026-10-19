@@ -15,7 +15,7 @@ def test_meat_processing_view_uses_sidebar_and_stack_not_horizontal_tabs():
     source = (ROOT / "frontend/desktop/modules/meat_processing/meat_processing_view.py"
               ).read_text(encoding="utf-8")
     assert "MeatProcessingSidebarWidget" in source
-    assert "QStackedWidget" in source
+    assert "QStackedWidget" in source or "PageStack" in source  # PageStack = QStackedWidget común (frontend/desktop/components/page_stack.py)
     assert "QTabWidget" not in source
 
 
@@ -47,15 +47,6 @@ def test_meat_processing_module_does_not_use_emoji_icons():
         if any(ord(char) > 0x2600 for char in source):
             offenders.append(str(path.relative_to(ROOT)))
     assert not offenders
-
-
-def test_legacy_produccion_menu_entry_and_module_are_not_touched_yet():
-    """PROC-4 builds the new shell standalone; cutover is a later phase."""
-    menu_source = (ROOT / "interfaz/menu_lateral.py").read_text(encoding="utf-8")
-    assert '_crear_boton("🔪 Procesamiento Cárnico", "PRODUCCION")' in menu_source
-    main_window_source = (ROOT / "interfaz/main_window.py").read_text(encoding="utf-8")
-    assert "MeatProcessingView" not in main_window_source
-    assert "meat_processing" not in main_window_source.lower()
 
 
 def test_navigation_contract_has_no_pyqt_import():

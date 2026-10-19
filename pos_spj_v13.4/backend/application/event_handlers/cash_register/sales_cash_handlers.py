@@ -1,4 +1,10 @@
-"""Canonical Sales event consumers for CASH-9."""
+"""Canonical Sales event consumers for CASH-9.
+
+NO SE SUSCRIBEN (auditoría de Caja CJA-03, 2026-10-16): desde la auditoría de
+Ventas V06 (2026-10-15) el cobro, la devolución y el reverso del mostrador
+registran Caja DENTRO de su propia transacción (`SalesCashEffectsClient`).
+Suscribir estos manejadores al bus duplicaría el efectivo de cada venta.
+`tests/architecture/test_cash_register_sales_single_path.py` lo vigila."""
 from __future__ import annotations
 
 from decimal import Decimal

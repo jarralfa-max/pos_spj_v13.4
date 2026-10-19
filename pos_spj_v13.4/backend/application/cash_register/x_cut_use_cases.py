@@ -85,6 +85,16 @@ class GenerateXCutUseCase:
             shift = uow.shifts.get(shift_id)
             if not shift or shift["branch_id"] != branch_id or shift["status"] == "CLOSED":
                 raise CashInvalidStateError("El Corte X requiere un turno activo de la sucursal")
+            # Auditoría CJA-02: el Corte X muestra los importes del turno; el de
+            # otro cajero, sólo con importes sensibles.
+            from backend.application.cash_register.shift_ownership import (
+                ensure_owner_or_intervention,
+            )
+            ensure_owner_or_intervention(
+                self._auth, shift_cashier_user_id=shift["cashier_user_id"],
+                actor_user_id=actor_user_id, branch_id=branch_id,
+                intervention_permission=CashPermissions.VIEW_SENSITIVE_AMOUNTS, require_reason=False,
+                action="cortar")
             if uow.counts.find_open_for_shift(shift_id):
                 raise CashInvalidStateError(
                     "No se puede generar Corte X mientras hay un conteo ciego abierto"
@@ -118,7 +128,7 @@ class PrintXCutUseCase:
                 reprint: bool = False) -> XCutCommandResult:
         self._auth.require(
             user_id=actor_user_id,
-            permission_code=CashPermissions.REPRINT if reprint else CashPermissions.PRINT,
+            permission_code=CashPermissions.X_CUT_REPRINT if reprint else CashPermissions.X_CUT_PRINT,
             branch_id=branch_id)
         self._auth.require(user_id=actor_user_id,
                            permission_code=CashPermissions.X_CUT_VIEW,

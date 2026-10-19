@@ -50,10 +50,9 @@ class RequestInvoiceUseCase(_SalesBaseUseCase):
             return fail_from_domain_error(exc, operation_id=operation_id)
 
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
 
             resolved_tax_id, resolved_name, resolved_use = tax_identifier, legal_name, cfdi_use
             if not resolved_tax_id and sale.customer_id:
@@ -98,10 +97,9 @@ class MarkInvoiceIssuedUseCase(_SalesBaseUseCase):
             return fail_from_domain_error(exc, operation_id=operation_id)
 
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
             try:
                 sale.mark_invoice_issued(invoice_request_id, uuid_fiscal=uuid_fiscal)
             except SalesDomainError as exc:
@@ -127,10 +125,9 @@ class MarkInvoiceErrorUseCase(_SalesBaseUseCase):
             return fail_from_domain_error(exc, operation_id=operation_id)
 
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
             try:
                 sale.mark_invoice_error(invoice_request_id, error_message=error_message)
             except SalesDomainError as exc:

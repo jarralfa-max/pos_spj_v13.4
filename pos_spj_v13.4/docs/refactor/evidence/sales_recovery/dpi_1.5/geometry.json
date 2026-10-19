@@ -1,0 +1,594 @@
+[
+  {
+    "theme": "light",
+    "density": "comfortable",
+    "requested": [
+      1280,
+      720
+    ],
+    "actual": [
+      1280,
+      720
+    ],
+    "module": [
+      1040,
+      613
+    ],
+    "cart_viewport": 198,
+    "three_rows": 126,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 118,
+    "actions_min": 0,
+    "actions_hint": 118,
+    "checkout_height": 555,
+    "actions_y": 437,
+    "buttons_height": 42,
+    "buttons_y": 74,
+    "visible_bounds": [
+      1040,
+      613
+    ],
+    "footer_corner": [
+      1027,
+      606
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "light",
+    "density": "comfortable",
+    "requested": [
+      1366,
+      768
+    ],
+    "actual": [
+      1366,
+      768
+    ],
+    "module": [
+      1126,
+      661
+    ],
+    "cart_viewport": 246,
+    "three_rows": 126,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 118,
+    "actions_min": 0,
+    "actions_hint": 118,
+    "checkout_height": 603,
+    "actions_y": 485,
+    "buttons_height": 42,
+    "buttons_y": 74,
+    "visible_bounds": [
+      1126,
+      661
+    ],
+    "footer_corner": [
+      1113,
+      654
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "light",
+    "density": "comfortable",
+    "requested": [
+      1600,
+      900
+    ],
+    "actual": [
+      1600,
+      900
+    ],
+    "module": [
+      1360,
+      793
+    ],
+    "cart_viewport": 378,
+    "three_rows": 126,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 118,
+    "actions_min": 0,
+    "actions_hint": 118,
+    "checkout_height": 735,
+    "actions_y": 617,
+    "buttons_height": 42,
+    "buttons_y": 74,
+    "visible_bounds": [
+      1360,
+      793
+    ],
+    "footer_corner": [
+      1347,
+      786
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "light",
+    "density": "comfortable",
+    "requested": [
+      1920,
+      1080
+    ],
+    "actual": [
+      1920,
+      1080
+    ],
+    "module": [
+      1680,
+      973
+    ],
+    "cart_viewport": 558,
+    "three_rows": 126,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 118,
+    "actions_min": 0,
+    "actions_hint": 118,
+    "checkout_height": 915,
+    "actions_y": 797,
+    "buttons_height": 42,
+    "buttons_y": 74,
+    "visible_bounds": [
+      1680,
+      973
+    ],
+    "footer_corner": [
+      1667,
+      966
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "light",
+    "density": "touch",
+    "requested": [
+      1280,
+      720
+    ],
+    "actual": [
+      1280,
+      720
+    ],
+    "module": [
+      1040,
+      613
+    ],
+    "cart_viewport": 164,
+    "three_rows": 156,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 112,
+    "actions_min": 112,
+    "actions_hint": 112,
+    "checkout_height": 545,
+    "actions_y": 433,
+    "buttons_height": 52,
+    "buttons_y": 58,
+    "visible_bounds": [
+      1040,
+      613
+    ],
+    "footer_corner": [
+      1027,
+      606
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "light",
+    "density": "touch",
+    "requested": [
+      1366,
+      768
+    ],
+    "actual": [
+      1366,
+      768
+    ],
+    "module": [
+      1126,
+      661
+    ],
+    "cart_viewport": 212,
+    "three_rows": 156,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 112,
+    "actions_min": 112,
+    "actions_hint": 112,
+    "checkout_height": 593,
+    "actions_y": 481,
+    "buttons_height": 52,
+    "buttons_y": 58,
+    "visible_bounds": [
+      1126,
+      661
+    ],
+    "footer_corner": [
+      1113,
+      654
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "light",
+    "density": "touch",
+    "requested": [
+      1600,
+      900
+    ],
+    "actual": [
+      1600,
+      900
+    ],
+    "module": [
+      1360,
+      793
+    ],
+    "cart_viewport": 344,
+    "three_rows": 156,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 112,
+    "actions_min": 112,
+    "actions_hint": 112,
+    "checkout_height": 725,
+    "actions_y": 613,
+    "buttons_height": 52,
+    "buttons_y": 58,
+    "visible_bounds": [
+      1360,
+      793
+    ],
+    "footer_corner": [
+      1347,
+      786
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "light",
+    "density": "touch",
+    "requested": [
+      1920,
+      1080
+    ],
+    "actual": [
+      1920,
+      1080
+    ],
+    "module": [
+      1680,
+      973
+    ],
+    "cart_viewport": 524,
+    "three_rows": 156,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 112,
+    "actions_min": 112,
+    "actions_hint": 112,
+    "checkout_height": 905,
+    "actions_y": 793,
+    "buttons_height": 52,
+    "buttons_y": 58,
+    "visible_bounds": [
+      1680,
+      973
+    ],
+    "footer_corner": [
+      1667,
+      966
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "dark",
+    "density": "comfortable",
+    "requested": [
+      1280,
+      720
+    ],
+    "actual": [
+      1280,
+      720
+    ],
+    "module": [
+      1040,
+      613
+    ],
+    "cart_viewport": 224,
+    "three_rows": 126,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 92,
+    "actions_min": 92,
+    "actions_hint": 92,
+    "checkout_height": 555,
+    "actions_y": 463,
+    "buttons_height": 42,
+    "buttons_y": 48,
+    "visible_bounds": [
+      1040,
+      613
+    ],
+    "footer_corner": [
+      1027,
+      606
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "dark",
+    "density": "comfortable",
+    "requested": [
+      1366,
+      768
+    ],
+    "actual": [
+      1366,
+      768
+    ],
+    "module": [
+      1126,
+      661
+    ],
+    "cart_viewport": 272,
+    "three_rows": 126,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 92,
+    "actions_min": 92,
+    "actions_hint": 92,
+    "checkout_height": 603,
+    "actions_y": 511,
+    "buttons_height": 42,
+    "buttons_y": 48,
+    "visible_bounds": [
+      1126,
+      661
+    ],
+    "footer_corner": [
+      1113,
+      654
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "dark",
+    "density": "comfortable",
+    "requested": [
+      1600,
+      900
+    ],
+    "actual": [
+      1600,
+      900
+    ],
+    "module": [
+      1360,
+      793
+    ],
+    "cart_viewport": 404,
+    "three_rows": 126,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 92,
+    "actions_min": 92,
+    "actions_hint": 92,
+    "checkout_height": 735,
+    "actions_y": 643,
+    "buttons_height": 42,
+    "buttons_y": 48,
+    "visible_bounds": [
+      1360,
+      793
+    ],
+    "footer_corner": [
+      1347,
+      786
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "dark",
+    "density": "comfortable",
+    "requested": [
+      1920,
+      1080
+    ],
+    "actual": [
+      1920,
+      1080
+    ],
+    "module": [
+      1680,
+      973
+    ],
+    "cart_viewport": 584,
+    "three_rows": 126,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 92,
+    "actions_min": 92,
+    "actions_hint": 92,
+    "checkout_height": 915,
+    "actions_y": 823,
+    "buttons_height": 42,
+    "buttons_y": 48,
+    "visible_bounds": [
+      1680,
+      973
+    ],
+    "footer_corner": [
+      1667,
+      966
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "dark",
+    "density": "touch",
+    "requested": [
+      1280,
+      720
+    ],
+    "actual": [
+      1280,
+      720
+    ],
+    "module": [
+      1040,
+      613
+    ],
+    "cart_viewport": 164,
+    "three_rows": 156,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 112,
+    "actions_min": 112,
+    "actions_hint": 112,
+    "checkout_height": 545,
+    "actions_y": 433,
+    "buttons_height": 52,
+    "buttons_y": 58,
+    "visible_bounds": [
+      1040,
+      613
+    ],
+    "footer_corner": [
+      1027,
+      606
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "dark",
+    "density": "touch",
+    "requested": [
+      1366,
+      768
+    ],
+    "actual": [
+      1366,
+      768
+    ],
+    "module": [
+      1126,
+      661
+    ],
+    "cart_viewport": 212,
+    "three_rows": 156,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 112,
+    "actions_min": 112,
+    "actions_hint": 112,
+    "checkout_height": 593,
+    "actions_y": 481,
+    "buttons_height": 52,
+    "buttons_y": 58,
+    "visible_bounds": [
+      1126,
+      661
+    ],
+    "footer_corner": [
+      1113,
+      654
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "dark",
+    "density": "touch",
+    "requested": [
+      1600,
+      900
+    ],
+    "actual": [
+      1600,
+      900
+    ],
+    "module": [
+      1360,
+      793
+    ],
+    "cart_viewport": 344,
+    "three_rows": 156,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 112,
+    "actions_min": 112,
+    "actions_hint": 112,
+    "checkout_height": 725,
+    "actions_y": 613,
+    "buttons_height": 52,
+    "buttons_y": 58,
+    "visible_bounds": [
+      1360,
+      793
+    ],
+    "footer_corner": [
+      1347,
+      786
+    ],
+    "module_scroll": 0
+  },
+  {
+    "theme": "dark",
+    "density": "touch",
+    "requested": [
+      1920,
+      1080
+    ],
+    "actual": [
+      1920,
+      1080
+    ],
+    "module": [
+      1680,
+      973
+    ],
+    "cart_viewport": 524,
+    "three_rows": 156,
+    "outer_scroll": 0,
+    "outer_horizontal": 0,
+    "buttons_fully_visible": true,
+    "actions_height": 112,
+    "actions_min": 112,
+    "actions_hint": 112,
+    "checkout_height": 905,
+    "actions_y": 793,
+    "buttons_height": 52,
+    "buttons_y": 58,
+    "visible_bounds": [
+      1680,
+      973
+    ],
+    "footer_corner": [
+      1667,
+      966
+    ],
+    "module_scroll": 0
+  }
+]

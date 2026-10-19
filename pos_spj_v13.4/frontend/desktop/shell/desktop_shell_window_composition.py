@@ -97,6 +97,10 @@ from frontend.desktop.modules.products.shell_registration import (
     PRODUCTS_MODULE_ID, ProductsModuleActivator,
     build_products_module_descriptor, build_products_route_definition,
 )
+from frontend.desktop.modules.logistics.shell_registration import (
+    LOGISTICS_MODULE_ID, LogisticsModuleActivator,
+    build_logistics_module_descriptor, build_logistics_route_definition,
+)
 from frontend.desktop.modules.purchasing.shell_registration import (
     PURCHASING_MODULE_ID, PurchasingModuleActivator,
     build_purchasing_module_descriptor, build_purchasing_route_definition,
@@ -169,6 +173,7 @@ _MIGRATED_MODULE_WIRINGS = (
     (FIDELIDAD_MODULE_ID, build_fidelidad_module_descriptor, build_fidelidad_route_definition, _standard_activator_factory(FidelidadModuleActivator)),
     (ASSETS_MODULE_ID, build_assets_module_descriptor, build_assets_route_definition, _standard_activator_factory(AssetsModuleActivator)),
     (PRICING_MODULE_ID, build_pricing_module_descriptor, build_pricing_route_definition, _standard_activator_factory(PricingModuleActivator)),
+    (LOGISTICS_MODULE_ID, build_logistics_module_descriptor, build_logistics_route_definition, _standard_activator_factory(LogisticsModuleActivator)),
 )
 
 
@@ -181,6 +186,9 @@ PRODUCTS_WHATSAPP_OUTBOX_INTERVAL_MS = 60 * 1000
 #: Cada cuánto se revisa si una actualización programada ya puede instalarse
 #: (dentro de la ventana de mantenimiento y sin operaciones en curso).
 SCHEDULED_UPDATE_INTERVAL_MS = 60 * 1000
+#: Auditoría de Caja CJA-04 (2026-10-16): reintento de lo que Caja no pudo
+#: entregar a Finanzas (Corte Z, entrega de valores).
+CASH_OUTBOX_INTERVAL_MS = 2 * 60 * 1000
 
 
 def _build_background_services(*, context: ApplicationContext, connection):
@@ -220,6 +228,11 @@ def _build_background_services(*, context: ApplicationContext, connection):
         lambda: drain_product_whatsapp_outbox(connection),
         interval_ms=PRODUCTS_WHATSAPP_OUTBOX_INTERVAL_MS, name="cola WhatsApp de Productos"))
     registry.register(BackgroundServiceDescriptor(
+        "cash_register.outbox", "Entrega de Caja a Finanzas", module_id="cash_register"))
+    supervisor.bind("cash_register.outbox", PeriodicTaskService(
+        _cash_outbox_tick(connection), interval_ms=CASH_OUTBOX_INTERVAL_MS,
+        name="cola de Caja a Finanzas"))
+    registry.register(BackgroundServiceDescriptor(
         "software_updates.maintenance_window", "Actualización en la ventana de mantenimiento"))
     supervisor.bind("software_updates.maintenance_window", PeriodicTaskService(
         _scheduled_update_tick(connection), interval_ms=SCHEDULED_UPDATE_INTERVAL_MS,
@@ -228,6 +241,15 @@ def _build_background_services(*, context: ApplicationContext, connection):
     supervisor.bind("notifications.inbox", PeriodicTaskService(
         feed.refresh, interval_ms=INBOX_REFRESH_INTERVAL_MS, name="bandeja de avisos"))
     return supervisor, feed
+
+
+def _cash_outbox_tick(connection):
+    """Reintenta la cola de Caja hacia Finanzas (idempotente por evento)."""
+    def tick():
+        from backend.application.cash_register.finance_wiring import dispatch_cash_outbox
+        from backend.shared.events.application_bus import get_bus
+        return dispatch_cash_outbox(connection, get_bus())
+    return tick
 
 
 def _scheduled_update_tick(connection):

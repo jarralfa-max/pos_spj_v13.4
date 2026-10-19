@@ -225,6 +225,10 @@ def scan_conn():
     create_pricing_schema(c)
     create_inventory_schema(c)
     create_customers_crm_schema(c)
+    # La tarjeta se busca primero en Fidelidad (tabla de la instalación real);
+    # sin su esquema la prueba reventaba antes de llegar al respaldo en Clientes.
+    from backend.infrastructure.db.schema.loyalty_cards_schema import create_loyalty_cards_schema
+    create_loyalty_cards_schema(c)
     c.execute("""
         CREATE TABLE clientes (
             id TEXT PRIMARY KEY, nombre TEXT NOT NULL, telefono TEXT, email TEXT,

@@ -56,13 +56,13 @@ from .architecture_guardrails import APP_ROOT
 #: quedar enterrado en un docstring.
 ROUTE_COVERAGE: dict[str, tuple[int, int]] = {
     "transfers": (15, 15),
-    "configuracion": (11, 11),
+    "configuracion": (12, 12),
     "business_intelligence": (16, 17),
     "pricing": (6, 6),
     "losses": (5, 16),
     "orders_delivery": (23, 23),
     "products": (2, 21),
-    "meat_processing": (16, 29),
+    "meat_processing": (18, 30),
 }
 
 #: Dónde vive el `page_builder` VIVO de los módulos que no lo resuelven en su

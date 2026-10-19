@@ -14,7 +14,7 @@ turno de caja, `DeviceHealthQueryService`); la barra no prueba hardware (§51).
 from __future__ import annotations
 
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel
+from PyQt5.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy
 
 from frontend.desktop.components import (
     IconProvider,
@@ -56,6 +56,8 @@ class CashierBar(QFrame):
         self._branch.setObjectName("posBranchName")
         self._branch.setProperty("role", "muted")
         layout.addWidget(self._branch)
+        for label in (title, self._cashier, self._branch):
+            label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
 
         self._shift_badge = StatusBadge("Caja: —", self, status="neutral")
         layout.addWidget(self._shift_badge)
@@ -71,6 +73,8 @@ class CashierBar(QFrame):
             badge = StatusBadge(f"{label}: —", self, status="neutral")
             layout.addWidget(badge)
             self._device_badges[kind] = badge
+            if kind != "scale":
+                badge.hide()
 
         self._btn_diagnostics = create_secondary_button(
             self, "", tooltip="Diagnóstico: volver a leer el estado de los dispositivos")

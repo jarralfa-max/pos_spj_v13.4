@@ -50,8 +50,14 @@ class CashSessionBranchScopeChecker:
             return False
         if check(CashPermissions.VIEW_ALL_BRANCHES):
             return True
-        return requested == active and (
-            check(CashPermissions.VIEW_OWN_BRANCH)
-            or check(CashPermissions.VIEW_ASSIGNED_BRANCHES)
-            or check(CashPermissions.ACCESS)
-        )
+        if requested == active:
+            return bool(check(CashPermissions.VIEW_OWN_BRANCH)
+                        or check(CashPermissions.VIEW_ASSIGNED_BRANCHES)
+                        or check(CashPermissions.ACCESS))
+        # Auditoría CJA-08 (2026-10-16): «sucursales asignadas» abarca las que el
+        # usuario tiene asignadas (`usuarios_sucursales`, cargadas en la sesión),
+        # no sólo la activa. Antes el permiso prometía más de lo que concedía.
+        assigned = {str(b).strip() for b in
+                    (getattr(session, "assigned_branch_ids", None)
+                     or getattr(session, "sucursales_asignadas", None) or ())}
+        return requested in assigned and bool(check(CashPermissions.VIEW_ASSIGNED_BRANCHES))

@@ -27,6 +27,8 @@ class CheckoutPanel(QWidget):
     line_selected = pyqtSignal(str)
     line_quantity_requested = pyqtSignal(str)
     line_remove_requested = pyqtSignal(str)
+    line_discount_remove_requested = pyqtSignal(str)
+    sale_discount_remove_requested = pyqtSignal()
     customer_selected = pyqtSignal(str)
     customer_clear_requested = pyqtSignal()
     checkout_requested = pyqtSignal()
@@ -55,7 +57,10 @@ class CheckoutPanel(QWidget):
         root.setSpacing(0)
 
         self.cart = CartTable(
-            self, can_edit=capabilities.line_update or capabilities.line_remove)
+            self, can_edit=capabilities.line_update or capabilities.line_remove,
+            can_discount=capabilities.discount_apply)
+        self.cart.discount_remove_requested.connect(self.line_discount_remove_requested)
+        self.cart.sale_discount_remove_requested.connect(self.sale_discount_remove_requested)
         self.cart.line_selected.connect(self.line_selected)
         self.cart.quantity_requested.connect(self.line_quantity_requested)
         self.cart.remove_requested.connect(self.line_remove_requested)
@@ -90,7 +95,7 @@ class CheckoutPanel(QWidget):
             self.customer.set_customer(None)
             self.totals.set_points_to_earn(None)
             return
-        self.cart.set_lines(sale.lines)
+        self.cart.set_lines(sale.lines, sale_discount=getattr(sale, "sale_level_discount", 0))
         self.totals.set_totals(sale)
         self.totals.set_points_to_earn(self._presenter.points_to_earn(sale))
         self.actions.set_total(f"${sale.total:,.2f}")

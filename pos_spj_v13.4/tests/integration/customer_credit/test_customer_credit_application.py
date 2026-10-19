@@ -363,3 +363,50 @@ class TestCheckCreditSaleEligibility:
             cc_conn, actor_user_id="u1", customer_id="cust-nonexistent", amount="500",
             operation_id=new_uuid())
         assert not result.success and result.error_code == "NOT_ELIGIBLE"
+
+
+class TestPublicCustomerHasNoCredit:
+    """2026-10-16, medido en la base real: un cliente «Público en general» tenía
+    $300 de crédito AUTORIZADO que el POS rechazaba siempre. Ya no se solicita
+    ni se aprueba crédito para ese tipo, y el POS explica el motivo."""
+
+    def _public(self, conn):
+        from backend.application.customers.authorization import CustomerAuthorizationPolicy
+        from backend.application.customers.permissions import ALL_CUSTOMER_PERMISSIONS
+        from backend.application.customers.use_cases.lifecycle_use_cases import (
+            CreateCustomerUseCase,
+        )
+
+        class _All:
+            def has_permission(self, _u, code):
+                return code in ALL_CUSTOMER_PERMISSIONS
+
+        return CreateCustomerUseCase(CustomerAuthorizationPolicy(_All())).execute(
+            conn, actor_user_id="u1", display_name="Mostrador", operation_id=new_uuid(),
+            customer_type="PUBLIC_CUSTOMER").entity_id
+
+    def test_credit_cannot_be_requested_for_the_general_public(self, cc_conn):
+        result = _request(cc_conn, customer_id=self._public(cc_conn))
+        assert not result.success
+        assert "Público en general" in result.message
+
+    def test_an_existing_request_cannot_be_approved(self, cc_conn):
+        customer_id = self._public(cc_conn)
+        cc_conn.execute("UPDATE customers SET customer_type='INDIVIDUAL' WHERE id=?",
+                        (customer_id,))
+        assert _request(cc_conn, customer_id=customer_id).success
+        cc_conn.execute("UPDATE customers SET customer_type='PUBLIC_CUSTOMER' WHERE id=?",
+                        (customer_id,))
+        ReviewCustomerCreditUseCase(_allow()).execute(
+            cc_conn, actor_user_id="u-analista", customer_id=customer_id, operation_id=new_uuid())
+        result = ApproveCustomerCreditUseCase(_allow()).execute(
+            cc_conn, actor_user_id="u-gerente", customer_id=customer_id,
+            operation_id=new_uuid(), credit_limit="300")
+        assert not result.success and "Público en general" in result.message
+
+    def test_the_pos_message_says_why(self, cc_conn):
+        customer_id = self._public(cc_conn)
+        result = CheckCreditSaleEligibilityUseCase(_allow()).execute(
+            cc_conn, actor_user_id="u1", customer_id=customer_id, amount="10",
+            operation_id=new_uuid())
+        assert any("«Público en general»" in v for v in result.data["violations"])

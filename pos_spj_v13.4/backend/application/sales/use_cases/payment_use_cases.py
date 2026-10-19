@@ -7,12 +7,10 @@ moment a second call records a different method than the first (see
 `Sale.is_mixed_payment`), so this use case additionally requires
 `SalesPermissions.PAYMENT_MIXED` on any call that would make that true.
 
-`CompleteSaleUseCase` is the completion use case SALES-6's own docstring
-explicitly deferred ("depends on real payment confirmation... doesn't exist
-yet") — now buildable because `Sale.complete()` (POS-13) enforces
-`SalePaymentPolicy.ensure_fully_paid` itself; this use case just persists
-and emits the two reserved-but-previously-unused events
-(`SaleEvents.PAYMENT_CONFIRMED`/`COMPLETED`).
+`CompleteSaleUseCase` (completar sólo con el total, sin inventario, Caja ni
+folio) se ELIMINÓ el 2026-10-15 (auditoría de Ventas V07): la única ruta para
+completar una venta es `CheckoutSaleUseCase`, y
+`tests/architecture/test_sales_single_completion_path.py` lo vigila.
 
 Mercado Pago is intentionally NOT a hardware/webhook integration here.
 Research for this phase confirmed a real, working MP integration already
@@ -70,10 +68,9 @@ class RecordSalePaymentUseCase(_SalesBaseUseCase):
             return fail_from_domain_error(exc, operation_id=operation_id)
 
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
 
             already_mixed_after = bool(sale.payments) and any(
                 p.method != payment_method for p in sale.payments)
@@ -130,31 +127,4 @@ class RecordSalePaymentUseCase(_SalesBaseUseCase):
                        actor_user_id=actor_user_id, method=payment_method.value,
                        amount=str(payment.amount), payment_id=payment.id)
         return SaleResult.ok("Pago registrado", entity_id=sale.id, operation_id=operation_id,
-                             sale=SaleDTO.from_entity(sale))
-
-
-class CompleteSaleUseCase(_SalesBaseUseCase):
-    def execute(self, connection, *, sale_id: str, actor_user_id: str,
-                operation_id: str) -> SaleResult:
-        try:
-            self._auth.require(actor_user_id, SalesPermissions.SALE_COMPLETE)
-        except SalesDomainError as exc:
-            return fail_from_domain_error(exc, operation_id=operation_id)
-        with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
-            try:
-                sale.complete()
-            except SalesDomainError as exc:
-                return fail_from_domain_error(exc, operation_id=operation_id)
-            uow.sales.save(sale)
-            self._emit(uow, SaleEvents.PAYMENT_CONFIRMED, entity_id=sale.id,
-                       operation_id=operation_id, branch_id=sale.branch_id,
-                       actor_user_id=actor_user_id)
-            self._emit(uow, SaleEvents.COMPLETED, entity_id=sale.id, operation_id=operation_id,
-                       branch_id=sale.branch_id, actor_user_id=actor_user_id,
-                       total=str(sale.totals.total))
-        return SaleResult.ok("Venta completada", entity_id=sale.id, operation_id=operation_id,
                              sale=SaleDTO.from_entity(sale))

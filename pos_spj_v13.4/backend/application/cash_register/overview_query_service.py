@@ -52,25 +52,33 @@ class CashOverviewQueryService:
             permission_code=CashPermissions.ACCESS,
             branch_id=branch_id,
         )
-        active = self._active_shifts(branch_id)
+        # Auditoría CJA-01: fondo inicial, diferencias, montos de entrega y el
+        # efectivo esperado son importes sensibles (antes los veía cualquiera con
+        # acceso a Caja); y nunca mientras haya un arqueo ciego abierto.
+        from backend.application.cash_register.amount_visibility import CashAmountVisibility
+        amounts = CashAmountVisibility(self._connection, self._authorization)             .branch_amounts_visible(requester_user_id=requester_user_id, branch_id=branch_id)
+        active = self._active_shifts(branch_id, amounts)
         closures = self._pending_closures(branch_id)
-        differences = self._pending_differences(branch_id)
-        handovers = self._pending_handovers(branch_id)
+        differences = self._pending_differences(branch_id, amounts)
+        handovers = self._pending_handovers(branch_id, amounts)
         terminals = self._terminal_alerts(branch_id)
-        expected_hidden = branch_has_open_blind_count(self._connection, branch_id)
+        expected_hidden = not amounts
         expected = None if expected_hidden else self._expected_cash(branch_id)
         kpis = (
             CashOverviewKpi("active_shifts", "Turnos activos", str(len(active)), len(active)),
             CashOverviewKpi(
                 "expected_cash",
                 "Efectivo esperado",
-                "Oculto por arqueo" if expected_hidden else f"${expected:.2f}",
+                (("Oculto por arqueo" if branch_has_open_blind_count(self._connection, branch_id)
+                  else "Oculto") if expected_hidden else f"${expected:.2f}"),
                 expected,
             ),
             CashOverviewKpi("safe_drops", "Retiros pendientes", str(len(handovers)), len(handovers)),
             CashOverviewKpi("differences", "Diferencias pendientes", str(len(differences)), len(differences)),
             CashOverviewKpi("closures", "Cierres pendientes", str(len(closures)), len(closures)),
             CashOverviewKpi("terminals", "Terminales con alerta", str(len(terminals)), len(terminals)),
+            self._finance_backlog_kpi(branch_id),
+            self._unsettled_sales_kpi(branch_id),
         )
         return CashOverviewDTO(
             kpis=kpis,
@@ -89,6 +97,51 @@ class CashOverviewQueryService:
             ),
         )
 
+    def _finance_backlog_kpi(self, branch_id: str) -> CashOverviewKpi:
+        """Auditoría CJA-04: lo que Caja todavía no entrega a Finanzas (Corte Z,
+        entregas de valores) — pendiente o agotados sus reintentos — y desde
+        cuándo. Antes nadie lo veía."""
+        try:
+            row = self._connection.execute(
+                """SELECT SUM(CASE WHEN status IN ('PENDING','FAILED','PROCESSING') THEN 1 ELSE 0 END),
+                          SUM(CASE WHEN status='DEAD_LETTER' THEN 1 ELSE 0 END),
+                          MIN(CASE WHEN status<>'DISPATCHED' THEN created_at END)
+                   FROM cash_outbox
+                   WHERE status<>'DISPATCHED' AND json_extract(payload_json,'$.branch_id')=?""",
+                (branch_id,)).fetchone()
+        except Exception:  # noqa: BLE001 - base sin outbox de Caja
+            row = (0, 0, None)
+        pending, dead, oldest = int(row[0] or 0), int(row[1] or 0), row[2]
+        total = pending + dead
+        if not total:
+            text = "Al día"
+        else:
+            text = f"{total} pendiente(s)"
+            if dead:
+                text += f", {dead} sin reintentos"
+            if oldest:
+                text += f" · desde {str(oldest)[:16].replace('T', ' ')}"
+        return CashOverviewKpi("finance_backlog", "Envíos a Finanzas", text, total)
+
+    def _unsettled_sales_kpi(self, branch_id: str) -> CashOverviewKpi:
+        """Auditoría CJA-03: conciliación Ventas ↔ Caja. Desde 2026-10-15 el cobro
+        del mostrador registra Caja en su misma transacción, así que debe ser 0;
+        si no lo es (ventas de antes, o Pedidos que liquida el repartidor), aquí
+        se ve en vez de perderse."""
+        try:
+            row = self._connection.execute(
+                """SELECT COUNT(*) FROM sales s
+                   WHERE s.branch_id=? AND s.channel='POS'
+                     AND s.status IN ('COMPLETED','RETURNED_PARTIALLY','RETURNED_FULLY')
+                     AND EXISTS (SELECT 1 FROM sale_payments p WHERE p.sale_id=s.id)
+                     AND NOT EXISTS (SELECT 1 FROM payment_records r WHERE r.sale_id=s.id)""",
+                (branch_id,)).fetchone()
+        except Exception:  # noqa: BLE001 - base sin Ventas canónicas o sin liquidaciones
+            row = (0,)
+        count = int(row[0] or 0)
+        return CashOverviewKpi("unsettled_sales", "Ventas sin registro en Caja",
+                               "Ninguna" if not count else f"{count} venta(s)", count)
+
     def _fetch_rows(self, sql: str, params: tuple) -> tuple[CashOverviewRow, ...]:
         cursor = self._connection.execute(sql, params)
         return tuple(
@@ -102,9 +155,10 @@ class CashOverviewQueryService:
             for row in cursor.fetchall()
         )
 
-    def _active_shifts(self, branch_id: str) -> tuple[CashOverviewRow, ...]:
+    def _active_shifts(self, branch_id: str, amounts: bool = True) -> tuple[CashOverviewRow, ...]:
+        detail = "'Fondo inicial $'||s.opening_amount" if amounts else "'Turno activo'"
         return self._fetch_rows(
-            """SELECT s.id,r.name,s.status,'Fondo inicial $'||s.opening_amount,s.opened_at
+            f"""SELECT s.id,r.name,s.status,{detail},s.opened_at
             FROM cash_shifts s JOIN cash_registers r ON r.id=s.register_id
             WHERE s.branch_id=? AND s.status IN ('OPEN','SUSPENDED','CLOSING')
             ORDER BY s.opened_at DESC LIMIT 10""",
@@ -120,12 +174,13 @@ class CashOverviewQueryService:
             (branch_id,),
         )
 
-    def _pending_differences(self, branch_id: str) -> tuple[CashOverviewRow, ...]:
+    def _pending_differences(self, branch_id: str, amounts: bool = True) -> tuple[CashOverviewRow, ...]:
+        importe = "'Importe $'||amount||' - '||" if amounts else ""
         return self._fetch_rows(
-            """SELECT id,
+            f"""SELECT id,
                       CASE classification WHEN 'SHORTAGE' THEN 'Faltante' WHEN 'OVERAGE' THEN 'Sobrante' ELSE classification END,
                       status,
-                      'Importe $'||amount||' - '||
+                      {importe}
                       CASE severity WHEN 'CRITICAL' THEN 'critica' WHEN 'REVIEW' THEN 'requiere revision' ELSE 'dentro de tolerancia' END,
                       ''
             FROM cash_differences
@@ -135,9 +190,10 @@ class CashOverviewQueryService:
             (branch_id,),
         )
 
-    def _pending_handovers(self, branch_id: str) -> tuple[CashOverviewRow, ...]:
+    def _pending_handovers(self, branch_id: str, amounts: bool = True) -> tuple[CashOverviewRow, ...]:
+        detail = "'Monto preparado $'||amount" if amounts else "'Pendiente de entrega'"
         return self._fetch_rows(
-            """SELECT id,'Entrega de valores',status,'Monto preparado $'||amount,prepared_at
+            f"""SELECT id,'Entrega de valores',status,{detail},prepared_at
             FROM cash_handovers
             WHERE branch_id=? AND status IN ('PREPARED','DELIVERED','DISPUTED')
             ORDER BY prepared_at DESC LIMIT 10""",

@@ -111,6 +111,13 @@ class MeatProcessingPermissions:
     # ── mermas (§27) — Procesamiento solo solicita; Mermas clasifica ─────────
     REQUEST_LOSS_CASE = "PRODUCCION.merma.solicitar"
 
+    # ── transformación directa (auditoría 32cfbf, 2026-10-16) ─────────────────
+    # Despiece de un lote ya recibido en UNA acción. Quien lo tiene no necesita
+    # los permisos de cada etapa interna de la orden (ver
+    # `DirectTransformationStageAuthorization`); la desviación de rendimiento
+    # la sigue autorizando OTRO usuario con `YIELD_OVERRIDE`.
+    DIRECT_TRANSFORMATION_EXECUTE = "PRODUCCION.transformacion_directa.ejecutar"
+
     # ── reprocesos ──────────────────────────────────────────────────────────
     REWORK_VIEW = "PRODUCCION.reproceso.ver"
     REWORK_CREATE = "PRODUCCION.reproceso.crear"

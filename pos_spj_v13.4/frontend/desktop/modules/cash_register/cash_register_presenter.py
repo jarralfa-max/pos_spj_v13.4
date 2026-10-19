@@ -11,7 +11,6 @@ from collections.abc import Callable
 from decimal import Decimal
 
 from frontend.desktop.modules.cash_register.capability_resolver import resolve_cash_capabilities
-from frontend.desktop.modules.cash_register.presentation import display_code
 from frontend.desktop.modules.cash_register.view_models import CashCapabilities
 
 
@@ -266,15 +265,45 @@ class CashRegisterPresenter:
             authorized_by=authorized_by,
         )
 
-    def open_cash_shift(self, *, opening_amount: Decimal):
+    def shift_labels(self, shift_ids) -> dict[str, str]:
+        """«Caja · cajero · apertura» por turno (auditoría CJA-05)."""
+        provider = self._query_services.get("shift_labels")
+        try:
+            return dict(provider(shift_ids)) if callable(provider) else {}
+        except Exception:  # noqa: BLE001 - sin etiqueta, se muestra «Turno»
+            return {}
+
+    def shift_label(self, shift_id: str | None) -> str:
+        if not shift_id:
+            return "Sin turno"
+        return self.shift_labels([shift_id]).get(str(shift_id), "Turno")
+
+    def available_registers(self) -> list[dict]:
+        """Cajas de la sucursal para abrir turno, con su cajón, terminal y si
+        están ocupadas (auditoría CJA-07)."""
+        provider = self._query_services.get("available_registers")
+        return list(provider()) if callable(provider) else []
+
+    def open_cash_shift(self, *, opening_amount: Decimal, register_id: str | None = None):
         handler = self._command_handlers.get("open_cash_shift")
         if handler is None:
             raise CashContextError("Comando de turno no disponible: apertura")
+        if register_id:
+            option = next((o for o in self.available_registers()
+                           if o["register_id"] == register_id), None)
+            if option is None or option["busy"]:
+                raise CashContextError("La caja elegida ya no está disponible")
+            chooser = self._query_services.get("choose_register")
+            if callable(chooser):
+                chooser(register_id)
+            ids = (option["register_id"], option["drawer_id"], option["terminal_id"])
+        else:
+            ids = (self.active_register_id(), self.active_drawer_id(), self.active_terminal_id())
         return handler(
             branch_id=self.active_branch_id(),
-            register_id=self.active_register_id(),
-            drawer_id=self.active_drawer_id(),
-            terminal_id=self.active_terminal_id(),
+            register_id=ids[0],
+            drawer_id=ids[1],
+            terminal_id=ids[2],
             cashier_user_id=self.actor_user_id(),
             actor_user_id=self.actor_user_id(),
             opening_amount=opening_amount,
@@ -677,7 +706,7 @@ class CashRegisterPresenter:
             except Exception:
                 alerts = 0
         return {
-            "shift": (display_code("TUR", self.optional_active_shift_id())
+            "shift": (self.shift_label(self.optional_active_shift_id())
                       if self.optional_active_shift_id() else "Sin turno activo"),
             "sync": sync_state,
             "alerts": alerts,

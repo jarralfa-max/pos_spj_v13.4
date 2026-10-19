@@ -50,6 +50,18 @@ class _BaseUseCase:
         uow.outbox.enqueue(payload["event_id"], event_name, json.dumps(payload), operation_id)
 
 
+def _public_customer_problem(connection, customer_id: str) -> str | None:
+    """§39: al «Público en general» no se le vende a crédito, así que tampoco se
+    le solicita ni aprueba (2026-10-16: en la base real había uno con $300
+    autorizados que el POS rechazaba siempre)."""
+    from backend.infrastructure.db.repositories.customers.unit_of_work import CustomerUnitOfWork
+    customer = CustomerUnitOfWork(connection).customers.get(customer_id)
+    if customer is not None and customer.customer_type.value == "PUBLIC_CUSTOMER":
+        return ("El cliente está registrado como «Público en general»: a ese tipo no se le "
+                "da crédito. Cambia su tipo (persona física o empresa) antes de solicitarlo.")
+    return None
+
+
 class RequestCustomerCreditUseCase(_BaseUseCase):
     def execute(
         self, connection, *, actor_user_id: str, customer_id: str, operation_id: str,
@@ -69,6 +81,10 @@ class RequestCustomerCreditUseCase(_BaseUseCase):
                 return CustomerCreditResult.fail(
                     "El cliente ya tiene un perfil de crédito", "VALIDATION",
                     operation_id=operation_id)
+            problema = _public_customer_problem(connection, customer_id)
+            if problema:
+                return CustomerCreditResult.fail(problema, "VALIDATION",
+                                                 operation_id=operation_id)
             try:
                 profile = CustomerCreditProfile.request(
                     customer_id, actor_user_id, requested_limit=requested_limit,
@@ -206,6 +222,10 @@ class ApproveCustomerCreditUseCase(_BaseUseCase):
                 return CustomerCreditResult.fail(
                     "El cliente no tiene un perfil de crédito", "NOT_FOUND",
                     operation_id=operation_id)
+            problema = _public_customer_problem(connection, customer_id)
+            if problema:
+                return CustomerCreditResult.fail(problema, "VALIDATION",
+                                                 operation_id=operation_id)
             try:
                 self._sod.enforce_credit_requester_not_self_approving(
                     profile.requested_by_user_id, actor_user_id)

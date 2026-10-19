@@ -49,7 +49,7 @@ class CashOperationalReadQueryService:
         "deposits": (
             "Depositos preparados",
             CashPermissions.DEPOSIT_VIEW,
-            """SELECT id,event_name,entity_id,'PREPARED',occurred_at
+            """SELECT id,event_name,user_id,'PREPARED',occurred_at
                FROM cash_domain_events
                WHERE branch_id=? AND event_name='CASH_DEPOSIT_PREPARED'
                ORDER BY occurred_at DESC LIMIT ?""",
@@ -67,7 +67,7 @@ class CashOperationalReadQueryService:
         "drawer_events": (
             "Eventos de cajon",
             CashPermissions.DRAWER_EVENT_VIEW,
-            """SELECT id,event_name,entity_id,'AUDITADO',occurred_at
+            """SELECT id,event_name,user_id,'AUDITADO',occurred_at
                FROM cash_domain_events
                WHERE branch_id=? AND event_name='CASH_DRAWER_OPENED'
                ORDER BY occurred_at DESC LIMIT ?""",
@@ -76,7 +76,7 @@ class CashOperationalReadQueryService:
         "audit": (
             "Auditoria",
             CashPermissions.AUDIT_VIEW,
-            """SELECT id,action,entity_id,COALESCE(reason,''),occurred_at
+            """SELECT id,action,actor_user_id,COALESCE(reason,''),occurred_at
                FROM cash_audit_log
                WHERE branch_id=?
                ORDER BY occurred_at DESC LIMIT ?""",
@@ -109,17 +109,41 @@ class CashOperationalReadQueryService:
         )
         safe_limit = max(1, min(int(limit or 100), 500))
         params = (safe_limit,) if "global" in flags else (branch_id, safe_limit)
+        fetched = self._connection.execute(sql, params).fetchall()
+        names = self._names({str(row[2] or "") for row in fetched})
         rows = tuple(
             CashOperationalReadRow(
                 id=str(row[0]),
                 primary=str(row[1] or ""),
-                secondary=str(row[2] or ""),
+                # Auditoría CJA-05: quién lo hizo o qué caja, por su NOMBRE; antes
+                # la columna mostraba el UUID interno del registro.
+                secondary=names.get(str(row[2] or ""), "—"),
                 status=str(row[3] or ""),
                 occurred_at=str(row[4] or ""),
             )
-            for row in self._connection.execute(sql, params).fetchall()
+            for row in fetched
         )
         return CashOperationalReadSection(key=section_key, title=title, rows=rows)
+
+    def _names(self, ids: set[str]) -> dict[str, str]:
+        """Nombre de cada id: usuario (nombre o usuario) o caja registradora."""
+        ids = {i for i in ids if i}
+        if not ids:
+            return {}
+        tables = {row[0] for row in self._connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        marks = ",".join("?" for _ in ids)
+        found: dict[str, str] = {}
+        if "usuarios" in tables:
+            for row in self._connection.execute(
+                    "SELECT id, COALESCE(NULLIF(trim(nombre),''), usuario) FROM usuarios"
+                    f" WHERE id IN ({marks})", tuple(ids)):
+                found[str(row[0])] = str(row[1] or "")
+        if "cash_registers" in tables:
+            for row in self._connection.execute(
+                    f"SELECT id, name FROM cash_registers WHERE id IN ({marks})", tuple(ids)):
+                found.setdefault(str(row[0]), str(row[1] or ""))
+        return found
 
     def refunds(self, *, branch_id: str, requester_user_id: str,
                 limit: int = 200) -> tuple[CashRefundRow, ...]:

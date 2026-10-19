@@ -13,6 +13,7 @@ from frontend.desktop.components import (
     DateInput,
     DecimalInput,
     FormDialog,
+    IntegerInput,
     SearchableComboBox,
     StandardCheckBox,
     StandardLineEdit,
@@ -80,13 +81,16 @@ class OriginPickDialog(_OriginDialog):
 
 
 class ContainerRegisterDialog(_OriginDialog):
-    """Registrar un contenedor físico de la empresa; si ningún tipo sirve, se crea
-    el tipo en el mismo paso."""
+    """Registrar uno o varios contenedores físicos de la empresa; si ningún tipo
+    sirve, se crea el tipo en el mismo paso. El CÓDIGO lo asigna el sistema al
+    guardar (`<prefijo de la categoría>-<número>`); aquí sólo se muestra cuál
+    tocará. `code_preview(type_id, category)` da ese siguiente código."""
 
-    def __init__(self, parent=None, *, type_options) -> None:
-        super().__init__(parent, title="Registrar contenedor")
-        self._code = StandardLineEdit(self)
-        self._code.setPlaceholderText("Código impreso (ej. CJ-0001)")
+    def __init__(self, parent=None, *, type_options, code_preview=None) -> None:
+        super().__init__(parent, title="Registrar contenedores")
+        self._code_preview = code_preview or (lambda _type_id, _category: "")
+        self._code = QLabel("", self)
+        self._code.setWordWrap(True)
         self._type = SearchableComboBox(placeholder="Tipo de contenedor")
         self._type.set_options(list(type_options))
         self._new_type = StandardCheckBox("Crear un tipo nuevo", self)
@@ -97,7 +101,9 @@ class ContainerRegisterDialog(_OriginDialog):
         self._allows_children = StandardCheckBox("Puede contener otros contenedores", self)
         self._max_weight = DecimalInput(self, precision=3, minimum="0", nullable=True)
         self._tare = DecimalInput(self, precision=3, minimum="0", nullable=True)
-        self.form.addRow("Código", self._code)
+        self._quantity = IntegerInput(self, minimum=1, maximum=500)
+        self._serial = StandardLineEdit(self)
+        self._serial.setPlaceholderText("Opcional: número de serie o marca del fabricante")
         self.form.addRow("Tipo", self._type)
         self.form.addRow("", self._new_type)
         self.form.addRow("Nombre del tipo", self._type_name)
@@ -105,7 +111,13 @@ class ContainerRegisterDialog(_OriginDialog):
         self.form.addRow("", self._allows_children)
         self.form.addRow("Peso neto máximo (kg)", self._max_weight)
         self.form.addRow("Tara (kg)", self._tare)
+        self.form.addRow("Cantidad", self._quantity)
+        self.form.addRow("Número de serie", self._serial)
+        self.form.addRow("Código", self._code)
         self._new_type.toggled.connect(self._sync)
+        self._type.selection_changed.connect(lambda *_: self._refresh_code())
+        self._category.selection_changed.connect(lambda *_: self._refresh_code())
+        self._quantity.valueChanged.connect(lambda *_: self._sync())
         if not type_options:
             self._new_type.setChecked(True)
         self._sync()
@@ -117,13 +129,30 @@ class ContainerRegisterDialog(_OriginDialog):
         for widget in (self._type_name, self._category, self._allows_children,
                        self._max_weight):
             widget.setEnabled(new)
+        uno = self._quantity.value() == 1
+        self._serial.setEnabled(uno)
+        if not uno:
+            self._serial.clear()
+        self._refresh_code()
+
+    def _refresh_code(self) -> None:
+        if self.creates_type():
+            siguiente = self._code_preview(None, self._category.current_id())
+        else:
+            siguiente = (self._code_preview(self._type.current_id(), None)
+                         if self._type.current_id() else "")
+        if not siguiente:
+            self._code.setText("Se asigna automáticamente al guardar.")
+            return
+        cantidad = self._quantity.value()
+        self._code.setText(
+            f"Se asigna automáticamente: {siguiente}" if cantidad == 1 else
+            f"Se asignan automáticamente {cantidad} códigos a partir de {siguiente}")
 
     def creates_type(self) -> bool:
         return self._new_type.isChecked()
 
     def problem(self) -> str | None:
-        if not self._code.text().strip():
-            return "Captura el código del contenedor."
         if self.creates_type():
             if not self._type_name.text().strip() or not self._category.current_id():
                 return "Captura el nombre y la categoría del tipo nuevo."
@@ -140,9 +169,10 @@ class ContainerRegisterDialog(_OriginDialog):
                 "tare_weight": self._tare.decimal_value() or "0"}
 
     def container_values(self, type_id: str | None = None) -> dict:
-        return {"code": self._code.text().strip(),
-                "container_type_id": type_id or self._type.current_id(),
-                "tare_weight": self._tare.decimal_value()}
+        return {"container_type_id": type_id or self._type.current_id(),
+                "tare_weight": self._tare.decimal_value(),
+                "quantity": self._quantity.value(),
+                "serial_number": self._serial.text().strip() or None}
 
 
 class _TraceFields:

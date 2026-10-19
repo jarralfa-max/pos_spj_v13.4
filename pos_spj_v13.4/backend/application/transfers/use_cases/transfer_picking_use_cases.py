@@ -116,6 +116,33 @@ class StartTransferPickingUseCase:
                                                   entity_id=transfer_id, user_id=user_id))
 
 
+class MarkTransferReadyToDispatchUseCase:
+    """Surtido terminado → lista para despacho. El despacho la exige y ningún
+    caso de uso hacía esta transición (integración Logística 32cfbf)."""
+
+    def __init__(self, repository: StockTransferRepository,
+                 authorization: TransferAuthorizationPolicy) -> None:
+        self._repository = repository
+        self._authorization = authorization
+
+    def execute(self, *, transfer_id: str, user_id: str, operation_id: str) -> TransferRequestDTO:
+        if self._repository.operation_exists(operation_id):
+            raise DuplicateOperationError("Transfer ready-to-dispatch operation was already applied")
+        transfer = self._repository.get(transfer_id)
+        if transfer is None:
+            raise TransferNotFoundError("Transfer not found")
+        self._authorization.require(
+            user_id=user_id, permission_code=TransferPermissions.PICK_CONFIRM,
+            branch_id=transfer.origin_node.branch_id,
+            warehouse_id=transfer.origin_node.warehouse_id,
+            location_id=transfer.origin_node.location_id)
+        transfer.ready_to_dispatch()
+        self._repository.save(transfer)
+        _record_operation(self._repository, transfer_id=transfer.id, operation_id=operation_id,
+                          operation_type="TRANSFER_READY_TO_DISPATCH")
+        return _dto(transfer)
+
+
 class ConfirmTransferPickingUseCase:
     def __init__(self, repository: StockTransferRepository, authorization: TransferAuthorizationPolicy,
                  barcode_validator: TransferBarcodeValidator | None = None,

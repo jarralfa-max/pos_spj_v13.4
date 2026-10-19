@@ -43,6 +43,7 @@ from frontend.desktop.modules.sales_pos.customer_display_window import (
 from frontend.desktop.modules.sales_pos.dialogs.cancel_sale_dialog import CancelSaleDialog
 from frontend.desktop.modules.sales_pos.dialogs.discount_dialog import DiscountDialog
 from frontend.desktop.modules.sales_pos.dialogs.invoice_request_dialog import InvoiceRequestDialog
+from frontend.desktop.modules.sales_pos.dialogs.invoice_status_dialog import InvoiceStatusDialog
 from frontend.desktop.modules.sales_pos.dialogs.payment_dialog import PaymentDialog
 from frontend.desktop.modules.sales_pos.dialogs.quantity_dialog import QuantityDialog
 from frontend.desktop.modules.sales_pos.dialogs.quick_customer_dialog import QuickCustomerDialog
@@ -75,6 +76,7 @@ _DIALOG_NAMES = {
     "resume": "ResumeSaleDialog",
     "posted_sale": "PostedSalePickerDialog",
     "invoice": "InvoiceRequestDialog",
+    "invoice_status": "InvoiceStatusDialog",
     "return": "ReturnSaleDialog",
     "payment": "PaymentDialog",
     "discount": "DiscountDialog",
@@ -99,6 +101,11 @@ class SalesPosWorkspace(QWidget):
         self._customer_display_window: CustomerDisplayWindow | None = None
         self._customer_display_gateway: QtCustomerDisplayGateway | None = None
         self._cart_is_idle = True
+        self._scale_monitor = None
+        self._public_payment = None
+        self._thank_you_timer = QTimer(self)
+        self._thank_you_timer.setSingleShot(True)
+        self._thank_you_timer.timeout.connect(self._push_customer_display)
         self._ad_rotation: list = []
         self._ad_index = 0
         self._ad_elapsed = 0
@@ -127,6 +134,8 @@ class SalesPosWorkspace(QWidget):
         self.checkout.customer_clear_requested.connect(self._on_customer_cleared)
         self.checkout.line_quantity_requested.connect(self._on_line_quantity_requested)
         self.checkout.line_remove_requested.connect(self._on_line_remove_requested)
+        self.checkout.line_discount_remove_requested.connect(self._on_line_discount_remove_requested)
+        self.checkout.sale_discount_remove_requested.connect(self._on_sale_discount_remove_requested)
         self.checkout.checkout_requested.connect(self._on_checkout_requested)
         self.checkout.suspend_requested.connect(self._on_suspend_requested)
         self.checkout.resume_requested.connect(self._on_resume_requested)
@@ -155,20 +164,56 @@ class SalesPosWorkspace(QWidget):
             self, title="Punto de Venta", icon=Icons.SALES,
             sidebar=None, content=body,
         )
+        # The cashier bar already names the POS. Reserve the duplicated header
+        # space for cart rows and keep the operational footer in the viewport.
+        self.module_layout.header.hide()
+        self.module_layout.setContentsMargins(4, 4, 4, 4)
+        self.module_layout.setSpacing(0)
+
+        # QSplitter caches child size hints across stylesheet/density changes.
+        # Reconcile after standard controls have received their new metrics.
+        from frontend.desktop.themes.theme_manager import ThemeManager
+        self._layout_timer = QTimer(self)
+        self._layout_timer.setSingleShot(True)
+        self._layout_timer.timeout.connect(self._settle_layout)
+        ThemeManager.instance().theme_changed.connect(self._schedule_layout)
+        ThemeManager.instance().density_changed.connect(self._schedule_layout)
 
         self._wire_shortcuts()
         self.catalog.load_categories()
+
+    def _schedule_layout(self, *_):
+        self._layout_timer.start(0)
+
+    def _settle_layout(self):
+        from PyQt5.QtWidgets import QLayout
+        for panel in (self.checkout.actions, self.checkout.customer, self.checkout.totals, self.checkout):
+            for layout in panel.findChildren(QLayout):
+                layout.invalidate()
+            panel.layout().invalidate()
+            if panel in (self.checkout.actions, self.checkout.customer):
+                panel.setMinimumHeight(panel.layout().minimumSize().height())
+            panel.updateGeometry()
+            panel.layout().activate()
+        self._splitter.refresh()
+        self.module_layout.activate()
+        # Apply the resized splitter bounds after invalidating its children's
+        # stylesheet metrics; otherwise the footer can retain the old height.
+        self.checkout.layout().setGeometry(self.checkout.contentsRect())
 
     def showEvent(self, event) -> None:
         """La pantalla se construye antes del login; la venta se abre la
         primera vez que se MUESTRA con un usuario autenticado."""
         super().showEvent(event)
+        self._splitter.setSizes([max(self._splitter.width() - 520, 1), 520])
         if not self._sale_started and self._presenter.current_user_id():
             self._sale_started = True
             self.cashier_bar.refresh_identity()
             self.cashier_bar.refresh_shift_status()
             self.cashier_bar.refresh_device_health()
-            self._start_new_sale()
+            self._start_new_sale(recover=True)
+        if self._sale_started:
+            self._start_scale_monitor()
 
     def _wire_shortcuts(self) -> None:
         """Atajos reales (§54): cada tecla dispara el mismo manejador que su
@@ -190,26 +235,45 @@ class SalesPosWorkspace(QWidget):
         ]
 
     # ── venta en curso ───────────────────────────────────────────────────
-    def _start_new_sale(self) -> None:
-        result = self._presenter.start_sale()
+    def _start_new_sale(self, *, recover: bool = False) -> None:
+        """`recover` (al abrir la pantalla, auditoría V03): retoma la venta en
+        curso del cajero en vez de dejarla perdida; después de cobrar o cancelar
+        se reutiliza un borrador vacío en lugar de crear otro."""
+        result = self._presenter.open_sale(recover=recover)
         self._sale_id = result.entity_id if result.success else None
         # Sin modal: esto corre al MOSTRAR la pantalla; el motivo queda donde el
         # cajero mira, en el lugar del carrito.
         self.checkout.cart.set_empty_message(
             None if result.success else f"No se pudo abrir la venta: {result.message}")
         self._refresh()
+        if result.success and result.data.get("recovered") and \
+                result.data.get("status") in ("CHECKOUT_PENDING", "PAYMENT_PENDING"):
+            # Hay dinero de por medio: se avisa (después de mostrarse la pantalla).
+            pagado = self._sale.total_paid if self._sale is not None else Decimal("0")
+            QTimer.singleShot(0, lambda: self._info(
+                "Cobro pendiente",
+                f"Se recuperó una venta que quedó a medio cobrar (${pagado:,.2f} registrados)."
+                "\n\nF9 para continuar el cobro o F8 para cancelarla (se anularán sus pagos)."))
 
     def _refresh(self) -> None:
         sale = self._presenter.get_sale(self._sale_id) if self._sale_id else None
         self._sale = sale
         self._cart_is_idle = sale is None or not sale.lines
+        if not self._cart_is_idle:
+            self._thank_you_timer.stop()
         customer = self._presenter.customer_summary(sale.customer_id) if sale else None
         self.checkout.render_sale(sale, customer)
         self.checkout.refresh_suspended_count()
         self.cashier_bar.refresh_suspended_count()
-        self.catalog.refresh()
+        # Auditoría V08: la existencia no cambia al editar el carrito (se aparta
+        # al cobrar), así que el catálogo —hasta 200 tarjetas— sólo se vuelve a
+        # consultar cuando cambia la venta (cobro, cancelación, reanudación).
+        if self._sale_id != getattr(self, "_catalog_sale_id", object()):
+            self._catalog_sale_id = self._sale_id
+            self.catalog.refresh()
         if self._customer_display_gateway is not None:
-            self._push_customer_display()
+            if not self._thank_you_timer.isActive():
+                self._push_customer_display()
 
     def _has_lines(self) -> bool:
         return bool(self._sale is not None and self._sale.lines)
@@ -232,14 +296,58 @@ class SalesPosWorkspace(QWidget):
         self._after_line_change(result, "No se pudo agregar el producto")
 
     def _add_weighed(self, product):
+        # El precio que se COBRARÁ (Precios: sucursal, cliente), no el de la
+        # tarjeta del catálogo (auditoría V04).
+        preview = getattr(self._presenter, "price_preview", None)
+        precio = (preview(sale_id=self._sale_id, product_id=product.product_id,
+                          quantity=Decimal("1")) if callable(preview) else None)
         dialog = self.dialogs["weight"](
-            self._presenter, product_name=product.name, unit_price=product.effective_price,
-            unit=product.unit or "KG", parent=self)
+            self._presenter, product_name=product.name,
+            unit_price=precio if precio is not None else product.effective_price,
+            unit=product.unit or "KG", sale_id=self._sale_id, product_id=product.product_id, parent=self)
         if not dialog.exec_() or dialog.weight is None:
             return None
         return self._presenter.add_product(
             sale_id=self._sale_id, product=product, quantity=dialog.weight,
             weight_source=dialog.weight_source or WEIGHT_SOURCE_MANUAL)
+
+    def _start_scale_monitor(self):
+        from frontend.desktop.modules.sales_pos.scale_monitor import ScaleMonitor
+        if self._scale_monitor:
+            self._scale_monitor.stop()
+            self._scale_monitor = None
+        service = self._presenter.scale_service(reload=True)
+        if service.gateway is None:
+            self._on_scale_changed(service.current())
+            return
+        if self._scale_monitor is None:
+            self._scale_monitor = ScaleMonitor(service, self)
+            self._scale_monitor.changed.connect(self._on_scale_changed)
+        self._scale_monitor.start()
+
+    def _on_scale_changed(self, state):
+        badge = self.cashier_bar._device_badges["scale"]
+        badge.setText(state.text)
+        badge.set_status("success" if state.status == "STABLE" else "warning")
+        if self._customer_display_gateway is not None:
+            try:
+                self._customer_display_gateway.update_scale(state.text)
+            except Exception:
+                logger.exception("No se pudo mostrar la lectura en la pantalla del cliente")
+
+    def closeEvent(self, event):
+        if self._scale_monitor:
+            self._scale_monitor.stop()
+        self._ad_timer.stop()
+        self._thank_you_timer.stop()
+        if self._customer_display_window:
+            self._customer_display_window.close()
+        super().closeEvent(event)
+
+    def hideEvent(self, event):
+        if self._scale_monitor:
+            self._scale_monitor.stop()
+        super().hideEvent(event)
 
     def _on_code_scanned(self, code: str) -> None:
         """Un lector de código es un teclado rápido seguido de Enter (§17);
@@ -279,7 +387,8 @@ class SalesPosWorkspace(QWidget):
         if line.product_snapshot.get("by_weight") or line.weight_source:
             dialog = self.dialogs["weight"](
                 self._presenter, product_name=name, unit_price=line.unit_price,
-                unit=line.quantity_unit, current_weight=line.quantity, parent=self)
+                unit=line.quantity_unit, current_weight=line.quantity,
+                sale_id=self._sale_id, product_id=line.product_id, parent=self)
             accepted = dialog.exec_() and dialog.weight is not None
             quantity = dialog.weight if accepted else None
         else:
@@ -290,12 +399,25 @@ class SalesPosWorkspace(QWidget):
         if quantity is None:
             return
         result = self._presenter.update_line_quantity(
-            sale_id=self._sale_id, line_id=line_id, quantity=quantity)
+            sale_id=self._sale_id, line_id=line_id, quantity=quantity,
+            weight_source=getattr(dialog, "weight_source", None))
         self._after_line_change(result, "No se pudo cambiar la cantidad")
 
     def _on_line_remove_requested(self, line_id: str) -> None:
         result = self._presenter.remove_line(sale_id=self._sale_id, line_id=line_id)
         self._after_line_change(result, "No se pudo quitar la línea")
+
+    def _on_line_discount_remove_requested(self, line_id: str) -> None:
+        if self._sale_id and self._capabilities.discount_apply:
+            result = self._presenter.remove_line_discount(sale_id=self._sale_id, line_id=line_id)
+            self._after_line_change(result, "No se pudo quitar el descuento")
+
+    def _on_sale_discount_remove_requested(self) -> None:
+        if self._sale_id and self._capabilities.discount_apply:
+            result = self._presenter.apply_sale_discount(
+                sale_id=self._sale_id, discount_amount=Decimal("0"),
+                reason="Retirar descuento manual de venta")
+            self._after_line_change(result, "No se pudo quitar el descuento de venta")
 
     # ── cliente (§21-23) ─────────────────────────────────────────────────
     def _on_customer_selected(self, customer_id: str) -> None:
@@ -398,13 +520,35 @@ class SalesPosWorkspace(QWidget):
         dialog = self.dialogs["payment"](
             self._presenter, sale_id=self._sale_id, total_due=self._sale.total,
             has_customer=bool(self._sale.customer_id), parent=self)
+        self._on_public_payment("PENDING")
+        if hasattr(dialog, "public_state_changed"):
+            dialog.public_state_changed.connect(self._on_public_payment)
         if not (dialog.exec_() and dialog.completed):
+            self._public_payment = None
             self._refresh()
+            pagado = self._sale.total_paid if self._sale is not None else Decimal("0")
+            if self._sale is not None and self._sale.payments:
+                # Auditoría V03: la venta queda EN COBRO con sus pagos; se dice
+                # cómo seguir en vez de dejar un carrito que ya no se puede editar.
+                self._info("Cobro pendiente",
+                           f"La venta quedó en cobro con ${pagado:,.2f} ya registrados.\n\n"
+                           "F9 para continuar el cobro, o F8 para cancelarla (se anularán "
+                           "sus pagos y verás qué devolver al cliente).")
             return
         sale_id = self._sale_id
+        self._public_payment = None
+        self._push_customer_display(change=dialog.change)
+        duration = getattr(self, "_display_preferences", {}).get("thank_you_seconds", 8)
+        self._thank_you_timer.start(duration * 1000)
         self._last_completed_sale_id = sale_id
-        self._announce_completed(sale_id, change=dialog.change)
+        self._last_completed_change = dialog.change
         self._start_new_sale()
+        self._announce_completed(sale_id, change=dialog.change)
+
+    def _on_public_payment(self, status):
+        self._public_payment = status
+        self._ad_rotation = []
+        self._push_customer_display()
 
     def _announce_completed(self, sale_id: str, *, change: Decimal) -> None:
         """Folio, cambio y ticket (§46: el ticket se pide DESPUÉS de confirmar
@@ -459,12 +603,21 @@ class SalesPosWorkspace(QWidget):
     def _on_cancel_requested(self) -> None:
         if not self._sale_id or not self._has_lines():
             return
+        from frontend.desktop.modules.sales_pos.dialogs.payment_dialog import METHOD_LABELS
+        pagos = [f"{METHOD_LABELS.get(p.method, p.method)}: ${p.amount:,.2f}"
+                 for p in (self._sale.payments or ())]
         dialog = self.dialogs["cancel"](
-            line_count=len(self._sale.lines), total_text=f"${self._sale.total:,.2f}", parent=self)
+            line_count=len(self._sale.lines), total_text=f"${self._sale.total:,.2f}",
+            payments=pagos, parent=self)
         if not dialog.exec_() or not dialog.reason:
             return
         result = self._presenter.cancel_sale(sale_id=self._sale_id, reason=dialog.reason)
         if result.success:
+            # Auditoría V02: lo que el sistema compensó y lo que el cajero debe
+            # devolver con su mano, ANTES de que el cliente se vaya.
+            avisos = [r["text"] for r in (result.data.get("refunds") or ())]
+            if avisos:
+                self._info("Venta cancelada", "\n".join(f"• {a}" for a in avisos))
             self._start_new_sale()
         else:
             self._warn("No se pudo cancelar", result.message)
@@ -512,6 +665,14 @@ class SalesPosWorkspace(QWidget):
         sale, _reason = self._pick_posted_sale(title="Solicitar factura", ok_text="Continuar")
         if sale is None:
             return
+        if sale.invoice_requests:
+            # Auditoría V09: lo ya solicitado se ve con su estado (timbrada, con
+            # error, pendiente) antes de pedir otra.
+            status = self.dialogs["invoice_status"](
+                self._presenter, sale=sale, folio=folio_of(sale), parent=self)
+            status.exec_()
+            if not status.new_request:
+                return
         dialog = self.dialogs["invoice"](
             folio=folio_of(sale), total_text=f"${sale.total:,.2f}", parent=self)
         if not dialog.exec_():
@@ -521,7 +682,8 @@ class SalesPosWorkspace(QWidget):
             legal_name=dialog.legal_name, cfdi_use=dialog.cfdi_use)
         if result.success:
             self._info("Factura solicitada",
-                       f"Factura de la venta {folio_of(sale)} solicitada. Fiscal la timbra.")
+                       f"Factura de la venta {folio_of(sale)} solicitada. Cuando se timbre, "
+                       "registra el folio fiscal con F11 sobre la misma venta.")
         else:
             self._warn("No se pudo solicitar la factura", result.message)
 
@@ -545,7 +707,17 @@ class SalesPosWorkspace(QWidget):
     # ── pantalla del cliente (SET-17) ────────────────────────────────────
     def _on_customer_display_toggled(self, checked: bool) -> None:
         if checked:
-            self._customer_display_window = CustomerDisplayWindow(self)
+            try:
+                self._display_preferences = self._presenter.display_preferences()
+            except Exception:
+                logger.exception("No se pudo leer la configuración del monitor")
+                self.cashier_bar._btn_customer_display.setChecked(False)
+                return
+            if self._display_preferences.get("enabled") is False:
+                self.cashier_bar._btn_customer_display.setChecked(False)
+                return
+            self._customer_display_window = CustomerDisplayWindow(self, preferences=self._display_preferences)
+            self._customer_display_window.closed.connect(self._on_customer_display_closed)
             self._customer_display_gateway = QtCustomerDisplayGateway(self._customer_display_window)
             self._push_customer_display()
             self._ad_rotation = []
@@ -559,23 +731,50 @@ class SalesPosWorkspace(QWidget):
             self._customer_display_window = None
             self._customer_display_gateway = None
 
-    def _push_customer_display(self) -> None:
+    def _on_customer_display_closed(self):
+        self._ad_timer.stop()
+        window = self._customer_display_window
+        self._customer_display_window = None
+        self._customer_display_gateway = None
+        button = self.cashier_bar._btn_customer_display
+        blocked = button.blockSignals(True)
+        button.setChecked(False)
+        button.blockSignals(blocked)
+        if window is not None:
+            window.deleteLater()
+
+    def _push_customer_display(self, *, change=None, sale_id=None) -> None:
         """Mejor esfuerzo: una falla de la pantalla del cliente nunca detiene
         al cajero."""
         try:
-            self._presenter.push_customer_display(
-                gateway=self._customer_display_gateway, sale_id=self._sale_id)
+            if self._customer_display_gateway is None:
+                return
+            kwargs = dict(gateway=self._customer_display_gateway, sale_id=sale_id or self._sale_id)
+            if self._public_payment:
+                kwargs["public_payment"] = self._public_payment
+            if change is not None:
+                kwargs["change"] = change
+            self._presenter.push_customer_display(**kwargs)
         except Exception:
             logger.exception("No se pudo actualizar la pantalla del cliente")
 
     def _on_ad_timer_tick(self) -> None:
-        """Rotación de publicidad en reposo, un segundo a la vez. Nunca corre
-        con el carrito lleno."""
-        if not self._cart_is_idle or self._customer_display_window is None:
+        """Rotación por modo; cobro y agradecimiento tienen prioridad."""
+        if self._customer_display_window is None or self._public_payment:
             return
+        if self._thank_you_timer.isActive():
+            self._push_customer_display(sale_id=self._last_completed_sale_id,
+                                        change=getattr(self, "_last_completed_change", None))
+            return
+        if not self._cart_is_idle and not getattr(self, "_display_preferences", {}).get("ads_during_sale", False):
+            return
+        mode = "IDLE" if self._cart_is_idle else "CART"
+        if mode != getattr(self, "_ad_mode", None):
+            self._ad_mode = mode
+            self._ad_rotation = []
         try:
             if not self._ad_rotation:
-                self._ad_rotation = list(self._presenter.resolve_idle_ads())
+                self._ad_rotation = list(self._presenter.resolve_idle_ads(mode))
                 self._ad_index = 0
                 self._ad_elapsed = 0
                 if self._ad_rotation:
@@ -590,7 +789,7 @@ class SalesPosWorkspace(QWidget):
                 self._ad_index += 1
                 self._ad_elapsed = 0
                 if self._ad_index >= len(self._ad_rotation):
-                    self._ad_rotation = list(self._presenter.resolve_idle_ads())
+                    self._ad_rotation = list(self._presenter.resolve_idle_ads(mode))
                     self._ad_index = 0
                 if self._ad_rotation:
                     self._show_current_ad()
@@ -599,5 +798,6 @@ class SalesPosWorkspace(QWidget):
 
     def _show_current_ad(self) -> None:
         ad = self._ad_rotation[self._ad_index]
+        kwargs = {} if self._cart_is_idle else {"during_sale": True}
         self._customer_display_window.render_idle_ad(
-            ad.content_type, ad.title, ad.body, getattr(ad, "media_path", None))
+            ad.content_type, ad.title, ad.body, getattr(ad, "media_path", None), **kwargs)

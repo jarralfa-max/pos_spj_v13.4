@@ -8,16 +8,8 @@ REPO_ROOT = PACKAGE_ROOT.parent
 SCOPE_PATH = PACKAGE_ROOT / "docs" / "refactor" / "modules" / "configuracion_scope.json"
 WORK_QUEUE_PATH = PACKAGE_ROOT / "docs" / "refactor" / "work_queue.json"
 
+# 2026-10-16: sin las rutas borradas con modulos/, core/ y repositories/.
 REQUIRED_CANONICAL_FILES = {
-    "modulos/configuracion.py",
-    "core/services/configuration_settings_service.py",
-    "repositories/config_repository.py",
-    "core/module_config.py",
-    "modulos/config_hardware.py",
-    "modulos/config_modules.py",
-    "core/repositories/hardware_config_repository.py",
-    "backend/application/queries/hardware_settings_query_service.py",
-    "backend/application/queries/ticket_settings_query_service.py",
     "migrations/m050_hardware_config_canonical.py",
     "migrations/standalone/096_configuration_services_schema.py",
 }
@@ -46,10 +38,14 @@ def test_configuracion_scope_canonical_files_exist_inside_real_package() -> None
     canonical_files = set(scope["canonical_files"])
 
     assert REQUIRED_CANONICAL_FILES.issubset(canonical_files)
+    # El JSON es el registro histórico de la fase: lista también lo que después
+    # se borró (modulos/, core/, repositories/, y los query services de hardware
+    # y tickets en 29317dca). Deben existir los canónicos vivos; todos, dentro
+    # del paquete real.
+    for relative_path in REQUIRED_CANONICAL_FILES:
+        assert (PACKAGE_ROOT / relative_path).exists(), relative_path
     for relative_path in canonical_files:
-        path = PACKAGE_ROOT / relative_path
-        assert path.exists(), relative_path
-        assert path.resolve().is_relative_to(PACKAGE_ROOT.resolve())
+        assert (PACKAGE_ROOT / relative_path).resolve().is_relative_to(PACKAGE_ROOT.resolve())
 
 
 def test_configuracion_scope_classifies_shared_non_owned_configuration_surfaces() -> None:

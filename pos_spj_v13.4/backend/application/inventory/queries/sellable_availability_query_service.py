@@ -8,8 +8,9 @@ reversible CUTTING SCHEME (§17; la fuente es el esquema de corte desde el
 `CuttingSchemeRepository.reversible_active_version_for_input` (is this product's
 despiece eligible, and what does it need) — plus the pure
 `ReverseRecipeExplosionService` bottleneck calculation. Never writes
-anything; the actual reconstruction (reserving parts, consuming them,
-producing the base product) is `ReconstructBaseProductUseCase`'s job.
+anything. Selling it is a VIRTUAL composition (integración Logística 32cfbf):
+`SalesInventoryClient` reserves and issues the PARTS for the shortfall; no
+base product is produced into stock.
 
 Conservative by design, same discipline as every other cross-context
 resolution built this session: any ambiguity (no eligible despiece, more

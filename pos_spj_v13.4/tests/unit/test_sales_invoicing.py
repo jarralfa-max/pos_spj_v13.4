@@ -105,9 +105,9 @@ class TestSaleInvoiceRequestDomain:
         sale = _completed_sale_entity()
         request = sale.request_invoice(tax_identifier="XAXX010101000", legal_name="Ana",
                                        cfdi_use="S01", requested_by_user_id=new_uuid())
-        sale.mark_invoice_issued(request.id, uuid_fiscal="ABC-123")
+        sale.mark_invoice_issued(request.id, uuid_fiscal="6F9619FF-8B86-D011-B42D-00C04FC964FF")
         assert request.status is InvoiceStatus.ISSUED
-        assert request.uuid_fiscal == "ABC-123"
+        assert request.uuid_fiscal == "6F9619FF-8B86-D011-B42D-00C04FC964FF"
 
     def test_mark_error_transitions_and_stores_message(self):
         sale = _completed_sale_entity()
@@ -131,7 +131,7 @@ class TestSaleInvoiceRequestDomain:
         sale = _completed_sale_entity()
         request = sale.request_invoice(tax_identifier="XAXX010101000", legal_name="Ana",
                                        cfdi_use="S01", requested_by_user_id=new_uuid())
-        sale.mark_invoice_issued(request.id, uuid_fiscal="ABC-123")
+        sale.mark_invoice_issued(request.id, uuid_fiscal="6F9619FF-8B86-D011-B42D-00C04FC964FF")
         with pytest.raises(InvoiceTransitionNotAllowedError):
             sale.mark_invoice_error(request.id, error_message="too late")
 
@@ -268,7 +268,7 @@ class TestInvoiceStatusResolution:
         denied = SalesAuthorizationPolicy(DenyAllSalesPermissionCheckerForTests())
         result = MarkInvoiceIssuedUseCase(denied).execute(
             conn, sale_id=sale_id, invoice_request_id=req_result.data["invoice_request_id"],
-            uuid_fiscal="ABC-123", actor_user_id=cashier, operation_id=new_uuid())
+            uuid_fiscal="6F9619FF-8B86-D011-B42D-00C04FC964FF", actor_user_id=cashier, operation_id=new_uuid())
         assert result.success is False
         assert result.error_code == "PERMISSION_DENIED"
 
@@ -278,11 +278,11 @@ class TestInvoiceStatusResolution:
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
         result = MarkInvoiceIssuedUseCase(_allow_all()).execute(
             conn, sale_id=sale_id, invoice_request_id=req_result.data["invoice_request_id"],
-            uuid_fiscal="ABC-123", actor_user_id=cashier, operation_id=new_uuid())
+            uuid_fiscal="6F9619FF-8B86-D011-B42D-00C04FC964FF", actor_user_id=cashier, operation_id=new_uuid())
         assert result.success is True
         request = SaleRepository(conn).get(sale_id).invoice_requests[0]
         assert request.status is InvoiceStatus.ISSUED
-        assert request.uuid_fiscal == "ABC-123"
+        assert request.uuid_fiscal == "6F9619FF-8B86-D011-B42D-00C04FC964FF"
 
     def test_mark_error_resolves_with_real_message_and_allows_retry(self, conn):
         sale_id, cashier, _branch = _completed_sale(conn)
@@ -305,7 +305,7 @@ class TestInvoiceStatusResolution:
     def test_mark_issued_fails_for_unknown_request_id(self, conn):
         sale_id, cashier, _branch = _completed_sale(conn)
         result = MarkInvoiceIssuedUseCase(_allow_all()).execute(
-            conn, sale_id=sale_id, invoice_request_id=new_uuid(), uuid_fiscal="ABC-123",
+            conn, sale_id=sale_id, invoice_request_id=new_uuid(), uuid_fiscal="6F9619FF-8B86-D011-B42D-00C04FC964FF",
             actor_user_id=cashier, operation_id=new_uuid())
         assert result.success is False
         assert result.error_code == "INVOICE_REQUEST_NOT_FOUND"

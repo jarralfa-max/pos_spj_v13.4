@@ -42,7 +42,7 @@ from backend.domain.sales.policies.suspension_policies import (
 from backend.domain.sales.services.sale_totals_service import SaleTotalsService
 from backend.domain.sales.value_objects.money import money
 from backend.domain.sales.value_objects.quantity import Quantity
-from backend.domain.sales.value_objects.sale_payment import SalePayment
+from backend.domain.sales.value_objects.sale_payment import SalePayment, SalePaymentVoid
 from backend.domain.sales.value_objects.sale_coupon import SaleCoupon
 from backend.domain.sales.value_objects.sale_return import SaleReturn
 from backend.domain.sales.value_objects.sale_totals import SaleTotals
@@ -115,6 +115,13 @@ class SaleLine:
         self.quantity = quantity
         self.updated_at = _now()
 
+    def reprice(self, unit_price: Decimal) -> None:
+        """Nuevo precio vigente de Precios (auditoría V04: cambió la cantidad o
+        el cliente y aplica otro tramo o lista)."""
+        SaleLinePolicy.ensure_priced(unit_price)
+        self.unit_price = money(unit_price, allow_zero=True)
+        self.updated_at = _now()
+
     def apply_discount(self, discount_total: Decimal, *, authorized: bool = False) -> None:
         base = self.quantity.value * self.unit_price
         SaleDiscountPolicy.ensure_valid_discount(
@@ -159,12 +166,15 @@ class SaleInvoiceRequest:
 
     def mark_issued(self, *, uuid_fiscal: str) -> None:
         SaleInvoicePolicy.ensure_can_resolve(self.status)
+        uuid_fiscal = SaleInvoicePolicy.normalize_fiscal_uuid(uuid_fiscal)
         self.status = InvoiceStatus.ISSUED
         self.uuid_fiscal = uuid_fiscal
         self.updated_at = _now()
 
     def mark_error(self, *, error_message: str) -> None:
         SaleInvoicePolicy.ensure_can_resolve(self.status)
+        if not (error_message or "").strip():
+            raise SaleInvalidStateError("Registra el motivo del error de facturación")
         self.status = InvoiceStatus.ERROR
         self.error_message = error_message
         self.updated_at = _now()
@@ -209,6 +219,8 @@ class Sale:
     # more than one distinct PaymentMethod appears here — see
     # `is_mixed_payment` — never a status/label set up front.
     payments: list[SalePayment] = field(default_factory=list)
+    #: Pagos anulados antes de cerrar la venta, con su rastro (auditoría V02).
+    voided_payments: list[SalePaymentVoid] = field(default_factory=list)
     # POS-16/§42-44: recorded partial-line returns against a COMPLETED sale.
     returns: list[SaleReturn] = field(default_factory=list)
     reversed_at: str | None = None
@@ -294,6 +306,18 @@ class Sale:
         self._find_line(line_id).update_quantity(quantity, max_sellable=max_sellable)
         self._recalculate_totals()
         self._bump_version()
+
+    def reprice_line(self, line_id: str, unit_price: Decimal) -> bool:
+        """True si el precio cambió. Una línea con descuento propio conserva su
+        precio: el descuento se autorizó sobre ese precio."""
+        SaleLinePolicy.ensure_can_modify_line(self.status)
+        line = self._find_line(line_id)
+        if line.discount_total or money(unit_price, allow_zero=True) == line.unit_price:
+            return False
+        line.reprice(unit_price)
+        self._recalculate_totals()
+        self._bump_version()
+        return True
 
     def remove_line(self, line_id: str) -> None:
         SaleLinePolicy.ensure_can_modify_line(self.status)
@@ -414,6 +438,33 @@ class Sale:
         self._bump_version()
         return payment
 
+    def void_payment(self, payment_id: str, *, reason: str,
+                     voided_by_user_id: str) -> SalePaymentVoid:
+        """Anula un pago capturado mientras la venta sigue en cobro (auditoría
+        V02/V03). Una venta cobrada no anula pagos: se devuelve o se reversa."""
+        SalePaymentPolicy.ensure_can_record_payment(self.status)
+        if not (reason or "").strip():
+            raise SaleInvalidStateError("Anular un pago requiere un motivo")
+        payment = next((p for p in self.payments if p.id == payment_id), None)
+        if payment is None:
+            raise SaleInvalidStateError(f"El pago {payment_id} no está registrado en la venta")
+        void = SalePaymentVoid.of(payment, reason=reason, voided_by_user_id=voided_by_user_id)
+        self.payments.remove(payment)
+        self.voided_payments.append(void)
+        self._bump_version()
+        return void
+
+    def return_to_cart(self) -> None:
+        """Del cobro de vuelta al carrito (auditoría V03): sólo sin pagos vivos.
+        Antes `CHECKOUT_PENDING` no tenía regreso y cerrar el cobro dejaba la
+        venta congelada."""
+        if self.payments:
+            raise SaleInvalidStateError(
+                "La venta tiene pagos registrados: continúa el cobro o anúlalos primero")
+        SaleLifecyclePolicy.ensure_transition(current=self.status, target=SaleStatus.ACTIVE)
+        self.status = SaleStatus.ACTIVE
+        self._bump_version()
+
     def assign_number(self, sale_number: str) -> None:
         """El folio comercial (§6). Se asigna UNA vez, al cobrar; reasignar el
         mismo es un reintento y no cambia nada."""
@@ -463,7 +514,8 @@ class Sale:
         self._bump_version()
 
     def cancel(self, reason: str) -> None:
-        SaleCancellationPolicy.ensure_can_cancel(status=self.status, reason=reason)
+        SaleCancellationPolicy.ensure_can_cancel(status=self.status, reason=reason,
+                                                 live_payments=len(self.payments))
         self.status = SaleStatus.CANCELLED
         self.cancelled_at = _now()
         self._bump_version()

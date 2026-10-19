@@ -42,7 +42,7 @@ def test_wires_procurement_and_pricing_onto_the_live_bus(connection):
     assert summary["pricing"]["count"] > 0
     # 4 de entrada + 5 de compensación (auditoría Compras C12: reversos y
     # devoluciones confirmadas compensan inventario y finanzas).
-    assert summary["procurement_downstream_bridges"]["count"] == 10
+    assert summary["procurement_downstream_bridges"]["count"] == 9  # sin explosión de receta (32cfbf)
 
     bus = get_bus()
     assert bus.subscriptions_for(ProcurementEvents.GOODS_RECEIPT_COMPLETED)
@@ -54,13 +54,12 @@ def test_wires_procurement_and_pricing_onto_the_live_bus(connection):
     assert bus.subscriptions_for("PURCHASE_STOCK_ENTRY_REGISTERED")
 
 
-def test_purchase_stock_entry_registered_has_exactly_three_subscribers():
-    """Three legitimate, non-colliding subscribers as of this session:
-    `CanonicalPurchaseStockEntryHandler` (stock entry),
-    `CanonicalPurchaseRecipeExplosionHandler` (component consumption on
-    formulated purchases — different products, different movement type, no
-    overlap with stock entry), and pricing's `ProductCostProjectionHandler`
-    (read-only cost projection, wired since Fase 0). If a FOURTH subscriber
+def test_purchase_stock_entry_registered_has_exactly_two_subscribers():
+    """Two legitimate, non-colliding subscribers:
+    `CanonicalPurchaseStockEntryHandler` (stock entry) and pricing's
+    `ProductCostProjectionHandler` (read-only cost projection, wired since
+    Fase 0). The purchase recipe explosion was removed on 2026-10-16 (user
+    decision, production audit 32cfbf). If a THIRD subscriber
     appears here (e.g. a future `CanonicalInventoryCutover.wire()` call that
     didn't drop `PurchaseReceiptHandler`/`DirectPurchaseReceiptHandler` from
     its own handler list first), check it against the double-post collision
@@ -71,6 +70,6 @@ def test_purchase_stock_entry_registered_has_exactly_three_subscribers():
     try:
         wire_cross_context_events(conn)
         bus = get_bus()
-        assert len(bus.subscriptions_for("PURCHASE_STOCK_ENTRY_REGISTERED")) == 3
+        assert len(bus.subscriptions_for("PURCHASE_STOCK_ENTRY_REGISTERED")) == 2
     finally:
         conn.close()

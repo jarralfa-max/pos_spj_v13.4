@@ -72,6 +72,18 @@ class DocumentTemplateStatusAction(str, Enum):
     DEACTIVATE = "DEACTIVATE"
 
 
+def _ensure_ticket_content(document_type, content: str) -> None:
+    """Comparativa de tickets (2026-10-16): el contenido de una plantilla de
+    ticket ES el diseño por bloques que imprime el POS. Texto libre (como el
+    «Productos, unidad, cantidad, costo» que había en la base real) se rechaza
+    con el motivo en vez de quedar como una promesa que la impresora ignora."""
+    from backend.domain.document_output.ticket_layout import TICKET_DOCUMENT_TYPES, parse
+
+    value = getattr(document_type, "value", document_type)
+    if value in TICKET_DOCUMENT_TYPES:
+        parse(content)
+
+
 class CreateDocumentTemplateUseCase:
     """Creates a `DocumentTemplate` family together with its first
     (DRAFT) `DocumentTemplateVersion` — a template with zero versions
@@ -90,6 +102,7 @@ class CreateDocumentTemplateUseCase:
             document_type=_configurable(document_type), name=name, module=module,
             description=description,
         )
+        _ensure_ticket_content(template.document_type, content)
         version = DocumentTemplateVersion.create(
             template_id=template.id, content_format=RenderFormat(content_format), content=content,
             created_by_user_id=created_by_user_id or None,
@@ -111,6 +124,9 @@ class CreateNextTemplateVersionUseCase:
         current = self._versions.get(version_id)
         if current is None:
             raise TemplateVersionNotFoundError(f"Versión {version_id} no encontrada")
+        template = SqliteDocumentTemplateRepository(self._conn).get(current.template_id)
+        if template is not None:
+            _ensure_ticket_content(template.document_type, content)
         next_version = current.create_next_version(content=content, created_by_user_id=created_by_user_id or None)
         self._versions.save(next_version)
         self._conn.commit()
@@ -128,6 +144,11 @@ class ChangeTemplateVersionStatusUseCase:
         version = self._versions.get(version_id)
         if version is None:
             raise TemplateVersionNotFoundError(f"Versión {version_id} no encontrada")
+        template = SqliteDocumentTemplateRepository(self._conn).get(version.template_id)
+        if template is not None and action in (
+                TemplateVersionAction.SUBMIT_FOR_APPROVAL, TemplateVersionAction.APPROVE,
+                TemplateVersionAction.ACTIVATE):
+            _ensure_ticket_content(template.document_type, version.content)
 
         if action is TemplateVersionAction.SUBMIT_FOR_APPROVAL:
             version.submit_for_approval()
@@ -140,6 +161,8 @@ class ChangeTemplateVersionStatusUseCase:
             if current_active is not None and current_active.id != version.id:
                 current_active.deactivate()
                 self._versions.save(current_active)
+            if template is not None:
+                self._deactivate_other_ticket_designs(template, version)
             version.activate(actor_user_id)
         elif action is TemplateVersionAction.DEACTIVATE:
             version.deactivate()
@@ -151,6 +174,23 @@ class ChangeTemplateVersionStatusUseCase:
         self._versions.save(version)
         self._conn.commit()
         return version
+
+    def _deactivate_other_ticket_designs(self, template, version) -> None:
+        """Un solo diseño activo por tipo de ticket: el que imprime el POS. Antes
+        dos plantillas de ticket podían tener cada una su versión activa y no se
+        sabía cuál mandaba."""
+        from backend.domain.document_output.ticket_layout import TICKET_DOCUMENT_TYPES
+
+        if template.document_type.value not in TICKET_DOCUMENT_TYPES:
+            return
+        for other in SqliteDocumentTemplateRepository(self._conn).list_by_document_type(
+                template.document_type):
+            if other.id == template.id:
+                continue
+            active = self._versions.get_active_for_template(other.id)
+            if active is not None:
+                active.deactivate()
+                self._versions.save(active)
 
 
 class UpdateDocumentTemplateUseCase:

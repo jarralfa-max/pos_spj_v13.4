@@ -61,11 +61,14 @@ class InventoryMaterialReservationAdapter(_InventoryIntegration):
     """`MaterialReservationPort` → `ReserveStockForProductionUseCase`."""
 
     def __init__(self, connection, *, branch_id: str, warehouse_id: str,
-                 actor_user_id: str, document_id: str, strategy=None) -> None:
+                 actor_user_id: str, document_id: str, strategy=None,
+                 preferred_lot_ids: tuple[str, ...] = ()) -> None:
         super().__init__(connection, branch_id=branch_id, warehouse_id=warehouse_id,
                          actor_user_id=actor_user_id, document_id=document_id)
         #: None = la que tenga configurada Inventario (FEFO si nada).
         self._strategy = strategy
+        #: Lotes elegidos por quien opera (transformación directa: EL lote recibido).
+        self._preferred_lot_ids = tuple(preferred_lot_ids)
 
     def reserve(self, *, operation_id, material_requirement_id, product_id, branch_id,
                 warehouse_id, quantity, lot_required) -> ReservationOutcome:
@@ -76,7 +79,8 @@ class InventoryMaterialReservationAdapter(_InventoryIntegration):
             self._conn, product_id=product_id, branch_id=branch_id, warehouse_id=warehouse_id,
             quantity=quantity, source_document_id=material_requirement_id,
             operation_id=operation_id, actor_user_id=self._actor, lot_required=lot_required,
-            strategy=self._strategy, context=self.scope)
+            strategy=self._strategy, preferred_lot_ids=self._preferred_lot_ids,
+            context=self.scope)
         if not r.success:
             self.last_error = r.message
             disponible = r.data.get("available")
@@ -301,7 +305,33 @@ class CostingAllocationAdapter:
             produced=tuple(ProducedOutput(pid, tipo, qty, None) for pid, tipo, qty in produced))
         r = AllocateProductionCostUseCase(costing_policy_for(SOURCE_MODULE, self._actor)).preview(
             self._conn, hechos, actor_user_id=self._actor)
-        return None if r.success else (r.error_code, r.message)
+        if r.success:
+            return None
+        mensaje = _with_product_names(
+            self._conn, r.message, [pid for pid, _q, _l in consumed]
+            + [pid for pid, _t, _q in produced])
+        if "sin precio de venta" in mensaje:
+            mensaje += (" — captura su precio de venta en Precios (el reparto del costo es "
+                        "por valor de venta relativo).")
+        return (r.error_code, mensaje)
+
+
+def _with_product_names(connection, message: str, product_ids) -> str:
+    """Los mensajes de Costos nombran productos por id; quien opera necesita el
+    nombre (auditoría 32cfbf: «sin precio de venta: 01a0d678-…»)."""
+    ids = sorted({str(p) for p in product_ids if p and str(p) in (message or "")})
+    if not ids:
+        return message
+    try:
+        filas = connection.execute(
+            f"SELECT id, name FROM products WHERE id IN ({','.join('?' for _ in ids)})",
+            tuple(ids)).fetchall()
+    except Exception:  # noqa: BLE001 - sin catálogo, el mensaje tal cual
+        return message
+    for pid, nombre in filas:
+        if nombre:
+            message = message.replace(str(pid), str(nombre))
+    return message
 
 
 class LossesYieldVarianceAdapter:

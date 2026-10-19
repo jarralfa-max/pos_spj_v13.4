@@ -27,8 +27,8 @@ from backend.application.sales.use_cases.cart_use_cases import (
 )
 from backend.application.sales.use_cases.customer_use_cases import QuickCreateCustomerForSaleUseCase
 from backend.application.sales.use_cases.lifecycle_use_cases import BeginSaleCheckoutUseCase
+from backend.application.sales.use_cases.checkout_use_cases import CheckoutSaleUseCase
 from backend.application.sales.use_cases.payment_use_cases import (
-    CompleteSaleUseCase,
     RecordSalePaymentUseCase,
 )
 from backend.domain.sales.entities import Sale
@@ -181,6 +181,9 @@ class TestRecordSalePaymentUseCase:
             def has_permission(self, user_id, permission_code):
                 return permission_code != SalesPermissions.PAYMENT_MIXED
 
+            def can_access_branch(self, user_id, branch_id):
+                return True
+
         auth = SalesAuthorizationPolicy(_AllowExceptMixed())
         RecordSalePaymentUseCase(auth).execute(
             conn, sale_id=sale_id, method="CASH", amount=Decimal("50.00"),
@@ -266,13 +269,16 @@ class TestRecordSalePaymentUseCase:
         assert Decimal(str(cxc["original_amount"])) == Decimal("100.00")
 
 
-class TestCompleteSaleUseCase:
+class TestCompletionGoesThroughTheCanonicalCheckout:
+    """Auditoría V07: `CompleteSaleUseCase` (completar sin inventario, Caja ni
+    folio) se eliminó; la única ruta es `CheckoutSaleUseCase`."""
+
     def test_fails_when_not_fully_paid(self, conn):
         sale_id, cashier, _branch = _sale_ready_for_checkout(conn)
         RecordSalePaymentUseCase(_allow_all_sales()).execute(
             conn, sale_id=sale_id, method="CASH", amount=Decimal("40.00"),
             actor_user_id=cashier, operation_id=new_uuid())
-        result = CompleteSaleUseCase(_allow_all_sales()).execute(
+        result = CheckoutSaleUseCase(_allow_all_sales(), settle_inventory=False, require_cash_shift=False).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
         assert result.success is False
         assert result.error_code == "PAYMENT_INCOMPLETE"
@@ -285,7 +291,7 @@ class TestCompleteSaleUseCase:
         RecordSalePaymentUseCase(_allow_all_sales()).execute(
             conn, sale_id=sale_id, method="CARD", amount=Decimal("40.00"),
             actor_user_id=cashier, operation_id=new_uuid())
-        result = CompleteSaleUseCase(_allow_all_sales()).execute(
+        result = CheckoutSaleUseCase(_allow_all_sales(), settle_inventory=False, require_cash_shift=False).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
         assert result.success is True
 
@@ -308,6 +314,6 @@ class TestCompleteSaleUseCase:
         assert result.success is True
         sale = SaleRepository(conn).get(sale_id)
         assert sale.payments[0].reference == "mp-payment-123"
-        CompleteSaleUseCase(_allow_all_sales()).execute(
+        CheckoutSaleUseCase(_allow_all_sales(), settle_inventory=False, require_cash_shift=False).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
         assert SaleRepository(conn).get(sale_id).status is SaleStatus.COMPLETED

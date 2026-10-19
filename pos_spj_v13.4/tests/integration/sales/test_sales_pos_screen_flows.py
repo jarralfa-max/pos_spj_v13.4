@@ -206,6 +206,81 @@ def test_a_product_without_price_says_why_instead_of_doing_nothing(pos):
 
 # ── carrito (§12) ────────────────────────────────────────────────────────────
 
+def test_scale_capture_is_validated_by_application_and_current_weight_is_not_cart(pos):
+    from backend.application.sales.scale_reading_service import ScaleReadingService
+    from backend.domain.inventory.value_objects.catch_weight import WeightReading
+    from backend.infrastructure.hardware.scale_gateway import StubScaleGateway
+    service = ScaleReadingService(StubScaleGateway([WeightReading(Decimal(".850")) for _ in range(2)]))
+    service.poll()
+    service.poll()
+    pos._presenter._live_scale = service
+    product = _producto(pos, "Alas")
+    good = pos._presenter.add_product(sale_id=pos._sale_id, product=product,
+                                     quantity=Decimal(".850"), weight_source="SCALE")
+    assert good.success
+    bad = pos._presenter.add_product(sale_id=pos._sale_id, product=product,
+                                    quantity=Decimal("6.5"), weight_source="SCALE")
+    assert not bad.success and bad.error_code == "INVALID_SCALE_READING"
+    service.invalidate("STALE", "lectura vencida")
+    stale = pos._presenter.add_product(sale_id=pos._sale_id, product=product,
+                                      quantity=Decimal(".850"), weight_source="SCALE")
+    assert not stale.success
+    assert len(pos._presenter.get_sale(pos._sale_id).lines) == 1
+
+
+def test_quantity_edit_cannot_claim_a_stale_scale_reading(pos):
+    pos.dialogs["weight"] = _stub(weight=Decimal("1.250"), weight_source="MANUAL")
+    pos._on_product_selected(_producto(pos, "Alas"))
+    line = pos._sale.lines[0]
+    result = pos._presenter.update_line_quantity(
+        sale_id=pos._sale_id, line_id=line.id, quantity=Decimal(".850"), weight_source="SCALE")
+    assert not result.success and result.error_code == "INVALID_SCALE_READING"
+    assert pos._presenter.get_sale(pos._sale_id).lines[0].quantity == Decimal("1.250")
+
+
+def test_sale_discount_is_visible_and_removable_from_cart_without_removing_line_discount(pos):
+    pos._on_product_selected(_producto(pos, "Huacal"))
+    line = pos._sale.lines[0]
+    assert pos._presenter.apply_line_discount(sale_id=pos._sale_id, line_id=line.id,
+                                             discount_amount=Decimal("1")).success
+    assert pos._presenter.apply_sale_discount(sale_id=pos._sale_id,
+                                             discount_amount=Decimal("1")).success
+    pos._refresh()
+    cart = pos.checkout.cart
+    table = cart._table
+    assert pos._sale.sale_level_discount == Decimal("1")
+    assert any("Descuento de venta" in table.item(row, 0).text()
+               for row in range(table.rowCount()))
+    assert not table.isColumnHidden(4)
+    before = pos._sale.total
+    cart._tools.aboutToShow.emit()
+    assert cart.btn_remove_sale_discount._menu_action.isEnabled()
+    cart.btn_remove_sale_discount._menu_action.trigger()
+    assert pos._sale.sale_level_discount == 0
+    assert pos._sale.lines[0].discount_total == Decimal("1")
+    assert pos._sale.total == before + Decimal("1")
+    assert not cart.btn_remove_sale_discount.isEnabled()
+
+
+def test_remove_individual_discount_preserves_other_lines_and_sale_discount(pos):
+    pos._on_product_selected(_producto(pos, "Huacal"))
+    pos._on_product_selected(_producto(pos, "Huacal"))
+    first, second = pos._sale.lines
+    presenter = pos._presenter
+    assert presenter.apply_line_discount(sale_id=pos._sale_id, line_id=first.id, discount_amount=Decimal("1")).success
+    assert presenter.apply_line_discount(sale_id=pos._sale_id, line_id=second.id, discount_amount=Decimal("1")).success
+    assert presenter.apply_sale_discount(sale_id=pos._sale_id, discount_amount=Decimal("1")).success
+    before = presenter.get_sale(pos._sale_id)
+    assert presenter.remove_line_discount(sale_id=pos._sale_id, line_id=first.id).success
+    after = presenter.get_sale(pos._sale_id)
+    assert after.lines[0].discount_total == 0
+    assert after.lines[1].discount_total == 1
+    assert after.total == before.total + 1
+    assert presenter.remove_line_discount(sale_id=pos._sale_id, line_id=first.id).success
+    assert presenter.get_sale(pos._sale_id).total == after.total
+    presenter._session._permissions.discard(SalesPermissions.DISCOUNT_APPLY)
+    assert not presenter.remove_line_discount(sale_id=pos._sale_id, line_id=second.id).success
+
 def test_a_weighed_line_can_be_corrected_and_removed(pos):
     pos.dialogs["weight"] = _stub(weight=Decimal("1.250"), weight_source="MANUAL")
     pos._on_product_selected(_producto(pos, "Alas"))
@@ -268,6 +343,27 @@ def test_checkout_tells_folio_change_and_ticket_status_then_opens_a_new_sale(pos
     assert "ticket NO se imprimió" in text and "Dispositivos" in text
     assert pos._sale_id != sold and pos._sale.lines == ()
     assert pos._presenter.get_sale(sold).status == "COMPLETED"
+
+
+def test_public_display_only_thanks_after_committed_sale_and_clears_on_next_sale(pos):
+    projected = []
+    pos._presenter._command_handlers["push_customer_display"] = lambda **kw: projected.append(kw["state"])
+    pos._customer_display_gateway = object()
+    pos._on_product_selected(_producto(pos, "Huacal"))
+    pos._on_public_payment("FAILED")
+    assert projected[-1].screen == "PAYMENT_PENDING"
+    assert "no se confirmó" in projected[-1].payment_text
+    pos._public_payment = None
+    pos._refresh()
+    assert projected[-1].screen == "CART"
+    _cobrar(pos, "50")
+    assert projected[-1].screen == "THANK_YOU"
+    assert pos._presenter.get_sale(projected[-1].sale_id).status == "COMPLETED"
+    assert "Cambio:" in projected[-1].payment_text
+    pos._thank_you_timer.stop()
+    pos._push_customer_display()
+    assert projected[-1].screen == "IDLE"
+    assert not projected[-1].lines
 
 
 def test_reprint_targets_the_sale_just_charged_not_the_new_empty_one(pos):

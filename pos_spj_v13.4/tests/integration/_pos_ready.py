@@ -13,9 +13,10 @@ from decimal import Decimal
 from backend.shared.ids import new_uuid
 
 
-def open_cash_shift(conn, *, branch_id: str, cashier_user_id: str) -> str:
-    """Esquema real de Caja (migración 175) + caja, cajón, terminal y un turno
-    ABIERTO del cajero en la sucursal. Devuelve el id del turno."""
+def create_cash_schema(conn) -> None:
+    """Sólo el esquema real de Caja (migración 175). Desde la auditoría de Ventas
+    V06 (2026-10-15) Caja corre DENTRO de la transacción de la venta: una base
+    de prueba sin sus tablas ya no "pasa" tragándose el error."""
     if conn.execute("SELECT 1 FROM sqlite_master WHERE name='cash_shifts'").fetchone() is None:
         # Sólo el DDL de la 175: su `run()` termina con un `foreign_key_check`
         # de TODA la base, que en una prueba ya sembrada (recetas, productos)
@@ -24,6 +25,12 @@ def open_cash_shift(conn, *, branch_id: str, cashier_user_id: str) -> str:
             "migrations.standalone.175_cash_register_bounded_context_schema")
         for statement in (*m175.DDL, *m175.INDEXES):
             conn.execute(statement)
+
+
+def open_cash_shift(conn, *, branch_id: str, cashier_user_id: str) -> str:
+    """Esquema real de Caja (migración 175) + caja, cajón, terminal y un turno
+    ABIERTO del cajero en la sucursal. Devuelve el id del turno."""
+    create_cash_schema(conn)
     register, drawer, terminal, shift = new_uuid(), new_uuid(), new_uuid(), new_uuid()
     now = "2026-09-18T12:00:00+00:00"
     conn.execute("INSERT INTO cash_registers VALUES(?,?,?,?,?,?,?)",

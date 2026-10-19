@@ -61,16 +61,6 @@ def test_dead_settings_repository_pattern_still_catches_the_real_thing() -> None
     assert not _DEAD_SETTINGS_REPOSITORY.search("class SettingsRepositoryBase:")
 
 
-def test_no_feature_flags_runtime_write_from_configuracion() -> None:
-    rx = re.compile(r"(INSERT\s+INTO|UPDATE|REPLACE\s+INTO)\s+feature_flags", re.IGNORECASE)
-    offenders = []
-    for rel in CONFIG_MODULE_UI:
-        src = (PACKAGE_ROOT / rel).read_text(encoding="utf-8", errors="ignore")
-        if rx.search(src):
-            offenders.append(rel)
-    assert not offenders, f"Configuración UI writes feature_flags directly: {offenders}"
-
-
 def test_no_legacy_hardware_runtime_read() -> None:
     # No runtime caller invokes the legacy configuraciones_hardware bridge, and
     # no runtime code (outside the migration-only bridge method) selects it.

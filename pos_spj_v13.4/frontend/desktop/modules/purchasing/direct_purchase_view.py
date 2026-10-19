@@ -8,6 +8,7 @@ purchase can't be confused with the document currently being captured.
 
 from __future__ import annotations
 
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
 from frontend.desktop.modules.purchasing.pages.direct_purchase_create_page import (
@@ -19,6 +20,9 @@ from frontend.desktop.modules.purchasing.pages.direct_purchase_history_page impo
 
 
 class DirectPurchaseCreateView(QWidget):
+    #: (id de la compra, modo de surtido) al confirmarse.
+    purchase_confirmed = pyqtSignal(str, str)
+
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(parent)
         self.setObjectName("directPurchaseCreateModule")
@@ -26,10 +30,14 @@ class DirectPurchaseCreateView(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self._page = DirectPurchaseCreatePage(presenter, self)
+        self._page.purchase_confirmed.connect(self.purchase_confirmed.emit)
         layout.addWidget(self._page)
 
     def start_create(self) -> None:
         self._page.start_create()
+
+    def start_pickup(self) -> None:
+        self._page.start_pickup()
 
     def start_from_requisition(self, detail) -> None:
         self._page.start_from_requisition(detail)

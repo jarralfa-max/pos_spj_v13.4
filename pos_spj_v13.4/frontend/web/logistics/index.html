@@ -59,10 +59,12 @@
         <div id="scannerPanel" class="scanner" hidden>
           <video id="scannerVideo" playsinline muted></video>
           <div class="scan-target" aria-hidden="true"></div>
+          <p id="scanHint" class="scan-hint" role="status" aria-live="polite"></p>
+          <label class="scan-option"><input id="continuousScan" type="checkbox" checked> Escanear varios seguidos</label>
           <button id="stopScan" class="ghost">Cerrar cámara</button>
         </div>
         <form id="manualScanForm" class="inline-form">
-          <label>Token QR<input id="manualToken" placeholder="Token seguro del contenedor" required></label>
+          <label>Código del contenedor<input id="manualToken" placeholder="Código impreso (ej. CJ-000123)" autocapitalize="characters" autocomplete="off" required></label>
           <label>Padre<select id="parentNode"><option value="">Contenedor raíz</option></select></label>
           <button class="secondary" type="submit">Agregar</button>
         </form>

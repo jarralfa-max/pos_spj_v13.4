@@ -223,7 +223,6 @@ def test_the_sales_outbox_reaches_finance_with_the_aligned_contract():
     traiga `sale_id`, `settlements`, `customer_id` y `folio`, no sólo
     `entity_id`. Se comprueba sobre la carga REAL que arma el cobro."""
     from decimal import Decimal
-    from types import SimpleNamespace
 
     from backend.application.sales.integrations.finance_translator import (
         sale_completed_to_finance,
@@ -231,16 +230,26 @@ def test_the_sales_outbox_reaches_finance_with_the_aligned_contract():
     from backend.application.sales.integrations.wiring import dispatch_sales_outbox, wire_sales
     from backend.application.sales.use_cases.checkout_use_cases import _completed_payload
 
-    linea = SimpleNamespace(product_id="p1", quantity=SimpleNamespace(value=Decimal("2")))
-    venta = SimpleNamespace(
-        id="01a0b7c9-0000-7000-8000-00000000abcd", sale_number=None, customer_id="c1",
-        currency_code="MXN", lines=[linea], total_paid=Decimal("200"),
-        payments=[SimpleNamespace(method="CASH", amount=Decimal("200"))],
-        totals=SimpleNamespace(gross_subtotal=Decimal("200"), discount_total=Decimal("0"),
-                               promotion_total=Decimal("0"), coupon_total=Decimal("0"),
-                               loyalty_total=Decimal("0"), tax_total=Decimal("0"),
-                               rounding_adjustment=Decimal("0"), total=Decimal("200")))
-    carga = _completed_payload(venta, {"p1": Decimal("50")}, [], "RESERVED",
+    # 2026-10-16: una VENTA REAL del agregado, no un `SimpleNamespace` hecho a
+    # mano — el doble se quedó atrás cuando la carga empezó a leer líneas de
+    # mercancía, vales y cupones (2026-10-03) y la prueba fallaba por el doble,
+    # no por el contrato.
+    from backend.domain.sales.entities import Sale
+    from backend.domain.sales.enums import PaymentMethod
+    from backend.domain.sales.value_objects.quantity import Quantity
+    from backend.shared.ids import new_uuid
+
+    cajero = new_uuid()
+    venta = Sale.start(branch_id=new_uuid(), cashier_user_id=cajero, operation_id=new_uuid())
+    producto = new_uuid()
+    venta.add_line(product_id=producto, quantity=Quantity(Decimal("2"), "PZA"),
+                   unit_price=Decimal("100"))
+    venta.customer_id = new_uuid()
+    venta.begin_checkout()
+    venta.record_payment(method=PaymentMethod.CASH, amount=Decimal("200"),
+                         captured_by_user_id=cajero)
+    venta.complete()
+    carga = _completed_payload(venta, {producto: Decimal("50")}, [], "RESERVED",
                                authorizer_user_id=None, reason=None)
     finanzas = sale_completed_to_finance({"event_id": "e", "operation_id": "o",
                                           "branch_id": "b", "timestamp": "2026-09-18",

@@ -77,10 +77,9 @@ class ReturnSaleLineUseCase(_ReturnBaseUseCase):
             return fail_from_domain_error(exc, operation_id=operation_id)
 
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
 
             try:
                 self._authorizer_auth.authorize_exception(
@@ -152,21 +151,27 @@ class ReturnSaleLineUseCase(_ReturnBaseUseCase):
                        authorized_by=authorizer_user_id, reason=reason,
                        fully_returned=sale.status.value == "RETURNED_FULLY")
 
-        cash_effects_error: str | None = None
-        if self._cash_refunds is not None:
-            try:
-                SalesCashEffectsClient().refund_returned_line(
-                    connection, self._cash_refunds, refund_id=sale_return.id, sale_id=sale.id,
-                    branch_id=sale.branch_id, actor_user_id=actor_user_id,
-                    authorized_by=authorizer_user_id, operation_id=operation_id,
-                    payments=sale.payments, change=sale.change_given, refunds=refunds,
-                    reason=reason)
-            except Exception as exc:  # noqa: BLE001 - la mercancía ya volvió; se informa
-                cash_effects_error = str(exc)
+            # Reembolso de Caja en la MISMA transacción (auditoría V06, "todo o
+            # nada"): si Caja lo rechaza (sin efectivo en el cajón, tope,
+            # autorizador sin permiso), la mercancía tampoco regresa al
+            # inventario. Antes la devolución quedaba "registrada" sin dinero.
+            if self._cash_refunds is not None:
+                try:
+                    SalesCashEffectsClient().refund_returned_line(
+                        connection, self._cash_refunds, refund_id=sale_return.id,
+                        sale_id=sale.id, branch_id=sale.branch_id,
+                        actor_user_id=actor_user_id, authorized_by=authorizer_user_id,
+                        operation_id=operation_id, payments=sale.payments,
+                        change=sale.change_given, refunds=refunds, reason=reason)
+                except Exception as exc:  # noqa: BLE001 - se informa y se deshace todo
+                    uow.rollback()
+                    return SaleResult.fail(
+                        f"Caja no pudo reembolsar: {exc}. La devolución NO se registró.",
+                        "CASH_EFFECTS_FAILED", operation_id=operation_id)
         return SaleResult.ok(
             "Devolución registrada", entity_id=sale.id, operation_id=operation_id,
             sale=SaleDTO.from_entity(sale), return_id=sale_return.id,
-            amount=sale_return.amount, refunds=refunds, cash_effects_error=cash_effects_error)
+            amount=sale_return.amount, refunds=refunds)
 
     @staticmethod
     def _open_shift_problem(connection, branch_id: str, actor_user_id: str) -> str | None:
@@ -193,10 +198,9 @@ class ReverseSaleUseCase(_ReturnBaseUseCase):
             return fail_from_domain_error(exc, operation_id=operation_id)
 
         with SalesUnitOfWork(connection) as uow:
-            sale = uow.sales.get(sale_id)
-            if sale is None:
-                return fail_from_domain_error(
-                    SaleNotFoundError(f"Venta {sale_id} no existe"), operation_id=operation_id)
+            sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
+            if denied is not None:
+                return denied
 
             try:
                 self._authorizer_auth.authorize_exception(
@@ -250,15 +254,19 @@ class ReverseSaleUseCase(_ReturnBaseUseCase):
                        prepaid_vouchers=[{**v, "amount": str(v["amount"])}
                                          for v in sale.prepaid_vouchers()])
 
-        cash_effects_error: str | None = None
-        if sale.payments:
-            try:
-                SalesCashEffectsClient().reverse_completed_sale(
-                    connection, sale_id=sale.id, branch_id=sale.branch_id,
-                    actor_user_id=actor_user_id, operation_id=operation_id, reason=reason)
-            except Exception as exc:  # noqa: BLE001 - never un-reverse a sale over a ledger side effect
-                cash_effects_error = str(exc)
+            # El efectivo sale de Caja en la MISMA transacción (auditoría V06).
+            if sale.payments:
+                try:
+                    SalesCashEffectsClient().reverse_completed_sale(
+                        connection, sale_id=sale.id, branch_id=sale.branch_id,
+                        actor_user_id=actor_user_id, operation_id=operation_id,
+                        reason=reason)
+                except Exception as exc:  # noqa: BLE001 - se informa y se deshace todo
+                    uow.rollback()
+                    return SaleResult.fail(
+                        f"Caja no pudo compensar el efectivo: {exc}. La venta NO se reversó.",
+                        "CASH_EFFECTS_FAILED", operation_id=operation_id)
 
         return SaleResult.ok(
             "Venta reversada", entity_id=sale.id, operation_id=operation_id,
-            sale=SaleDTO.from_entity(sale), cash_effects_error=cash_effects_error)
+            sale=SaleDTO.from_entity(sale))

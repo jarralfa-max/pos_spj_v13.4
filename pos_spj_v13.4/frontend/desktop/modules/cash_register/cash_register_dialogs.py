@@ -20,14 +20,13 @@ from frontend.desktop.components.tooltip import apply_tooltip
 from backend.application.cash_register.notification_text import ALERTABLE_EVENTS
 from frontend.desktop.modules.cash_register.presentation import (
     LIMIT_OPERATION_LABELS,
-    display_code,
     status_label,
 )
 from frontend.desktop.themes.tokens import DialogMetrics
 
 
 def _money(value) -> str:
-    return f"${value:,.2f}"
+    return "Oculto" if value is None else f"${value:,.2f}"
 
 
 @dataclass(frozen=True)
@@ -69,6 +68,7 @@ class CashDeviceDialogResult:
 @dataclass(frozen=True)
 class CashShiftOpeningResult:
     opening_amount: Decimal
+    register_id: str | None = None
 
 
 class CashReasonDialog(FormDialog):
@@ -260,11 +260,11 @@ class SuspendCashShiftDialog(FormDialog):
         super().__init__(parent, title="Suspender turno", width=DialogMetrics.WIDTH_MD)
         context = QLabel(
             "\n".join((
-                f"Turno: {display_code('TUR', getattr(shift, 'id', ''))}",
+                f"Turno abierto: {str(getattr(shift, 'opened_at', '') or '')[:16].replace('T', ' ') or 'Sin fecha visible'}",
                 f"Caja: {getattr(shift, 'register_name', '') or 'Caja activa'}",
                 f"Cajon: {getattr(shift, 'drawer_name', '') or 'Cajon activo'}",
                 f"Terminal: {getattr(shift, 'terminal_name', '') or 'Terminal activa'}",
-                f"Cajero: {getattr(shift, 'cashier_name', '') or display_code('USR', getattr(shift, 'cashier_user_id', ''))}",
+                f"Cajero: {getattr(shift, 'cashier_name', '') or 'Cajero'}",
                 f"Estado: {status_label(getattr(shift, 'status', ''))}",
             )),
             self,
@@ -292,16 +292,14 @@ class SuspendCashShiftDialog(FormDialog):
 class ReprintCashDocumentDialog(FormDialog):
     """Semantic dialog for audited cash document reprints."""
 
-    def __init__(self, parent=None, *, document_type: str, document) -> None:
+    def __init__(self, parent=None, *, document_type: str, document,
+                 shift_label: str = "") -> None:
         super().__init__(parent, title=f"Reimprimir {document_type}", width=DialogMetrics.WIDTH_MD)
-        document_number = getattr(document, "document_number", "") or display_code(
-            "DOC",
-            getattr(document, "id", ""),
-        )
+        document_number = getattr(document, "document_number", "") or "Documento sin folio"
         context = QLabel(
             "\n".join((
                 f"Documento: {document_number}",
-                f"Turno: {display_code('TUR', getattr(document, 'shift_id', ''))}",
+                f"Turno: {shift_label or 'Turno'}",
                 f"Generado: {getattr(document, 'generated_at', '') or 'Sin fecha visible'}",
                 f"Final: {'Si' if getattr(document, 'is_final', False) else 'No'}",
             )),
@@ -341,7 +339,6 @@ class ResolveCashSyncConflictDialog(FormDialog):
             "\n".join((
                 f"Estrategia: {self._STRATEGY_LABELS.get(strategy, strategy)}",
                 f"Evento: {envelope.get('event_name', '') or 'Evento de Caja'}",
-                f"Operacion: {display_code('OP', envelope.get('operation_id', ''))}",
                 f"Secuencia: {envelope.get('sequence_no', '') or 'Sin secuencia visible'}",
                 f"Estado: {status_label(envelope.get('state', ''))}",
                 f"Ultimo error: {envelope.get('last_error', '') or 'Sin detalle'}",
@@ -371,7 +368,7 @@ class ResolveCashSyncConflictDialog(FormDialog):
 class ExplainCashDifferenceDialog(FormDialog):
     """Semantic dialog for cashier/supervisor explanation of a detected difference."""
 
-    def __init__(self, parent=None, *, difference) -> None:
+    def __init__(self, parent=None, *, difference, shift_label: str = "") -> None:
         super().__init__(parent, title="Explicar diferencia", width=DialogMetrics.WIDTH_MD)
         amount = _money(getattr(difference, "amount", 0))
         expected = _money(getattr(difference, "expected_amount", 0))
@@ -379,7 +376,7 @@ class ExplainCashDifferenceDialog(FormDialog):
         context = QLabel(
             "\n".join((
                 f"Diferencia detectada: {amount}",
-                f"Turno: {display_code('TUR', getattr(difference, 'shift_id', ''))}",
+                f"Turno: {shift_label or 'Turno'}",
                 f"Esperado: {expected}",
                 f"Contado: {counted}",
                 f"Severidad: {status_label(getattr(difference, 'severity', ''))}",
@@ -451,15 +448,16 @@ class CashHandoverDenominationDialog(FormDialog):
         title: str,
         handover,
         denominations: tuple[object, ...],
+        shift_label: str = "",
     ) -> None:
         super().__init__(parent, title=title, width=DialogMetrics.WIDTH_MD)
         context = QLabel(
             "\n".join((
-                f"Entrega: {display_code('ENT', getattr(handover, 'id', ''))}",
-                f"Turno: {display_code('TUR', getattr(handover, 'shift_id', ''))}",
+                f"Entrega preparada: {str(getattr(handover, 'prepared_at', '') or '')[:16].replace('T', ' ') or 'Sin fecha'}",
+                f"Turno: {shift_label or 'Turno'}",
                 f"Monto preparado: {_money(getattr(handover, 'amount', 0))}",
                 f"Estado: {status_label(getattr(handover, 'status', ''))}",
-                f"Preparo: {display_code('USR', getattr(handover, 'prepared_by', ''))}",
+                f"Preparo: {getattr(handover, 'prepared_by_name', '') or 'Usuario'}",
             )),
             self,
         )
@@ -502,11 +500,11 @@ class DisputeCashHandoverDialog(FormDialog):
         super().__init__(parent, title="Reportar disputa", width=DialogMetrics.WIDTH_MD)
         context = QLabel(
             "\n".join((
-                f"Entrega: {display_code('ENT', getattr(handover, 'id', ''))}",
+                f"Entrega preparada: {str(getattr(handover, 'prepared_at', '') or '')[:16].replace('T', ' ') or 'Sin fecha'}",
                 f"Monto: {_money(getattr(handover, 'amount', 0))}",
                 f"Estado: {status_label(getattr(handover, 'status', ''))}",
-                f"Entrego: {display_code('USR', getattr(handover, 'delivered_by', '')) if getattr(handover, 'delivered_by', '') else 'Pendiente'}",
-                f"Recibio: {display_code('USR', getattr(handover, 'received_by', '')) if getattr(handover, 'received_by', '') else 'Pendiente'}",
+                f"Entrego: {(getattr(handover, 'delivered_by_name', '') or 'Usuario') if getattr(handover, 'delivered_by', '') else 'Pendiente'}",
+                f"Recibio: {(getattr(handover, 'received_by_name', '') or 'Usuario') if getattr(handover, 'received_by', '') else 'Pendiente'}",
             )),
             self,
         )
@@ -640,8 +638,24 @@ class CashDeviceDialog(FormDialog):
 class CashShiftOpeningDialog(FormDialog):
     """Capture opening float for the active register/drawer/terminal assignment."""
 
-    def __init__(self, parent=None, *, title: str = "Abrir turno") -> None:
+    def __init__(self, parent=None, *, title: str = "Abrir turno",
+                 registers: list[dict] | None = None) -> None:
         super().__init__(parent, title=title, width=DialogMetrics.WIDTH_SM)
+        # Auditoría CJA-07 (2026-10-16): la caja se ELIGE por su nombre, cajón y
+        # terminal; antes se tomaba «la primera activa» y con varias cajas el
+        # error llegaba tarde (o caía en la de otra persona).
+        self.register = None
+        free = [r for r in (registers or []) if not r.get("busy")]
+        if registers is not None:
+            self.register = StandardComboBox(self, accessible_name="Caja")
+            for option in free:
+                self.register.addItem(
+                    f"{option['register_name']} · {option['drawer_name']} · "
+                    f"{option['terminal_name']}", option["register_id"])
+            self.form.addRow("Caja", self.register)
+            if not free:
+                self.form.addRow("", QLabel("No hay cajas libres en la sucursal: todas tienen "
+                                            "un turno activo o les falta cajón/terminal.", self))
         self.opening_amount = MoneyInput(self)
         apply_tooltip(
             self.opening_amount,
@@ -651,7 +665,9 @@ class CashShiftOpeningDialog(FormDialog):
         self.add_button_box(ok_text="Abrir turno", cancel_text="Cancelar")
 
     def result_value(self) -> CashShiftOpeningResult:
-        return CashShiftOpeningResult(opening_amount=self.opening_amount.decimal_value())
+        return CashShiftOpeningResult(
+            opening_amount=self.opening_amount.decimal_value(),
+            register_id=self.register.currentData() if self.register is not None else None)
 
 
 class CashCatalogDialog(FormDialog):

@@ -46,6 +46,8 @@ SALES_TABLES: tuple[str, ...] = (
     "sales",
     "sale_lines",
     "sale_payments",
+    "sale_payment_voids",
+    "sale_receipt_snapshots",
     "sale_coupons",
     "sale_returns",
     "sale_invoice_requests",
@@ -120,6 +122,37 @@ _DDL = (
         reference TEXT,
         captured_by_user_id TEXT NOT NULL,
         captured_at TEXT NOT NULL
+    )
+    """,
+    # ── Foto del ticket (2026-10-16, comparativa de tickets): la reimpresión sale
+    #    idéntica al original (decisión del usuario), marcada como REIMPRESIÓN ──
+    """
+    CREATE TABLE IF NOT EXISTS sale_receipt_snapshots (
+        id TEXT NOT NULL PRIMARY KEY,
+        sale_id TEXT NOT NULL UNIQUE REFERENCES sales(id),
+        document_type TEXT NOT NULL DEFAULT 'SALE_TICKET',
+        template_version_id TEXT,
+        layout_json TEXT NOT NULL,
+        header_json TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        logo_path TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
+    # ── SalePaymentVoid (2026-10-15, auditoría V02): pagos anulados en cobro ──
+    """
+    CREATE TABLE IF NOT EXISTS sale_payment_voids (
+        id TEXT NOT NULL PRIMARY KEY,
+        sale_id TEXT NOT NULL REFERENCES sales(id),
+        payment_id TEXT NOT NULL UNIQUE,
+        method TEXT NOT NULL,
+        amount TEXT NOT NULL,
+        reference TEXT,
+        captured_by_user_id TEXT NOT NULL,
+        captured_at TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        voided_by_user_id TEXT NOT NULL,
+        voided_at TEXT NOT NULL
     )
     """,
     # ── SaleCoupon (2026-10-03): cupones que Fidelidad aprobó para la venta ──

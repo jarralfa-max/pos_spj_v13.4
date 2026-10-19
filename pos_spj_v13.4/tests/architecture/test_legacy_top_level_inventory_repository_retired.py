@@ -39,8 +39,3 @@ def test_nothing_imports_the_legacy_top_level_inventory_repository():
     assert offenders == []
 
 
-def test_app_container_uses_only_the_canonical_adjacent_module():
-    src = (ROOT / "core/app_container.py").read_text(errors="ignore")
-    assert ("from backend.infrastructure.db.repositories.inventory_repository "
-            "import InventoryRepository") in src
-    assert "from repositories.inventory_repository import" not in src

@@ -127,7 +127,7 @@ class TestIntegracionesPageSelectionCascade:
         assert page.credentials_table.rowCount() == 1
         status_text = page.credentials_table.item(0, 1).text()
         assert "fake-value" not in status_text  # never the raw secret, only masked
-        assert "Configurada" in status_text
+        assert status_text == "Configurado"  # 3983fe70: estado sin el valor enmascarado
 
 
 class _FakeSecretStore:

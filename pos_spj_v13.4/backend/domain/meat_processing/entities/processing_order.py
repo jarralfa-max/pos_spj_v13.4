@@ -18,6 +18,10 @@ from backend.domain.meat_processing.exceptions import (
 
 _TERMINAL = (ProcessingOrderStatus.CANCELLED, ProcessingOrderStatus.REVERSED)
 
+#: `source_type` de la orden que crea una transformación directa; su
+#: `source_reference_id` es el lote de entrada elegido.
+DIRECT_TRANSFORMATION_SOURCE = "DIRECT_TRANSFORMATION"
+
 
 @dataclass
 class ProcessingOrder:
@@ -96,6 +100,20 @@ class ProcessingOrder:
             raise MeatProcessingSegregationOfDutiesError(
                 "Quien crea una orden elevada no debe aprobarla")
         self.approved_by_user_id = actor
+        self.status = ProcessingOrderStatus.APPROVED
+
+    def approve_direct_transformation(self, *, actor_user_id: str) -> None:
+        """Una transformación directa la autoriza su PROPIO permiso, no un
+        segundo usuario: `approved_by_user_id` queda vacío (la base exige que el
+        aprobador sea distinto de quien crea, y aquí no lo hubo) y quién la
+        autorizó queda en la auditoría (`APPROVED_BY_DIRECT_TRANSFORMATION`).
+        Sólo para órdenes con ese origen — una orden normal sigue exigiendo que
+        apruebe alguien distinto de quien la creó."""
+        self._require_status(ProcessingOrderStatus.PENDING_APPROVAL)
+        required_uuid(actor_user_id, "actor_user_id")
+        if self.source_type != DIRECT_TRANSFORMATION_SOURCE:
+            raise MeatProcessingSegregationOfDutiesError(
+                "Sólo una transformación directa se autoriza sin un segundo aprobador")
         self.status = ProcessingOrderStatus.APPROVED
 
     def mark_materials_pending(self) -> None:

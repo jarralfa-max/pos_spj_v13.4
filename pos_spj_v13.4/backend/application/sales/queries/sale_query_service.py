@@ -25,11 +25,15 @@ class SaleQueryService:
     def get(self, sale_id: str, *, requester_user_id: str) -> SaleDTO | None:
         self._auth.require(requester_user_id, SalesPermissions.VIEW)
         sale = self._repo.get(sale_id)
-        return None if sale is None else SaleDTO.from_entity(sale)
+        # Auditoría V05: una venta de otra sucursal no se lee por id.
+        if sale is None or not self._auth.can_access_branch(requester_user_id, sale.branch_id):
+            return None
+        return SaleDTO.from_entity(sale)
 
     def list_suspended(self, *, branch_id: str, requester_user_id: str,
                         workstation_id: str | None = None) -> tuple[SaleDTO, ...]:
         self._auth.require(requester_user_id, SalesPermissions.VIEW)
+        self._auth.require_branch(requester_user_id, branch_id)
         sales = self._repo.list_suspended(branch_id=branch_id, workstation_id=workstation_id)
         return tuple(SaleDTO.from_entity(sale) for sale in sales)
 
@@ -41,6 +45,7 @@ class SaleQueryService:
         separate method from `list_suspended()`: a UI badge has no reason
         to hydrate every suspended `Sale`/`SaleLine` just to show a number."""
         self._auth.require(requester_user_id, SalesPermissions.VIEW)
+        self._auth.require_branch(requester_user_id, branch_id)
         return self._repo.count_suspended(branch_id=branch_id, workstation_id=workstation_id)
 
     def list_recent_posted(self, *, branch_id: str, requester_user_id: str,
@@ -48,12 +53,14 @@ class SaleQueryService:
         """Ventas cobradas recientes de la sucursal (reimprimir, facturar,
         devolver), la más reciente primero."""
         self._auth.require(requester_user_id, SalesPermissions.VIEW)
+        self._auth.require_branch(requester_user_id, branch_id)
         return tuple(SaleDTO.from_entity(sale) for sale in self._repo.list_recent_posted(
             branch_id=branch_id, limit=limit))
 
     def find_posted_by_number(self, *, branch_id: str, sale_number: str,
                               requester_user_id: str) -> SaleDTO | None:
         self._auth.require(requester_user_id, SalesPermissions.VIEW)
+        self._auth.require_branch(requester_user_id, branch_id)
         sale = self._repo.find_posted_by_number(branch_id=branch_id, sale_number=sale_number)
         return None if sale is None else SaleDTO.from_entity(sale)
 

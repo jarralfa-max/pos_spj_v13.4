@@ -44,6 +44,11 @@ from frontend.desktop.modules.business_intelligence.shell_registration import (
     BUSINESS_INTELLIGENCE_REQUIRED_PERMISSION,
     BUSINESS_INTELLIGENCE_ROUTE_ID,
 )
+from frontend.desktop.modules.logistics.shell_registration import (
+    LOGISTICS_MODULE_ID,
+    LOGISTICS_REQUIRED_PERMISSION,
+    LOGISTICS_ROUTE_ID,
+)
 from frontend.desktop.modules.losses.shell_registration import (
     LOSSES_MODULE_ID,
     LOSSES_REQUIRED_PERMISSION,
@@ -190,6 +195,12 @@ MIGRATED_MODULES_NAVIGATION_ITEMS: tuple[NavigationItemDefinition, ...] = (
         item_id="nav.orders_delivery", module_id=ORDERS_DELIVERY_MODULE_ID, route_id=ORDERS_DELIVERY_ROUTE_ID,
         label="Pedidos y Reparto", icon=Icons.DELIVERY, order=140, group=MIGRATED_MODULES_GROUP,
         required_permission=ORDERS_DELIVERY_REQUIRED_PERMISSION,
+    ),
+    # Logística (integración 32cfbf): contenedores, embarques y compra en origen.
+    NavigationItemDefinition(
+        item_id="nav.logistics", module_id=LOGISTICS_MODULE_ID, route_id=LOGISTICS_ROUTE_ID,
+        label="Logística", icon=Icons.DELIVERY, order=145, group=MIGRATED_MODULES_GROUP,
+        required_permission=LOGISTICS_REQUIRED_PERMISSION,
     ),
     NavigationItemDefinition(
         item_id="nav.fidelidad", module_id=FIDELIDAD_MODULE_ID, route_id=FIDELIDAD_ROUTE_ID,

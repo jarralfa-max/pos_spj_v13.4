@@ -27,6 +27,16 @@ def test_identity_fields_map_from_the_context():
     assert adapter.is_branch_resolved is True
 
 
+def test_configuration_scopes_use_canonical_station_and_company_ids():
+    from backend.shared.ids import new_uuid
+    station, company = new_uuid(), new_uuid()
+    adapter = LegacySessionAdapter(_context(workstation_id=station, company_id=company))
+    assert adapter.workstation_id == station
+    assert adapter.company_id == company
+    # A machine name is not the identity of a persisted Configuración station.
+    assert LegacySessionAdapter(_context(workstation_id="CAJA-PC")).workstation_id is None
+
+
 def test_rol_is_the_first_role_or_empty():
     assert LegacySessionAdapter(_context(roles=("gerente", "cajero"))).rol == "gerente"
     assert LegacySessionAdapter(_context(roles=())).rol == ""

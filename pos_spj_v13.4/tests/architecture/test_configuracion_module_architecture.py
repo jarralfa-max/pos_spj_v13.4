@@ -13,21 +13,6 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore")
 
 
-def test_configuracion_ui_has_no_direct_sql():
-    """The configuracion UI module must not execute SQL directly."""
-    src = _read(CONFIGURACION_UI)
-    forbidden = ["cursor.execute(", "conn.execute(", ".execute(\"SELECT", ".execute(\"INSERT", ".execute(\"UPDATE", ".execute(\"DELETE"]
-    violations = [f for f in forbidden if f in src]
-    assert not violations, f"Direct SQL found in configuracion.py: {violations}"
-
-
-def test_configuracion_ui_has_no_commit_or_rollback():
-    """The configuracion UI module must not call commit() or rollback()."""
-    src = _read(CONFIGURACION_UI)
-    assert ".commit()" not in src, "configuracion.py calls .commit() directly"
-    assert ".rollback()" not in src, "configuracion.py calls .rollback() directly"
-
-
 def test_settings_commands_use_str_ids():
     """All ID fields in settings commands must be str, not int."""
     src = _read(SETTINGS_COMMANDS)
