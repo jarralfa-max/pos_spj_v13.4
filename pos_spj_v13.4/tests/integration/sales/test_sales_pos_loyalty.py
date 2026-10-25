@@ -114,6 +114,15 @@ def pos(app, conn, monkeypatch):
     monkeypatch.setattr("backend.shared.events.application_bus.get_bus", lambda: bus)
     monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *_a: None))
     monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *_a: None))
+    # Desde FID-03 no se canjea sobre un producto sin costo confiable (abriría el
+    # diálogo modal de autorización y la prueba se quedaría esperando). Estas
+    # pruebas son de los puntos, no del margen: el Huacal cuesta $30 sobre $100.
+    import backend.application.sales.cost_lookup as lookup
+    monkeypatch.setattr(lookup, "sale_unit_costs", lambda _c, sale, **_k: (
+        {ln.product_id: Decimal("30") for ln in sale.goods_lines}, []))
+    monkeypatch.setattr(
+        "frontend.desktop.modules.sales_pos.dialogs.stock_authorization_dialog."
+        "ask_margin_authorization", lambda *_a, **_k: (None, ""))
 
     workspace = create_sales_pos_view(conn, session)
     workspace.resize(1366, 768)

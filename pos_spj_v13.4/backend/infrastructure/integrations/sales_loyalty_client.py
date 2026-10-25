@@ -82,6 +82,17 @@ class SalesLoyaltyClient:
         return LoyaltySummary.create(
             points_balance=balance, tier="", available=balance > 0)
 
+    def has_redeemable_points(self, *, customer_id: str, sale_id: str) -> bool:
+        """¿Tiene sentido intentar el canje? Sí si hay saldo o si esta venta ya
+        tiene su canje (un reintento devuelve el comprobante aunque el saldo ya
+        sea cero). Lectura sin efectos."""
+        if not str(customer_id or "").strip():
+            return False
+        account_id = self._account_id(customer_id)
+        if account_id and self._existing_redemption(account_id, sale_id) is not None:
+            return True
+        return self._query.balance(customer_id) > 0
+
     def resolve_card(self, scanned: str):
         """Qué tarjeta de fidelidad es lo que leyó el escáner (§49). Lectura sin
         efectos; Fidelidad decide si la tarjeta identifica al cliente."""
@@ -120,7 +131,7 @@ class SalesLoyaltyClient:
     # ── canje ────────────────────────────────────────────────────────────
     def redeem(
         self, *, customer_id: str, sale_id: str, subtotal: Decimal, points: int,
-        actor_user_id: str,
+        actor_user_id: str, max_discount: Decimal | None = None,
     ) -> dict[str, Any]:
         """El canje de verdad: descuenta puntos del libro canónico.
 
@@ -140,6 +151,10 @@ class SalesLoyaltyClient:
         su `sale_id`, así que un canje previo de ESTA venta se reconoce y se
         devuelve tal cual en vez de descontar otra vez.
         """
+        valor = self._query.settings().point_value
+        if max_discount is not None and valor > 0:
+            # FID-03: no más puntos de los que caben en el margen protegido.
+            points = min(int(points), int(Decimal(str(max_discount)) / valor))
         preview = self._query.preview(
             customer_id=customer_id, subtotal=subtotal, requested_points=points)
         if preview.requested_points <= 0:
@@ -159,12 +174,16 @@ class SalesLoyaltyClient:
         )
         from backend.shared.ids import new_uuid
 
+        # Dentro de la transacción de la venta (FID-01) y con el valor del
+        # punto y el descuento CONGELADOS en el movimiento (FID-02).
         result = RedeemLoyaltyPointsUseCase(self._authorization).execute(
             self._connection, loyalty_account_id=account_id,
             points_amount=Decimal(preview.requested_points),
             operation_id=new_uuid(),
             actor_user_id=actor_user_id, actor_branch_id=self._actor_branch_id,
             source_module="sales", sale_id=sale_id,
+            point_value=self._query.settings().point_value,
+            monetary_value=preview.discount, owns_transaction=False,
         )
         if not result.success:
             return self._rejected(result.message or "Canje rechazado")
@@ -192,10 +211,14 @@ class SalesLoyaltyClient:
             if (transaction.sale_id == sale_id
                     and transaction.transaction_type is TransactionType.REDEEM):
                 puntos = int(abs(transaction.points_amount))
+                # El importe ACEPTADO entonces, no el que daría hoy el valor del
+                # punto (FID-02). Sólo un canje anterior a la migración 346 cae
+                # al cálculo, que es lo único que existía.
+                importe = (transaction.monetary_value if transaction.monetary_value is not None
+                           else puntos * self._query.settings().point_value)
                 return {
                     "approved": True, "points_redeemed": puntos,
-                    "discount_amount": puntos * self._query.settings().point_value,
-                    "reason": "",
+                    "discount_amount": importe, "reason": "",
                 }
         return None
 

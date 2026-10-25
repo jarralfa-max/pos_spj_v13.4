@@ -19,6 +19,7 @@ from backend.application.inventory.execution_context import InventoryExecutionCo
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.services.movement_posting import post_movement
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.inventory_movement import InventoryMovement
 from backend.domain.inventory.exceptions import (
     BranchScopeError,
@@ -33,7 +34,7 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class PostInventoryMovementUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, movement: InventoryMovement, *,
                 actor_user_id: str,

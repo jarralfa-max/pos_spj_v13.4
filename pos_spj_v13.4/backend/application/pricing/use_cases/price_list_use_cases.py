@@ -28,6 +28,7 @@ from backend.application.pricing.use_cases.list_guards import (
     load_list,
     missing_prices_failure,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.pricing.entities.price_list import PriceList
 from backend.domain.pricing.entities.product_price import ProductPrice
 from backend.domain.pricing.enums import PriceListKind
@@ -48,7 +49,7 @@ class _BasePriceListUseCase:
     def __init__(self, authorization: PricingAuthorizationPolicy | None = None) -> None:
         # Mismo contrato que el resto del ERP: sin checker la política permite
         # (pruebas aisladas); la composición viva siempre inyecta uno.
-        self._auth = authorization or PricingAuthorizationPolicy()
+        self._auth = authorization or unwired(PricingAuthorizationPolicy)
 
     @staticmethod
     def _emit(repo: PricingRepository, event_name: str, *, entity_id: str,

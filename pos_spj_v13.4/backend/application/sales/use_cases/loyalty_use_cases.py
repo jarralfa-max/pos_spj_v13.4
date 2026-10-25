@@ -19,6 +19,8 @@ compound action.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from backend.application.sales.dto import SaleDTO
 from backend.application.sales.permissions import SalesPermissions
 from backend.application.sales.result import SaleResult, fail_from_domain_error
@@ -30,8 +32,9 @@ from backend.infrastructure.integrations.sales_loyalty_client import SalesLoyalt
 
 
 class RedeemLoyaltyPointsUseCase(_SalesBaseUseCase):
-    def __init__(self, authorization=None, *, loyalty_authorization=None) -> None:
-        super().__init__(authorization)
+    def __init__(self, authorization=None, *, loyalty_authorization=None,
+                 authorizer_authorization=None) -> None:
+        super().__init__(authorization, authorizer_authorization=authorizer_authorization)
         #: Política con la que Ventas habla con Fidelidad (dueña del canje).
         #: Sin ella `SalesLoyaltyClient` falla cerrado — y así quedaba en el
         #: POS: el cliente se construía sin política y NINGÚN canje podía
@@ -40,11 +43,26 @@ class RedeemLoyaltyPointsUseCase(_SalesBaseUseCase):
         self._loyalty_auth = loyalty_authorization
 
     def execute(self, connection, *, sale_id: str, points: int, actor_user_id: str,
-                operation_id: str) -> SaleResult:
+                operation_id: str, authorizer_user_id: str | None = None,
+                reason: str | None = None) -> SaleResult:
         try:
             self._auth.require(actor_user_id, SalesPermissions.SALE_COMPLETE)
         except SalesDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
+        autorizado = False
+        if authorizer_user_id is not None:
+            if not (reason or "").strip():
+                return SaleResult.fail("Autorizar un beneficio sobre el margen requiere motivo",
+                                       "MARGIN_PROTECTED", operation_id=operation_id)
+            try:
+                self._authorizer().authorize_exception(
+                    authorizer_user_id=authorizer_user_id, requested_by=actor_user_id,
+                    permission_code=SalesPermissions.DISCOUNT_OVERRIDE,
+                    operation_id=operation_id, reason=reason, amount=Decimal("0"),
+                    sale_id=sale_id)
+                autorizado = True
+            except SalesDomainError as exc:
+                return fail_from_domain_error(exc, operation_id=operation_id)
 
         with SalesUnitOfWork(connection) as uow:
             sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
@@ -56,12 +74,31 @@ class RedeemLoyaltyPointsUseCase(_SalesBaseUseCase):
                         "El canje de fidelidad requiere un cliente asignado"),
                     operation_id=operation_id)
 
-            redemption = SalesLoyaltyClient(
-                connection, actor_branch_id=sale.branch_id,
-                authorization=self._loyalty_auth).redeem(
+            cliente_puntos = SalesLoyaltyClient(
+                connection, actor_branch_id=sale.branch_id, authorization=self._loyalty_auth)
+            # Sin puntos no hay nada que autorizar: decirlo ANTES que el margen,
+            # o el cajero pide una autorización que no sirve para nada.
+            if not cliente_puntos.has_redeemable_points(customer_id=sale.customer_id,
+                                                         sale_id=sale.id):
+                return fail_from_domain_error(
+                    LoyaltyRedemptionNotAvailableError("El cliente no tiene puntos disponibles"),
+                    operation_id=operation_id)
+
+            # FID-03: el descuento por puntos cabe en el margen de la venta.
+            from backend.application.sales.queries.benefit_budget_query import (
+                SaleBenefitBudgetQuery,
+            )
+            presupuesto = SaleBenefitBudgetQuery(connection).for_sale(sale)
+            if not autorizado and (presupuesto.lines_without_cost
+                                   or presupuesto.available <= 0):
+                return SaleResult.fail(
+                    presupuesto.explain() + " Pide autorización a quien pueda aprobarla.",
+                    "MARGIN_PROTECTED", operation_id=operation_id)
+            redemption = cliente_puntos.redeem(
                 customer_id=sale.customer_id, sale_id=sale.id,
                 subtotal=sale.totals.gross_subtotal, points=points,
-                actor_user_id=actor_user_id)
+                actor_user_id=actor_user_id,
+                max_discount=None if autorizado else presupuesto.available)
             if not redemption["approved"]:
                 return fail_from_domain_error(
                     LoyaltyRedemptionNotAvailableError(redemption["reason"]),

@@ -409,9 +409,7 @@ def test_la_venta_a_credito_asienta_la_cxc_sin_duplicar_la_que_registro_ventas(c
     from backend.application.event_handlers.finance.sale_completed_handler import (
         SaleCompletedHandler,
     )
-    from backend.application.use_cases.finance.receivable_use_cases import (
-        CreateReceivableUseCase,
-    )
+    from backend.application.use_cases.finance.create_receivable_use_case import CreateReceivableUseCase
     venta, cliente = new_uuid(), new_uuid()
     # Lo que hace `SalesCreditClient.register` al cobrar a crédito.
     CreateReceivableUseCase().execute(

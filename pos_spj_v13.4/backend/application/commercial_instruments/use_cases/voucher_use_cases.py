@@ -173,6 +173,30 @@ class ConfirmVoucherRedemptionUseCase(_CommercialInstrumentBaseUseCase):
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.voucher_transactions.save(reservation)
             remaining = _balance(uow, instance.id)
+            # Pieza de lote (auditoría de Fidelidad 968e0bc): si con este canje
+            # llega a su límite —un solo evento o N canjes— se cierra, y el saldo
+            # que sobre se ASIENTA como perdido; nunca desaparece en silencio.
+            reglas = uow.voucher_rules.get(instance.id)
+            if reglas is not None and remaining > 0:
+                canjes = len(uow.voucher_redemptions.list_for_instance(instance.id)) + 1
+                if reglas["rules"].closes_after(redemptions_after=canjes, remaining=remaining):
+                    perdido = remaining
+                    operacion_sobrante = new_uuid()
+                    uow.voucher_transactions.save(VoucherTransaction.forfeit_remainder(
+                        voucher_instance_id=instance.id, amount=-remaining,
+                        operation_id=operacion_sobrante,
+                        reason_code=("SOBRANTE_UN_SOLO_USO"
+                                     if reglas["rules"].effective_max_redemptions == 1
+                                     else "CANJES_AGOTADOS"),
+                        sale_id=reservation.sale_id))
+                    # Finanzas libera esa parte de la obligación (como un vencimiento).
+                    self._emit(uow, CommercialInstrumentEvents.VOUCHER_EXPIRED,
+                               entity_id=instance.id, operation_id=operacion_sobrante,
+                               branch_id=actor_branch_id, actor_user_id=redeemed_by_user_id,
+                               instrument_id=instance.id, expired_value=str(perdido),
+                               currency_code=currency_code, reason="Sobrante de vale cerrado",
+                               redemption_operation_id=operation_id)
+                    remaining = _balance(uow, instance.id)
             try:
                 instance.mark_redeemed(fully=(remaining == 0))
             except CommercialInstrumentDomainError as exc:

@@ -26,8 +26,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from backend.domain.software_distribution.install_profile import EnabledCapabilities
+from backend.security.permissions.principals import FULL_ACCESS_ROLE_NAMES
 
-_ADMIN_ROLES = frozenset({"admin", "system_owner", "superadmin", "administrador"})
+# Única lista de acceso total (auditoría de permisos 968e0bc, PER-07).
+_ADMIN_ROLES = FULL_ACCESS_ROLE_NAMES
 
 DEFAULT_LOCALE = "es-MX"
 DEFAULT_TIMEZONE = "America/Mexico_City"

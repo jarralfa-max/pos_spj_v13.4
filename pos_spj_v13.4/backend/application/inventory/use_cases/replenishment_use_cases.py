@@ -19,6 +19,7 @@ from backend.application.inventory.queries.availability_query_service import (
     InventoryAvailabilityQueryService,
 )
 from backend.application.inventory.result import InventoryResult
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.replenishment import (
     ReplenishmentRule,
     ReplenishmentSuggestion,
@@ -43,7 +44,7 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class SetReplenishmentRuleUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, product_id: str, branch_id: str,
                 warehouse_id: str, reorder_point, target_quantity,
@@ -83,7 +84,7 @@ class SetReplenishmentRuleUseCase:
 class GenerateReplenishmentSuggestionsUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None,
                  policy: ReplenishmentPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
         self._policy = policy or ReplenishmentPolicy()
 
     def execute(self, connection, *, operation_id: str, actor_user_id: str,

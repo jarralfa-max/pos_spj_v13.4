@@ -38,9 +38,10 @@ from backend.infrastructure.db.repositories.customers.support_repositories impor
 from backend.infrastructure.db.repositories.customers.customer_sync_conflict_repository import (
     CustomerSyncConflictRepository,
 )
+from backend.infrastructure.db.transaction import TransactionalUnitOfWork
 
 
-class CustomerUnitOfWork:
+class CustomerUnitOfWork(TransactionalUnitOfWork):
     def __init__(self, connection: Any) -> None:
         self.connection = connection
         self.customers = CustomerRepository(connection)
@@ -57,24 +58,3 @@ class CustomerUnitOfWork:
         self.outbox = CustomerOutboxRepository(connection)
         self.processed_events = CustomerProcessedEventRepository(connection)
         self._completed = False
-
-    def __enter__(self) -> "CustomerUnitOfWork":
-        self._completed = False
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> bool:
-        if exc_type is not None:
-            self.rollback()
-        elif not self._completed:
-            self.commit()
-        return False
-
-    def commit(self) -> None:
-        self.connection.commit()
-        self._completed = True
-
-    def rollback(self) -> None:
-        rollback = getattr(self.connection, "rollback", None)
-        if rollback is not None:
-            rollback()
-        self._completed = True

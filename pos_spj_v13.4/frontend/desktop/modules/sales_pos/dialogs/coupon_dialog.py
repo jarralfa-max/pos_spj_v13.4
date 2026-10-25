@@ -54,6 +54,10 @@ class CouponDialog(StandardDialog):
     def set_code(self, code: str) -> None:
         self._code.setText(code)
 
+    def apply_now(self) -> None:
+        """Aplica el código ya capturado (lo escaneó el cajero en el carrito)."""
+        self._submit()
+
     def _render(self) -> None:
         self._applied.clear()
         for cupon in getattr(self._sale, "coupons", ()) or ():
@@ -88,5 +92,15 @@ class CouponDialog(StandardDialog):
         if not code:
             self._show_error("Captura el código del cupón.")
             return
-        if self._apply_result(self._presenter.apply_coupon(sale_id=self._sale.id, code=code)):
+        result = self._presenter.apply_coupon(sale_id=self._sale.id, code=code)
+        if not result.success and getattr(result, "error_code", "") == "MARGIN_PROTECTED":
+            from frontend.desktop.modules.sales_pos.dialogs.stock_authorization_dialog import (
+                ask_margin_authorization,
+            )
+            quien, motivo = ask_margin_authorization(
+                self._presenter, result.message, self, "Autorizar y aplicar")
+            if quien is not None:
+                result = self._presenter.apply_coupon(
+                    sale_id=self._sale.id, code=code, authorizer_user_id=quien, reason=motivo)
+        if self._apply_result(result):
             self._code.setText("")

@@ -16,7 +16,8 @@ EXPECTED_TITLES = (
 def test_losses_has_one_canonical_internal_navigation_contract():
     assert tuple(entry.title for entry in LOSSES_NAV) == EXPECTED_TITLES
     assert len({entry.page_id for entry in LOSSES_NAV}) == len(LOSSES_NAV)
-    assert all(entry.permission.startswith("LOSSES_") for entry in LOSSES_NAV)
+    # Auditoría de permisos 968e0bc (PER-04): vocabulario `MERMA.<accion>`.
+    assert all(entry.permission.startswith("MERMA.") for entry in LOSSES_NAV)
 
 
 def test_visible_entries_are_least_privilege_and_badges_are_external():

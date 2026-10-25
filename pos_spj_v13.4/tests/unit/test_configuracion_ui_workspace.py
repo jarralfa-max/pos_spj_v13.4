@@ -174,6 +174,9 @@ class Queries:
     def list_content_campaigns(self):
         return self._content_campaigns
 
+    def display_advertising_diagnostics(self):
+        return ()
+
     def list_advertising_slots(self):
         return self._advertising_slots
 

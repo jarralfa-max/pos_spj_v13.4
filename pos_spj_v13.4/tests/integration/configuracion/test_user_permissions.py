@@ -117,9 +117,11 @@ def test_nobody_grants_what_they_do_not_have(conn):
 
 def test_the_owner_is_never_denied_and_admins_take_no_exceptions(conn):
     owner, otro_owner, admin = _user(conn, "system_owner"), _user(conn, "system_owner"), _user(conn, "admin")
-    with pytest.raises(ConfigurationInvalidValueError, match="dueño"):
-        _save(conn, owner, otro_owner, {"POS.ver": "DENY"})
-    _save(conn, owner, otro_owner, {"POS.ver": "GRANT"})  # conceder sí
+    # Auditoría de permisos 968e0bc (PER-07): el dueño es ACCESO TOTAL (como en
+    # la sesión) y no se edita; antes era «sólo agregar».
+    for estado in ("DENY", "GRANT"):
+        with pytest.raises(ConfigurationInvalidValueError, match="acceso total"):
+            _save(conn, owner, otro_owner, {"POS.ver": estado})
     with pytest.raises(ConfigurationInvalidValueError, match="acceso total"):
         _save(conn, owner, admin, {"POS.ver": "GRANT"})
 
@@ -137,7 +139,7 @@ def app():
     return QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
 
 
-def test_the_dialog_returns_only_changes_and_owner_cannot_be_denied(app):
+def test_the_dialog_returns_only_changes_and_offers_the_three_states(app):
     from backend.application.security.role_permission_matrix import ModulePermissions, PermissionOption
     from backend.application.security.user_permission_matrix import UserPermissionMatrix
     from frontend.desktop.modules.configuracion.dialogs.user_permissions_dialog import (
@@ -152,6 +154,5 @@ def test_the_dialog_returns_only_changes_and_owner_cannot_be_denied(app):
     combo = dlg._combos["POS.cobrar"]
     combo.setCurrentIndex(combo.findData("GRANT"))
     assert dlg.changes() == {"POS.cobrar": "GRANT"}
-    dueño = UserPermissionsDialog(matrix=UserPermissionMatrix(
-        "u", "Dueño", "system_owner", "GRANT_ONLY", "", frozenset(), {}, modulos))
-    assert dueño._combos["POS.ver"].findData("DENY") == -1
+    # El dueño ya no llega a este diálogo (acceso total): toda fila ofrece negar.
+    assert all(c.findData("DENY") >= 0 for c in dlg._combos.values())

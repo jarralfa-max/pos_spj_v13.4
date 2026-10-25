@@ -326,6 +326,28 @@ def test_pwa_scans_without_barcode_detector_and_takes_the_printed_code():
     assert "Token seguro" not in html
 
 
+def test_pwa_loads_without_javascript_errors_in_an_old_browser():
+    """Sin Node en el equipo, esto es lo que detecta un error de sintaxis en la
+    PWA (pasó con `||=`, que Chromium 83 / Safari 13 no entienden)."""
+    pytest.importorskip("PyQt5.QtWebEngineWidgets")
+    import os
+    import socket
+    import subprocess
+    import sys
+
+    with socket.socket() as libre:
+        libre.bind(("127.0.0.1", 0))
+        puerto = libre.getsockname()[1]
+    entorno = {k: v for k, v in os.environ.items() if k != "QT_QPA_PLATFORM"}
+    salida = subprocess.run(
+        [sys.executable, str(Path(__file__).with_name("_pwa_console.py")), str(puerto)],
+        capture_output=True, text=True, timeout=120, env=entorno)
+    lineas = [x for x in salida.stdout.splitlines() if x.strip()]
+    if salida.returncode != 0 and not lineas:
+        pytest.skip(f"QtWebEngine no disponible en este entorno (código {salida.returncode})")
+    assert lineas == ["OK"], " | ".join(lineas) + salida.stderr[-1500:]
+
+
 # ── HTTPS para la cámara ────────────────────────────────────────────────────
 def test_lan_bind_gets_a_self_signed_certificate_covering_its_ip(tmp_path):
     from cryptography import x509

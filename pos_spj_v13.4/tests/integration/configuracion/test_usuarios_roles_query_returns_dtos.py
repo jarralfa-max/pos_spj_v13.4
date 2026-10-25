@@ -179,12 +179,25 @@ def test_the_usuarios_roles_page_opens(conn, qt_app):
     )
     from frontend.desktop.modules.configuracion.configuracion_routes import build_page
 
+    from backend.application.configuracion.authorization import (
+        ConfiguracionAuthorizationPolicy,
+    )
+
     _rol(conn)
     _usuario(conn)
 
+    # Sin sesión ni política el presentador ya no omite la autorización
+    # (auditoría de permisos 968e0bc, PER-02): se le da una identidad y una
+    # política explícita, como en la app.
+    class _Sesion:
+        user_id = "admin-de-prueba"
+        is_active = True
+
     pagina = build_page(
         "config_usuarios_roles",
-        ConfiguracionPresenter(query_service=_servicio(conn)))
+        ConfiguracionPresenter(
+            query_service=_servicio(conn), session_context=_Sesion(),
+            authorization=ConfiguracionAuthorizationPolicy.permissive_for_tests()))
 
     assert type(pagina).__name__ == "UsuariosRolesPage"
     # 7 roles sembrados + el creado aquí.

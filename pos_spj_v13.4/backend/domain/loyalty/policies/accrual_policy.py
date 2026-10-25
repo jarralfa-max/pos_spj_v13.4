@@ -40,16 +40,55 @@ class AccrualSettings:
             raise ValueError("Los meses de vigencia no pueden ser negativos")
 
 
+#: Medios que NUNCA acumulan: vales (de cualquier tipo, también el prepagado
+#: al gastarse) y puntos. Auditoría 968e0bc FID-04, decisión del usuario.
+NON_EARNING_TENDERS = frozenset({"VOUCHER", "STORE_CREDIT", "LOYALTY", "LOYALTY_POINTS",
+                                 "POINTS"})
+#: Medios que no acumulan AL VENDER: el crédito acumula cuando se cobra
+#: (`credit_earns`) o nunca.
+DEFERRED_TENDERS = frozenset({"CREDIT"})
+
+
+def _tenders(payments) -> list[tuple[str, Decimal]]:
+    salida = []
+    for pago in payments or ():
+        if isinstance(pago, dict):
+            metodo, importe = pago.get("method"), pago.get("amount")
+        else:
+            metodo, importe = pago[0], pago[1]
+        salida.append((str(metodo or "").upper(), Decimal(str(importe or "0"))))
+    return salida
+
+
 class LoyaltyAccrualPolicy:
     @staticmethod
-    def eligible_amount(*, total: Decimal, credit_amount: Decimal,
-                        settings: AccrualSettings) -> Decimal:
-        """Lo que acumula: el total pagado, menos lo pagado a crédito si el
-        programa no deja acumular a crédito."""
+    def eligible_amount(*, total: Decimal, credit_amount: Decimal = Decimal("0"),
+                        settings: AccrualSettings, payments=()) -> Decimal:
+        """La base que acumula AL VENDER (la ÚNICA, para la vista previa y para
+        la venta confirmada — FID-04): lo pagado en dinero. Se restan los vales,
+        los puntos y el crédito (éste acumula al cobrarse, no al vender).
+
+        Sin desglose de pagos (llamadores antiguos) se resta `credit_amount`."""
         total = Decimal(str(total))
-        if not settings.credit_earns:
-            total -= Decimal(str(credit_amount))
-        return max(total, Decimal("0"))
+        pagos = _tenders(payments)
+        if pagos:
+            fuera = sum((importe for metodo, importe in pagos
+                         if metodo in NON_EARNING_TENDERS or metodo in DEFERRED_TENDERS),
+                        Decimal("0"))
+        else:
+            fuera = Decimal(str(credit_amount or "0"))
+        return max(total - fuera, Decimal("0"))
+
+    @staticmethod
+    def deferred_credit_amount(*, total: Decimal, payments=(),
+                               credit_amount: Decimal = Decimal("0")) -> Decimal:
+        """La parte a crédito de la base: acumulará cuando se cobre."""
+        pagos = _tenders(payments)
+        credito = (sum((i for m, i in pagos if m in DEFERRED_TENDERS), Decimal("0"))
+                   if pagos else Decimal(str(credit_amount or "0")))
+        vales = sum((i for m, i in pagos if m in NON_EARNING_TENDERS), Decimal("0"))
+        tope = max(Decimal(str(total)) - vales, Decimal("0"))
+        return max(min(credito, tope), Decimal("0"))
 
     @staticmethod
     def points_for(amount: Decimal, settings: AccrualSettings) -> int:

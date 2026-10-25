@@ -19,7 +19,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 
-from backend.application.customer_display.dto import ResolvedAdDTO
+from backend.application.customer_display.dto import AdDeliveryDiagnosticDTO, ResolvedAdDTO
 from backend.domain.customer_display.enums import CustomerDisplayMode
 from backend.infrastructure.db.repositories.customer_display.advertising_slot_repository import (
     SqliteAdvertisingSlotRepository,
@@ -40,6 +40,14 @@ from backend.infrastructure.db.repositories.customer_display.display_media_repos
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _schedule_issue(campaign, now: str) -> str | None:
+    if campaign.starts_at and now < campaign.starts_at:
+        return "NOT_STARTED"
+    if campaign.ends_at and now > campaign.ends_at:
+        return "EXPIRED"
+    return None
 
 
 class AdvertisingQueryService:
@@ -81,6 +89,36 @@ class AdvertisingQueryService:
             return self.resolve_active_ads(CustomerDisplayMode.IDLE)
         return ads
 
+    def diagnose_display_ads(self, mode: CustomerDisplayMode | str = "CART") -> tuple[AdDeliveryDiagnosticDTO, ...]:
+        """Explain configuration blockers without activating or assigning campaigns."""
+        mode = CustomerDisplayMode(mode)
+        modes = {mode, CustomerDisplayMode.IDLE} if mode == CustomerDisplayMode.CART else {mode}
+        now = _now_iso()
+        slots = {slot.id: slot for slot in self._slots.list_all()}
+        rows = []
+        for campaign in self._campaigns.list_all():
+            issues = []
+            if not campaign.is_active():
+                issues.append("NOT_ACTIVE")
+            schedule_issue = _schedule_issue(campaign, now)
+            if schedule_issue:
+                issues.append(schedule_issue)
+            placements = [p for p in self._placements.list_for_campaign(campaign.id) if p.active]
+            assigned = [slots[p.slot_id] for p in placements if p.slot_id in slots]
+            if not assigned:
+                issues.append("UNASSIGNED")
+            elif not any(slot.mode in modes for slot in assigned):
+                issues.append("WRONG_MODE")
+            elif not any(slot.active and slot.mode in modes for slot in assigned):
+                issues.append("SLOT_DISABLED")
+            content = self._content.get(campaign.content_id)
+            if content is None or not content.active:
+                issues.append("CONTENT_DISABLED")
+            elif content.content_type.value in ("IMAGE", "VIDEO") and not self._media_path(content):
+                issues.append("MEDIA_MISSING")
+            rows.append(AdDeliveryDiagnosticDTO(campaign.id, campaign.name, tuple(issues)))
+        return tuple(rows)
+
     def resolve_active_ads(self, mode: CustomerDisplayMode | str) -> tuple[ResolvedAdDTO, ...]:
         mode = CustomerDisplayMode(mode)
         now = _now_iso()
@@ -94,9 +132,7 @@ class AdvertisingQueryService:
             campaign = self._campaigns.get(placement.campaign_id)
             if campaign is None or not campaign.is_active():
                 continue
-            if campaign.starts_at and now < campaign.starts_at:
-                continue
-            if campaign.ends_at and now > campaign.ends_at:
+            if _schedule_issue(campaign, now):
                 continue
             content = self._content.get(campaign.content_id)
             if content is None or not content.active:

@@ -96,6 +96,15 @@ class LoyaltyPermissions:
     VOUCHER_CANCEL = "GROWTH_ENGINE.vale.cancelar"
     VOUCHER_ADJUST = "GROWTH_ENGINE.vale.ajustar"
 
+    # Lotes físicos de cupones y vales (auditoría de Fidelidad 968e0bc,
+    # ampliación): diseñar y pedir, aprobar (otra persona) y activar, imprimir
+    # o reimprimir, y revocar una pieza extraviada.
+    BATCH_VIEW = "GROWTH_ENGINE.lote.ver"
+    BATCH_CREATE = "GROWTH_ENGINE.lote.crear"
+    BATCH_APPROVE = "GROWTH_ENGINE.lote.aprobar"
+    BATCH_PRINT = "GROWTH_ENGINE.lote.imprimir"
+    BATCH_REVOKE = "GROWTH_ENGINE.lote.revocar"
+
     # ── sorteos (§59) ────────────────────────────────────────────────────
     SWEEPSTAKES_VIEW = "GROWTH_ENGINE.sorteo.ver"
     SWEEPSTAKES_MANAGE = "GROWTH_ENGINE.sorteo.gestionar"

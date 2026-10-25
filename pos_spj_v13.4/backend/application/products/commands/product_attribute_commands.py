@@ -8,13 +8,13 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class CreateAttributeCommand:
     operation_id: str
-    code: str
+    code: str  # vacío → se genera del nombre (PROD-23)
     name: str
     data_type: str = "LIST"
     user_id: str | None = None
 
     def validate(self) -> None:
-        missing = [f for f in ("operation_id", "code", "name")
+        missing = [f for f in ("operation_id", "name")
                    if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
@@ -52,13 +52,13 @@ class SetAttributeActiveCommand:
 class AddAttributeOptionCommand:
     operation_id: str
     attribute_id: str
-    code: str
+    code: str  # vacío → se genera del nombre (PROD-23)
     label: str
     sort_order: int = 0
     user_id: str | None = None
 
     def validate(self) -> None:
-        missing = [f for f in ("operation_id", "attribute_id", "code", "label")
+        missing = [f for f in ("operation_id", "attribute_id", "label")
                    if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")

@@ -90,7 +90,7 @@ class FinancialStatementBuilder:
                 f"Trial balance is unbalanced: debits={debits.to_string()} credits={credits.to_string()}"
             )
 
-    # ── income statement ──────────────────────────────────────────────────
+    # ── income statement (§31) ────────────────────────────────────────────
     def net_income(self, rows: list[AccountBalanceRow]) -> Money:
         revenue = self._sum_types(rows, (AccountType.REVENUE, AccountType.OTHER_INCOME))
         contra = self._sum_types(rows, (AccountType.CONTRA_REVENUE,))
@@ -98,7 +98,11 @@ class FinancialStatementBuilder:
         expenses = self._sum_types(rows, (AccountType.EXPENSE, AccountType.OTHER_EXPENSE))
         return revenue.subtract(contra).subtract(costs).subtract(expenses)
 
-    def income_statement(self, rows: list[AccountBalanceRow]) -> dict:
+    def income_statement(self, rows: list[AccountBalanceRow], *,
+                         income_tax_account_ids: frozenset[str] = frozenset()) -> dict:
+        """Ingresos netos → utilidad bruta → utilidad operativa → resultado
+        antes de impuestos → resultado neto. Los impuestos a la utilidad son
+        las cuentas que el perfil INCOME_TAX declara (configuración, no código)."""
         revenue = self._sum_types(rows, (AccountType.REVENUE,))
         contra = self._sum_types(rows, (AccountType.CONTRA_REVENUE,))
         net_revenue = revenue.subtract(contra)
@@ -107,8 +111,12 @@ class FinancialStatementBuilder:
         expenses = self._sum_types(rows, (AccountType.EXPENSE,))
         operating = gross.subtract(expenses)
         other_income = self._sum_types(rows, (AccountType.OTHER_INCOME,))
-        other_expense = self._sum_types(rows, (AccountType.OTHER_EXPENSE,))
-        net = operating.add(other_income).subtract(other_expense)
+        tax_rows = [r for r in rows if r.account_id in income_tax_account_ids]
+        other_rows = [r for r in rows if r.account_id not in income_tax_account_ids]
+        other_expense = self._sum_types(other_rows, (AccountType.OTHER_EXPENSE,))
+        income_tax = self._sum_types(tax_rows, tuple(AccountType))
+        pre_tax = operating.add(other_income).subtract(other_expense)
+        net = pre_tax.subtract(income_tax)
         return {
             "revenue": revenue.to_string(),
             "contra_revenue": contra.to_string(),
@@ -119,6 +127,8 @@ class FinancialStatementBuilder:
             "operating_income": operating.to_string(),
             "other_income": other_income.to_string(),
             "other_expense": other_expense.to_string(),
+            "income_before_taxes": pre_tax.to_string(),
+            "income_taxes": income_tax.to_string(),
             "net_income": net.to_string(),
             "sections": self._detail_sections(rows, _INCOME_TYPES),
         }
@@ -149,31 +159,6 @@ class FinancialStatementBuilder:
                 f"Accounting equation violated: assets={assets.to_string()} != "
                 f"liabilities+equity={liabilities.add(equity).to_string()}"
             )
-
-    # ── cash flow (indirect by category) ──────────────────────────────────
-    def cash_flow_statement(self, rows: list[AccountBalanceRow]) -> dict:
-        flows = {
-            CashFlowCategory.OPERATING: Money.zero(self._currency),
-            CashFlowCategory.INVESTING: Money.zero(self._currency),
-            CashFlowCategory.FINANCING: Money.zero(self._currency),
-        }
-        for row in rows:
-            if row.cash_flow_category in flows:
-                # Inflow positive when the movement increases cash: for DEBIT-natured
-                # cash mirrors the natural balance; other accounts contribute inversely.
-                delta = row.natural_balance()
-                if row.account_type is AccountType.ASSET and row.cash_flow_category is not CashFlowCategory.OPERATING:
-                    delta = delta.negate()
-                flows[row.cash_flow_category] = flows[row.cash_flow_category].add(delta)
-        net = (flows[CashFlowCategory.OPERATING]
-               .add(flows[CashFlowCategory.INVESTING])
-               .add(flows[CashFlowCategory.FINANCING]))
-        return {
-            "operating": flows[CashFlowCategory.OPERATING].to_string(),
-            "investing": flows[CashFlowCategory.INVESTING].to_string(),
-            "financing": flows[CashFlowCategory.FINANCING].to_string(),
-            "net_change_in_cash": net.to_string(),
-        }
 
     # ── equity changes ────────────────────────────────────────────────────
     def equity_changes(self, opening_rows: list[AccountBalanceRow],

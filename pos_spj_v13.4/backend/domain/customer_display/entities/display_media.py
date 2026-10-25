@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from backend.domain.customer_display.exceptions import CustomerDisplayInvalidValueError
 from backend.shared.ids import new_uuid
 
-#: Extensiones aceptadas por tipo. Las que Qt sabe mostrar sin códecs extra.
+#: Contenedores aceptados; la reproducción depende de los códecs del motor Qt/OS.
 ALLOWED_EXTENSIONS = {
     "IMAGE": frozenset({".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}),
     "VIDEO": frozenset({".mp4", ".avi", ".wmv", ".mov", ".mkv"}),

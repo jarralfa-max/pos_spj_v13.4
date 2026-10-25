@@ -31,6 +31,7 @@ from backend.application.products.permissions import ProductPermissions
 from backend.application.products.use_cases.product_master_use_cases import (
     CreateProductMasterUseCase,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.events import ProductEvents
 from backend.domain.products.policies.product_import_policy import validate_import_row
 from backend.infrastructure.db.repositories.products.import_repository import (
@@ -62,7 +63,7 @@ class CreateImportBatchUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductImportRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def execute(self, command: CreateImportBatchCommand) -> ImportResult:
         command.validate()
@@ -115,7 +116,7 @@ class ApproveImportBatchUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductImportRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def execute(self, command: ImportBatchActionCommand) -> ImportResult:
         command.validate()
@@ -155,7 +156,7 @@ class ExecuteImportBatchUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductImportRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
         self._create = CreateProductMasterUseCase(connection, authorization)
 
     def execute(self, command: ImportBatchActionCommand) -> ImportResult:

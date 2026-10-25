@@ -18,6 +18,7 @@ from backend.application.inventory.services.inventory_projection_service import 
     InventoryProjectionService,
     _line_from_row,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.inventory_movement import InventoryMovement
 from backend.domain.inventory.enums import MovementStatus, MovementType
 from backend.domain.inventory.events import InventoryEvents, build_event_payload
@@ -34,7 +35,7 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class ReverseInventoryMovementUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, movement_id: str, operation_id: str,
                 actor_user_id: str, reason: str,

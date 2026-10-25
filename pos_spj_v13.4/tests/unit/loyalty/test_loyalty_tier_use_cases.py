@@ -135,7 +135,7 @@ class TestEvaluateLoyaltyMembershipTierUseCase:
         AccrueLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=loyalty_account_id, points_amount=Decimal("600"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
-            source_module="sales")
+            source_module="sales", source_document_id=new_uuid())
 
         result = EvaluateLoyaltyMembershipTierUseCase(auth).execute(
             conn, membership_id=membership_id, actor_branch_id=new_uuid(),

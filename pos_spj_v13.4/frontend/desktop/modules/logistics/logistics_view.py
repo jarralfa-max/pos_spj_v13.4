@@ -14,6 +14,7 @@ from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.components.page_stack import PageStack
 from frontend.desktop.components.side_nav import SideNav
+from frontend.desktop.components.view_states import ViewState, create_state_widget
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,12 @@ class LogisticsView(QWidget):
         self.sidebar.route_requested.connect(self.show_route)
         if self.sidebar.count():
             self.sidebar.setCurrentRow(0)
+        else:
+            # Sin ninguna sección visible se dice por qué, en vez de dejar el área
+            # de trabajo vacía (mismo patrón que Activos).
+            self.stack.addWidget(create_state_widget(
+                ViewState.NO_PERMISSION, self,
+                message="No tienes permiso para consultar ninguna sección de Logística."))
 
     def show_route(self, page_id: str) -> None:
         page = self._pages.get(page_id)

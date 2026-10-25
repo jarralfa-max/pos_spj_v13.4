@@ -301,5 +301,5 @@ def test_finance_dates_use_the_local_business_day_not_utc():
     mexico = timezone(timedelta(hours=-6))
     assert local_business_date("2026-10-01T02:10:00+00:00", tz=mexico) == date(2026, 9, 30)
     assert local_business_date("2026-09-30", tz=mexico) == date(2026, 9, 30)
-    assert procurement_payable_bridge._issue_date({"timestamp": "2026-09-30T15:00:00"}) \
-        == date(2026, 9, 30)
+    assert procurement_payable_bridge.purchase_issue_date(
+        {"timestamp": "2026-09-30T15:00:00"}) == date(2026, 9, 30)

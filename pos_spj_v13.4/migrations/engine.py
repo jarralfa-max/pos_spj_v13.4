@@ -348,6 +348,12 @@ MIGRATIONS = [
     _Migration("342",  "migrations.standalone.342_ticket_design_branding"),
     _Migration("343",  "migrations.standalone.343_meat_direct_transformation"),
     _Migration("344",  "migrations.standalone.344_sales_display_recovery"),
+    _Migration("345",  "migrations.standalone.345_finance_born_clean_contract"),
+    _Migration("346",  "migrations.standalone.346_loyalty_audit_968e0bc"),
+    _Migration("347",  "migrations.standalone.347_permissions_audit_968e0bc"),
+    _Migration("348",  "migrations.standalone.348_retire_legacy_rbac_tables"),
+    _Migration("349",  "migrations.standalone.349_instrument_batches"),
+    _Migration("350",  "migrations.standalone.350_replication_engine"),
 ]
 
 def _ensure_tracking_table(conn):
@@ -433,3 +439,78 @@ def up(db_conn: sqlite3.Connection) -> None:
 
 crear_tablas = up
 aplicar_migraciones = up
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Carril PostgreSQL — servidor central (arquitectura híbrida, Slice 3; ADR-005)
+# ══════════════════════════════════════════════════════════════════════════════
+# Mismo contrato que el carril SQLite (lista explícita, `run(conn)`, idempotente,
+# registro en `schema_migrations`), con dos garantías que PostgreSQL sí da:
+#   * cada migración corre en SU transacción: si falla, su DDL se revierte
+#     completo (PostgreSQL tiene DDL transaccional) y no queda a medias;
+#   * un bloqueo consultivo impide que dos procesos (dos réplicas de la API, un
+#     despliegue y un reinicio) migren a la vez.
+# Las estaciones NO usan este carril: su base es SQLite y sigue el de arriba.
+
+PG_MIGRATIONS = [
+    _Migration("p001", "migrations.pg.p001_central_replication"),
+]
+
+#: Clave del bloqueo consultivo (constante arbitraria, estable entre versiones).
+PG_MIGRATION_LOCK_KEY = 4_211_350_001
+
+
+def up_postgresql(conn) -> int:
+    """Aplica las migraciones pendientes del PostgreSQL central. Devuelve cuántas."""
+    with conn.cursor() as cur:
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                version     TEXT PRIMARY KEY,
+                executed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )""")
+        cur.execute("SELECT pg_advisory_lock(%s)", (PG_MIGRATION_LOCK_KEY,))
+    conn.commit()
+    ejecutadas = 0
+    try:
+        for migration in PG_MIGRATIONS:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM schema_migrations WHERE version = %s",
+                            (migration.version,))
+                ya = cur.fetchone() is not None
+            conn.commit()
+            if ya:
+                continue
+            try:
+                mod = importlib.import_module(migration.module)
+            except Exception as exc:
+                raise MigrationImportError(
+                    f"Cannot import required migration {migration.version}: "
+                    f"{migration.module}.") from exc
+            fn = next((getattr(mod, name, None) for name in ("run", "up")
+                       if callable(getattr(mod, name, None))), None)
+            if fn is None:
+                raise MigrationContractError(
+                    f"Migration {migration.version} ({migration.module}) requires callable run/up.")
+            try:
+                fn(conn)
+                with conn.cursor() as cur:
+                    cur.execute("INSERT INTO schema_migrations (version) VALUES (%s)",
+                                (migration.version,))
+                conn.commit()
+            except Exception as exc:
+                error = MigrationExecutionError(
+                    f"Migration {migration.version} ({migration.module}) failed: {exc}")
+                _rollback_after_failure(conn, error)
+                logger.error("%s", error)
+                raise error from exc
+            logger.info("Migración PostgreSQL %s ejecutada.", migration.version)
+            ejecutadas += 1
+    finally:
+        try:
+            conn.rollback()   # una transacción abortada impediría liberar el bloqueo
+            with conn.cursor() as cur:
+                cur.execute("SELECT pg_advisory_unlock(%s)", (PG_MIGRATION_LOCK_KEY,))
+            conn.commit()
+        except Exception:   # la conexión cerrada libera el bloqueo de todos modos
+            logger.exception("No se pudo liberar el bloqueo de migraciones de PostgreSQL.")
+    return ejecutadas

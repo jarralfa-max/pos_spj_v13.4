@@ -450,21 +450,10 @@ class TestRBAC:
         except Exception:
             pytest.skip("rol_permisos no disponible en este schema")
 
-    def test_permisos_fallback_por_rol(self):
-        from security.rbac import _get_default_permisos
-        perms = _get_default_permisos("cajero")
-        assert "POS.ver" in perms
-        assert "POS.crear" in perms
-
-    def test_admin_tiene_wildcard(self):
-        from security.rbac import _get_default_permisos
-        perms = _get_default_permisos("admin")
-        assert "*" in perms
-
-    def test_rol_desconocido_retorna_minimo(self):
-        from security.rbac import _get_default_permisos
-        perms = _get_default_permisos("inventado")
-        assert "POS.ver" in perms
+    # Las tres pruebas de `security.rbac._get_default_permisos` se retiraron con
+    # ese módulo (auditoría de permisos 968e0bc, PER-05): un RBAC paralelo sin
+    # consumidores de producción cuyo «respaldo por rol» concedía POS.ver a
+    # cualquier rol desconocido.
 
 
 # ─────────────────────────────────────────────────────────────────────────────

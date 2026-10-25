@@ -68,6 +68,25 @@ class SaleLoyaltyEventHandlers:
             refunded_total=_dec(datos.get("refunded_total") or datos.get("amount")),
             branch_id=str(envelope.get("branch_id")), actor_user_id=actor,
             operation_id=str(envelope.get("event_id"))), "SALE_RETURNED")
+        # Lo pendiente por cobrar a crédito (FID-04) se reduce en proporción.
+        venta, devuelto = _dec(datos.get("sale_total")), _dec(
+            datos.get("refunded_total") or datos.get("amount"))
+        repo = self._deferred()
+        if venta > 0 and repo.schema_ready():
+            repo.scale(str(envelope.get("entity_id")), max(venta - devuelto, Decimal("0")) / venta)
+            self._conn.commit()
+
+    def _deferred(self):
+        from backend.infrastructure.db.repositories.loyalty.deferred_accrual_repository import (
+            LoyaltyDeferredAccrualRepository,
+        )
+        return LoyaltyDeferredAccrualRepository(self._conn)
+
+    def _cancel_deferred(self, envelope: dict) -> None:
+        repo = self._deferred()
+        if repo.schema_ready():
+            repo.cancel(str(envelope.get("entity_id")))
+            self._conn.commit()
 
     def on_sale_reversed(self, envelope: dict) -> None:
         datos = dict(envelope.get("payload") or {})
@@ -85,10 +104,12 @@ class SaleLoyaltyEventHandlers:
                               str(envelope.get("entity_id")))
         if datos.get("prepaid_vouchers"):
             self._cancel_prepaid(str(envelope.get("entity_id")), "Venta reversada")
+        self._cancel_deferred(envelope)
 
     def on_sale_cancelled(self, envelope: dict) -> None:
         self._restore_redemption(envelope, "SALE_CANCELLED")
         self._release_instruments(envelope)
+        self._cancel_deferred(envelope)
 
     # ── cupones y vales (2026-10-03) ─────────────────────────────────────
     def _confirm_instruments(self, envelope: dict) -> None:

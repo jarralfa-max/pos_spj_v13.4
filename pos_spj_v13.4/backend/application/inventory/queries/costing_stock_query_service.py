@@ -30,12 +30,19 @@ class CostingStockQueryService:
         self._conn = connection
 
     def on_hand_before(self, product_id: str, *, operation_id: str,
-                       branch_id: str | None = None) -> Decimal | None:
+                       branch_id: str | None = None,
+                       production_order_id: str | None = None) -> Decimal | None:
         """Existencia del producto previa a ``operation_id`` — de toda la empresa,
         o sólo de ``branch_id`` (costo por sucursal). ``None`` si el inventario
         canónico no existe en esta base (quien llama decide el respaldo). Nunca
         negativa: vender más de lo registrado no deja una existencia "negativa"
-        que abarate el promedio."""
+        que abarate el promedio.
+
+        ``production_order_id``: el costo de una producción lo publica Costos con
+        SU propio ``operation_id``, distinto del de los movimientos de salida en
+        Inventario; esos se reconocen por la orden (``source_document_id``). Sin
+        esto la salida nueva se contaba dos veces como «existencia previa»
+        (20 kg @ $100 + 20 kg @ $140 daba $113.33 en vez de $120)."""
         balance_filter, ledger_filter, extra = "", "", ()
         if branch_id:
             balance_filter, ledger_filter, extra = " AND branch_id=?", " AND l.branch_id=?", (
@@ -44,12 +51,17 @@ class CostingStockQueryService:
             total = self._conn.execute(
                 "SELECT COALESCE(SUM(CAST(quantity AS NUMERIC)), 0) FROM inventory_balances"
                 " WHERE product_id=?" + balance_filter, (product_id, *extra)).fetchone()[0]
+            # `operation_id` es ÚNICO en el libro: ese movimiento ES la entrada.
+            match, params = "l.operation_id=?", [operation_id]
+            if production_order_id:
+                match = ("(l.operation_id=? OR (l.source_document_id=?"
+                         " AND l.movement_type='PRODUCTION_OUTPUT'))")
+                params.append(production_order_id)
             posted_rows = self._conn.execute(
                 "SELECT ll.quantity FROM inventory_ledger l"
                 " JOIN inventory_ledger_lines ll ON ll.movement_id = l.id"
-                # `operation_id` es ÚNICO en el libro: ese movimiento ES la entrada.
-                " WHERE l.operation_id=? AND ll.product_id=?" + ledger_filter,
-                (operation_id, product_id, *extra)).fetchall()
+                f" WHERE {match} AND ll.product_id=?" + ledger_filter,
+                (*params, product_id, *extra)).fetchall()
         except sqlite3.OperationalError:
             return None
         posted = sum((_dec(r[0]) for r in posted_rows), Decimal("0"))

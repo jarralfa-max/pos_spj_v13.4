@@ -1,11 +1,13 @@
 """OrdersDeliveryInternalNotifier — the "Internal" half of ORD-26's
 notification scope. Writes to the REAL, already-canonical `notification_inbox`
 table (`migrations/m000_base_schema.py`) — the same one the desktop ERP's own
-bell/inbox already reads — rather than inventing a parallel table. Reuses
-the RBAC tables (`usuarios`/`usuarios_roles`/`roles`) directly, same
-role-resolution idea `whatsapp_service/erp/pos_notifier.py` already applies
-for its own (WA-microservice-side, legacy-integer-id) staff alerts, adapted
-here to this backend's own UUIDv7 connection.
+bell/inbox already reads — rather than inventing a parallel table.
+
+Destinatarios (auditoría de permisos 968e0bc, PER-05): antes se resolvían por
+`usuarios_roles`, una tabla del RBAC heredado que NADIE escribe — 0 filas en la
+base real —, así que ninguna alerta interna de Pedidos le llegaba a nadie. Ahora
+se usa la fuente real del rol, `usuarios.rol` (lo que lee el inicio de sesión), y
+la sucursal del usuario o sus sucursales asignadas (`usuarios_sucursales`).
 
 Deliberately does NOT reuse `pos_notifier.py`'s own `_ensure_notification_
 inbox()` — that helper's `CREATE TABLE IF NOT EXISTS` defines EXTRA columns
@@ -37,10 +39,10 @@ class OrdersDeliveryInternalNotifier:
         cuerpo: str, datos: dict | None = None,
     ) -> int:
         """Writes one `notification_inbox` row per active staff member
-        holding any of `roles`, scoped to `branch_id` (or any role grant
-        with `sucursal_id` NULL/0, meaning "all branches" — same convention
-        `usuarios_roles` already uses elsewhere). Returns how many rows were
-        written; never raises."""
+        holding any of `roles` whose branch is `branch_id` — their own
+        (`usuarios.sucursal_id`) or one assigned to them
+        (`usuarios_sucursales`). Returns how many rows were written; never
+        raises."""
         try:
             employee_ids = self._resolve_employee_ids(roles=roles, branch_id=branch_id)
             if not employee_ids:
@@ -63,16 +65,21 @@ class OrdersDeliveryInternalNotifier:
         if not roles:
             return []
         placeholders = ",".join("?" * len(roles))
+        asignadas = self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='usuarios_sucursales'"
+        ).fetchone() is not None
+        por_asignacion = (
+            " OR EXISTS (SELECT 1 FROM usuarios_sucursales us"
+            " WHERE us.usuario_id = u.id AND us.sucursal_id = ?)") if asignadas else ""
         rows = self._conn.execute(
             f"""
             SELECT DISTINCT u.id
             FROM usuarios u
-            JOIN usuarios_roles ur ON ur.usuario_id = u.id
-            JOIN roles r ON r.id = ur.rol_id
-            WHERE LOWER(r.nombre) IN ({placeholders})
-              AND (ur.sucursal_id = ? OR ur.sucursal_id IS NULL OR ur.sucursal_id = '0')
+            WHERE LOWER(TRIM(u.rol)) IN ({placeholders})
+              AND (u.sucursal_id = ?{por_asignacion})
               AND COALESCE(u.activo, 1) = 1
             """,
-            (*[role.lower() for role in roles], branch_id),
+            (*[role.strip().lower() for role in roles], branch_id,
+             *((branch_id,) if asignadas else ())),
         ).fetchall()
         return [row[0] for row in rows]

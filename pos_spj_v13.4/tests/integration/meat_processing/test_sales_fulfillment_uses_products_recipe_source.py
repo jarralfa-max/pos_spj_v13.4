@@ -100,8 +100,14 @@ def test_when_products_retires_the_scheme_sales_stops_promising_it():
 def test_sales_resolves_composites_through_the_products_contract():
     """Ventas (inventario y costo de venta) no lee recetas ni combos por su
     cuenta: pregunta a Productos."""
+    # El costo de venta del cobro vive desde la auditoría de Fidelidad 968e0bc
+    # en `sales/cost_lookup.py` (una sola regla de costo para el cobro y para el
+    # presupuesto de beneficios); el cobro la importa de ahí.
+    checkout = (ROOT / "backend/application/sales/use_cases/checkout_use_cases.py").read_text(
+        encoding="utf-8")
+    assert "from backend.application.sales.cost_lookup import sale_unit_costs" in checkout
     for ruta in ("backend/infrastructure/integrations/sales_inventory_client.py",
-                 "backend/application/sales/use_cases/checkout_use_cases.py"):
+                 "backend/application/sales/cost_lookup.py"):
         importados = _imports(ROOT / ruta)
         assert any(m.endswith("sales_fulfillment_query_service") for m in importados), ruta
         assert not any("repositories.products" in m for m in importados), ruta

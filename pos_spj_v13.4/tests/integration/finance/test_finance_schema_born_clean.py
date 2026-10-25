@@ -60,10 +60,11 @@ def _insert_entry(conn, journal_id, period_id, *, entry_number="SAL-000001",
     entry_id = new_uuid()
     conn.execute(
         "INSERT INTO journal_entries (id, journal_id, entry_number, entry_date,"
-        " fiscal_period_id, source_module, source_document_id, posting_purpose,"
-        " operation_id, created_at, updated_at)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-        (entry_id, journal_id, entry_number, date(2026, 7, 15).isoformat(), period_id,
+        " posting_date, fiscal_period_id, source_module, source_document_id,"
+        " posting_purpose, operation_id, created_at, updated_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+        (entry_id, journal_id, entry_number, date(2026, 7, 15).isoformat(),
+         date(2026, 7, 15).isoformat(), period_id,
          source_module, source_document_id or new_uuid(), purpose,
          operation_id or new_uuid(), NOW, NOW),
     )

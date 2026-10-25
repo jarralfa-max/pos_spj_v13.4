@@ -15,6 +15,7 @@ from backend.application.inventory.authorization import InventoryAuthorizationPo
 from backend.application.inventory.execution_context import InventoryExecutionContext
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.count import (
     InventoryCount,
     InventoryCountLine,
@@ -68,7 +69,7 @@ def _scope_fail(context, branch_id, warehouse_id, operation_id):
 
 class CreateCountUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, folio: str, count_type: CountType, branch_id: str,
                 warehouse_id: str, scope_lines: list[dict], operation_id: str,
@@ -114,7 +115,7 @@ class CreateCountUseCase:
 
 class RecordCountUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, count_id: str, line_id: str, counted_quantity,
                 operation_id: str, actor_user_id: str, counted_weight=0,
@@ -146,7 +147,7 @@ class RecordCountUseCase:
 
 class ConfirmCountUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, count_id: str, operation_id: str,
                 actor_user_id: str,
@@ -182,7 +183,7 @@ class ConfirmCountUseCase:
 
 class ApproveCountUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
         self._segregation = SegregationOfDutiesPolicy()
 
     def execute(self, connection, *, count_id: str, operation_id: str,

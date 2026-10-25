@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 
+from backend.application.inventory.integration_grants import integration_use_case
 from backend.application.inventory.use_cases.reverse_inventory_movement import (
     ReverseInventoryMovementUseCase,
 )
@@ -31,7 +32,8 @@ class GoodsReceiptReversedHandler:
     def __init__(self, connection,
                  use_case: ReverseInventoryMovementUseCase | None = None) -> None:
         self._conn = connection
-        self._uc = use_case or ReverseInventoryMovementUseCase()
+        # Sin caso de uso inyectado: concesión del módulo origen (PER-02).
+        self._uc = use_case
 
     def handle(self, payload: dict) -> None:
         operation_id = str(payload.get("operation_id") or payload.get("event_id") or "").strip()
@@ -52,12 +54,16 @@ class GoodsReceiptReversedHandler:
                         document_id)
             return
         reason = str(payload.get("reason") or "Reverso de recepción de compra")
-        result = self._uc.execute(
+        uc = self._uc or integration_use_case(
+            ReverseInventoryMovementUseCase, "procurement", actor)
+        result = uc.execute(
             self._conn, movement_id=target["id"],
             operation_id=f"{operation_id}:reversal", actor_user_id=actor,
             reason=reason)
-        if not result.success and result.error_code not in ("PERMISSION_DENIED",
-                                                            "ALREADY_REVERSED"):
+        if not result.success and result.error_code == "PERMISSION_DENIED":
+            logger.error("goods receipt reversal %s DENEGADA: %s", operation_id,
+                         result.message)
+        elif not result.success and result.error_code != "ALREADY_REVERSED":
             logger.error("goods receipt reversal %s falló: %s", operation_id,
                          result.message)
             raise RuntimeError(result.message)

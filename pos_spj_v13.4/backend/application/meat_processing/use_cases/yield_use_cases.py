@@ -25,6 +25,7 @@ from backend.application.meat_processing.use_cases._shared import scope_fail as 
 from backend.application.meat_processing.use_cases._shared import (
     summarize_outputs_by_type as _summarize_outputs_by_type,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.meat_processing.entities.yield_reconciliation import YieldReconciliation
 from backend.domain.meat_processing.enums import YieldStatus
 from backend.domain.meat_processing.events import MeatProcessingEvents, build_meat_processing_event
@@ -50,7 +51,7 @@ class ReconcileYieldUseCase:
     PROC-11/12, is for)."""
 
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, actor_user_id: str,
@@ -121,7 +122,7 @@ class ReconcileYieldUseCase:
 
 class ApproveYieldReconciliationUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, reconciliation_id: str, operation_id: str, actor_user_id: str,
@@ -169,7 +170,7 @@ class RequestLossCaseForYieldVarianceUseCase:
         authorization: MeatProcessingAuthorizationPolicy | None = None,
         loss_case_port: LossCaseRequestPort | None = None,
     ) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
         self._losses = loss_case_port or NullLossCaseRequestPort()
 
     def execute(

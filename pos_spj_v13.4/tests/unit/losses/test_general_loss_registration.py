@@ -12,7 +12,8 @@ from backend.shared.ids import new_uuid
 
 class _Authorization:
     def require(self, _user_id, permission):
-        assert permission in {"LOSSES_REPORT", "LOSSES_SUBMIT"}
+        # Auditoría de permisos 968e0bc (PER-04): vocabulario `MERMA.<accion>`.
+        assert permission in {"MERMA.reportar", "MERMA.enviar"}
 
 
 class _Repository:

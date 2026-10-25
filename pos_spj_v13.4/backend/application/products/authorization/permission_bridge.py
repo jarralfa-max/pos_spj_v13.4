@@ -122,13 +122,24 @@ def make_permission_checker(session) -> Callable[[str], bool]:
 class SessionPermissionChecker:
     """Adaptador `PermissionChecker` (para `ProductsAuthorizationPolicy`) sobre la
     sesión viva. Concede si el rol tiene el permiso canónico inglés o cualquiera de
-    los códigos legacy mapeados (P0-02: el backend re-valida siempre)."""
+    los códigos legacy mapeados (P0-02: el backend re-valida siempre).
+
+    Auditoría de permisos 968e0bc (PER-03): como el de Configuración, ignoraba
+    el usuario consultado. Ahora sólo concede a la sesión activa que ES ese
+    usuario; una autorización de otra persona va por el verificador de
+    autorizador, no por éste."""
 
     def __init__(self, session) -> None:
         self._session = session
 
     def has_permission(self, user_id: str, permission_code: str) -> bool:
-        check = getattr(self._session, "tiene_permiso", None)
+        session = self._session
+        if session is None or not getattr(session, "is_active", True):
+            return False
+        session_user_id = str(getattr(session, "user_id", "") or "").strip()
+        if not session_user_id or session_user_id != str(user_id or "").strip():
+            return False
+        check = getattr(session, "tiene_permiso", None)
         if not callable(check):
             return False
         if check(permission_code):

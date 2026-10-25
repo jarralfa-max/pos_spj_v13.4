@@ -27,6 +27,7 @@ from backend.application.meat_processing.execution_context import (
 from backend.application.meat_processing.permissions import MeatProcessingPermissions
 from backend.application.meat_processing.result import MeatProcessingResult
 from backend.application.meat_processing.use_cases._shared import fail as _fail
+from backend.application.security.unwired_policy import unwired
 from backend.domain.meat_processing.entities.production_plan import ProductionPlan
 from backend.domain.meat_processing.entities.production_plan_line import ProductionPlanLine
 from backend.domain.meat_processing.enums import (
@@ -83,7 +84,7 @@ def planning_day(value) -> str:
 
 class CreateProductionPlanUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(self, connection, *, branch_id: str, planning_date, operation_id: str,
                 actor_user_id: str,
@@ -122,7 +123,7 @@ class CreateProductionPlanUseCase:
 
 class AddProductionPlanLineUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(self, connection, *, plan_id: str, product_id: str, process_type,
                 target_product_id: str | None, planned_weight, operation_id: str,
@@ -166,7 +167,7 @@ class AddProductionPlanLineUseCase:
 
 class RemoveProductionPlanLineUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(self, connection, *, plan_id: str, line_id: str, operation_id: str,
                 actor_user_id: str,
@@ -221,7 +222,7 @@ def _transition(connection, *, plan_id, operation_id, actor_user_id, context, ac
 
 class GenerateProductionPlanUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(self, connection, *, plan_id: str, operation_id: str, actor_user_id: str,
                 context: MeatProcessingExecutionContext | None = None) -> MeatProcessingResult:
@@ -236,7 +237,7 @@ class GenerateProductionPlanUseCase:
 
 class SubmitProductionPlanUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(self, connection, *, plan_id: str, operation_id: str, actor_user_id: str,
                 context: MeatProcessingExecutionContext | None = None) -> MeatProcessingResult:
@@ -254,7 +255,7 @@ class ApproveProductionPlanUseCase:
     """Lo aprueba OTRO usuario (segregación en el dominio)."""
 
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(self, connection, *, plan_id: str, operation_id: str, actor_user_id: str,
                 context: MeatProcessingExecutionContext | None = None) -> MeatProcessingResult:
@@ -271,7 +272,7 @@ class ApproveProductionPlanUseCase:
 
 class CancelProductionPlanUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(self, connection, *, plan_id: str, operation_id: str, actor_user_id: str,
                 context: MeatProcessingExecutionContext | None = None) -> MeatProcessingResult:
@@ -292,7 +293,7 @@ class ConvertProductionPlanLineUseCase:
 
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None, *,
                  folio_port=None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
         self._folio = folio_port
 
     def execute(self, connection, *, plan_id: str, line_id: str, warehouse_id: str,

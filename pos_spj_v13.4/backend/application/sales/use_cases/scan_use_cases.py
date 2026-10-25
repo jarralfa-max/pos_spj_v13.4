@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from backend.application.commercial_instruments.queries.piece_resolver import looks_like_piece
 from backend.application.sales.authorization import SalesAuthorizationPolicy
 from backend.application.sales.queries.catalog_query_service import SalesCatalogQueryService
 from backend.application.sales.result import SaleResult, fail_from_domain_error
@@ -47,6 +48,16 @@ class ScanCodeRouter:
         if not code:
             return fail_from_domain_error(
                 ScanCodeNotResolvedError("Código escaneado vacío"), operation_id=operation_id)
+        # Pieza de un lote de cupones o vales (auditoría de Fidelidad 968e0bc): el
+        # cajero escanea igual que un producto y la pantalla la lleva a su lugar —
+        # el cupón al carrito, el vale al cobro—. No compite con un SKU: la forma
+        # `CUP`/`VAL` + 16 caracteres Base32 es exclusiva de las piezas.
+        tipo = looks_like_piece(code)
+        if tipo is not None:
+            return SaleResult.fail(
+                "Cupón escaneado" if tipo == "COUPON" else "Vale escaneado",
+                "INSTRUMENT_SCANNED", operation_id=operation_id, instrument_kind=tipo,
+                code=code)
 
         if context in (ScanContext.PRODUCT, ScanContext.AUTO):
             product = SalesCatalogQueryService(connection).find_by_code(branch_id=branch_id, code=code)

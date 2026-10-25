@@ -74,8 +74,11 @@ class TestGate:
         with pytest.raises(PricingPermissionDeniedError):
             pol.require("u1", "PRICING_MADE_UP")
 
-    def test_no_checker_allows_isolated(self):
-        PricingAuthorizationPolicy().require("u1", PricingPermissions.PRICE_EDIT)
+    def test_no_checker_fails_closed(self):
+        # Auditoría de permisos 968e0bc (PER-02): antes permitía «en aislado».
+        with pytest.raises(PricingPermissionDeniedError):
+            PricingAuthorizationPolicy().require("u1", PricingPermissions.PRICE_EDIT)
+        assert not PricingAuthorizationPolicy().has("u1", PricingPermissions.VIEW_COST)
 
     def test_has_non_raising(self):
         pol = PricingAuthorizationPolicy(_Checker({("u1", PricingPermissions.VIEW_COST)}))

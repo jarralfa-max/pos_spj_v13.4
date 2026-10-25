@@ -20,13 +20,12 @@ QUÉ NO HACE, dicho explícitamente:
 * `warehouse_id` / `location_id` se IGNORAN. Transferencias no tiene hoy una
   fuente de alcance de almacén ni de ubicación; fingir que se validan sería
   peor que no validarlas, porque nadie volvería a mirarlo.
-* No hay escape global por permiso. Los códigos de Transferencias son PLANOS
-  (`TRANSFERS_VIEW_ALL_BRANCHES`) y el contexto está en `FLAT_CODE_CONTEXTS`,
-  así que ese código no existe en `rol_permisos` y jamás concedería. Inventar
-  una acción de catálogo aquí está prohibido por el docstring de
-  `session_authorization.py`. El administrador sigue pasando porque sus
-  permisos llegan como el comodín `{"*"}`, que `BranchScopeQueryService` sí
-  reconoce.
+* No hay escape global por permiso. Desde la auditoría de permisos 968e0bc
+  (PER-04) `TRANSFERENCIAS.ver.todas_sucursales` YA es otorgable, pero el
+  alcance de Transferencias lo decide `usuarios_sucursales` (decisión del
+  usuario, 2026-09-17: la palanca es la asignación, no el permiso). El
+  administrador y el dueño pasan porque sus permisos llegan como el comodín
+  `{"*"}`, que `BranchScopeQueryService` reconoce.
 * `branch_id=None` PERMITE. `authorize_exception` llama a `require()` sin
   sucursal, y denegar ahí rompería la autorización en caliente por un dato que
   la operación no tiene.

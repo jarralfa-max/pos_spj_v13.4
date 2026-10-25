@@ -6,7 +6,8 @@ Campañas (7-action approval lifecycle — same button row
 `documentos_page.py` already uses for template versions), Slots
 publicitarios, and Asignaciones (+ a per-row "Ver métricas" action).
 """
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QWidget
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QMessageBox, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
@@ -40,6 +41,17 @@ _PLACEMENT_COLUMNS = [
     ColumnSpec("Campaña"), ColumnSpec("Slot"), ColumnSpec("Activo", "status"), ColumnSpec("Asignado"),
 ]
 
+_DELIVERY_ISSUES = {
+    "NOT_ACTIVE": "no está activa; completa aprobación y activación",
+    "NOT_STARTED": "la vigencia todavía no comienza",
+    "EXPIRED": "vigencia vencida; revisa la fecha de fin",
+    "UNASSIGNED": "sin asignación; asígnala a un slot de Carrito o Reposo",
+    "WRONG_MODE": "el slot no es de Carrito ni Reposo",
+    "SLOT_DISABLED": "el slot está desactivado",
+    "CONTENT_DISABLED": "el contenido no existe o está desactivado",
+    "MEDIA_MISSING": "no se encuentra el archivo adjunto; vuelve a adjuntarlo",
+}
+
 
 def _button_row(parent, *buttons):
     row = QWidget(parent)
@@ -63,6 +75,13 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         self._slots_by_id: dict = {}
         self._placements_by_id: dict = {}
 
+        status = SectionCard(self, title="Disponibilidad de publicidad durante la venta")
+        self.delivery_status = QLabel("", status)
+        self.delivery_status.setTextFormat(Qt.PlainText)
+        self.delivery_status.setWordWrap(True)
+        status.add(self.delivery_status)
+        self.layout().addWidget(status)
+
         self._build_content_card()
         self._build_campaigns_card()
         self._build_slots_card()
@@ -81,6 +100,17 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         self._reload_placements()
 
     # ── Contenido ────────────────────────────────────────────────────────
+
+    def _reload_delivery_status(self):
+        rows = self._presenter.display_advertising_diagnostics()
+        lines = [f"{row.name}: " + ("; ".join(_DELIVERY_ISSUES[issue] for issue in row.issues)
+                                    if row.issues else "lista para mostrarse") for row in rows]
+        if not lines:
+            lines = ["No hay campañas. Adjuntar una imagen no la publica: crea una campaña, "
+                     "aprueba y activa, y asígnala a un slot de Carrito o Reposo."]
+        lines.append("La opción «Publicidad durante la venta» debe estar habilitada. "
+                     "Durante cobro y agradecimiento se pausa la publicidad.")
+        self.delivery_status.setText("\n".join(lines))
 
     def _build_content_card(self) -> None:
         self.content_card = SectionCard(self, title="Contenido")
@@ -105,6 +135,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         self.deactivate_content_button.clicked.connect(lambda: self._on_change_content_status("DEACTIVATE"))
 
     def _reload_content(self) -> None:
+        self._reload_delivery_status()
         items = self._presenter.list_display_content()
         rows = [[c.title, c.content_type, str(c.duration_seconds), "Sí" if c.active else "No"] for c in items]
         self.content_table.load_rows(rows, row_ids=[c.entity_id for c in items])
@@ -206,6 +237,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         self.archive_campaign_button.clicked.connect(lambda: self._on_change_campaign_status("ARCHIVE"))
 
     def _reload_campaigns(self) -> None:
+        self._reload_delivery_status()
         campaigns = self._presenter.list_content_campaigns()
         self._campaigns_by_id = {c.entity_id: c for c in campaigns}
         rows = [
@@ -301,6 +333,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         self.deactivate_slot_button.clicked.connect(lambda: self._on_change_slot_status("DEACTIVATE"))
 
     def _reload_slots(self) -> None:
+        self._reload_delivery_status()
         slots = self._presenter.list_advertising_slots()
         self._slots_by_id = {s.entity_id: s for s in slots}
         rows = [[s.code, s.mode, str(s.display_order), "Sí" if s.active else "No"] for s in slots]
@@ -381,6 +414,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         self.metrics_placement_button.clicked.connect(self._on_view_metrics)
 
     def _reload_placements(self) -> None:
+        self._reload_delivery_status()
         placements = self._presenter.list_campaign_placements()
         self._placements_by_id = {p.entity_id: p for p in placements}
         rows = [

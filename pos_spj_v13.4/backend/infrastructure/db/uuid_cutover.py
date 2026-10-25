@@ -108,7 +108,12 @@ class UuidCutover:
         if on_orphan not in ("abort", "null"):
             raise ValueError("on_orphan must be 'abort' or 'null'")
         self._conn = connection
-        self._specs = {s.name: s for s in specs}
+        # Una tabla de la especificación que ya no existe en ESTA base se omite
+        # (p. ej. el RBAC heredado que retiró la migración 348): no hay nada
+        # que cortar en ella, y exigirla haría fallar el corte entero.
+        existentes = {row[0] for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+        self._specs = {s.name: s for s in specs if s.name in existentes}
         self._id = id_factory
         self._on_orphan = on_orphan
         self._maps: dict[str, dict[Any, str]] = {}

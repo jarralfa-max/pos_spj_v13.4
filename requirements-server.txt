@@ -1,0 +1,10 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# SPJ — dependencias del SERVIDOR CENTRAL (API de sincronización + PostgreSQL)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Sólo para el servidor central (Oracle Cloud Always Free ARM64, ADR-001). Las
+# estaciones Windows NO las necesitan: su base es SQLite y nunca se conectan a
+# PostgreSQL (hablan con la API). Todas tienen ruedas para Linux aarch64.
+
+fastapi==0.115.*
+uvicorn[standard]==0.34.*
+psycopg[binary]==3.2.3

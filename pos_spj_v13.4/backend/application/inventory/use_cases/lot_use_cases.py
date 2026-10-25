@@ -16,6 +16,7 @@ from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.services.lot_quality_projection import (
     project_lot_quality_transition,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.inventory_lot import InventoryLot
 from backend.domain.inventory.enums import (
     LotOrigin,
@@ -44,7 +45,7 @@ def _emit(uow, event_name, *, operation_id, lot, actor_user_id):
 
 class RegisterInventoryLotUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, product_id: str, lot_code: str,
                 origin_type: LotOrigin, operation_id: str, actor_user_id: str,
@@ -92,7 +93,7 @@ class UpdateLotUseCase:
     de calidad (su propio flujo auditado con motivo)."""
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, lot_id: str, operation_id: str,
                 actor_user_id: str, **fields) -> InventoryResult:
@@ -123,7 +124,7 @@ class SetLotQualityStatusUseCase:
     """Block (quarantine/reject) or release a lot's quality status (§31)."""
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, lot_id: str, new_status: LotQualityStatus,
                 operation_id: str, actor_user_id: str, reason: str = "",

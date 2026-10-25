@@ -26,3 +26,10 @@ class ProductBarcodeQueryService:
             "WHERE product_id=? ORDER BY active DESC, created_at", (product_id,)).fetchall()
         return [{"id": r[0], "code": r[1], "code_type": r[2], "supplier_id": r[3],
                  "active": bool(r[4])} for r in rows]
+
+    def preview_internal_barcode(self) -> str:
+        """Siguiente EAN-13 interno libre (PROD-23), sin consumirlo."""
+        from backend.application.products.queries.internal_barcode import (
+            preview_internal_barcode,
+        )
+        return preview_internal_barcode(self._conn)

@@ -1,0 +1,27 @@
+{
+  "campaign": {
+    "id": "01a15256-90e0-7964-8da0-306627f33985",
+    "name": "mon",
+    "content_id": "01a15255-790c-7242-ab40-f340505ddbbc",
+    "status": "PENDING_APPROVAL",
+    "starts_at": "2026-10-15T22:07:13",
+    "ends_at": null,
+    "created_by_user_id": "01a0d664-e618-7659-ad9e-cdaad8f61247",
+    "approved_by_user_id": null,
+    "activated_by_user_id": null,
+    "reason": null,
+    "created_at": "2026-10-19T04:06:07+00:00",
+    "updated_at": "2026-10-21T05:19:26+00:00"
+  },
+  "slot": {
+    "id": "01a15ce6-68bc-7fb8-a058-df711b0f3092",
+    "code": "PUBLICIDAD-CARRITO",
+    "mode": "CART",
+    "display_order": 0,
+    "active": true,
+    "created_at": "2026-10-21T05:19:26+00:00",
+    "updated_at": "2026-10-21T05:19:26+00:00"
+  },
+  "published": false,
+  "pending": "Authenticated second reviewer approval, activation, and assignment to PUBLICIDAD-CARRITO"
+}

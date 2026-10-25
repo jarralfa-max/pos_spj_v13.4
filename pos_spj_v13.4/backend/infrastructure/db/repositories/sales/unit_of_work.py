@@ -22,35 +22,13 @@ from typing import Any
 
 from backend.infrastructure.db.repositories.sales.outbox_repository import SalesOutboxRepository
 from backend.infrastructure.db.repositories.sales.sale_repository import SaleRepository
+from backend.infrastructure.db.transaction import TransactionalUnitOfWork
 
 
-class SalesUnitOfWork:
+class SalesUnitOfWork(TransactionalUnitOfWork):
     def __init__(self, connection: Any, *, owns_transaction: bool = True) -> None:
         self.connection = connection
         self._owns_transaction = owns_transaction
         self.sales = SaleRepository(connection)
         self.outbox = SalesOutboxRepository(connection)
         self._completed = False
-
-    def __enter__(self) -> "SalesUnitOfWork":
-        self._completed = False
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> bool:
-        if exc_type is not None:
-            self.rollback()
-        elif not self._completed:
-            self.commit()
-        return False
-
-    def commit(self) -> None:
-        if self._owns_transaction:
-            self.connection.commit()
-        self._completed = True
-
-    def rollback(self) -> None:
-        if self._owns_transaction:
-            rollback = getattr(self.connection, "rollback", None)
-            if rollback is not None:
-                rollback()
-        self._completed = True

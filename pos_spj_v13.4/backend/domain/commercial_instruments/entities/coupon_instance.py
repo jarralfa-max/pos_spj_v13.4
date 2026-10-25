@@ -54,6 +54,13 @@ class CouponInstance:
         return cls(id=new_uuid(), definition_id=definition_id, code=code.strip(),
                    customer_id=customer_id)
 
+    def activate(self) -> None:
+        """Pieza de un lote ya impreso: se vuelve utilizable al activar el lote."""
+        if self.status is not CouponInstanceStatus.ISSUED:
+            raise InvalidCouponInstanceStateError(
+                f"Sólo un cupón emitido se activa (actual: {self.status.value})")
+        self.status = CouponInstanceStatus.ACTIVE
+
     def reserve(self, sale_id: str) -> None:
         if self.status is not CouponInstanceStatus.ACTIVE:
             raise InvalidCouponInstanceStateError(

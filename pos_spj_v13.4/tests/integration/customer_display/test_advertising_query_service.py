@@ -71,6 +71,20 @@ def _slot(conn, *, mode=CustomerDisplayMode.IDLE, order=0) -> AdvertisingSlot:
 
 
 class TestResolveActiveAds:
+    def test_diagnostics_explain_expired_wrong_mode_and_unassigned_draft(self, conn):
+        expired = _active_campaign(conn, ends_at=_iso(_now() - timedelta(days=1)))
+        slot = _slot(conn, mode=CustomerDisplayMode.THANK_YOU)
+        SqliteCampaignPlacementRepository(conn).save(assign_placement(expired, slot))
+        draft = ContentCampaign.create(name="Borrador", content_id=expired.content_id)
+        SqliteContentCampaignRepository(conn).save(draft)
+        conn.commit()
+        query = AdvertisingQueryService(conn)
+        rows = {row.campaign_id: row for row in query.diagnose_display_ads("CART")}
+        assert set(rows[expired.id].issues) == {"EXPIRED", "WRONG_MODE"}
+        assert set(rows[draft.id].issues) == {"NOT_ACTIVE", "UNASSIGNED"}
+        assert query.resolve_display_ads("CART") == ()
+        assert SqliteContentCampaignRepository(conn).get(draft.id).status.value == "DRAFT"
+
     def test_cart_reuses_configured_idle_campaign_when_no_cart_campaign_exists(self, conn):
         campaign = _active_campaign(conn)
         slot = _slot(conn)

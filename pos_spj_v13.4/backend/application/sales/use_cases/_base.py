@@ -43,9 +43,12 @@ class _SalesBaseUseCase:
         self, authorization: SalesAuthorizationPolicy | None = None,
         inventory_authorization: InventoryAuthorizationPolicy | None = None,
         customer_authorization: CustomerAuthorizationPolicy | None = None,
-        *, pricing=None,
+        *, pricing=None, authorizer_authorization=None,
     ) -> None:
         self._auth = authorization or SalesAuthorizationPolicy()
+        #: Política con la que se valida a OTRA persona que autoriza una excepción
+        #: (FID-03: beneficio sobre el margen). Sin ella, la misma de Ventas.
+        self._authorizer_auth = authorizer_authorization
         self._inventory_auth = inventory_authorization
         self._customer_auth = customer_authorization
         #: Precios (auditoría V04): el precio que se cobra lo resuelve el caso
@@ -53,6 +56,9 @@ class _SalesBaseUseCase:
         #: resolvía el presentador sólo en el clic y el escáner cobraba el de
         #: la lista base.
         self._pricing = pricing
+
+    def _authorizer(self):
+        return getattr(self, "_authorizer_auth", None) or self._auth
 
     #: Marca en el snapshot de la línea de dónde salió su precio.
     PRICE_FROM_PRICING = "PRICING"

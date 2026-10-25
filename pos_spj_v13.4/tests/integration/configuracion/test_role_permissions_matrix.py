@@ -87,7 +87,9 @@ def test_the_matrix_lists_the_whole_catalog_and_what_the_role_has(conn):
     assert len(matrix.modules) == 35
     assert {m.label for m in matrix.modules} >= {"Punto de venta", "Configuración", "Fidelidad"}
     assert query.matrix(ADMIN).mode == "FULL_ACCESS"
-    assert query.matrix(OWNER).mode == "GRANT_ONLY"
+    # Auditoría de permisos 968e0bc (PER-07): el dueño es ACCESO TOTAL (como en
+    # la sesión) y no se edita; antes era «sólo agregar».
+    assert query.matrix(OWNER).mode == "FULL_ACCESS"
 
 
 def test_the_owner_grants_and_revokes_and_it_applies_on_next_login(conn):
@@ -122,8 +124,10 @@ def test_nobody_grants_a_permission_they_do_not_have(conn):
 
 
 def test_the_owner_role_never_loses_a_permission(conn):
+    # Auditoría de permisos 968e0bc (PER-07): el dueño es ACCESO TOTAL (como en
+    # la sesión) y no se edita; antes era «sólo agregar».
     _grant_row(conn, OWNER, "POS.ver")
-    with pytest.raises(ConfigurationInvalidValueError, match="dueño"):
+    with pytest.raises(ConfigurationInvalidValueError, match="acceso total"):
         _save(conn, _user(conn, "system_owner"), OWNER, {"POS.ver": False})
 
 

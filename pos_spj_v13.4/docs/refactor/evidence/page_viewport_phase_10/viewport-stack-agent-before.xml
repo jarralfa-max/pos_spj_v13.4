@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="1.416" timestamp="2026-10-13T13:28:42.779201-06:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="tests.ui.test_page_stack" name="test_pricing_cached_large_page_does_not_enlarge_returned_small_page" time="0.110"><failure message="assert (1110, 716) == (0, 0)&#10;  &#10;  At index 0 diff: 1110 != 0&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000023E9BE7CEF0&gt;
+
+    def test_pricing_cached_large_page_does_not_enlarge_returned_small_page(qt_font_resources):
+        app = qt_font_resources
+        route_ids = [entry.page_id for entry in PRICING_NAV]
+        built = []
+    
+        def build(route_id, _presenter):
+            built.append(route_id)
+            page = QLineEdit()
+            if route_id == route_ids[1]:
+                page.setMinimumSize(1800, 1200)
+            return page
+    
+        workspace = PricingWorkspace(None, has_permission=lambda _: True, page_builder=build)
+        try:
+            workspace.resize(1000, 600)
+            workspace.show()
+            settle(app)
+            first = workspace._stack.currentWidget()
+            first.setText("Captura pendiente")
+            assert bars(workspace.viewport) == (0, 0)
+            workspace.select_page(route_ids[1])
+            settle(app)
+            assert all(value &gt; 0 for value in bars(workspace.viewport))
+            workspace.select_page(route_ids[0])
+            settle(app)
+            assert workspace._stack.currentWidget() is first
+            assert first.text() == "Captura pendiente"
+            assert built == route_ids[:2]
+&gt;           assert bars(workspace.viewport) == (0, 0)
+E           assert (1110, 716) == (0, 0)
+E             
+E             At index 0 diff: 1110 != 0
+E             Use -v to get more diff
+
+tests\ui\test_page_stack.py:51: AssertionError</failure></testcase><testcase classname="tests.ui.test_page_stack" name="test_wizard_only_current_step_contributes_overflow" time="0.008"><failure message="assert (1006, 868) == (0, 0)&#10;  &#10;  At index 0 diff: 1006 != 0&#10;  Use -v to get more diff">qt_font_resources = &lt;PyQt5.QtWidgets.QApplication object at 0x0000023E9BE7CEF0&gt;
+
+    def test_wizard_only_current_step_contributes_overflow(qt_font_resources):
+        app = qt_font_resources
+        wizard = WizardPage(title="Captura por pasos")
+        small, large = QLineEdit("Dato pendiente"), QWidget()
+        large.setMinimumSize(1600, 1200)
+        wizard.add_step(small)
+        wizard.add_step(large)
+        try:
+            wizard.resize(640, 480)
+            wizard.show()
+            settle(app)
+&gt;           assert bars(wizard.viewport) == (0, 0)
+E           assert (1006, 868) == (0, 0)
+E             
+E             At index 0 diff: 1006 != 0
+E             Use -v to get more diff
+
+tests\ui\test_page_stack.py:161: AssertionError</failure></testcase></testsuite></testsuites>

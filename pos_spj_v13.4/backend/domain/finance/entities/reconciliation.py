@@ -6,7 +6,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from backend.domain.finance.enums import ReconciliationStatus
-from backend.domain.finance.exceptions import ReconciliationError
+from backend.domain.finance.exceptions import (
+    ReconciliationError,
+    TransactionAlreadyReconciledError,
+)
 from backend.shared.ids import new_uuid
 
 
@@ -27,6 +30,7 @@ class ReconciliationMatch:
     active: bool = True
     reverted_at: str | None = None
     reverted_by: str | None = None
+    revert_reason: str | None = None
 
     @classmethod
     def create(cls, reconciliation_id: str, bank_statement_line_id: str,
@@ -71,9 +75,11 @@ class Reconciliation:
                 f"Cannot add matches to a {self.status.value.lower()} reconciliation")
         for match in self.active_matches():
             if match.bank_statement_line_id == bank_statement_line_id:
-                raise ReconciliationError("Statement line is already matched")
+                raise TransactionAlreadyReconciledError(
+                    "La partida del estado ya está conciliada")
             if match.journal_line_id == journal_line_id:
-                raise ReconciliationError("Journal line is already matched")
+                raise TransactionAlreadyReconciledError(
+                    "El movimiento del mayor ya está conciliado")
         match = ReconciliationMatch.create(self.id, bank_statement_line_id, journal_line_id, matched_by)
         self.matches.append(match)
         self.status = ReconciliationStatus.IN_PROGRESS
@@ -112,6 +118,7 @@ class Reconciliation:
             match.active = False
             match.reverted_at = now
             match.reverted_by = reverted_by
+            match.revert_reason = reason.strip()
         self.status = ReconciliationStatus.REVERTED
         self.reverted_by = reverted_by
         self.revert_reason = reason.strip()

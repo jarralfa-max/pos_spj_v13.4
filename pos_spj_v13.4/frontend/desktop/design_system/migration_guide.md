@@ -133,6 +133,48 @@ monitor, el marco se ajusta al área disponible y recupera el mínimo solicitado
 si vuelve a caber. Los botones siguen la densidad global sin reconstruir campos.
 Consultar las pruebas, adopción y límites del [punto 9](../../../docs/refactor/standard_dialog_phase_9.md).
 
+### PageViewport y páginas en caché
+
+La composición del shell es `ApplicationWindow → ContentHost → PageViewport →
+PageStack → página activa`. `ModuleLayout` conserva el título y el sidebar fuera
+del cuerpo desplazable; `StandardPage` y `StandardDialog` hacen lo mismo con
+sus cabeceras y acciones. Mantener estos elementos como hermanos del viewport.
+
+`PageViewport.set_page(widget)` expande el cuerpo cuando cabe y habilita scroll
+horizontal o vertical cuando su mínimo real lo requiere. `viewport_size()`
+devuelve el área efectiva después de reservar las barras. No fijar el tamaño
+de la ventana ni desactivar una barra para ocultar contenido que no cabe.
+Los cambios de layout actualizan el overflow sin reconstruir los campos.
+
+Para varias páginas que se conservan en memoria, usar `PageStack`:
+
+```python
+from frontend.desktop.components import PageStack, PageViewport
+
+stack = PageStack()
+stack.addWidget(summary_page)
+stack.addWidget(details_page)
+viewport = PageViewport()
+viewport.set_page(stack)
+stack.setCurrentWidget(details_page)
+```
+
+`PageStack` mantiene la API, señales, propiedad e índices de `QStackedWidget`,
+pero calcula el tamaño con la página activa. Una página grande oculta no debe
+añadir scroll a las demás. El viewport recuerda ambos desplazamientos por
+instancia de página; una instancia nueva empieza en el origen. La restauración
+se realiza al procesar el layout de Qt y se limita al nuevo rango disponible.
+Este estado dura la sesión del widget, no se guarda en preferencias.
+
+`set_page()` conserva el contrato Qt: reemplazar el cuerpo elimina el anterior.
+Para retirarlo sin destruirlo usar `takeWidget()`. Para navegar entre páginas
+reutilizables, cambiar la selección de `PageStack`, no reemplazar el cuerpo.
+El scroll propio de tablas y listas se mantiene; evitar un segundo scroll
+exterior cuando el componente ya puede reducirse al espacio disponible.
+
+Consultar la [validación del punto 10](../../../docs/refactor/page_viewport_phase_10.md)
+para navegación, foco, contenido dinámico y la matriz visual.
+
 ### Perfiles de densidad
 
 Usar `density_metrics()` para las medidas del perfil global y los componentes
@@ -159,7 +201,7 @@ cambiar tema y densidad en ejecución.
 | Necesidad | Componentes |
 |---|---|
 | Shell | `StandardWindow`; `ApplicationWindow`, `TopBar`, `ContentHost`, `NotificationDrawer`, `StatusBar` en `shell/` |
-| Página | `StandardPage`, `ScrollablePage`, `WorklistPage`, `DashboardPage`, `FormPage`, `TabbedPage`, `SplitPage`, `MasterDetailPage`, `POSPage`, `WizardPage`, `PageViewport` |
+| Página | `StandardPage`, `ScrollablePage`, `WorklistPage`, `DashboardPage`, `FormPage`, `TabbedPage`, `SplitPage`, `MasterDetailPage`, `POSPage`, `WizardPage`, `PageViewport`, `PageStack` |
 | Jerarquía | `PageHeader`, `Breadcrumbs`, `ContextBar`, `Toolbar`, `FilterBar`, `Tabs`, `TabBar` |
 | Navegación | `GlobalSidebar`/`AppSidebar`, `SideNav`/`ModuleSidebar`, `NavGroup`, `NavItem` |
 | Datos | `KPIBar`, `KPICard`, `KPIDTO`, `StandardCard`, `ChartCard`, `DashboardGrid`, `StandardTable`, `ColumnSpec` |
@@ -252,6 +294,19 @@ skill. Registrar los fallos y errores de colección; los segmentos UI aprobados
 no equivalen a una suite global verde.
 
 ## Pendientes de integración global
+
+### Usuario y sesión
+
+`ApplicationWindow` es dueño del menú de usuario. `TopBar.profile_requested`
+abre la ficha `UserProfileDialog` con el contexto vigente; `logout_requested`
+pasa por la misma confirmación tanto desde Archivo como desde el usuario.
+Los módulos no deben crear otro menú ni revocar sesiones por su cuenta.
+
+Actualizar conectividad mediante `TopBar.set_offline_status(status, degraded=...)`;
+esto conserva los avisos de sesión. `set_session_state("locked"/"expiring")`
+solo presenta un aviso: no bloquea acceso ni implementa vencimiento.
+Ver alcance y evidencia en el
+[informe de controles de sesión](../../../docs/refactor/user_session_controls.md).
 
 ### Recursos de marca
 

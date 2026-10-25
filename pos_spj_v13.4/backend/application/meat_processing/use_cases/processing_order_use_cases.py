@@ -24,6 +24,7 @@ from backend.application.meat_processing.result import MeatProcessingResult
 from backend.application.meat_processing.use_cases._shared import BLOCKED_QUALITY_STATUSES
 from backend.application.meat_processing.use_cases._shared import fail as _fail
 from backend.application.meat_processing.use_cases._shared import scope_fail as _scope_fail
+from backend.application.security.unwired_policy import unwired
 from backend.domain.meat_processing.entities.processing_order import ProcessingOrder
 from backend.domain.meat_processing.enums import (
     ConsumptionStatus,
@@ -58,7 +59,7 @@ _NON_STOCK_OUTPUT_TYPES = (OutputType.WASTE, OutputType.LOSS)
 class CreateProcessingOrderUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None,
                  folio_port=None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
         #: `OrderFolioPort` (conexión → siguiente folio de la sucursal). Sin él la
         #: orden se crea sin folio (pruebas de dominio); la aplicación lo conecta.
         self._folio = folio_port
@@ -144,7 +145,7 @@ class CreateProcessingOrderUseCase:
 
 class ApproveProcessingOrderUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self,
@@ -209,7 +210,7 @@ class ReleaseProcessingOrderUseCase:
         authorization: MeatProcessingAuthorizationPolicy | None = None,
         master_data_policy: ProcessingMasterDataRequirementPolicy | None = None,
     ) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
         self._policy = master_data_policy or ProcessingMasterDataRequirementPolicy()
 
     def execute(
@@ -334,7 +335,7 @@ class CloseProcessingOrderUseCase:
         authorization: MeatProcessingAuthorizationPolicy | None = None,
         cost_allocation_port: CostAllocationPort | None = None,
     ) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
         self._costing = cost_allocation_port or NullCostAllocationPort()
 
     def execute(

@@ -1,0 +1,35 @@
+{
+  "integrity": [
+    "ok"
+  ],
+  "foreign_key_violations": 0,
+  "success": true,
+  "state": "RUNNING",
+  "steps": [
+    {
+      "name": "database_integrity",
+      "success": true,
+      "message": "Integridad de la base de datos verificada."
+    },
+    {
+      "name": "schema_compatibility",
+      "success": true,
+      "message": "Esquema compatible con esta versión."
+    },
+    {
+      "name": "database_migration",
+      "success": true,
+      "message": "Migraciones aplicadas."
+    },
+    {
+      "name": "schema_validation",
+      "success": true,
+      "message": "Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%)."
+    },
+    {
+      "name": "installation_state",
+      "success": true,
+      "message": "Estado de instalación: PROVISIONED."
+    }
+  ]
+}

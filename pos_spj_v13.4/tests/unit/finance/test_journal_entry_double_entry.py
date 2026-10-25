@@ -9,10 +9,10 @@ from backend.domain.finance.entities.fiscal_period import FiscalPeriod
 from backend.domain.finance.enums import JournalEntryStatus, PostingPurpose
 from backend.domain.finance.exceptions import (
     EmptyEntryError,
-    ImmutableEntryError,
-    PeriodClosedError,
+    JournalEntryImmutableError,
+    ClosedFiscalPeriodError,
     ReversalError,
-    UnbalancedEntryError,
+    UnbalancedJournalEntryError,
 )
 from backend.domain.finance.services.journal_posting_service import (
     JournalPostingService,
@@ -67,7 +67,7 @@ class TestDoubleEntryBalance:
         assert entry.total_debits().amount == entry.total_credits().amount
 
     def test_unbalanced_entry_rejected(self, service, period, reference):
-        with pytest.raises(UnbalancedEntryError):
+        with pytest.raises(UnbalancedJournalEntryError):
             _build(service, period, reference, debit="100.00", credit="99.99")
 
     def test_single_line_rejected(self, service, period, reference):
@@ -100,19 +100,19 @@ class TestImmutability:
         entry = _build(service, period, reference)
         service.post(entry, period)
         assert entry.status is JournalEntryStatus.POSTED
-        with pytest.raises(ImmutableEntryError):
+        with pytest.raises(JournalEntryImmutableError):
             entry.add_debit(new_uuid(), Money.from_string("1"))
 
     def test_posted_entry_cannot_be_cancelled(self, service, period, reference):
         entry = _build(service, period, reference)
         service.post(entry, period)
-        with pytest.raises(ImmutableEntryError):
+        with pytest.raises(JournalEntryImmutableError):
             entry.cancel()
 
     def test_posting_into_closed_period_rejected(self, service, period, reference):
         entry = _build(service, period, reference)
         period.close(closed_by=new_uuid())
-        with pytest.raises(PeriodClosedError):
+        with pytest.raises(ClosedFiscalPeriodError):
             service.post(entry, period)
 
 

@@ -38,3 +38,26 @@ class FinanceRepositoryBase:
                 f"{label} {getattr(entity, 'id', '')} cambió desde que se leyó; "
                 "recargue y vuelva a intentar")
         entity.row_version = int(getattr(entity, "row_version", 0) or 0) + 1
+
+    # ── helpers por diccionario (FIN-ERP): el nombre de columna y su valor
+    # viajan juntos, así que un INSERT no puede desalinear posiciones.
+    def _insert(self, table: str, values: dict) -> None:
+        columns = ", ".join(values)
+        placeholders = ", ".join("?" for _ in values)
+        self._conn.execute(f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
+                           tuple(values.values()))
+
+    def _update(self, table: str, values: dict, *, where: str, params: tuple):
+        assignments = ", ".join(f"{name}=?" for name in values)
+        return self._conn.execute(f"UPDATE {table} SET {assignments} WHERE {where}",
+                                  tuple(values.values()) + tuple(params))
+
+
+def iso(value) -> str | None:
+    """``date``/``datetime`` → texto ISO; ``None`` se queda ``None``."""
+    return value.isoformat() if value is not None else None
+
+
+def parse_date(value):
+    from datetime import date
+    return date.fromisoformat(value) if value else None

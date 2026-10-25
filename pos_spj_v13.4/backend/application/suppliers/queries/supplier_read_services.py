@@ -18,6 +18,10 @@ from backend.application.suppliers.dto.supplier_dtos import (
     SupplierDashboardDTO,
     SupplierRiskDTO,
 )
+from backend.domain.finance.enums import OPEN_PAYABLE_STATUSES, sql_in
+
+#: CxP con saldo exigible según Finanzas (FIN-ERP): una pagada (PAID) ya no cuenta.
+_OPEN_PAYABLES = sql_in(OPEN_PAYABLE_STATUSES)
 
 
 def _mask_clabe(clabe: str | None) -> str:
@@ -186,10 +190,10 @@ class SupplierDashboardQueryService(_Base):
         # payables come from the finance context; tolerate their absence
         payable = self._scalar(
             "SELECT COALESCE(SUM(CAST(outstanding_amount AS NUMERIC)),0) FROM payables"
-            " WHERE status NOT IN ('SETTLED','WRITTEN_OFF','CANCELLED')", default=0)
+            f" WHERE status IN {_OPEN_PAYABLES}", default=0)
         overdue = self._scalar(
             "SELECT COALESCE(SUM(CAST(outstanding_amount AS NUMERIC)),0) FROM payables"
-            " WHERE due_date < date('now') AND status NOT IN ('SETTLED','WRITTEN_OFF','CANCELLED')",
+            f" WHERE due_date < date('now') AND status IN {_OPEN_PAYABLES}",
             default=0)
         return SupplierDashboardDTO(
             active_suppliers=active, pending_approval=pending, blocked=blocked,
@@ -201,15 +205,15 @@ class SupplierFinancialSummaryQueryService(_Base):
     def summary(self, supplier_id: str) -> dict:
         balance = self._scalar(
             "SELECT COALESCE(SUM(CAST(outstanding_amount AS NUMERIC)),0) FROM payables"
-            " WHERE supplier_id=? AND status NOT IN ('SETTLED','WRITTEN_OFF','CANCELLED')",
+            f" WHERE supplier_id=? AND status IN {_OPEN_PAYABLES}",
             (supplier_id,), default=0)
         overdue = self._scalar(
             "SELECT COALESCE(SUM(CAST(outstanding_amount AS NUMERIC)),0) FROM payables"
             " WHERE supplier_id=? AND due_date < date('now')"
-            " AND status NOT IN ('SETTLED','WRITTEN_OFF','CANCELLED')", (supplier_id,), default=0)
+            f" AND status IN {_OPEN_PAYABLES}", (supplier_id,), default=0)
         open_docs = int(self._scalar(
-            "SELECT COUNT(*) FROM payables WHERE supplier_id=? AND status NOT IN"
-            " ('SETTLED','WRITTEN_OFF','CANCELLED')", (supplier_id,), default=0))
+            f"SELECT COUNT(*) FROM payables WHERE supplier_id=? AND status IN {_OPEN_PAYABLES}",
+            (supplier_id,), default=0))
         return {"balance": f"{float(balance):.2f}", "overdue": f"{float(overdue):.2f}",
                 "open_documents": open_docs}
 

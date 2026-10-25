@@ -78,15 +78,15 @@ CAPABILITY_CATALOG: tuple[Capability, ...] = (
     # la reciben al leer su configuración (ver `migrate_legacy_capabilities`).
     Capability("logistics", "Logística (contenedores y embarques)",
                permission_modules=("LOGISTICA",)),
+    # Auditoría de permisos 968e0bc (PER-04): Proveedores, Transferencias y
+    # Mermas ya usan `MODULO.accion`; el bloqueo por módulo los cubre y los
+    # prefijos planos (`SUPPLIERS_`, `TRANSFERS_`, `LOSSES_`) sobran.
     Capability("purchasing", "Compras y proveedores",
-               permission_modules=("COMPRAS", "PROVEEDORES"),
-               flat_permission_prefixes=("SUPPLIERS_",)),
+               permission_modules=("COMPRAS", "PROVEEDORES")),
     Capability("transfers", "Transferencias",
-               permission_modules=("TRANSFERENCIAS",),
-               flat_permission_prefixes=("TRANSFERS_",)),
+               permission_modules=("TRANSFERENCIAS",)),
     Capability("losses", "Mermas",
-               permission_modules=("MERMA",),
-               flat_permission_prefixes=("LOSSES_",)),
+               permission_modules=("MERMA",)),
     Capability("meat_processing", "Procesamiento cárnico",
                permission_modules=("PRODUCCION", "CALIDAD")),
     Capability("finance", "Finanzas y contabilidad",

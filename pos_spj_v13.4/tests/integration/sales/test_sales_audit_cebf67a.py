@@ -24,10 +24,7 @@ from backend.application.sales.use_cases.cart_use_cases import (
     StartSaleUseCase,
     UpdateSaleLineQuantityUseCase,
 )
-from backend.application.use_cases.finance.receivable_use_cases import (
-    RegisterSaleCreditChargeUseCase,
-    VoidSaleCreditChargeUseCase,
-)
+from backend.application.use_cases.finance.register_sale_credit_charge_use_case import RegisterSaleCreditChargeUseCase, VoidSaleCreditChargeUseCase
 from backend.domain.sales.enums import PaymentMethod, SaleStatus
 from backend.domain.sales.exceptions import SaleCancellationNotAllowedError
 from backend.domain.sales.value_objects.sale_payment import SalePayment

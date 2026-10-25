@@ -32,16 +32,32 @@ class PermissionChecker(Protocol):
     def has_permission(self, user_id: str, permission_code: str) -> bool: ...
 
 
+class AllowAllPricingPermissionCheckerForTests:
+    """Sólo pruebas: concede todo. NUNCA en producción."""
+
+    def has_permission(self, user_id: str, permission_code: str) -> bool:
+        return True
+
+
 class PricingAuthorizationPolicy:
+    """Auditoría de permisos 968e0bc (PER-02): sin verificador PERMITÍA todo y
+    los casos de uso caían en ella si nadie les cableaba una. Ahora falla
+    cerrada; las pruebas usan `permissive_for_tests()`."""
+
     def __init__(self, checker: PermissionChecker | None = None) -> None:
         self._checker = checker
+
+    @classmethod
+    def permissive_for_tests(cls) -> "PricingAuthorizationPolicy":
+        return cls(AllowAllPricingPermissionCheckerForTests())
 
     def require(self, user_id: str, permission_code: str) -> None:
         if permission_code not in ALL_PRICING_PERMISSIONS:
             raise PricingPermissionDeniedError(
                 f"Permiso desconocido: {permission_code}")
         if self._checker is None:
-            return  # isolated tests → allow; production always wires a checker
+            raise PricingPermissionDeniedError(
+                "Precios sin verificador de permisos: la operación se rechaza")
         if not user_id:
             raise PricingPermissionDeniedError("Operación sin usuario autenticado")
         if not self._checker.has_permission(user_id, permission_code):
@@ -53,7 +69,7 @@ class PricingAuthorizationPolicy:
         if permission_code not in ALL_PRICING_PERMISSIONS:
             return False
         if self._checker is None:
-            return True
+            return False
         return bool(user_id) and self._checker.has_permission(user_id, permission_code)
 
     def ensure_segregation(

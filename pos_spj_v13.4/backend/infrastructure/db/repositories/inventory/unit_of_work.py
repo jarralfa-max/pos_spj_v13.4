@@ -69,9 +69,10 @@ from backend.infrastructure.db.repositories.inventory.support_repositories impor
 from backend.infrastructure.db.repositories.inventory.warehouse_repository import (
     WarehouseRepository,
 )
+from backend.infrastructure.db.transaction import TransactionalUnitOfWork
 
 
-class InventoryUnitOfWork:
+class InventoryUnitOfWork(TransactionalUnitOfWork):
     def __init__(self, connection: Any, *, owns_transaction: bool = True) -> None:
         self.connection = connection
         self._owns_transaction = owns_transaction
@@ -98,29 +99,3 @@ class InventoryUnitOfWork:
         self.notification_rules = NotificationRuleRepository(connection)
         self.notification_log = NotificationLogRepository(connection)
         self._completed = False
-
-    def __enter__(self) -> "InventoryUnitOfWork":
-        self._completed = False
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> bool:
-        if exc_type is not None:
-            self.rollback()
-        elif not self._completed:
-            self.commit()
-        return False
-
-    def commit(self) -> None:
-        # When an outer flow owns the transaction (e.g. a POS sale SAVEPOINT),
-        # the UoW never touches the connection: the outer flow commits the sale
-        # and the stock deduction together, atomically.
-        if self._owns_transaction:
-            self.connection.commit()
-        self._completed = True
-
-    def rollback(self) -> None:
-        if self._owns_transaction:
-            rollback = getattr(self.connection, "rollback", None)
-            if rollback is not None:
-                rollback()
-        self._completed = True

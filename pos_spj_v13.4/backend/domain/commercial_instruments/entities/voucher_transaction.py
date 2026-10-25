@@ -118,6 +118,17 @@ class VoucherTransaction:
                         operation_id=operation_id, reason_code=reason_code, **kwargs)
 
     @classmethod
+    def forfeit_remainder(cls, *, voucher_instance_id: str, amount: Decimal, operation_id: str,
+                          reason_code: str, **kwargs) -> "VoucherTransaction":
+        """Saldo que se pierde al cerrar una pieza (un solo evento con sobrante,
+        o canjes agotados). Queda en el libro: nunca desaparece en silencio."""
+        if not (reason_code or "").strip():
+            raise InvalidVoucherTransactionAmountError("El sobrante requiere reason_code")
+        return cls._new(VoucherTransactionType.EXPIRE, voucher_instance_id=voucher_instance_id,
+                        amount=amount, operation_id=operation_id, reason_code=reason_code,
+                        **kwargs)
+
+    @classmethod
     def release_of(cls, reservation: "VoucherTransaction", *, operation_id: str,
                    created_by_user_id: str | None = None) -> "VoucherTransaction":
         if reservation.transaction_type is not VoucherTransactionType.RESERVE:

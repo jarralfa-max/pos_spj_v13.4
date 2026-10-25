@@ -7,21 +7,12 @@ from backend.infrastructure.db.repositories.quotes.quote_repository import (
     QuoteOutboxRepository,
     QuoteRepository,
 )
+from backend.infrastructure.db.transaction import TransactionalUnitOfWork
 
 
-class QuotesUnitOfWork:
+class QuotesUnitOfWork(TransactionalUnitOfWork):
     def __init__(self, connection) -> None:
         self.connection = connection
         self.quotes = QuoteRepository(connection)
         self.audit = QuoteAuditRepository(connection)
         self.outbox = QuoteOutboxRepository(connection)
-
-    def __enter__(self) -> "QuotesUnitOfWork":
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> bool:
-        if exc_type is None:
-            self.connection.commit()
-        else:
-            self.connection.rollback()
-        return False

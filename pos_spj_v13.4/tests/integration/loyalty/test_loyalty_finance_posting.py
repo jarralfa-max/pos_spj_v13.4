@@ -167,11 +167,17 @@ class TestPoints:
         assert _balance(conn, "2130") == Decimal("-7.00")
 
     def test_fifo_values_each_point_at_its_own_recognition(self, conn):
+        """Cada acumulación guarda el valor del punto con que se ganó (FID-02):
+        cambiarlo después no revalúa lo ya acumulado."""
+        from tests.integration._governed_settings import set_setting
+
         cuenta = _account(conn)
+        set_setting(conn, "loyalty.point_value", "0.10")
         _accrue(conn, cuenta, 100)                      # a 0.10
-        LoyaltyFinancePostingService(conn, point_value=Decimal("0.10")).run()
+        LoyaltyFinancePostingService(conn).run()
+        set_setting(conn, "loyalty.point_value", "0.20")
         _accrue(conn, cuenta, 100)                      # a 0.20
-        LoyaltyFinancePostingService(conn, point_value=Decimal("0.20")).run()
+        LoyaltyFinancePostingService(conn).run()
         _redeem(conn, cuenta, 150)                      # 100 × 0.10 + 50 × 0.20
         LoyaltyFinancePostingService(conn, point_value=Decimal("0.20")).run()
         assert _balance(conn, "4101") == Decimal("-20.00")
@@ -188,7 +194,7 @@ class TestPoints:
         _ok(ExpireLoyaltyPointsUseCase(AUTH).execute(
             conn, before_iso="2021-01-01T00:00:00+00:00", operation_id_prefix=new_uuid()))
         _run(conn)
-        assert _balance(conn, "4120") == Decimal("-7.00")   # 70 puntos caducos
+        assert _balance(conn, "7110") == Decimal("-7.00")   # 70 puntos caducos (breakage)
         assert _balance(conn, "2130") == Decimal("0")
         _entries_balance(conn)
 
@@ -426,20 +432,6 @@ class TestSweepstakes:
         _run(conn)
         assert _balance(conn, "2136") == Decimal("-1500.00")   # aún por entregar
 
-    def test_existing_catalog_gets_the_provision_account(self, conn):
-        from backend.application.services.finance.finance_bootstrap import (
-            ensure_finance_catalog_additions,
-        )
-
-        conn.execute("DELETE FROM posting_profiles WHERE profile_key='SWEEPSTAKES_PRIZE'")
-        conn.commit()
-        assert ensure_finance_catalog_additions(conn) is True
-        assert conn.execute("SELECT COUNT(*) FROM posting_profiles"
-                            " WHERE profile_key='SWEEPSTAKES_PRIZE'").fetchone()[0] == 1
-        assert ensure_finance_catalog_additions(conn) is True
-        assert conn.execute("SELECT COUNT(*) FROM posting_profiles"
-                            " WHERE profile_key='SWEEPSTAKES_PRIZE'").fetchone()[0] == 1
-
 
 class TestMigration294:
     def test_rebuilds_obligations_keeping_rows_and_survives_broken_legacy_view(self):
@@ -477,10 +469,8 @@ class TestMigration294:
             CREATE VIEW v_broken AS SELECT * FROM gone;
             DROP TABLE gone;
         """)
-        # Catálogo sembrado ANTES de la 294: sin la cuenta 2136 ni su perfil.
+        # FIN-ERP: el catálogo nace completo (sin rescates de catálogos viejos).
         bootstrap_finance(c, today=TODAY)
-        c.execute("DELETE FROM posting_profiles WHERE profile_key='SWEEPSTAKES_PRIZE'")
-        c.commit()
         m = importlib.import_module("migrations.standalone.294_loyalty_finance_bridge")
         m.run(c)
         m.run(c)   # idempotente

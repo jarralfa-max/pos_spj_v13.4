@@ -22,6 +22,7 @@ from backend.application.products.commands.product_cutting_commands import (
     SetCuttingReverseReconstructionCommand,
 )
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.cutting_output import CuttingOutput
 from backend.domain.products.entities.cutting_scheme import CuttingScheme
 from backend.domain.products.entities.cutting_scheme_version import CuttingSchemeVersion
@@ -60,7 +61,7 @@ class _BaseCuttingUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = CuttingSchemeRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
         self._validator = CuttingSchemeService()
 
     def _require(self, user_id: str | None) -> None:

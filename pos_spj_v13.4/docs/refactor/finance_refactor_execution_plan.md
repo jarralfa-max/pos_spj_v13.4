@@ -1,10 +1,102 @@
 # Finance Refactor Execution Plan — Bounded Context Financiero ERP
 
-> Estado global: **MIGRATED** (FASES 0-21 ejecutadas; ver §6 plomería operativa remanente)
-> Fecha: 2026-07-16
+> Estado global: **MIGRATED** (2026-10-22; pendiente con decisión: tránsito de transferencias, §R2.5) — Ronda 2 (FIN-ERP, 2026-10-21): re-auditoría contra el
+> «Prompt maestro — refactor enterprise del módulo Finanzas» (37 apartados, FASES 0-20).
+> Ronda 1 (2026-07-16, FASES 0-21) y la auditoría FIN-AUD (2026-10-10) siguen abajo como historia.
 > Skills aplicados (orden de prioridad): SPJ_REFACTOR_SKILL.md → SPJ_UI_UX_ARCHITECTURE_SKILL.md → SPJ_BUGFIX_AUDIT_CORRECTION_SKILL.md
 
 ---
+
+## Ronda 2 — FIN-ERP (2026-10-21)
+
+### R2.0 Punto de partida medido
+
+- El bounded context ya existe: `backend/domain/finance/` (49 archivos), casos de uso,
+  handlers, 16 repositorios, esquema `finance_schema.py`, UI `frontend/desktop/modules/finance/`
+  (19 páginas, 14 diálogos). `modulos/` ya no existe en el árbol: no queda monolito que borrar.
+- Línea base: 246 pruebas de Finanzas pasan (`tests/unit/finance`, `tests/integration/finance`,
+  6 guardias de arquitectura de Finanzas).
+- Esta ronda NO reconstruye lo que funciona; cierra lo que el prompt exige y el código no tiene.
+
+### R2.1 Decisiones tomadas por defecto (revisables)
+
+| Tema | Decisión | Motivo |
+|---|---|---|
+| Vocabulario de permisos | Se mantiene `FINANZAS.<accion>` (estándar del repo: catálogo único, matriz por rol). Cada permiso `finance.*` del prompt §28 tiene su equivalente `FINANZAS.*` (tabla en R2.4). | Dos vocabularios para el mismo módulo serían dos fuentes de verdad. |
+| Nombres de eventos operativos | Se conservan los que ya emiten los productores cuando son el mismo hecho: `SALE_CANCELLED` (= SALE_REVERSED), `SUPPLIER_INVOICE_REGISTERED` (= SUPPLIER_DOCUMENT_REGISTERED), `INVENTORY_ADJUSTMENT_REGISTERED` (= INVENTORY_ADJUSTED), `TRANSFER_DISPATCHED` (= TRANSFER_SHIPPED), `PROCESSING_COST_ALLOCATED` (= PRODUCTION_COMPLETED). Se agregan los eventos que Finanzas PRODUCE y faltaban. | El prompt admite «el evento canónico definido en la implementación final»; renombrar productores de otros módulos no aporta y rompe sus contratos. |
+| Esquema | Una sola definición born-clean en `finance_schema.py`, sin migración que convierta tablas existentes. Una base de desarrollo con esquema financiero anterior se **rechaza al arrancar** con instrucción de regenerarla (no se adapta). | Prompt §1: «La base local debe poder eliminarse y regenerarse», «no crear migraciones de transformación». |
+| Impuestos | Arquitectura configurable (código, tasa con vigencia, regla, perfil contable). Ventas hoy no calcula impuesto (`apply_tax` sin llamadores; precios con impuesto incluido): **no se fuerza un desglose de IVA a Ventas** — la carne es tasa 0 % y decidir la tasa por producto es del negocio. | Prompt §22: «no afirmar cumplimiento fiscal completo». |
+| Crédito de clientes | Límites y condiciones siguen en el contexto `customer_credit` (CRM); Finanzas los consulta, no los duplica. | Una sola fuente de verdad. |
+
+### R2.2 Matriz de brechas (apartado del prompt → estado medido)
+
+| § | Exigencia | Estado medido | Acción |
+|---|---|---|---|
+| 3 | UUIDv7 en toda identidad | Cumple (sin `INTEGER PK`, `lastrowid`, `int(id)` en Finanzas) | Guardia de esquema por PRAGMA |
+| 4/8.1 | Plan de cuentas jerárquico | Plano: ninguna cuenta agrupadora, `parent_account_id` siempre vacío | Agrupadoras no contabilizables + padres; reglas: no borrar con movimientos, no cambiar naturaleza usada |
+| 8.3 | Asiento manual borrador → validado → publicado; líneas con dimensiones | **No existe asiento manual**: sólo reverso. `JournalEntryDialog` es código muerto. Líneas sin proyecto/cliente/proveedor/empleado/producto/tipo de cambio/base | Casos de uso crear/validar/publicar/cancelar + segregación + diálogo; dimensiones en `journal_lines` |
+| 9 | Reapertura con usuario; checklist de cierre | `reopened_by` no se guarda; checklist parcial (sin cajas abiertas, nómina, depreciación, borradores) | Columna + checklist completo con estado por punto |
+| 11 | Cobro aplicado a uno o varios documentos; anticipos; saldo a favor; castigo; disputa; promesa; vencido | Un cobro = una CxC; sin anticipo, castigo, disputa, promesa ni estado vencido | `collection_applications`, anticipos (2140), castigo autorizado, disputa, promesas, barrido de vencidos |
+| 12 | CxP: prioridad, condiciones, disputa, bloqueo por diferencia de recepción (3 vías), anticipos, pronto pago, retenciones | Ninguno | Columnas + bloqueo + casos de uso |
+| 13 | Tesorería: depósitos, retiros, cargos, intereses, saldo insuficiente, número enmascarado | Sólo transferencia; número de cuenta completo; transferencia no valida saldo | Casos de uso + `InsufficientTreasuryFundsError` + enmascarado |
+| 14 | Diferencias de caja con `cash_over_account_id` / `cash_short_account_id` | El sobrante usa el rol `breakage_income_account_id` (nombre de otra cosa) | Roles propios |
+| 15 | Estados de línea, sugerencias con tolerancia, CSV/XLSX, duplicado de estado, ignorar, ajuste autorizado | Sólo `reconciled` 0/1; captura de texto; sin detección de duplicado | Todo lo listado |
+| 16 | Presupuesto: ACTIVE/CANCELLED, versiones, dimensiones, AVAILABLE/WARNING/BLOCKING, pagado; flujo de gasto configurable | Comprometido/devengado sí; sin pagado, sin modo de control, sin flujo de aprobación | Modo de control, pagado, aprobación por reglas, liquidación |
+| 17 | Préstamos, retiros de socios, CAPEX; activo con código/categoría/fechas/proveedor; SUSPENDED/SOLD/WRITTEN_OFF; corridas de depreciación | Aportación, capitalización, depreciación y baja sí; resto no | Casos de uso + `depreciation_runs` |
+| 18 | Merma y transferencias contabilizadas; tránsito | **Merma nunca llega al mayor** (`LOSS_FINANCE_RECOGNITION_REQUESTED` sin consumidor; `WasteRegisteredHandler` sin suscriptor). Transferencias sin efecto contable | Cablear Mermas; tránsito origen→1160→destino |
+| 22 | TaxCode/TaxRate/TaxRule/TaxPostingProfile | No existe | Arquitectura configurable (ver R2.1) |
+| 23 | Proyectos, departamentos; consolidado con eliminación interna | Sólo centros de costo/utilidad | Dimensiones + eliminación de cuentas puente |
+| 24 | Moneda/tipo de cambio; diferencia de redondeo a cuenta configurada | Moneda única; mezclar se rechaza | Tablas `currencies`/`exchange_rates`, importes base por línea, cuenta de redondeo |
+| 25 | Auditoría con antes/después, motivo, sucursal | **No existe bitácora financiera** | `finance_audit_log` escrito por cada comando |
+| 27 | Eventos financieros del prompt | Faltan RECEIVABLE_OVERDUE, PAYABLE_SETTLED/OVERDUE, BANK_RECONCILIATION_COMPLETED, EXPENSE_*, FIXED_ASSET_DISPOSED | Agregar y publicar |
+| 28 | Permisos del prompt; doble autorización configurable | 24 códigos; faltan cuenta, asiento crear/validar/publicar, crédito, castigo, importación, lectura por área, auditoría, configuración; sin umbral de doble autorización | Catálogo completo + umbrales en configuración |
+| 29/30 | Dashboard con 12 KPI + alertas + 10 gráficas ECharts | 6 KPI, sin alertas, **ninguna gráfica** | QueryService + ChartData DTO + `HtmlChartView` |
+| 31 | Auxiliares, comparativo, consolidado, exportación | Balanza/balance/resultados/flujo sí; sin auxiliar, comparativo ni exportación | Agregar |
+| 32 | Proyección de efectivo separada de la contabilidad | No existe | Modelo de planeación propio |
+| 33 | Rentabilidad por sucursal/producto/categoría/cliente/canal | Sólo resultados por sucursal | Hechos de rentabilidad por línea de venta, cuadrados contra el mayor |
+| 34 | Errores específicos | Nombres genéricos | Catálogo de errores del prompt |
+| 29 | Sin `float` en importes | `money_display` usa `float` | Formato con `Decimal` |
+
+### R2.3 Plan de ejecución (orden del prompt; una fase no avanza con pruebas rojas)
+
+Se registra el avance de cada fase en R2.5.
+
+### R2.4 Permisos `finance.*` del prompt → `FINANZAS.*`
+
+Catálogo único en `backend/application/finance/permissions.py`; el servicio de
+comandos exige el código en cada comando y la UI deshabilita (con tooltip que
+nombra el permiso) lo que la sesión no tiene. Equivalencia por función:
+
+| Función del prompt (§28) | Código | Segregación / nota |
+|---|---|---|
+| Acceso al módulo / tablero | `FINANZAS.ver`, `FINANZAS.tablero.ver` | — |
+| Exportar | `FINANZAS.exportar` | Cada exportación queda en `finance_audit_log` |
+| Plan de cuentas ver / administrar | `FINANZAS.cuenta.ver`, `FINANZAS.cuenta.administrar` | Cuenta con movimientos no cambia de tipo |
+| Asiento ver / crear / validar / contabilizar / revertir | `FINANZAS.asiento.ver`, `.crear`, `.validar`, `.contabilizar`, `.revertir` | Quien captura no contabiliza (configurable `journal_review_required`) |
+| Periodo ver / cerrar / reabrir / autorizar excepción | `FINANZAS.periodo.ver`, `.cerrar`, `.reabrir`, `.autorizar_excepcion` | Reapertura con motivo y usuario |
+| Ajuste en periodo pre-cerrado | `FINANZAS.ajuste.periodo_cerrado` | Sólo SOFT_CLOSED; CLOSED nunca |
+| CxC ver / administrar; cobro registrar / aplicar | `FINANZAS.cxc.ver`, `.cxc.administrar`, `.cobro.registrar`, `.cobro.aplicar` | Aplicar a documentos exige su permiso aparte |
+| Crédito (disputa, promesa) / castigo | `FINANZAS.credito.administrar`, `FINANZAS.castigo.autorizar` | Castigo con motivo y asiento |
+| CxP ver / administrar / desbloquear | `FINANZAS.cxp.ver`, `.cxp.administrar`, `.cxp.desbloquear` | Desbloquear ≠ bloquear |
+| Pago programar / autorizar / ejecutar | `FINANZAS.pago.programar`, `.pago.autorizar`, `.pago.ejecutar` | Programa ≠ autoriza ≠ ejecuta (doble control configurable); 2ª autorización sobre umbral configurable |
+| Tesorería ver / transferir / movimiento / administrar; capital | `FINANZAS.tesoreria.ver`, `.transferir`, `.movimiento`, `.administrar`, `FINANZAS.capital.registrar` | Saldo suficiente salvo sobregiro pactado |
+| Estado de cuenta importar; conciliación operar / ajustar / aceptar diferencia / revertir | `FINANZAS.estado_cuenta.importar`, `FINANZAS.conciliacion.operar`, `.ajustar`, `.aceptar_diferencia`, `.revertir` | Quien importa no ajusta (configurable) |
+| Presupuesto ver / crear / aprobar / autorizar exceso | `FINANZAS.presupuesto.ver`, `.crear`, `.aprobar`, `.autorizar_exceso` | — |
+| Gasto solicitar / aprobar / devengar | `FINANZAS.gasto.solicitar`, `.aprobar`, `.devengar` | Reglas de aprobación configurables (n aprobadores) |
+| Activos ver / administrar / depreciar | `FINANZAS.activo.ver`, `.administrar`, `.depreciar` | — |
+| Estados financieros / auditoría | `FINANZAS.estados.ver`, `FINANZAS.auditoria.ver` | — |
+| Configuración | `FINANZAS.configuracion.administrar` | Cada cambio con motivo, versionado (perfiles) y auditado |
+
+### R2.5 Avance por fase
+
+- FASE 0 — ✅ auditoría y esta matriz (2026-10-21).
+- FASES 1-5 (dominio) — ✅ entidades, value objects, políticas y servicios de dominio de §4-§24 (cuentas jerárquicas, asiento con dimensiones/moneda base/redondeo, periodos, CxC con aplicaciones, CxP con etapas, tesorería, conciliación, presupuesto con niveles de control, gasto, activos, capital, impuestos, monedas, parámetros) + catálogo de excepciones §34. Pruebas: `tests/unit/finance/` (80).
+- FASES 6-9 (esquema, repositorios, casos de uso) — ✅ esquema born-clean único (51 tablas) con contrato verificado al arrancar (migración 345); un caso de uso por archivo; bitácora `finance_audit_log` antes/después en cada comando; eventos canónicos por `finance_outbox`.
+- FASE 10 (permisos) — ✅ tabla R2.4.
+- FASES 11-17 (consultas, estados, tablero, gráficas) — ✅ un query service por área; estados desde asientos contabilizados; tablero 12 KPI + 8 alertas + 10 `ChartDataDTO`; rentabilidad por 7 dimensiones; proyección de flujo separada de lo real.
+- FASE 18 (UI) — ✅ 2026-10-22: presenter reescrito (sin conexión; sólo query services + `FinanceCommandService`), 31 páginas en el árbol de §29.1, formularios declarativos (`FieldsDialog`), asiento manual, cobro con aplicación a varias facturas, conciliación lado a lado con importación CSV/XLSX, permisos visuales, exportación auditada, montos con `Decimal`. Pruebas: `tests/integration/finance/test_finance_ui_workspace.py`.
+- FASE 6/15 (integraciones) — ✅ 2026-10-22: merma valuada (`LOSS_FINANCE_RECOGNITION_REQUESTED`) entregada por el nuevo despachador de `loss_outbox` y asentada por `LossRecognitionHandler` (Dr merma / Cr inventario); hechos de rentabilidad desde venta (por renglón, cuadran con el mayor), devolución y cancelación; catálogo sembrado al arrancar (`wire_finance`) y ciclo de fondo (merma pendiente, vencimientos, `finance_outbox`). Pruebas: `test_finance_integrations_round2.py`.
+- **Pendiente con decisión del usuario — transferencias en tránsito (§18):** ni `TRANSFER_DISPATCHED` ni Inventario publican el costo de lo despachado. Finanzas no inventa valuación (regla de no-fallback), así que el tránsito (origen → 1160 → destino) queda sin asentar hasta que Transferencias/Inventario publiquen el valor de cada despacho y recepción. El perfil `INVENTORY` ya trae `inventory_in_transit_account_id` y `transfer_difference_account_id`.
 
 ## 1. Inventario de módulos financieros actuales (LEGACY — a sustituir)
 

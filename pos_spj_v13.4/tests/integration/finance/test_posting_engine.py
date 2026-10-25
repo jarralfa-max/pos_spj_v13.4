@@ -4,12 +4,14 @@ from datetime import date
 
 import pytest
 
+from backend.application.finance.ports import NoOperationalSources
 from backend.application.services.finance.posting_engine import PostingEngine
 from backend.domain.finance.enums import JournalEntryStatus, JournalType, PostingPurpose
 from backend.domain.finance.exceptions import (
     FinanceDomainError,
-    PeriodClosedError,
-    UnbalancedEntryError,
+    ClosedFiscalPeriodError,
+    JournalEntryAlreadyReversedError,
+    UnbalancedJournalEntryError,
 )
 from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.money import Money
@@ -61,7 +63,7 @@ class TestPosting:
         assert stored.total_debits().to_string() == "116.00"
 
     def test_unbalanced_rejected(self, bootstrapped_conn, engine):
-        with pytest.raises(UnbalancedEntryError):
+        with pytest.raises(UnbalancedJournalEntryError):
             with FinanceUnitOfWork(bootstrapped_conn) as uow:
                 ids = _accounts(uow)
                 engine.post(uow, JournalType.SALES, ENTRY_DATE, "Mal",
@@ -139,28 +141,49 @@ class TestReversal:
             assert stored.status is JournalEntryStatus.REVERSED
             assert stored.reversed_by_entry_id == reversal.id
 
-    def test_double_reversal_is_idempotent(self, bootstrapped_conn, engine):
-        original = self._post_one(bootstrapped_conn, engine)
+    def test_same_reversal_operation_is_idempotent(self, bootstrapped_conn, engine):
+        original, operation = self._post_one(bootstrapped_conn, engine), new_uuid()
         with FinanceUnitOfWork(bootstrapped_conn) as uow:
             stored = uow.journal_entries.get(original.id)
-            first = engine.reverse(uow, stored, ENTRY_DATE, "devolución", new_uuid())
+            first = engine.reverse(uow, stored, ENTRY_DATE, "devolución", operation)
         with FinanceUnitOfWork(bootstrapped_conn) as uow:
             stored = uow.journal_entries.get(original.id)
-            second = engine.reverse(uow, stored, ENTRY_DATE, "devolución otra vez", new_uuid())
+            second = engine.reverse(uow, stored, ENTRY_DATE, "devolución", operation)
         assert second.id == first.id
         count = bootstrapped_conn.execute("SELECT COUNT(*) FROM journal_entries").fetchone()[0]
         assert count == 2  # original + one reversal only
 
+    def test_a_second_different_reversal_is_rejected(self, bootstrapped_conn, engine):
+        original = self._post_one(bootstrapped_conn, engine)
+        with FinanceUnitOfWork(bootstrapped_conn) as uow:
+            engine.reverse(uow, uow.journal_entries.get(original.id), ENTRY_DATE,
+                           "devolución", new_uuid())
+        with pytest.raises(JournalEntryAlreadyReversedError):
+            with FinanceUnitOfWork(bootstrapped_conn) as uow:
+                engine.reverse(uow, uow.journal_entries.get(original.id), ENTRY_DATE,
+                               "otra vez", new_uuid())
+
+    def test_integration_flow_repeating_its_reversal_gets_the_same_effect(
+            self, bootstrapped_conn, engine):
+        original = self._post_one(bootstrapped_conn, engine)
+        with FinanceUnitOfWork(bootstrapped_conn) as uow:
+            first = engine.reverse(uow, uow.journal_entries.get(original.id), ENTRY_DATE,
+                                   "cancelación", new_uuid(),
+                                   posting_purpose=PostingPurpose.SALE_REVERSAL)
+        with FinanceUnitOfWork(bootstrapped_conn) as uow:
+            second = engine.reverse(uow, uow.journal_entries.get(original.id), ENTRY_DATE,
+                                    "cancelación reentregada", new_uuid(),
+                                    posting_purpose=PostingPurpose.SALE_REVERSAL)
+        assert second.id == first.id
+
 
 class TestPeriodControl:
     def test_posting_into_closed_period_fails(self, bootstrapped_conn, engine):
-        from backend.application.use_cases.finance.fiscal_period_use_cases import (
-            CloseFiscalPeriodUseCase,
-        )
-        CloseFiscalPeriodUseCase().execute(
+        from backend.application.use_cases.finance.close_fiscal_period_use_case import CloseFiscalPeriodUseCase
+        CloseFiscalPeriodUseCase(NoOperationalSources()).execute(
             bootstrapped_conn, 2026, 7, closed_by=new_uuid(), operation_id=new_uuid(),
         )
-        with pytest.raises(PeriodClosedError):
+        with pytest.raises(ClosedFiscalPeriodError):
             with FinanceUnitOfWork(bootstrapped_conn) as uow:
                 engine.post(uow, JournalType.SALES, ENTRY_DATE, "Venta tardía",
                             _reference(), _sale_lines(_accounts(uow)))
@@ -174,11 +197,9 @@ class TestPeriodControl:
             assert uow.fiscal_periods.find_by_code(2026, 8) is not None
 
     def test_reopen_allows_posting_again(self, bootstrapped_conn, engine):
-        from backend.application.use_cases.finance.fiscal_period_use_cases import (
-            CloseFiscalPeriodUseCase,
-            ReopenFiscalPeriodUseCase,
-        )
-        CloseFiscalPeriodUseCase().execute(
+        from backend.application.use_cases.finance.close_fiscal_period_use_case import CloseFiscalPeriodUseCase
+        from backend.application.use_cases.finance.reopen_fiscal_period_use_case import ReopenFiscalPeriodUseCase
+        CloseFiscalPeriodUseCase(NoOperationalSources()).execute(
             bootstrapped_conn, 2026, 7, closed_by=new_uuid(), operation_id=new_uuid(),
         )
         ReopenFiscalPeriodUseCase().execute(
@@ -197,11 +218,11 @@ class TestAtomicity:
         from backend.domain.finance.entities.financial_document import FinancialDocument
         from backend.domain.finance.enums import FinancialDocumentType
 
-        with pytest.raises(UnbalancedEntryError):
+        with pytest.raises(UnbalancedJournalEntryError):
             with FinanceUnitOfWork(bootstrapped_conn) as uow:
                 ids = _accounts(uow)
                 document = FinancialDocument.create(
-                    FinancialDocumentType.SALES_INVOICE, "F-001", ENTRY_DATE,
+                    FinancialDocumentType.CUSTOMER_INVOICE, "F-001", ENTRY_DATE,
                     Money.from_string("116.00"), "sales", new_uuid(), new_uuid(),
                 )
                 uow.financial_documents.save(document)

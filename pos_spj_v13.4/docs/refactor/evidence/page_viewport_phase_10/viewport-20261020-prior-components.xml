@@ -1,0 +1,2067 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="12" failures="22" skipped="0" tests="36" time="33.885" timestamp="2026-10-21T05:55:37.963167+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution0-sales_pos]" time="0.365"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D736EFB60&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D736EFB60&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D736BD250&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D706CE060&gt;
+module_name = 'sales_pos', resolution = (1280, 720), theme = 'light'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D736EFB60&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D736EFB60&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution1-sales_pos]" time="0.368"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73875160&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D73875160&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D7385A9F0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D706CDF30&gt;
+module_name = 'sales_pos', resolution = (1366, 768), theme = 'light'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73875160&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D73875160&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution2-sales_pos]" time="0.344"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73874E50&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D73874E50&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D738839B0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D73735910&gt;
+module_name = 'sales_pos', resolution = (1440, 900), theme = 'light'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73874E50&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D73874E50&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution3-sales_pos]" time="0.316"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738746E0&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D738746E0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D7389BF50&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D736C2E00&gt;
+module_name = 'sales_pos', resolution = (1600, 900), theme = 'light'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738746E0&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D738746E0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution4-sales_pos]" time="0.497"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73875400&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D73875400&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D738BF2F0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D736C3350&gt;
+module_name = 'sales_pos', resolution = (1920, 1080), theme = 'light'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73875400&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D73875400&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution0-sales_pos]" time="0.274"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73875BE0&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D73875BE0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D73898320&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D736DBC50&gt;
+module_name = 'sales_pos', resolution = (1280, 720), theme = 'dark'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73875BE0&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D73875BE0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution1-sales_pos]" time="0.266"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73875080&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D73875080&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D738D6060&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D738E4050&gt;
+module_name = 'sales_pos', resolution = (1366, 768), theme = 'dark'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73875080&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D73875080&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution2-sales_pos]" time="0.498"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73876190&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D73876190&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D738DE720&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D738F4D70&gt;
+module_name = 'sales_pos', resolution = (1440, 900), theme = 'dark'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73876190&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D73876190&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution3-sales_pos]" time="0.202"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738766D0&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D738766D0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D738E0EF0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D738F5400&gt;
+module_name = 'sales_pos', resolution = (1600, 900), theme = 'dark'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738766D0&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D738766D0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution4-sales_pos]" time="0.201"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73876C10&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D73876C10&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D738DF920&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D7387FCB0&gt;
+module_name = 'sales_pos', resolution = (1920, 1080), theme = 'dark'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73876C10&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D73876C10&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution0-sales_pos]" time="0.280"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73877150&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D73877150&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D738DE8D0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D7387DEF0&gt;
+module_name = 'sales_pos', resolution = (1280, 720), theme = 'light'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73877150&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D73877150&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution1-sales_pos]" time="0.277"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73877690&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D73877690&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D738B6C30&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D73933AD0&gt;
+module_name = 'sales_pos', resolution = (1366, 768), theme = 'light'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73877690&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D73877690&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution2-sales_pos]" time="0.244"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73877C40&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D73877C40&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D738BEBA0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D73866510&gt;
+module_name = 'sales_pos', resolution = (1440, 900), theme = 'light'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73877C40&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D73877C40&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution3-sales_pos]" time="0.332"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73875080&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D73875080&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D73880050&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D73865D90&gt;
+module_name = 'sales_pos', resolution = (1600, 900), theme = 'light'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D73875080&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D73875080&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution4-sales_pos]" time="0.201"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D4980&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D738D4980&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D737A0A70&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D73871910&gt;
+module_name = 'sales_pos', resolution = (1920, 1080), theme = 'light'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D4980&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D738D4980&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution0-sales_pos]" time="0.242"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D4EC0&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D738D4EC0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D7391A690&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D73871BD0&gt;
+module_name = 'sales_pos', resolution = (1280, 720), theme = 'dark'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D4EC0&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D738D4EC0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution1-sales_pos]" time="0.193"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D5400&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D738D5400&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D7377E7B0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D7388AB70&gt;
+module_name = 'sales_pos', resolution = (1366, 768), theme = 'dark'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D5400&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D738D5400&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution2-sales_pos]" time="0.314"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D5940&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D738D5940&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D7390BB60&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D7388B070&gt;
+module_name = 'sales_pos', resolution = (1440, 900), theme = 'dark'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D5940&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D738D5940&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution3-sales_pos]" time="0.255"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D5E80&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D738D5E80&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D7392B1D0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D738E0440&gt;
+module_name = 'sales_pos', resolution = (1600, 900), theme = 'dark'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D5E80&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D738D5E80&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution4-sales_pos]" time="0.229"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D63C0&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x0000026D738D63C0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x0000026D7394BDA0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D73913350&gt;
+module_name = 'sales_pos', resolution = (1920, 1080), theme = 'dark'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x0000026D738D63C0&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x0000026D738D63C0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_meat_processing_module_migration" name="test_the_remaining_routes_are_still_honest_placeholders" time="0.138"><failure message="AssertionError: mp_overview&#10;assert False&#10; +  where False = isinstance(&lt;frontend.desktop.modules.meat_processing.pages.meat_processing_overview_page.MeatProcessingOverviewPage object at 0x0000026D7399E180&gt;, MeatProcessingPlaceholderPage)&#10; +    where &lt;frontend.desktop.modules.meat_processing.pages.meat_processing_overview_page.MeatProcessingOverviewPage object at 0x0000026D7399E180&gt; = &lt;function _build_meat_processing_wiring.&lt;locals&gt;.page_builder at 0x0000026D7391EF20&gt;('mp_overview')&#10; +      where &lt;function _build_meat_processing_wiring.&lt;locals&gt;.page_builder at 0x0000026D7391EF20&gt; = &lt;frontend.desktop.modules.meat_processing.meat_processing_view.MeatProcessingView object at 0x0000026D73943260&gt;._page_builder">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;
+conn = &lt;sqlite3.Connection object at 0x0000026D739704F0&gt;
+
+    def test_the_remaining_routes_are_still_honest_placeholders(app, conn):
+        """No se declara más avance del real. PASS 6 sumó los registros con tablas
+        reales detrás (`_RECORD_ROUTES` y Pesajes y consumos); la Fase 10 sumó
+        Configuración (tolerancias de rendimiento); la auditoría 32cfbf sumó
+        Transformación directa. Las otras 15 —Resumen, Plan de
+        producción, Trazabilidad, Alertas, Análisis y las 10 de sacrificio— siguen
+        sin página."""
+        from backend.infrastructure.desktop import meat_processing_factory as factory
+    
+        view = _navigate(conn)
+        reales = {REAL_PAGE_ID, "mp_weighings_consumptions", "mp_settings",
+                  "mp_direct_transformation", *factory._RECORD_ROUTES}
+        pending = [e.page_id for e in MEAT_PROCESSING_NAV if e.page_id not in reales]
+        assert len(pending) == 15
+        for page_id in pending:
+&gt;           assert isinstance(
+                view._page_builder(page_id), MeatProcessingPlaceholderPage), page_id
+E           AssertionError: mp_overview
+E           assert False
+E            +  where False = isinstance(&lt;frontend.desktop.modules.meat_processing.pages.meat_processing_overview_page.MeatProcessingOverviewPage object at 0x0000026D7399E180&gt;, MeatProcessingPlaceholderPage)
+E            +    where &lt;frontend.desktop.modules.meat_processing.pages.meat_processing_overview_page.MeatProcessingOverviewPage object at 0x0000026D7399E180&gt; = &lt;function _build_meat_processing_wiring.&lt;locals&gt;.page_builder at 0x0000026D7391EF20&gt;('mp_overview')
+E            +      where &lt;function _build_meat_processing_wiring.&lt;locals&gt;.page_builder at 0x0000026D7391EF20&gt; = &lt;frontend.desktop.modules.meat_processing.meat_processing_view.MeatProcessingView object at 0x0000026D73943260&gt;._page_builder
+
+tests\integration\shell\test_meat_processing_module_migration.py:250: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_products_module_migration" name="test_navigate_builds_a_real_products_view" time="2.394"><failure message="AssertionError: assert 14 == 7&#10; +  where 14 = &lt;built-in method count of SideNav object at 0x0000026D7390B140&gt;()&#10; +    where &lt;built-in method count of SideNav object at 0x0000026D7390B140&gt; = &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000026D7390B140&gt;.count&#10; +      where &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000026D7390B140&gt; = &lt;frontend.desktop.modules.products.products_view.ProductsView object at 0x0000026D73909880&gt;.nav&#10; +        where &lt;frontend.desktop.modules.products.products_view.ProductsView object at 0x0000026D73909880&gt; = NavigationResult(route=RouteDefinition(route_id='products.workspace', module_id='products', title='Productos', view_fa...me.datetime(2026, 10, 21, 5, 55, 53, 402292, tzinfo=datetime.timezone.utc)), degraded_offline=False, load_failed=False).view">app = &lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;
+conn = &lt;sqlite3.Connection object at 0x0000026D738F7D30&gt;
+
+    def test_navigate_builds_a_real_products_view(app, conn):
+        router, loader, view_factories = _wire(conn, permissions={"PRODUCTOS.VER"})
+        loader.ensure_loaded(PRODUCTS_MODULE_ID)
+    
+        result = router.navigate(PRODUCTS_ROUTE_ID)
+        assert isinstance(result.view, ProductsView)
+        assert result.route.breadcrumb == ("Productos",)
+&gt;       assert result.view.nav.count() == 7
+E       AssertionError: assert 14 == 7
+E        +  where 14 = &lt;built-in method count of SideNav object at 0x0000026D7390B140&gt;()
+E        +    where &lt;built-in method count of SideNav object at 0x0000026D7390B140&gt; = &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000026D7390B140&gt;.count
+E        +      where &lt;frontend.desktop.components.side_nav.SideNav object at 0x0000026D7390B140&gt; = &lt;frontend.desktop.modules.products.products_view.ProductsView object at 0x0000026D73909880&gt;.nav
+E        +        where &lt;frontend.desktop.modules.products.products_view.ProductsView object at 0x0000026D73909880&gt; = NavigationResult(route=RouteDefinition(route_id='products.workspace', module_id='products', title='Productos', view_fa...me.datetime(2026, 10, 21, 5, 55, 53, 402292, tzinfo=datetime.timezone.utc)), degraded_offline=False, load_failed=False).view
+
+tests\integration\shell\test_products_module_migration.py:125: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_shell_authentication_composition" name="test_returns_a_real_authentication_coordinator" time="1.310"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">cls = &lt;class '_pytest.runner.CallInfo'&gt;
+func = &lt;function call_and_report.&lt;locals&gt;.&lt;lambda&gt; at 0x0000026D736E9D00&gt;
+when = 'setup'
+reraise = (&lt;class '_pytest.outcomes.Exit'&gt;, &lt;class 'KeyboardInterrupt'&gt;)
+
+    @classmethod
+    def from_call(
+        cls,
+        func: Callable[[], TResult],
+        when: Literal["collect", "setup", "call", "teardown"],
+        reraise: type[BaseException] | tuple[type[BaseException], ...] | None = None,
+    ) -&gt; CallInfo[TResult]:
+        """Call func, wrapping the result in a CallInfo.
+    
+        :param func:
+            The function to call. Called without arguments.
+        :type func: Callable[[], _pytest.runner.TResult]
+        :param when:
+            The phase in which the function is called.
+        :param reraise:
+            Exception or exceptions that shall propagate if raised by the
+            function, instead of being wrapped in the CallInfo.
+        """
+        excinfo = None
+        instant = timing.Instant()
+        try:
+&gt;           result: TResult | None = func()
+                                     ^^^^^^
+
+..\.venv\Lib\site-packages\_pytest\runner.py:361: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\runner.py:250: in &lt;lambda&gt;
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\logging.py:858: in pytest_runtest_setup
+    yield
+..\.venv\Lib\site-packages\_pytest\capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+..\.venv\Lib\site-packages\_pytest\runner.py:536: in setup
+    col.setup()
+..\.venv\Lib\site-packages\_pytest\python.py:1710: in setup
+    self._request._fillfixtures()
+..\.venv\Lib\site-packages\_pytest\fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1181: in execute
+    fixturedef = request._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1232: in execute
+    result: FixtureValue = ihook.pytest_fixture_setup(
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:53: in run_old_style_hookwrapper
+    return result.get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:38: in run_old_style_hookwrapper
+    res = yield
+          ^^^^^
+..\.venv\Lib\site-packages\_pytest\setuponly.py:36: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1328: in pytest_fixture_setup
+    result = call_fixture_func(fixturefunc, request, kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:998: in call_fixture_func
+    fixture_result = next(generator)
+                     ^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:300: in tmp_path
+    path = _mk_tmp(request, tmp_path_factory)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:287: in _mk_tmp
+    return factory.mktemp(name, numbered=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_shell_authentication_composition" name="test_setup_wizard_factory_builds_a_real_wizard_against_the_unprovisioned_db" time="0.730"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">cls = &lt;class '_pytest.runner.CallInfo'&gt;
+func = &lt;function call_and_report.&lt;locals&gt;.&lt;lambda&gt; at 0x0000026D78F4F4C0&gt;
+when = 'setup'
+reraise = (&lt;class '_pytest.outcomes.Exit'&gt;, &lt;class 'KeyboardInterrupt'&gt;)
+
+    @classmethod
+    def from_call(
+        cls,
+        func: Callable[[], TResult],
+        when: Literal["collect", "setup", "call", "teardown"],
+        reraise: type[BaseException] | tuple[type[BaseException], ...] | None = None,
+    ) -&gt; CallInfo[TResult]:
+        """Call func, wrapping the result in a CallInfo.
+    
+        :param func:
+            The function to call. Called without arguments.
+        :type func: Callable[[], _pytest.runner.TResult]
+        :param when:
+            The phase in which the function is called.
+        :param reraise:
+            Exception or exceptions that shall propagate if raised by the
+            function, instead of being wrapped in the CallInfo.
+        """
+        excinfo = None
+        instant = timing.Instant()
+        try:
+&gt;           result: TResult | None = func()
+                                     ^^^^^^
+
+..\.venv\Lib\site-packages\_pytest\runner.py:361: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\runner.py:250: in &lt;lambda&gt;
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\logging.py:858: in pytest_runtest_setup
+    yield
+..\.venv\Lib\site-packages\_pytest\capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+..\.venv\Lib\site-packages\_pytest\runner.py:536: in setup
+    col.setup()
+..\.venv\Lib\site-packages\_pytest\python.py:1710: in setup
+    self._request._fillfixtures()
+..\.venv\Lib\site-packages\_pytest\fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1181: in execute
+    fixturedef = request._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1232: in execute
+    result: FixtureValue = ihook.pytest_fixture_setup(
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:53: in run_old_style_hookwrapper
+    return result.get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:38: in run_old_style_hookwrapper
+    res = yield
+          ^^^^^
+..\.venv\Lib\site-packages\_pytest\setuponly.py:36: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1328: in pytest_fixture_setup
+    result = call_fixture_func(fixturefunc, request, kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:998: in call_fixture_func
+    fixture_result = next(generator)
+                     ^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:300: in tmp_path
+    path = _mk_tmp(request, tmp_path_factory)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:287: in _mk_tmp
+    return factory.mktemp(name, numbered=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_shell_authentication_composition" name="test_login_window_factory_builds_a_real_window_that_authenticates_for_real" time="1.341"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">cls = &lt;class '_pytest.runner.CallInfo'&gt;
+func = &lt;function call_and_report.&lt;locals&gt;.&lt;lambda&gt; at 0x0000026D78FC7EC0&gt;
+when = 'setup'
+reraise = (&lt;class '_pytest.outcomes.Exit'&gt;, &lt;class 'KeyboardInterrupt'&gt;)
+
+    @classmethod
+    def from_call(
+        cls,
+        func: Callable[[], TResult],
+        when: Literal["collect", "setup", "call", "teardown"],
+        reraise: type[BaseException] | tuple[type[BaseException], ...] | None = None,
+    ) -&gt; CallInfo[TResult]:
+        """Call func, wrapping the result in a CallInfo.
+    
+        :param func:
+            The function to call. Called without arguments.
+        :type func: Callable[[], _pytest.runner.TResult]
+        :param when:
+            The phase in which the function is called.
+        :param reraise:
+            Exception or exceptions that shall propagate if raised by the
+            function, instead of being wrapped in the CallInfo.
+        """
+        excinfo = None
+        instant = timing.Instant()
+        try:
+&gt;           result: TResult | None = func()
+                                     ^^^^^^
+
+..\.venv\Lib\site-packages\_pytest\runner.py:361: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\runner.py:250: in &lt;lambda&gt;
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\logging.py:858: in pytest_runtest_setup
+    yield
+..\.venv\Lib\site-packages\_pytest\capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+..\.venv\Lib\site-packages\_pytest\runner.py:536: in setup
+    col.setup()
+..\.venv\Lib\site-packages\_pytest\python.py:1710: in setup
+    self._request._fillfixtures()
+..\.venv\Lib\site-packages\_pytest\fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1181: in execute
+    fixturedef = request._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1232: in execute
+    result: FixtureValue = ihook.pytest_fixture_setup(
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:53: in run_old_style_hookwrapper
+    return result.get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:38: in run_old_style_hookwrapper
+    res = yield
+          ^^^^^
+..\.venv\Lib\site-packages\_pytest\setuponly.py:36: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1328: in pytest_fixture_setup
+    result = call_fixture_func(fixturefunc, request, kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:998: in call_fixture_func
+    fixture_result = next(generator)
+                     ^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:300: in tmp_path
+    path = _mk_tmp(request, tmp_path_factory)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:287: in _mk_tmp
+    return factory.mktemp(name, numbered=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_shell_authentication_composition" name="test_dialog_factories_build_the_real_dialogs" time="1.586"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">cls = &lt;class '_pytest.runner.CallInfo'&gt;
+func = &lt;function call_and_report.&lt;locals&gt;.&lt;lambda&gt; at 0x0000026D7956D4E0&gt;
+when = 'setup'
+reraise = (&lt;class '_pytest.outcomes.Exit'&gt;, &lt;class 'KeyboardInterrupt'&gt;)
+
+    @classmethod
+    def from_call(
+        cls,
+        func: Callable[[], TResult],
+        when: Literal["collect", "setup", "call", "teardown"],
+        reraise: type[BaseException] | tuple[type[BaseException], ...] | None = None,
+    ) -&gt; CallInfo[TResult]:
+        """Call func, wrapping the result in a CallInfo.
+    
+        :param func:
+            The function to call. Called without arguments.
+        :type func: Callable[[], _pytest.runner.TResult]
+        :param when:
+            The phase in which the function is called.
+        :param reraise:
+            Exception or exceptions that shall propagate if raised by the
+            function, instead of being wrapped in the CallInfo.
+        """
+        excinfo = None
+        instant = timing.Instant()
+        try:
+&gt;           result: TResult | None = func()
+                                     ^^^^^^
+
+..\.venv\Lib\site-packages\_pytest\runner.py:361: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\runner.py:250: in &lt;lambda&gt;
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\logging.py:858: in pytest_runtest_setup
+    yield
+..\.venv\Lib\site-packages\_pytest\capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+..\.venv\Lib\site-packages\_pytest\runner.py:536: in setup
+    col.setup()
+..\.venv\Lib\site-packages\_pytest\python.py:1710: in setup
+    self._request._fillfixtures()
+..\.venv\Lib\site-packages\_pytest\fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1181: in execute
+    fixturedef = request._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1232: in execute
+    result: FixtureValue = ihook.pytest_fixture_setup(
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:53: in run_old_style_hookwrapper
+    return result.get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:38: in run_old_style_hookwrapper
+    res = yield
+          ^^^^^
+..\.venv\Lib\site-packages\_pytest\setuponly.py:36: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1328: in pytest_fixture_setup
+    result = call_fixture_func(fixturefunc, request, kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:998: in call_fixture_func
+    fixture_result = next(generator)
+                     ^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:300: in tmp_path
+    path = _mk_tmp(request, tmp_path_factory)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:287: in _mk_tmp
+    return factory.mktemp(name, numbered=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_shell_authentication_composition" name="test_full_run_reaches_on_authenticated_with_a_real_application_context" time="1.879"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">cls = &lt;class '_pytest.runner.CallInfo'&gt;
+func = &lt;function call_and_report.&lt;locals&gt;.&lt;lambda&gt; at 0x0000026D7956D580&gt;
+when = 'setup'
+reraise = (&lt;class '_pytest.outcomes.Exit'&gt;, &lt;class 'KeyboardInterrupt'&gt;)
+
+    @classmethod
+    def from_call(
+        cls,
+        func: Callable[[], TResult],
+        when: Literal["collect", "setup", "call", "teardown"],
+        reraise: type[BaseException] | tuple[type[BaseException], ...] | None = None,
+    ) -&gt; CallInfo[TResult]:
+        """Call func, wrapping the result in a CallInfo.
+    
+        :param func:
+            The function to call. Called without arguments.
+        :type func: Callable[[], _pytest.runner.TResult]
+        :param when:
+            The phase in which the function is called.
+        :param reraise:
+            Exception or exceptions that shall propagate if raised by the
+            function, instead of being wrapped in the CallInfo.
+        """
+        excinfo = None
+        instant = timing.Instant()
+        try:
+&gt;           result: TResult | None = func()
+                                     ^^^^^^
+
+..\.venv\Lib\site-packages\_pytest\runner.py:361: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\runner.py:250: in &lt;lambda&gt;
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\logging.py:858: in pytest_runtest_setup
+    yield
+..\.venv\Lib\site-packages\_pytest\capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+..\.venv\Lib\site-packages\_pytest\runner.py:536: in setup
+    col.setup()
+..\.venv\Lib\site-packages\_pytest\python.py:1710: in setup
+    self._request._fillfixtures()
+..\.venv\Lib\site-packages\_pytest\fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1181: in execute
+    fixturedef = request._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1232: in execute
+    result: FixtureValue = ihook.pytest_fixture_setup(
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:53: in run_old_style_hookwrapper
+    return result.get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:38: in run_old_style_hookwrapper
+    res = yield
+          ^^^^^
+..\.venv\Lib\site-packages\_pytest\setuponly.py:36: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1328: in pytest_fixture_setup
+    result = call_fixture_func(fixturefunc, request, kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:998: in call_fixture_func
+    fixture_result = next(generator)
+                     ^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:300: in tmp_path
+    path = _mk_tmp(request, tmp_path_factory)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:287: in _mk_tmp
+    return factory.mktemp(name, numbered=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_shell_authentication_composition" name="test_wrong_password_does_not_reach_on_authenticated" time="1.100"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">cls = &lt;class '_pytest.runner.CallInfo'&gt;
+func = &lt;function call_and_report.&lt;locals&gt;.&lt;lambda&gt; at 0x0000026D7956C0E0&gt;
+when = 'setup'
+reraise = (&lt;class '_pytest.outcomes.Exit'&gt;, &lt;class 'KeyboardInterrupt'&gt;)
+
+    @classmethod
+    def from_call(
+        cls,
+        func: Callable[[], TResult],
+        when: Literal["collect", "setup", "call", "teardown"],
+        reraise: type[BaseException] | tuple[type[BaseException], ...] | None = None,
+    ) -&gt; CallInfo[TResult]:
+        """Call func, wrapping the result in a CallInfo.
+    
+        :param func:
+            The function to call. Called without arguments.
+        :type func: Callable[[], _pytest.runner.TResult]
+        :param when:
+            The phase in which the function is called.
+        :param reraise:
+            Exception or exceptions that shall propagate if raised by the
+            function, instead of being wrapped in the CallInfo.
+        """
+        excinfo = None
+        instant = timing.Instant()
+        try:
+&gt;           result: TResult | None = func()
+                                     ^^^^^^
+
+..\.venv\Lib\site-packages\_pytest\runner.py:361: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\runner.py:250: in &lt;lambda&gt;
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\logging.py:858: in pytest_runtest_setup
+    yield
+..\.venv\Lib\site-packages\_pytest\capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+..\.venv\Lib\site-packages\_pytest\runner.py:536: in setup
+    col.setup()
+..\.venv\Lib\site-packages\_pytest\python.py:1710: in setup
+    self._request._fillfixtures()
+..\.venv\Lib\site-packages\_pytest\fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1181: in execute
+    fixturedef = request._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1232: in execute
+    result: FixtureValue = ihook.pytest_fixture_setup(
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:53: in run_old_style_hookwrapper
+    return result.get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:38: in run_old_style_hookwrapper
+    res = yield
+          ^^^^^
+..\.venv\Lib\site-packages\_pytest\setuponly.py:36: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1328: in pytest_fixture_setup
+    result = call_fixture_func(fixturefunc, request, kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:998: in call_fixture_func
+    fixture_result = next(generator)
+                     ^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:300: in tmp_path
+    path = _mk_tmp(request, tmp_path_factory)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:287: in _mk_tmp
+    return factory.mktemp(name, numbered=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_shell_composition_end_to_end" name="test_login_builds_a_real_navigable_application_window" time="1.442"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">cls = &lt;class '_pytest.runner.CallInfo'&gt;
+func = &lt;function call_and_report.&lt;locals&gt;.&lt;lambda&gt; at 0x0000026D78F4F600&gt;
+when = 'setup'
+reraise = (&lt;class '_pytest.outcomes.Exit'&gt;, &lt;class 'KeyboardInterrupt'&gt;)
+
+    @classmethod
+    def from_call(
+        cls,
+        func: Callable[[], TResult],
+        when: Literal["collect", "setup", "call", "teardown"],
+        reraise: type[BaseException] | tuple[type[BaseException], ...] | None = None,
+    ) -&gt; CallInfo[TResult]:
+        """Call func, wrapping the result in a CallInfo.
+    
+        :param func:
+            The function to call. Called without arguments.
+        :type func: Callable[[], _pytest.runner.TResult]
+        :param when:
+            The phase in which the function is called.
+        :param reraise:
+            Exception or exceptions that shall propagate if raised by the
+            function, instead of being wrapped in the CallInfo.
+        """
+        excinfo = None
+        instant = timing.Instant()
+        try:
+&gt;           result: TResult | None = func()
+                                     ^^^^^^
+
+..\.venv\Lib\site-packages\_pytest\runner.py:361: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\runner.py:250: in &lt;lambda&gt;
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\logging.py:858: in pytest_runtest_setup
+    yield
+..\.venv\Lib\site-packages\_pytest\capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+..\.venv\Lib\site-packages\_pytest\runner.py:536: in setup
+    col.setup()
+..\.venv\Lib\site-packages\_pytest\python.py:1710: in setup
+    self._request._fillfixtures()
+..\.venv\Lib\site-packages\_pytest\fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1181: in execute
+    fixturedef = request._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1232: in execute
+    result: FixtureValue = ihook.pytest_fixture_setup(
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:53: in run_old_style_hookwrapper
+    return result.get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:38: in run_old_style_hookwrapper
+    res = yield
+          ^^^^^
+..\.venv\Lib\site-packages\_pytest\setuponly.py:36: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1328: in pytest_fixture_setup
+    result = call_fixture_func(fixturefunc, request, kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:998: in call_fixture_func
+    fixture_result = next(generator)
+                     ^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:300: in tmp_path
+    path = _mk_tmp(request, tmp_path_factory)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:287: in _mk_tmp
+    return factory.mktemp(name, numbered=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_startup_reaches_login" name="test_database_bootstrap_succeeds" time="0.015"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=&lt;pluggy._tracing.TagTracerSub object at 0x0000026D706CC2B0&gt;, _basetemp=None, _retention_count=3, _retention_policy='all')
+qapp = &lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;
+monkeypatch_module = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D798FC850&gt;
+
+    @pytest.fixture(scope="module")
+    def arranque(tmp_path_factory, qapp, monkeypatch_module):
+        """Ejecuta la preparación de base de datos sobre una copia temporal.
+    
+        Se reapunta `DB_PATH`/`DATA_DIR` del módulo: `_prepare_database()` los lee
+        como constantes, y ejecutar esto contra la base real migraría la base real.
+        """
+        import frontend.desktop.app as app
+    
+&gt;       destino = tmp_path_factory.mktemp("arranque")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\integration\shell\test_desktop_startup_reaches_login.py:38: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_startup_reaches_login" name="test_bootstrap_produces_a_real_health_report" time="0.001"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=&lt;pluggy._tracing.TagTracerSub object at 0x0000026D706CC2B0&gt;, _basetemp=None, _retention_count=3, _retention_policy='all')
+qapp = &lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;
+monkeypatch_module = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D798FC850&gt;
+
+    @pytest.fixture(scope="module")
+    def arranque(tmp_path_factory, qapp, monkeypatch_module):
+        """Ejecuta la preparación de base de datos sobre una copia temporal.
+    
+        Se reapunta `DB_PATH`/`DATA_DIR` del módulo: `_prepare_database()` los lee
+        como constantes, y ejecutar esto contra la base real migraría la base real.
+        """
+        import frontend.desktop.app as app
+    
+&gt;       destino = tmp_path_factory.mktemp("arranque")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\integration\shell\test_desktop_startup_reaches_login.py:38: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_startup_reaches_login" name="test_dependency_graph_builds_and_resolves_security_policies" time="0.002"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=&lt;pluggy._tracing.TagTracerSub object at 0x0000026D706CC2B0&gt;, _basetemp=None, _retention_count=3, _retention_policy='all')
+qapp = &lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;
+monkeypatch_module = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D798FC850&gt;
+
+    @pytest.fixture(scope="module")
+    def arranque(tmp_path_factory, qapp, monkeypatch_module):
+        """Ejecuta la preparación de base de datos sobre una copia temporal.
+    
+        Se reapunta `DB_PATH`/`DATA_DIR` del módulo: `_prepare_database()` los lee
+        como constantes, y ejecutar esto contra la base real migraría la base real.
+        """
+        import frontend.desktop.app as app
+    
+&gt;       destino = tmp_path_factory.mktemp("arranque")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\integration\shell\test_desktop_startup_reaches_login.py:38: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_startup_reaches_login" name="test_authentication_coordinator_and_login_window_build" time="0.002"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">tmp_path_factory = TempPathFactory(_given_basetemp=None, _trace=&lt;pluggy._tracing.TagTracerSub object at 0x0000026D706CC2B0&gt;, _basetemp=None, _retention_count=3, _retention_policy='all')
+qapp = &lt;PyQt5.QtWidgets.QApplication object at 0x0000026D736BD520&gt;
+monkeypatch_module = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000026D798FC850&gt;
+
+    @pytest.fixture(scope="module")
+    def arranque(tmp_path_factory, qapp, monkeypatch_module):
+        """Ejecuta la preparación de base de datos sobre una copia temporal.
+    
+        Se reapunta `DB_PATH`/`DATA_DIR` del módulo: `_prepare_database()` los lee
+        como constantes, y ejecutar esto contra la base real migraría la base real.
+        """
+        import frontend.desktop.app as app
+    
+&gt;       destino = tmp_path_factory.mktemp("arranque")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\integration\shell\test_desktop_startup_reaches_login.py:38: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_startup_reaches_login" name="test_app_root_points_at_the_project_root_not_a_level_above_or_below" time="0.001" /><testcase classname="pos_spj_v13.4.tests.integration.shell.test_desktop_startup_reaches_login" name="test_main_module_is_only_a_launcher" time="0.052" /><testcase classname="pos_spj_v13.4.tests.integration.shell.test_module_registry_with_real_health_report" name="test_module_with_real_health_requirements_is_usable_on_a_healthy_database" time="0.004"><error message="failed on setup with &quot;PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'&quot;">cls = &lt;class '_pytest.runner.CallInfo'&gt;
+func = &lt;function call_and_report.&lt;locals&gt;.&lt;lambda&gt; at 0x0000026D7956E520&gt;
+when = 'setup'
+reraise = (&lt;class '_pytest.outcomes.Exit'&gt;, &lt;class 'KeyboardInterrupt'&gt;)
+
+    @classmethod
+    def from_call(
+        cls,
+        func: Callable[[], TResult],
+        when: Literal["collect", "setup", "call", "teardown"],
+        reraise: type[BaseException] | tuple[type[BaseException], ...] | None = None,
+    ) -&gt; CallInfo[TResult]:
+        """Call func, wrapping the result in a CallInfo.
+    
+        :param func:
+            The function to call. Called without arguments.
+        :type func: Callable[[], _pytest.runner.TResult]
+        :param when:
+            The phase in which the function is called.
+        :param reraise:
+            Exception or exceptions that shall propagate if raised by the
+            function, instead of being wrapped in the CallInfo.
+        """
+        excinfo = None
+        instant = timing.Instant()
+        try:
+&gt;           result: TResult | None = func()
+                                     ^^^^^^
+
+..\.venv\Lib\site-packages\_pytest\runner.py:361: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+..\.venv\Lib\site-packages\_pytest\runner.py:250: in &lt;lambda&gt;
+    lambda: runtest_hook(item=item, **kwds),
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\logging.py:858: in pytest_runtest_setup
+    yield
+..\.venv\Lib\site-packages\_pytest\capture.py:895: in pytest_runtest_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\runner.py:170: in pytest_runtest_setup
+    item.session._setupstate.setup(item)
+..\.venv\Lib\site-packages\_pytest\runner.py:536: in setup
+    col.setup()
+..\.venv\Lib\site-packages\_pytest\python.py:1710: in setup
+    self._request._fillfixtures()
+..\.venv\Lib\site-packages\_pytest\fixtures.py:806: in _fillfixtures
+    item.funcargs[argname] = self.getfixturevalue(argname)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:630: in getfixturevalue
+    fixturedef = self._get_active_fixturedef(argname)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:726: in _get_active_fixturedef
+    fixturedef.execute(request=subrequest)
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1232: in execute
+    result: FixtureValue = ihook.pytest_fixture_setup(
+..\.venv\Lib\site-packages\pluggy\_hooks.py:512: in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_manager.py:120: in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:53: in run_old_style_hookwrapper
+    return result.get_result()
+           ^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\pluggy\_callers.py:38: in run_old_style_hookwrapper
+    res = yield
+          ^^^^^
+..\.venv\Lib\site-packages\_pytest\setuponly.py:36: in pytest_fixture_setup
+    return (yield)
+            ^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:1328: in pytest_fixture_setup
+    result = call_fixture_func(fixturefunc, request, kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\fixtures.py:998: in call_fixture_func
+    fixture_result = next(generator)
+                     ^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:300: in tmp_path
+    path = _mk_tmp(request, tmp_path_factory)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:287: in _mk_tmp
+    return factory.mktemp(name, numbered=True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:136: in mktemp
+    basename = self._ensure_relative_to_basetemp(basename)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:117: in _ensure_relative_to_basetemp
+    if (self.getbasetemp() / basename).resolve().parent != self.getbasetemp():
+        ^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\tmpdir.py:213: in getbasetemp
+    basetemp = make_numbered_dir_with_cleanup(
+..\.venv\Lib\site-packages\_pytest\pathlib.py:420: in make_numbered_dir_with_cleanup
+    raise e
+..\.venv\Lib\site-packages\_pytest\pathlib.py:401: in make_numbered_dir_with_cleanup
+    p = make_numbered_dir(root, prefix, mode)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:228: in make_numbered_dir
+    max_existing = max(map(parse_num, find_suffixes(root, prefix)), default=-1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+..\.venv\Lib\site-packages\_pytest\pathlib.py:187: in extract_suffixes
+    for entry in iter:
+                 ^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+root = WindowsPath('C:/Users/Diego Rodriguez/AppData/Local/Temp/pytest-of-Diego Rodriguez')
+prefix = 'pytest-'
+
+    def find_prefixed(root: Path, prefix: str) -&gt; Iterator[os.DirEntry[str]]:
+        """Find all elements in root that begin with the prefix, case-insensitive."""
+        l_prefix = prefix.lower()
+&gt;       for x in os.scandir(root):
+                 ^^^^^^^^^^^^^^^^
+E       PermissionError: [WinError 5] Acceso denegado: 'C:\\Users\\Diego Rodriguez\\AppData\\Local\\Temp\\pytest-of-Diego Rodriguez'
+
+..\.venv\Lib\site-packages\_pytest\pathlib.py:175: PermissionError</error></testcase></testsuite></testsuites>

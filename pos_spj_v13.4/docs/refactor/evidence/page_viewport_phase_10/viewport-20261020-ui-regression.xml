@@ -1,0 +1,841 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="20" skipped="0" tests="233" time="91.832" timestamp="2026-10-21T05:52:01.834039+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution0-pricing]" time="0.308" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution0-purchasing]" time="0.150" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution0-sales_pos]" time="0.886"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F3A6350&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F3A6350&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803E2BDE20&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803E2768D0&gt;
+module_name = 'sales_pos', resolution = (1280, 720), theme = 'light'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F3A6350&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F3A6350&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution1-pricing]" time="0.116" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution1-purchasing]" time="0.327" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution1-sales_pos]" time="0.481"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F3A7310&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F3A7310&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F488320&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803E32AD50&gt;
+module_name = 'sales_pos', resolution = (1366, 768), theme = 'light'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F3A7310&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F3A7310&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution2-pricing]" time="0.216" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution2-purchasing]" time="0.424" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution2-sales_pos]" time="0.659"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F3A7540&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F3A7540&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F3B7890&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803E36DA90&gt;
+module_name = 'sales_pos', resolution = (1440, 900), theme = 'light'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F3A7540&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F3A7540&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution3-pricing]" time="0.257" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution3-purchasing]" time="0.462" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution3-sales_pos]" time="0.470"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F3A7AF0&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F3A7AF0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F3B7EC0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F407860&gt;
+module_name = 'sales_pos', resolution = (1600, 900), theme = 'light'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F3A7AF0&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F3A7AF0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution4-pricing]" time="0.704" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution4-purchasing]" time="0.533" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-light-resolution4-sales_pos]" time="0.657"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F680130&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F680130&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803E30F4A0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F4875F0&gt;
+module_name = 'sales_pos', resolution = (1920, 1080), theme = 'light'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F680130&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F680130&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution0-pricing]" time="0.196" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution0-purchasing]" time="0.198" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution0-sales_pos]" time="0.553"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F6806E0&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F6806E0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F490F80&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F48CAF0&gt;
+module_name = 'sales_pos', resolution = (1280, 720), theme = 'dark'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F6806E0&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F6806E0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution1-pricing]" time="0.250" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution1-purchasing]" time="0.212" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution1-sales_pos]" time="0.518"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F680A60&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F680A60&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F6A6CC0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F4735D0&gt;
+module_name = 'sales_pos', resolution = (1366, 768), theme = 'dark'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F680A60&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F680A60&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution2-pricing]" time="0.129" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution2-purchasing]" time="0.194" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution2-sales_pos]" time="1.136"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F6812B0&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F6812B0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F6D3AD0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F681320&gt;
+module_name = 'sales_pos', resolution = (1440, 900), theme = 'dark'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F6812B0&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F6812B0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution3-pricing]" time="1.890" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution3-purchasing]" time="0.411" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution3-sales_pos]" time="0.408"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F6817F0&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F6817F0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F6BDFD0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F681940&gt;
+module_name = 'sales_pos', resolution = (1600, 900), theme = 'dark'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F6817F0&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F6817F0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution4-pricing]" time="0.132" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution4-purchasing]" time="0.566" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[comfortable-dark-resolution4-sales_pos]" time="0.296"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F681E80&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F681E80&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F6F6450&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F681EF0&gt;
+module_name = 'sales_pos', resolution = (1920, 1080), theme = 'dark'
+density = 'comfortable'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F681E80&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F681E80&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution0-pricing]" time="0.218" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution0-purchasing]" time="0.165" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution0-sales_pos]" time="0.278"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F682510&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F682510&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F6EEB10&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F682580&gt;
+module_name = 'sales_pos', resolution = (1280, 720), theme = 'light'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F682510&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F682510&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution1-pricing]" time="0.136" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution1-purchasing]" time="0.541" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution1-sales_pos]" time="0.759"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F682A50&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F682A50&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F7097F0&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F682BA0&gt;
+module_name = 'sales_pos', resolution = (1366, 768), theme = 'light'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F682A50&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F682A50&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution2-pricing]" time="0.428" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution2-purchasing]" time="0.154" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution2-sales_pos]" time="0.498"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F683070&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F683070&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F71F260&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F6831C0&gt;
+module_name = 'sales_pos', resolution = (1440, 900), theme = 'light'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F683070&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F683070&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution3-pricing]" time="1.209" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution3-purchasing]" time="1.747" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution3-sales_pos]" time="0.951"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F683A10&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F683A10&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F733140&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F683850&gt;
+module_name = 'sales_pos', resolution = (1600, 900), theme = 'light'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F683A10&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F683A10&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution4-pricing]" time="0.182" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution4-purchasing]" time="0.112" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-light-resolution4-sales_pos]" time="0.305"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F683230&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F683230&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F71F260&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F683E00&gt;
+module_name = 'sales_pos', resolution = (1920, 1080), theme = 'light'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F683230&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F683230&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution0-pricing]" time="0.282" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution0-purchasing]" time="0.365" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution0-sales_pos]" time="0.428"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F6822E0&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F6822E0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F71C170&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F682BA0&gt;
+module_name = 'sales_pos', resolution = (1280, 720), theme = 'dark'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F6822E0&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F6822E0&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution1-pricing]" time="0.121" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution1-purchasing]" time="0.338" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution1-sales_pos]" time="1.889"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F681940&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F681940&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F71E570&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F681E80&gt;
+module_name = 'sales_pos', resolution = (1366, 768), theme = 'dark'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F681940&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F681940&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution2-pricing]" time="0.359" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution2-purchasing]" time="0.490" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution2-sales_pos]" time="0.643"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F680B40&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F680B40&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F709A30&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F680830&gt;
+module_name = 'sales_pos', resolution = (1440, 900), theme = 'dark'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F680B40&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F680B40&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution3-pricing]" time="0.218" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution3-purchasing]" time="0.419" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution3-sales_pos]" time="0.452"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F3A7540&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F3A7540&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F6EF020&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F3A7850&gt;
+module_name = 'sales_pos', resolution = (1600, 900), theme = 'dark'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F3A7540&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F3A7540&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution4-pricing]" time="0.299" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution4-purchasing]" time="0.231" /><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_module_layout_at_supported_resolutions[touch-dark-resolution4-sales_pos]" time="0.497"><failure message="assert (0 == 20)&#10; +  where 0 = &lt;built-in method x of QRect object at 0x000001803F710440&gt;()&#10; +    where &lt;built-in method x of QRect object at 0x000001803F710440&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x">themed_app = (&lt;PyQt5.QtWidgets.QApplication object at 0x000001803E2BDD90&gt;, &lt;frontend.desktop.themes.theme_manager.ThemeManager object at 0x000001803F6F7A40&gt;)
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001803F710520&gt;
+module_name = 'sales_pos', resolution = (1920, 1080), theme = 'dark'
+density = 'touch'
+
+    @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
+    @pytest.mark.parametrize("resolution", RESOLUTIONS)
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("density", ["comfortable", "touch"])
+    def test_module_layout_at_supported_resolutions(
+            themed_app, monkeypatch, module_name, resolution, theme, density):
+        app, manager = themed_app
+        manager.apply(app, theme, density=density)
+        if module_name == "sales_pos":
+            from frontend.desktop.modules.sales_pos.sales_pos_workspace import SalesPosWorkspace
+            from tests.unit.test_sales_pos_workspace import _unwired_presenter
+    
+            owner, nav = SalesPosWorkspace(_unwired_presenter()), None
+        else:
+            owner, nav = _build(module_name, monkeypatch)
+            stack = owner._stack if module_name == "pricing" else owner.content
+            page = stack.currentWidget()
+            page.setMinimumSize(0, 0)
+            if page.layout() is None:
+                body = QVBoxLayout(page)
+                body.addWidget(QLabel("Contenido de prueba del módulo"))
+                body.addWidget(StandardLineEdit(placeholder="Captura pendiente", keyboard_enabled=False))
+                body.addStretch()
+        try:
+            layout = owner.module_layout
+            owner.resize(*resolution)
+            owner.show()
+            _settle(app)
+            content = layout.viewport.page()
+            header = _rect(layout.header, owner)
+            assert owner.size().width() == resolution[0]
+            assert owner.size().height() == resolution[1]
+&gt;           assert header.x() == 20 and header.y() == 16
+E           assert (0 == 20)
+E            +  where 0 = &lt;built-in method x of QRect object at 0x000001803F710440&gt;()
+E            +    where &lt;built-in method x of QRect object at 0x000001803F710440&gt; = PyQt5.QtCore.QRect(0, 0, 100, 30).x
+
+tests\ui\test_module_layout.py:66: AssertionError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_module_layout" name="test_overflow_scrolls_only_body_and_context_order_is_stable" time="0.164" /><testcase classname="pos_spj_v13.4.tests.ui.test_route_module_layout" name="test_route_module_layout_preserves_state_through_resize_theme_and_collapse[cash_register]" time="6.563" /><testcase classname="pos_spj_v13.4.tests.ui.test_route_module_layout" name="test_route_module_layout_preserves_state_through_resize_theme_and_collapse[customers_crm]" time="4.270" /><testcase classname="pos_spj_v13.4.tests.ui.test_route_module_layout" name="test_route_module_layout_preserves_state_through_resize_theme_and_collapse[fidelidad]" time="5.144" /><testcase classname="pos_spj_v13.4.tests.ui.test_route_module_layout" name="test_route_module_layout_preserves_state_through_resize_theme_and_collapse[assets]" time="2.991" /><testcase classname="pos_spj_v13.4.tests.ui.test_route_module_layout" name="test_denied_module_keeps_header_sidebar_and_single_permission_state[cash_register]" time="0.084" /><testcase classname="pos_spj_v13.4.tests.ui.test_route_module_layout" name="test_denied_module_keeps_header_sidebar_and_single_permission_state[customers_crm]" time="0.178" /><testcase classname="pos_spj_v13.4.tests.ui.test_route_module_layout" name="test_denied_module_keeps_header_sidebar_and_single_permission_state[fidelidad]" time="0.139" /><testcase classname="pos_spj_v13.4.tests.ui.test_route_module_layout" name="test_denied_module_keeps_header_sidebar_and_single_permission_state[assets]" time="0.176" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution0]" time="0.138" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution1]" time="0.257" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution2]" time="0.241" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution3]" time="0.334" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-light-resolution4]" time="0.418" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution0]" time="0.498" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution1]" time="0.661" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution2]" time="0.812" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution3]" time="0.188" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[comfortable-dark-resolution4]" time="0.289" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution0]" time="0.278" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution1]" time="0.404" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution2]" time="0.620" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution3]" time="0.563" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-light-resolution4]" time="0.724" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution0]" time="0.666" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution1]" time="0.735" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution2]" time="0.210" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution3]" time="0.311" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_long_form_scrolls_while_save_and_dialog_footer_remain_visible[touch-dark-resolution4]" time="0.362" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_page_viewport_scrolls_oversized_content_in_both_directions" time="0.006" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_table_reload_while_sorted_keeps_each_uuid_with_all_of_its_values" time="0.012" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_table_minimum_width_scroll_visibility_and_saved_width_survive_resize" time="0.051" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_table_rejects_incomplete_rows_without_destroying_existing_data" time="0.006" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_table_filter_loading_and_manual_population_state" time="0.012" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_runtime_density_updates_existing_inputs_tables_and_tabs" time="0.667" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_virtual_keyboard_preserves_validation_selection_and_read_only" time="0.043" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_virtual_keyboard_keeps_touch_targets_after_global_density_changes" time="1.136" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[text]" time="0.017" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[integer]" time="0.045" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[decimal]" time="0.035" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[money]" time="0.048" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[weight]" time="0.032" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[phone]" time="0.018" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_keyboard_modes_are_scoped_by_terminal_and_hardware_never_opens_it[email]" time="0.030" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_keyboard_attach_is_idempotent_and_destructive_default_is_cancel" time="0.165" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_wizard_prevents_navigation_past_first_or_last_step" time="0.005" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_pricing_scroll_preserves_lazy_routes_when_opened_out_of_order" time="0.136" /><testcase classname="pos_spj_v13.4.tests.ui.test_responsive_components" name="test_yield_monitoring_uses_page_scroll_without_eager_queries" time="0.104" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[compact-box]" time="1.654" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[compact-container]" time="1.351" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[compact-button]" time="1.214" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[comfortable-box]" time="0.880" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[comfortable-container]" time="1.470" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[comfortable-button]" time="1.652" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[touch-box]" time="0.911" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[touch-container]" time="0.957" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_footer" name="test_existing_footer_preserves_wiring_and_stays_accessible[touch-button]" time="0.984" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_geometry" name="test_moved_dialog_uses_its_own_monitor_and_disconnects_parent_screen" time="0.328" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_geometry" name="test_explicit_minimum_yields_to_small_screen_and_recovers" time="0.323" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_geometry" name="test_reopening_preserves_user_size_and_capture" time="0.362" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_geometry" name="test_lost_dialog_moves_back_inside_available_screen" time="0.324" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_geometry" name="test_crossing_monitor_edge_is_not_undone_before_screen_change" time="0.266" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_geometry" name="test_validation_callback_does_not_accept_before_validation" time="0.294" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_geometry" name="test_changing_window_title_updates_visible_heading" time="0.211" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_geometry" name="test_confirmation_keyboard_uses_safe_default_and_escape[16777220-ConfirmationDialog]" time="0.252" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_geometry" name="test_confirmation_keyboard_uses_safe_default_and_escape[16777220-DestructiveConfirmationDialog]" time="1.003" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_geometry" name="test_confirmation_keyboard_uses_safe_default_and_escape[16777216-ConfirmationDialog]" time="0.293" /><testcase classname="pos_spj_v13.4.tests.ui.test_standard_dialog_geometry" name="test_confirmation_keyboard_uses_safe_default_and_escape[16777216-DestructiveConfirmationDialog]" time="0.326" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window" name="test_construction_applies_initial_context_to_chrome" time="0.088" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window" name="test_navigate_updates_content_host_and_breadcrumb" time="0.048" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window" name="test_navigate_marks_degraded_offline_in_status_bar" time="0.057" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window" name="test_go_back_and_go_forward_update_content_host" time="0.054" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window" name="test_keep_alive_route_view_persists_across_navigation" time="0.037" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window" name="test_notifications_toggle_button_opens_and_closes_drawer" time="0.030" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window" name="test_adding_notification_updates_top_bar_unread_count" time="0.040" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window" name="test_update_context_refreshes_top_bar_and_status_bar" time="0.043" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window" name="test_update_context_evicts_recreate_on_context_change_cache" time="0.102" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_background" name="test_window_without_service_supervisor_still_works" time="0.069" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_background" name="test_bound_service_is_started_at_construction" time="0.046" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_background" name="test_unbound_registered_service_is_left_not_started" time="0.106" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_background" name="test_supervisor_is_reachable_from_the_window_for_health_inspection" time="0.091" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_loading" name="test_eager_module_is_activated_at_construction" time="0.067" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_loading" name="test_window_without_module_loader_still_works" time="0.088" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_loading" name="test_navigating_to_a_lazy_module_activates_it_on_first_navigation" time="0.045" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_loading" name="test_navigating_to_a_module_that_fails_to_load_shows_an_error_view" time="0.034" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_loading" name="test_failed_load_does_not_advance_router_history" time="0.052" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_loading" name="test_failed_load_still_updates_breadcrumb_to_the_attempted_route" time="0.044" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_loading" name="test_retrying_after_activation_recovers_succeeds" time="0.079" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_loading" name="test_error_view_retry_button_re_navigates" time="0.057" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_loading" name="test_background_preload_module_is_loaded_with_default_synchronous_scheduler" time="0.053" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_shutdown" name="test_window_without_shutdown_coordinator_close_event_does_not_raise" time="0.039" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_shutdown" name="test_close_event_runs_the_shutdown_coordinator" time="0.041" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_shutdown" name="test_close_event_stores_the_shutdown_result" time="0.043" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_shutdown" name="test_close_event_captures_a_failed_shutdown_result_without_raising" time="0.041" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_sidebar" name="test_window_without_sidebar_still_works" time="0.040" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_sidebar" name="test_sidebar_is_mounted_when_provided" time="0.601" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_sidebar" name="test_clicking_sidebar_item_navigates_the_window" time="0.567" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_sidebar" name="test_navigating_the_window_highlights_the_matching_sidebar_row" time="1.672" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_application_window_sidebar" name="test_navigating_via_window_does_not_trigger_a_second_navigation_from_the_sidebar" time="0.573" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_display_mounts_the_view_as_current_widget" time="0.004" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_recreate_on_navigation_replaces_widget_and_discards_old_one" time="0.004" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_keep_alive_reuses_first_widget_on_later_navigation" time="0.017" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_singleton_reuses_first_widget_forever" time="0.012" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_recreate_on_context_change_survives_ordinary_navigation" time="0.019" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_recreate_on_context_change_is_evicted_by_on_context_changed" time="0.005" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_on_context_changed_does_not_touch_keep_alive_routes" time="0.004" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_clear_empties_cache_and_current_route" time="0.005" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_non_qwidget_view_does_not_raise_and_still_tracks_route_id" time="0.030" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_repeated_navigation_to_recreate_on_navigation_route_does_not_leak_stack_entries" time="0.010" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_cached_oversized_page_does_not_force_overflow_on_the_next_page" time="0.046" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host" name="test_page_with_own_scroll_and_wrapped_header_does_not_add_outer_scroll" time="0.039" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host_loading" name="test_load_failed_view_is_shown" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host_loading" name="test_load_failed_view_is_not_cached" time="0.027" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host_loading" name="test_load_failed_does_not_evict_a_previously_cached_good_view" time="0.004" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host_loading" name="test_after_load_failed_a_successful_retry_caches_normally" time="0.009" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host_loading" name="test_repeated_load_failures_do_not_leak_error_widgets" time="0.004" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host_loading" name="test_preload_caches_without_changing_current_route" time="0.009" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host_loading" name="test_preloading_a_second_route_does_not_steal_focus_from_a_displayed_one" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host_loading" name="test_display_after_preload_reuses_the_preloaded_widget" time="0.005" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host_loading" name="test_preload_of_non_sticky_policy_discards_the_view" time="0.004" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_content_host_loading" name="test_preloading_an_already_cached_route_is_a_no_op" time="0.008" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_global_sidebar" name="test_starts_empty" time="0.461" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_global_sidebar" name="test_set_items_populates_the_list" time="1.330" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_global_sidebar" name="test_grouped_items_add_a_non_interactive_header_row" time="0.386" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_global_sidebar" name="test_clicking_a_row_emits_item_activated_with_its_route_id" time="0.341" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_global_sidebar" name="test_clicking_a_group_header_row_does_not_emit_item_activated" time="0.426" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_global_sidebar" name="test_set_active_route_selects_the_matching_row_without_reemitting" time="0.378" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_global_sidebar" name="test_set_active_route_with_unknown_route_id_is_a_no_op" time="0.331" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_global_sidebar" name="test_search_changed_filters_visible_items" time="0.546" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_global_sidebar" name="test_clearing_search_restores_full_list" time="0.432" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_global_sidebar" name="test_set_items_after_search_is_applied_reapplies_the_active_query" time="0.375" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_global_sidebar" name="test_badge_count_is_reflected_in_the_underlying_side_nav_item_text" time="0.328" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_module_error_view" name="test_shows_module_id_and_error_in_message" time="0.002" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_module_error_view" name="test_without_on_retry_there_is_no_retry_button" time="0.002" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_module_error_view" name="test_with_on_retry_clicking_the_button_invokes_the_callback" time="0.002" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_drawer" name="test_starts_closed_and_empty" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_drawer" name="test_add_notification_increases_unread_count" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_drawer" name="test_add_notification_already_read_does_not_count_as_unread" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_drawer" name="test_mark_read_decreases_unread_count" time="0.007" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_drawer" name="test_mark_read_unknown_id_is_a_no_op" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_drawer" name="test_clear_removes_everything" time="0.006" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_drawer" name="test_open_close_toggle_track_is_open_without_show" time="0.004" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_drawer" name="test_close_when_already_closed_does_not_emit_closed_signal" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_drawer" name="test_close_when_open_emits_closed_signal" time="0.007" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_drawer" name="test_unread_count_changed_emits_on_add_and_mark_read" time="0.004" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_drawer" name="test_activating_list_item_marks_read_and_emits_notification_activated" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_inbox_feed" name="test_feed_shows_only_the_session_users_notifications" time="0.038" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_inbox_feed" name="test_activating_a_notification_marks_it_read_in_the_database" time="0.005" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_inbox_feed" name="test_dedupe_key_makes_delivery_idempotent" time="0.002" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_notification_inbox_feed" name="test_periodic_service_runs_on_start_and_survives_a_failing_pass" time="0.089" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_shell_ui_contracts" name="test_sidebar_collapse_restores_route_and_keeps_toggle_reachable" time="1.310" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_shell_ui_contracts" name="test_sidebar_search_render_does_not_emit_navigation" time="0.468" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_shell_ui_contracts" name="test_module_group_collapses_without_changing_route_indices" time="0.010" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_shell_ui_contracts" name="test_topbar_actions_and_session_are_accessible" time="0.006" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_shell_ui_contracts" name="test_settings_button_opens_registered_route_and_respects_permissions[permissions0]" time="0.044" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_shell_ui_contracts" name="test_settings_button_opens_registered_route_and_respects_permissions[permissions1]" time="0.049" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_shell_ui_contracts" name="test_settings_button_opens_registered_route_and_respects_permissions[permissions2]" time="0.045" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_shell_ui_contracts" name="test_settings_denial_from_router_is_handled_in_qt_slot" time="0.002" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_shell_ui_contracts" name="test_module_sidebar_persists_collapsed_groups" time="0.013" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_status_bar" name="test_default_connectivity_text_is_online" time="0.004" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_status_bar" name="test_offline_status_shows_sin_conexion" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_status_bar" name="test_online_but_degraded_route_shows_conexion_limitada" time="0.008" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_status_bar" name="test_degraded_flag_takes_priority_over_offline_status" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_status_bar" name="test_online_not_degraded_shows_en_linea" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_status_bar" name="test_set_workstation_shows_branch_and_workstation_id" time="0.003" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_status_bar" name="test_startup_message_does_not_overlap_connectivity" time="0.073" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_top_bar" name="test_breadcrumb_starts_empty" time="0.005" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_top_bar" name="test_set_breadcrumb_joins_with_separator" time="0.004" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_top_bar" name="test_set_breadcrumb_empty_tuple_clears_text" time="0.004" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_top_bar" name="test_set_context_shows_branch_and_user" time="0.005" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_top_bar" name="test_unread_notification_count_starts_at_zero" time="0.017" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_top_bar" name="test_set_unread_notification_count_updates_tooltip" time="0.005" /><testcase classname="pos_spj_v13.4.tests.ui.shell.test_top_bar" name="test_notifications_button_click_emits_toggle_signal" time="0.007" /></testsuite></testsuites>

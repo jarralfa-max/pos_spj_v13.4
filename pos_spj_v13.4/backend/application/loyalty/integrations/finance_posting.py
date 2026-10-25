@@ -54,9 +54,7 @@ from backend.application.loyalty.queries.redemption_preview_query import (
 from backend.application.services.finance.commercial_instrument_processor import (
     CommercialInstrumentProcessor,
 )
-from backend.application.services.finance.finance_bootstrap import (
-    ensure_finance_catalog_additions,
-)
+from backend.application.services.finance.finance_bootstrap import finance_catalog_ready
 from backend.application.services.finance.posting_engine import PostingEngine
 from backend.domain.finance.enums import (
     CommercialInstrumentType,
@@ -163,7 +161,7 @@ class LoyaltyFinancePostingService:
     # ── entrada ───────────────────────────────────────────────────────────
     def run(self, *, limit: int = 2000) -> LoyaltyFinanceSummary:
         summary = LoyaltyFinanceSummary()
-        if not ensure_finance_catalog_additions(self._conn):
+        if not finance_catalog_ready(self._conn):
             # Finanzas aún no tiene catálogo: nada se puede asentar todavía; lo
             # pendiente se asentará cuando exista (el puente lee los libros).
             summary.ready = False
@@ -261,7 +259,9 @@ class LoyaltyFinancePostingService:
         if txn["status"] == "PENDING":
             raise _Hold("Acreditación diferida: se reconoce al quedar disponible")
         puntos = _dec(txn["points_amount"])
-        valor = self._unit_value()
+        # El valor del punto AL ACUMULAR (FID-02), si el movimiento lo guarda.
+        valor = (_dec(txn["point_value"]) if txn.get("point_value")
+                 else self._unit_value())
         importe = (puntos * valor).quantize(_CENT, rounding=ROUND_HALF_UP)
         self._links.save_credit(txn["id"], txn["loyalty_account_id"], puntos, valor, importe,
                                 txn["created_at"])

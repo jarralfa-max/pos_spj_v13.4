@@ -83,6 +83,13 @@ def sale_completed_to_finance(envelope: dict) -> dict:
         "tax_total": str(_dec(datos.get("tax_total"))),
         "settlements": liquidaciones,
         "cogs_total": str(_dec(datos.get("cogs_total"))),
+        # Rentabilidad (§33): canal y renglones con su costo.
+        "channel": datos.get("channel"),
+        "lines": [{"product_id": linea.get("product_id"),
+                   "quantity": str(_dec(linea.get("quantity"))),
+                   "amount": str(_dec(linea.get("amount"))),
+                   "unit_cost": str(linea.get("unit_cost") or "")}
+                  for linea in datos.get("lines") or ()],
         # Vales prepagados vendidos: pasivo, no ingreso (2026-10-03).
         "liability_lines": [{"instrument_type": "PREPAID_VOUCHER",
                              "instrument_id": v.get("voucher_instance_id"),

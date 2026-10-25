@@ -16,8 +16,15 @@ from frontend.desktop.components import FormDialog, PasswordInput, StandardLineE
 
 
 class StockAuthorizationDialog(FormDialog):
-    def __init__(self, presenter, *, message: str, parent=None) -> None:
-        super().__init__(parent, title="Autorizar venta sin existencia")
+    """También autoriza un beneficio sobre el margen protegido (auditoría
+    Fidelidad 968e0bc FID-03): mismo usuario + clave + motivo."""
+
+    def __init__(self, presenter, *, message: str, parent=None,
+                 title: str = "Autorizar venta sin existencia",
+                 ok_text: str = "Autorizar y cobrar",
+                 reason_prompt: str = "Captura el motivo de la venta sin existencia.") -> None:
+        super().__init__(parent, title=title)
+        self._reason_prompt = reason_prompt
         self.setObjectName("posStockAuthorizationDialog")
         self._presenter = presenter
         self.authorizer_user_id: str | None = None
@@ -37,7 +44,7 @@ class StockAuthorizationDialog(FormDialog):
         self._status.hide()
         self.form.addRow(self._status)
 
-        box = self.add_button_box(ok_text="Autorizar y cobrar")
+        box = self.add_button_box(ok_text=ok_text)
         box.accepted.disconnect()
         box.accepted.connect(self._authorize)
 
@@ -49,7 +56,7 @@ class StockAuthorizationDialog(FormDialog):
     def _authorize(self) -> None:
         motivo = self._reason.value().strip()
         if not motivo:
-            self._error("Captura el motivo de la venta sin existencia.")
+            self._error(self._reason_prompt)
             return
         user_id, problema = self._presenter.verify_authorizer(
             self._user.value().strip(), self._password.value())
@@ -58,3 +65,17 @@ class StockAuthorizationDialog(FormDialog):
             return
         self.authorizer_user_id, self.reason = user_id, motivo
         self.accept()
+
+
+def ask_margin_authorization(presenter, message: str, parent, ok_text: str):
+    """(autorizador, motivo) si otra persona autoriza el beneficio sobre el
+    margen protegido; (None, None) si se cancela (FID-03)."""
+    from frontend.desktop.modules.sales_pos.dialogs.stock_authorization_dialog import (
+        StockAuthorizationDialog,
+    )
+    dialogo = StockAuthorizationDialog(
+        presenter, message=message, parent=parent, title="Autorizar beneficio sobre el margen",
+        ok_text=ok_text, reason_prompt="Captura el motivo del beneficio sobre el margen.")
+    if dialogo.exec_() and dialogo.authorizer_user_id:
+        return dialogo.authorizer_user_id, dialogo.reason
+    return None, None

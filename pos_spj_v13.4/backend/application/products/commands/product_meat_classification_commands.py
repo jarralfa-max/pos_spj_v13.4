@@ -9,12 +9,12 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class CreateSpeciesCommand:
     operation_id: str
-    code: str
+    code: str  # vacío → se genera del nombre (PROD-23)
     name: str
     user_id: str | None = None
 
     def validate(self) -> None:
-        missing = [f for f in ("operation_id", "code", "name")
+        missing = [f for f in ("operation_id", "name")
                    if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
@@ -37,12 +37,12 @@ class SetSpeciesActiveCommand:
 class CreateAnatomicalRegionCommand:
     operation_id: str
     species_id: str
-    code: str
+    code: str  # vacío → se genera del nombre (PROD-23)
     name: str
     user_id: str | None = None
 
     def validate(self) -> None:
-        missing = [f for f in ("operation_id", "species_id", "code", "name")
+        missing = [f for f in ("operation_id", "species_id", "name")
                    if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")
@@ -66,7 +66,7 @@ class CreateCutClassificationCommand:
     operation_id: str
     species_id: str
     anatomical_region_id: str
-    code: str
+    code: str  # vacío → se genera del nombre (PROD-23)
     name: str
     cut_level: str
     user_id: str | None = None
@@ -77,7 +77,7 @@ class CreateCutClassificationCommand:
 
     def validate(self) -> None:
         missing = [f for f in ("operation_id", "species_id", "anatomical_region_id",
-                               "code", "name", "cut_level")
+                               "name", "cut_level")
                    if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")

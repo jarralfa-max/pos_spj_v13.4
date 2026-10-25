@@ -43,6 +43,7 @@ from backend.bootstrap.health.application_health_check_runner import Application
 from backend.bootstrap.health.checks import default_health_checks
 from backend.bootstrap.steps.database_integrity_step import DatabaseIntegrityStep
 from backend.bootstrap.steps.database_migration_step import DatabaseMigrationStep
+from backend.bootstrap.steps.foreign_key_enforcement_step import ForeignKeyEnforcementStep
 from backend.bootstrap.steps.installation_state_step import InstallationStateStep
 from backend.bootstrap.steps.schema_compatibility_step import SchemaCompatibilityStep
 from backend.bootstrap.steps.schema_validation_step import SchemaValidationStep
@@ -54,6 +55,7 @@ def database_bootstrap_steps() -> list:
         SchemaCompatibilityStep(),
         DatabaseMigrationStep(),
         SchemaValidationStep(),
+        ForeignKeyEnforcementStep(),
         InstallationStateStep(),
     ]
 

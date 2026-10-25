@@ -32,7 +32,9 @@ from frontend.desktop.themes.tokens import Spacing
 
 class ProgramSettingsPage(StandardPage):
     def __init__(self, presenter, parent=None) -> None:
-        super().__init__(parent, title="Configuración", subtitle="Reglas de acumulación, canje y caducidad.")
+        super().__init__(parent, title="Economía del punto",
+                         subtitle="Cuánto se gana, cuánto vale un punto y cuándo caduca. Las "
+                                  "reglas de acumulación dan bonos sobre esta base.")
         self.setObjectName("fidelidadProgramSettingsPage")
         self._presenter = presenter
 
@@ -71,6 +73,16 @@ class ProgramSettingsPage(StandardPage):
             "Tope del ticket pagadero con puntos", self.max_percent))
         layout.addWidget(form2)
 
+        # FID-09: la economía completa en una frase, mientras se edita.
+        self.economy_label = QLabel("", self)
+        self.economy_label.setObjectName("fidelidadEconomySummary")
+        self.economy_label.setWordWrap(True)
+        layout.addWidget(self.economy_label)
+        for campo in (self.pesos_per_point, self.point_value):
+            campo.value_changed.connect(self._refresh_economy)
+        self.min_points.valueChanged.connect(self._refresh_economy)
+        self.max_percent.valueChanged.connect(self._refresh_economy)
+
         self._status = QLabel("", self)
         self._status.setWordWrap(True)
         self._status.hide()
@@ -100,6 +112,28 @@ class ProgramSettingsPage(StandardPage):
         self.point_value.set_decimal(settings.redemption.point_value)
         self.min_points.setValue(int(settings.redemption.min_points))
         self.max_percent.set_decimal_value(settings.redemption.max_percent * Decimal("100"))
+        self._refresh_economy()
+
+    def _refresh_economy(self, *_args) -> None:
+        from backend.domain.loyalty.policies.program_economy import ProgramEconomy
+
+        pesos = self.pesos_per_point.decimal_value()
+        valor = self.point_value.decimal_value()
+        if not pesos or not valor or pesos <= 0:
+            self.economy_label.setText("")
+            return
+        e = ProgramEconomy(pesos_per_point=pesos, point_value=valor,
+                           min_points=int(self.min_points.value()),
+                           max_percent=self.max_percent.decimal_value() / Decimal("100"))
+        texto = (f"Por cada ${pesos:,.2f} pagados el cliente gana 1 punto, que vale "
+                 f"${valor:,.2f} al canjear: regresa {e.return_rate_percent}% de lo que "
+                 f"compra (sin contar bonos).")
+        if e.min_points:
+            texto += (f" Con el mínimo de {e.min_points} puntos, su primer canje llega tras "
+                      f"${e.purchase_to_first_redemption:,.2f} de compras y vale "
+                      f"${e.min_redemption_value:,.2f}.")
+        texto += f" Con puntos se paga hasta {e.max_ticket_percent}% de un ticket."
+        self.economy_label.setText(texto)
 
     def save(self) -> None:
         result = self._presenter.save_program_settings(

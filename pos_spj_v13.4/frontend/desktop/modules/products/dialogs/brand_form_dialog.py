@@ -1,11 +1,16 @@
 """BrandFormDialog — alta/edición de una marca de producto (P1-02).
 
-UI-only: captura código, nombre y descripción; delega el guardado en el presenter.
+UI-only: captura nombre, código (automático desde el nombre, reescribible) y
+descripción; delega el guardado en el presenter.
 """
 
 from __future__ import annotations
 
 from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.modules.products.dialogs.auto_code import (
+    AutoCodeBinder,
+    catalog_suggester,
+)
 
 from PyQt5.QtWidgets import (
     QDialogButtonBox,
@@ -33,8 +38,12 @@ class BrandFormDialog(StandardDialog):
         self.name = QLineEdit(str(self._brand.get("name") or ""))
         self.description = QPlainTextEdit(str(self._brand.get("description") or ""))
         self.description.setFixedHeight(72)
-        form.addRow("Código *", self.code)
         form.addRow("Nombre *", self.name)
+        form.addRow("Código" if self._brand_id is None else "Código *", self.code)
+        # PROD-23: en el alta el código se genera del nombre (reescribible).
+        self._auto = (AutoCodeBinder(self.name, self.code, catalog_suggester(
+            self._presenter, "BRAND"))
+            if self._brand_id is None else None)
         form.addRow("Descripción", self.description)
         layout.addLayout(form)
 
@@ -52,10 +61,12 @@ class BrandFormDialog(StandardDialog):
 
     def _on_save(self) -> None:
         self._error.setText("")
-        code = self.code.text().strip().upper()
+        code = (self._auto.code_for_save() if self._auto is not None
+                else self.code.text().strip().upper())
         name = self.name.text().strip()
-        if not code or not name:
-            self._error.setText("Código y Nombre son obligatorios.")
+        if not name or (self._auto is None and not code):
+            self._error.setText("Nombre es obligatorio." if self._auto is not None
+                                else "Código y Nombre son obligatorios.")
             return
         description = self.description.toPlainText().strip() or None
         ok, message, _bid = self._presenter.save_brand(

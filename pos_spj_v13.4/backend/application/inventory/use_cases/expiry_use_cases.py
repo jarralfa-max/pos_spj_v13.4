@@ -22,6 +22,7 @@ from backend.application.inventory.authorization import InventoryAuthorizationPo
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.services.movement_posting import post_movement
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.inventory_movement import (
     InventoryMovement,
     InventoryMovementLine,
@@ -60,7 +61,7 @@ class GenerateExpiryAlertsUseCase:
     """Classify every AVAILABLE lot's expiry risk and enqueue alerts (§9.4)."""
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
         self._risk = ExpiryRiskService()
 
     def execute(self, connection, *, operation_id: str, actor_user_id: str,
@@ -112,7 +113,7 @@ class ExpireInventoryUseCase:
     """
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
         self._risk = ExpiryRiskService()
 
     def execute(self, connection, *, operation_id: str, actor_user_id: str,

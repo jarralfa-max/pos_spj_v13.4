@@ -45,7 +45,9 @@ from tests.integration.meat_processing.test_meat_processing_records import (
     Siembra,
 )
 
-AHORA = datetime(2026, 9, 23, 12, 0, tzinfo=timezone.utc)
+# Relativo a hoy: con una fecha fija la prueba caducaba sola en cuanto la
+# salida quedaba fuera de la ventana de días del resumen.
+AHORA = datetime.now(timezone.utc).replace(microsecond=0)
 
 
 @pytest.fixture

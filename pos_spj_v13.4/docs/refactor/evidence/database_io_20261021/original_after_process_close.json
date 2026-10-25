@@ -1,0 +1,48 @@
+{
+  "database": "C:\\Users\\Diego Rodriguez\\Downloads\\pos_spj_v13.4\\pos_spj_v13.4\\data\\spj_pos_database.db",
+  "integrity": [
+    "ok"
+  ],
+  "foreign_key_violations": 0,
+  "campaign_mon": [
+    [
+      "mon",
+      "ACTIVE",
+      "2026-10-28T23:29:24"
+    ]
+  ],
+  "bootstrap_success": true,
+  "state": "RUNNING",
+  "steps": [
+    {
+      "name": "database_integrity",
+      "success": true,
+      "severity": "INFO",
+      "message": "Integridad de la base de datos verificada."
+    },
+    {
+      "name": "schema_compatibility",
+      "success": true,
+      "severity": "INFO",
+      "message": "Esquema compatible con esta versión."
+    },
+    {
+      "name": "database_migration",
+      "success": true,
+      "severity": "INFO",
+      "message": "Migraciones aplicadas."
+    },
+    {
+      "name": "schema_validation",
+      "success": true,
+      "severity": "WARNING",
+      "message": "Cobertura de tablas críticas (no relacionadas a identidad/seguridad) incompleta: detalle_ventas, empleados (80.0%)."
+    },
+    {
+      "name": "installation_state",
+      "success": true,
+      "severity": "INFO",
+      "message": "Estado de instalación: PROVISIONED."
+    }
+  ]
+}

@@ -24,6 +24,7 @@ from backend.application.products.commands.product_internal_stage_commands impor
     SetInternalStageCommand,
 )
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.internal_enums import INTERNAL_STAGES, InternalStage
 from backend.domain.products.policies.internal_product_policy import is_transformation
 
@@ -43,7 +44,7 @@ class SetInternalStageUseCase:
     def __init__(self, connection,
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def execute(self, command: SetInternalStageCommand) -> InternalStageResult:
         command.validate()

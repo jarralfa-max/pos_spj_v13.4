@@ -19,6 +19,7 @@ from backend.application.inventory.labels.gateway import (
 )
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.enums import LabelFormat
 from backend.domain.inventory.events import InventoryEvents
 from backend.domain.inventory.exceptions import InventoryPermissionDeniedError
@@ -36,7 +37,7 @@ class InventoryLabelPrintService:
                  event_dispatcher=None) -> None:
         self._conn = connection
         self._gateway = gateway or InMemoryPrintGateway()
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
         self._dispatch = event_dispatcher
 
     def print_label(self, document: LabelDocument, *, actor_user_id: str,

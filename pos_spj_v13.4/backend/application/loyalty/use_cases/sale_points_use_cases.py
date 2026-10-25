@@ -97,9 +97,16 @@ class AccrueSalePointsUseCase(_LoyaltyBaseUseCase):
             connection, sale_id=sale_id, customer_id=customer_id, branch_id=branch_id,
             total=total, credit_amount=credit_amount, lines=lines, payments=payments,
             channel=channel, momento=momento)
+        diferidos = _defer_credit_points(
+            connection, settings=settings, sale_id=sale_id, customer_id=customer_id,
+            branch_id=branch_id, total=total, credit_amount=credit_amount, lines=lines,
+            payments=payments, channel=channel, momento=momento, points_now=puntos)
         if puntos <= 0:
-            return LoyaltyResult.ok("La compra no alcanza un punto", operation_id=operation_id,
-                                    points=0, breakdown=desglose)
+            return LoyaltyResult.ok(
+                "La compra no alcanza un punto" if not diferidos else
+                f"Acumulará {diferidos} puntos al cobrarse el crédito",
+                operation_id=operation_id, points=0, breakdown=desglose,
+                deferred_points=diferidos)
 
         with LoyaltyUnitOfWork(connection) as uow:
             account = uow.accounts.get_by_customer_id(customer_id)
@@ -160,6 +167,56 @@ def _evaluate_once(connection, *, sale_id, customer_id, branch_id, total, credit
                                         customer_id=customer_id, points=aplicada.points,
                                         applied_at=cuando)
     return evaluacion.points, desglose
+
+
+def _defer_credit_points(connection, *, settings, sale_id, customer_id, branch_id, total,
+                         credit_amount, lines, payments, channel, momento,
+                         points_now: int) -> int:
+    """Lo vendido a crédito acumula AL COBRARSE (auditoría 968e0bc FID-04,
+    decisión del usuario). Aquí sólo se registra cuánto valdrá: la diferencia
+    entre evaluar la compra como si el crédito fuera dinero y lo que acumula
+    hoy. `CreditCollectionLoyaltyHandler` lo acredita con cada cobro."""
+    from backend.application.loyalty.queries.customer_benefits_query import (
+        LoyaltyAccrualEvaluator,
+    )
+    from backend.domain.loyalty.policies.accrual_policy import DEFERRED_TENDERS
+    from backend.infrastructure.db.repositories.loyalty.deferred_accrual_repository import (
+        LoyaltyDeferredAccrualRepository,
+    )
+
+    if not settings.credit_earns:
+        return 0
+    repo = LoyaltyDeferredAccrualRepository(connection)
+    if not repo.schema_ready():
+        return 0
+    previo = repo.get(sale_id)
+    if previo is not None:
+        return int(previo["deferred_points"])
+    credito = LoyaltyAccrualPolicy.deferred_credit_amount(
+        total=Decimal(str(total)), payments=payments or (),
+        credit_amount=Decimal(str(credit_amount or 0)))
+    if credito <= 0:
+        return 0
+    como_dinero = [
+        {"method": "CASH" if str((p.get("method") if isinstance(p, dict) else p[0])
+                                 or "").upper() in DEFERRED_TENDERS
+         else (p.get("method") if isinstance(p, dict) else p[0]),
+         "amount": str(p.get("amount") if isinstance(p, dict) else p[1])}
+        for p in payments or ()] or [{"method": "CASH", "amount": str(total)}]
+    completo = LoyaltyAccrualEvaluator(connection).evaluate(
+        customer_id=customer_id, branch_id=branch_id, total=total, credit_amount=0,
+        lines=lines or (), payments=como_dinero, channel=channel, occurred_at=momento,
+        sale_id=sale_id).points
+    diferidos = max(int(completo) - int(points_now), 0)
+    if diferidos <= 0:
+        return 0
+    with LoyaltyUnitOfWork(connection) as uow:
+        cuenta = uow.accounts.get_by_customer_id(customer_id)
+        LoyaltyDeferredAccrualRepository(uow.connection).open(
+            sale_id=sale_id, customer_id=customer_id,
+            loyalty_account_id=cuenta.id if cuenta else None, branch_id=branch_id,
+            credit_amount=credito, deferred_points=diferidos)
+    return diferidos
 
 
 class RemoveSalePointsUseCase(_LoyaltyBaseUseCase):

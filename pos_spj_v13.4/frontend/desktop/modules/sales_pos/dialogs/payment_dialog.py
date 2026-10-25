@@ -202,6 +202,32 @@ class PaymentDialog(StandardDialog):
         else:
             self._hint.setVisible(False)
 
+    def prefill_voucher(self, code: str) -> None:
+        """El cajero escaneó un vale: método «Vale», su código en «Referencia» y lo
+        que puede pagar, en lenguaje de cajero (nunca un id interno)."""
+        indice = self._method.findData("VOUCHER")
+        if indice < 0:
+            self._show_hint("No tienes permiso para cobrar con vales.")
+            return
+        self._method.setCurrentIndex(indice)
+        self._on_method_changed()
+        self._reference.setText(code)
+        saldo = self._presenter.voucher_balance(code)
+        if not saldo:
+            return
+        if not saldo.get("found"):
+            self._show_hint(saldo.get("reason") or "Vale no reconocido.")
+            return
+        partes = [f"Vale {saldo.get('folio') or ''}".strip(),
+                  f"saldo ${Decimal(str(saldo.get('balance') or 0)):,.2f}"]
+        reglas = saldo.get("rules")
+        if reglas is not None:
+            if reglas.max_percent_per_sale is not None:
+                partes.append(f"hasta {reglas.max_percent_per_sale:g} % de esta venta")
+            partes.append("un solo uso" if reglas.effective_max_redemptions == 1
+                          else "varios usos")
+        self._show_hint(" · ".join(partes))
+
     def _show_hint(self, text: str) -> None:
         self._hint.setText(text)
         self._hint.setVisible(True)
@@ -242,7 +268,8 @@ class PaymentDialog(StandardDialog):
             saldo = self._presenter.voucher_balance(reference)
             if saldo is not None:
                 if not saldo.get("found"):
-                    self._show_hint(f"No existe un vale con el código {reference}.")
+                    self._show_hint(saldo.get("reason")
+                                    or f"No existe un vale con el código {reference}.")
                     return
                 if Decimal(str(saldo.get("balance") or 0)) <= 0:
                     self._show_hint("El vale no tiene saldo.")

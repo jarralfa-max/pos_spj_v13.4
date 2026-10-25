@@ -10,7 +10,7 @@ _COLUMNS = ("id, treasury_account_id, bank_statement_id, status, completed_by,"
             " completed_at, reverted_by, revert_reason, operation_id, created_at, updated_at,"
             " difference_reason")
 _MATCH_COLUMNS = ("id, reconciliation_id, bank_statement_line_id, journal_line_id,"
-                  " matched_by, matched_at, active, reverted_at, reverted_by")
+                  " matched_by, matched_at, active, reverted_at, reverted_by, revert_reason")
 
 
 class ReconciliationRepository(FinanceRepositoryBase):
@@ -48,16 +48,18 @@ class ReconciliationRepository(FinanceRepositoryBase):
             if match.id not in existing:
                 self._execute(
                     f"INSERT INTO reconciliation_matches ({_MATCH_COLUMNS})"
-                    " VALUES (?,?,?,?,?,?,?,?,?)",
+                    " VALUES (?,?,?,?,?,?,?,?,?,?)",
                     (match.id, match.reconciliation_id, match.bank_statement_line_id,
                      match.journal_line_id, match.matched_by, match.matched_at,
-                     int(match.active), match.reverted_at, match.reverted_by),
+                     int(match.active), match.reverted_at, match.reverted_by,
+                     match.revert_reason),
                 )
             else:
                 self._execute(
-                    "UPDATE reconciliation_matches SET active=?, reverted_at=?, reverted_by=?"
-                    " WHERE id=?",
-                    (int(match.active), match.reverted_at, match.reverted_by, match.id),
+                    "UPDATE reconciliation_matches SET active=?, reverted_at=?, reverted_by=?,"
+                    " revert_reason=? WHERE id=?",
+                    (int(match.active), match.reverted_at, match.reverted_by,
+                     match.revert_reason, match.id),
                 )
 
     def journal_line_has_active_match(self, journal_line_id: str) -> bool:
@@ -123,6 +125,19 @@ class ReconciliationRepository(FinanceRepositoryBase):
                 journal_line_id=match_row["journal_line_id"],
                 matched_by=match_row["matched_by"], matched_at=match_row["matched_at"],
                 active=bool(match_row["active"]), reverted_at=match_row["reverted_at"],
-                reverted_by=match_row["reverted_by"],
+                reverted_by=match_row["reverted_by"], revert_reason=match_row["revert_reason"],
             ))
         return reconciliation
+
+    def eligible_ledger_lines(self, ledger_account_id: str, currency_code: str, *,
+                              limit: int = 1000) -> list[dict]:
+        """Líneas CONTABILIZADAS de la cuenta espejo, en su moneda, sin match activo."""
+        return self._query(
+            "SELECT jl.id AS journal_line_id, je.posting_date, je.entry_number,"
+            " je.description AS entry_description, jl.description, jl.source_reference,"
+            " jl.debit_amount, jl.credit_amount, jl.currency_code"
+            " FROM journal_lines jl JOIN journal_entries je ON je.id = jl.journal_entry_id"
+            " WHERE jl.account_id = ? AND jl.currency_code = ? AND je.status = 'POSTED'"
+            " AND jl.id NOT IN (SELECT journal_line_id FROM reconciliation_matches"
+            "                   WHERE active = 1)"
+            " ORDER BY je.posting_date LIMIT ?", (ledger_account_id, currency_code, limit))

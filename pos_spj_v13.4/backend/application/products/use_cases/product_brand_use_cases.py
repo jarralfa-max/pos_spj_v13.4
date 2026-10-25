@@ -12,6 +12,7 @@ import json
 import logging
 from dataclasses import dataclass
 
+from backend.application.products.catalog_codes import CatalogCodeKind, resolve_catalog_code
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.commands.product_brand_commands import (
     CreateBrandCommand,
@@ -19,6 +20,7 @@ from backend.application.products.commands.product_brand_commands import (
     UpdateBrandCommand,
 )
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.brand import Brand, normalize_name
 from backend.domain.products.events import ProductEvents
 from backend.domain.products.exceptions import ProductsDomainError
@@ -41,7 +43,7 @@ class _BaseBrandUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductBrandRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def _require_manage(self, user_id: str | None) -> None:
         self._auth.require(user_id or "", ProductPermissions.BRANDS_MANAGE)
@@ -61,7 +63,8 @@ class CreateProductBrandUseCase(_BaseBrandUseCase):
     def execute(self, command: CreateBrandCommand) -> BrandResult:
         command.validate()
         self._require_manage(command.user_id)
-        code = (command.code or "").strip().upper()
+        code = resolve_catalog_code(self._conn, CatalogCodeKind.BRAND, code=command.code,
+                                    name=command.name)
         if self._repo.code_exists(code):
             return BrandResult(False, None, f"El código '{code}' ya existe")
         from backend.shared.ids import new_uuid

@@ -16,6 +16,12 @@ from backend.domain.finance.entities.profit_center import ProfitCenter
 from backend.domain.finance.entities.fixed_asset import FixedAsset
 from backend.domain.finance.entities.posting_profile import PostingProfile
 from backend.domain.finance.entities.commercial_obligation import CommercialObligation
+from backend.domain.finance.entities.currency import Currency, ExchangeRateRecord
+from backend.domain.finance.entities.dimension import Department, Project
+from backend.domain.finance.entities.tax import TaxCode, TaxPostingProfile, TaxRate, TaxRule
+from backend.domain.finance.entities.finance_settings import FinanceSettings
+from backend.domain.finance.entities.audit_record import AuditRecord
+from backend.domain.finance.entities.fixed_asset import FixedAssetCategory
 
 __all__ = [
     "Account",
@@ -40,4 +46,15 @@ __all__ = [
     "FixedAsset",
     "PostingProfile",
     "CommercialObligation",
+    "Currency",
+    "ExchangeRateRecord",
+    "Department",
+    "Project",
+    "TaxCode",
+    "TaxPostingProfile",
+    "TaxRate",
+    "TaxRule",
+    "FinanceSettings",
+    "AuditRecord",
+    "FixedAssetCategory",
 ]

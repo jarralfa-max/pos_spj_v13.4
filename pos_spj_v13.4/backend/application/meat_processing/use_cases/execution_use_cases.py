@@ -16,6 +16,7 @@ from backend.application.meat_processing.permissions import MeatProcessingPermis
 from backend.application.meat_processing.result import MeatProcessingResult
 from backend.application.meat_processing.use_cases._shared import fail as _fail
 from backend.application.meat_processing.use_cases._shared import scope_fail as _scope_fail
+from backend.application.security.unwired_policy import unwired
 from backend.domain.meat_processing.entities.process_execution import ProcessExecution
 from backend.domain.meat_processing.entities.process_incident import ProcessIncident
 from backend.domain.meat_processing.entities.process_step_execution import ProcessStepExecution
@@ -53,7 +54,7 @@ def _emit(uow, event_name: str, *, operation_id: str, entity_id: str, order, act
 
 class StartProcessExecutionUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, actor_user_id: str,
@@ -95,7 +96,7 @@ class StartProcessExecutionUseCase:
 
 class PauseProcessExecutionUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, actor_user_id: str,
@@ -138,7 +139,7 @@ class PauseProcessExecutionUseCase:
 
 class ResumeProcessExecutionUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, actor_user_id: str,
@@ -181,7 +182,7 @@ class ResumeProcessExecutionUseCase:
 
 class CompleteProcessExecutionUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, actor_user_id: str,
@@ -221,7 +222,7 @@ class CompleteProcessExecutionUseCase:
 
 class StartProcessStepUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, process_execution_id: str, operation_id: str, step_name: str,
@@ -257,7 +258,7 @@ class StartProcessStepUseCase:
 
 class CompleteProcessStepUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, step_id: str, operation_id: str, actor_user_id: str,
@@ -289,7 +290,7 @@ class ReportProcessIncidentUseCase:
     one transaction instead of requiring a second call."""
 
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, incident_type: IncidentType,
@@ -337,7 +338,7 @@ class ReportProcessIncidentUseCase:
 
 class ResolveProcessIncidentUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, incident_id: str, operation_id: str, actor_user_id: str,

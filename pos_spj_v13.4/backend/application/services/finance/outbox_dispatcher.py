@@ -1,62 +1,51 @@
-"""Despachador del ``finance_outbox`` (auditoría d9f2bca F21).
+"""Despachador del ``finance_outbox`` (auditoría d9f2bca F21, §27).
 
-Finanzas encolaba sus hechos (JOURNAL_ENTRY_POSTED, COLLECTION_REGISTERED,
-SUPPLIER_PAYMENT_EXECUTED…) en ``finance_outbox`` dentro de la misma
-transacción, pero nada los leía: un consumidor futuro (BI, notificaciones) no
-habría recibido nada y nadie lo habría notado. Aquí se publican en orden en el
-bus de la aplicación. Ninguno exige consumidor HOY (Finanzas es el destino
-final de los hechos operativos, no el origen de efectos en otros módulos), así
-que publicarlos sin suscriptor los marca despachados; un fallo de un suscriptor
-deja el evento PENDIENTE con ``attempts`` y ``last_error`` visibles y se
-reintenta hasta ``MAX_ATTEMPTS``.
+Finanzas encola sus hechos (JOURNAL_ENTRY_POSTED, COLLECTION_REGISTERED,
+SUPPLIER_PAYMENT_EXECUTED…) en la misma transacción que los produce; aquí se
+publican en orden en el bus de la aplicación. Cada entrega se confirma en su
+propia unidad de trabajo: un fallo deja el evento PENDIENTE con ``attempts`` y
+``last_error`` visibles y se reintenta hasta ``MAX_ATTEMPTS``.
+
+Ningún hecho financiero exige consumidor HOY (Finanzas es el destino final de
+los hechos operativos), así que publicarlo sin suscriptor lo da por entregado;
+``REQUIRES_CONSUMER`` lista los que, sin suscriptor, deben quedar pendientes.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+
+from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
 
 logger = logging.getLogger("spj.finance.outbox_dispatcher")
 
-#: Hechos financieros que, si se publican sin suscriptor, NO deben darse por
-#: entregados. Vacío a propósito: hoy ningún módulo depende de ellos.
 REQUIRES_CONSUMER: frozenset[str] = frozenset()
 MAX_ATTEMPTS = 10
 
 
+class MissingConsumerError(RuntimeError):
+    """Un hecho que exige consumidor se publicó sin suscriptor."""
+
+
 def dispatch_finance_outbox(connection, bus, *, limit: int = 500) -> dict:
-    columns = {str(r[1]) for r in connection.execute("PRAGMA table_info(finance_outbox)")}
-    if not columns:
-        return {"pending": 0, "dispatched": 0, "failed": 0}
-    tracks = "attempts" in columns
-    where = "status='PENDING'" + (f" AND attempts < {MAX_ATTEMPTS}" if tracks else "")
-    rows = connection.execute(
-        f"SELECT id, event_name, payload_json FROM finance_outbox WHERE {where}"
-        " ORDER BY created_at LIMIT ?", (limit,)).fetchall()
+    with FinanceUnitOfWork(connection) as uow:
+        rows = uow.outbox.list_deliverable(max_attempts=MAX_ATTEMPTS, limit=limit)
     dispatched = failed = 0
-    for outbox_id, event_name, payload_json in rows:
+    for row in rows:
         try:
-            payload = json.loads(payload_json)
-            handled = bus.publish(event_name, payload, strict=True)
-            if event_name in REQUIRES_CONSUMER and not handled:
-                raise RuntimeError("sin consumidor registrado")
-            connection.execute(
-                "UPDATE finance_outbox SET status='DISPATCHED', dispatched_at=? WHERE id=?",
-                (datetime.now(timezone.utc).isoformat(timespec="seconds"), outbox_id))
-            connection.commit()
-            dispatched += 1
-        except Exception as exc:
+            handled = bus.publish(row["event_name"], json.loads(row["payload_json"]),
+                                  strict=True)
+            if row["event_name"] in REQUIRES_CONSUMER and not handled:
+                raise MissingConsumerError("sin consumidor registrado")
+        except Exception as exc:  # el suscriptor falló: queda pendiente y visible
             failed += 1
-            logger.exception("finance outbox: no se pudo despachar %s (%s)", outbox_id,
-                             event_name)
-            try:
-                connection.rollback()
-            except Exception:
-                pass
-            if tracks:
-                connection.execute(
-                    "UPDATE finance_outbox SET attempts = attempts + 1, last_error=? WHERE id=?",
-                    (str(exc)[:500], outbox_id))
-                connection.commit()
+            logger.exception("finance outbox: no se pudo despachar %s (%s)", row["id"],
+                             row["event_name"])
+            with FinanceUnitOfWork(connection) as uow:
+                uow.outbox.mark_failed(row["id"], f"{type(exc).__name__}: {exc}")
+            continue
+        with FinanceUnitOfWork(connection) as uow:
+            uow.outbox.mark_dispatched(row["id"])
+        dispatched += 1
     return {"pending": len(rows), "dispatched": dispatched, "failed": failed}

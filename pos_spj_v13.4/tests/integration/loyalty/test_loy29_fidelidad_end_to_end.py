@@ -123,11 +123,25 @@ class TestProgramsAndPoints:
         programa = _active_program(a, b)
         _ok(a.run_command("enroll_membership", customer_id=_customer(conn), program_id=programa))
         cuenta = _first(a, R.ACCOUNTS)
-        _ok(a.run_command("accrue_points", loyalty_account_id=cuenta["id"],
-                          points_amount=Decimal("150"), reason_code="BONO"))
-        _ok(a.run_command("redeem_points", loyalty_account_id=cuenta["id"],
-                          points_amount=Decimal("20"), reason_code="CANJE"))
+        # Auditoría 968e0bc FID-05: ya no hay «Acreditar» a mano; los puntos
+        # entran por un origen con documento (aquí, una venta).
+        from backend.application.loyalty.authorization import LoyaltyAuthorizationPolicy
+        from backend.application.loyalty.use_cases.ledger_use_cases import (
+            AccrueLoyaltyPointsUseCase,
+            RedeemLoyaltyPointsUseCase,
+        )
+        auth = LoyaltyAuthorizationPolicy.permissive_for_tests()
+        _ok(AccrueLoyaltyPointsUseCase(auth).execute(
+            conn, loyalty_account_id=cuenta["id"], points_amount=Decimal("150"),
+            operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
+            source_module="sales", source_document_id=new_uuid(), reason_code="SALE"))
+        _ok(RedeemLoyaltyPointsUseCase(auth).execute(
+            conn, loyalty_account_id=cuenta["id"], points_amount=Decimal("20"),
+            operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
+            source_module="sales", sale_id=new_uuid()))
         assert _first(a, R.ACCOUNTS)["points"] == Decimal("130")
+        assert not a.run_command("accrue_points", loyalty_account_id=cuenta["id"],
+                                 points_amount=Decimal("1"), reason_code="X").success
         acumulacion = _first(a, R.LEDGER, status="EARN")
         rechazo = a.run_command("reverse_transaction", transaction_id=acumulacion["id"],
                                 reason_code="ERROR")
@@ -376,18 +390,19 @@ class TestAuthorizedAdjustment:
         _ok(a.run_command("enroll_membership", customer_id=_customer(conn), program_id=programa))
         cuenta = _first(a, R.ACCOUNTS)["id"]
         propio = a.run_command("adjust_points", loyalty_account_id=cuenta,
-                               points_amount=Decimal("10"), reason_code="CORTESIA",
+                               points_amount=Decimal("10"), reason_code="CORTESIA", source_document="Queja Q-7",
                                authorizer_user_id=ids["cajero"])
         assert not propio.success
         sin_permiso = a.run_command("adjust_points", loyalty_account_id=cuenta,
-                                    points_amount=Decimal("10"), reason_code="CORTESIA",
+                                    points_amount=Decimal("10"), reason_code="CORTESIA", source_document="Queja Q-7",
                                     authorizer_user_id=new_uuid())
         assert not sin_permiso.success
         _ok(a.run_command("adjust_points", loyalty_account_id=cuenta, points_amount=Decimal("10"),
-                          reason_code="CORTESIA", authorizer_user_id=ids["admin"]))
+                          reason_code="CORTESIA", source_document="Queja Q-7",
+                          authorizer_user_id=ids["admin"]))
         assert _first(a, R.ACCOUNTS)["points"] == Decimal("10")
         assert not a.run_command("adjust_points", loyalty_account_id=cuenta,
-                                 points_amount=Decimal("-11"), reason_code="ERROR",
+                                 points_amount=Decimal("-11"), reason_code="ERROR", source_document="Q-8",
                                  authorizer_user_id=ids["admin"]).success
 
 

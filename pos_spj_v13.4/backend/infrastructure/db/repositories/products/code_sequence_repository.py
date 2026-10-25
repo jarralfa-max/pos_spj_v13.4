@@ -44,3 +44,11 @@ class ProductCodeSequenceRepository:
             "UPDATE product_code_sequences SET next_value=next_value+1, "
             "updated_at=datetime('now') WHERE prefix=?", (prefix,))
         return current
+
+    def advance_to(self, prefix: str, next_value: int, *, padding: int = 6) -> None:
+        """Lleva el consecutivo a ``next_value`` si va por detrás (nunca retrocede).
+        Un código interno capturado a mano no se vuelve a ofrecer."""
+        self._conn.execute(
+            "INSERT INTO product_code_sequences (prefix, next_value, padding) VALUES (?,?,?) "
+            "ON CONFLICT(prefix) DO UPDATE SET next_value=MAX(next_value, excluded.next_value), "
+            "updated_at=datetime('now')", (prefix, int(next_value), padding))

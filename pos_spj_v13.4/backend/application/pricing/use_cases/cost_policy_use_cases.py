@@ -14,6 +14,7 @@ from backend.application.pricing.authorization.policy import PricingAuthorizatio
 from backend.application.pricing.cost_policy import COST_POLICY_LABELS, CostPolicy, CostPolicySettings
 from backend.application.pricing.permissions import PricingPermissions
 from backend.application.pricing.result import PricingResult
+from backend.application.security.unwired_policy import unwired
 from backend.domain.pricing.events import PricingEvents, build_pricing_event_payload
 from backend.domain.pricing.exceptions import PricingPermissionDeniedError
 from backend.infrastructure.db.repositories.pricing.pricing_repository import PricingRepository
@@ -23,7 +24,7 @@ logger = logging.getLogger("spj.pricing.cost_policy")
 
 class SetCostPolicyUseCase:
     def __init__(self, authorization: PricingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or PricingAuthorizationPolicy()
+        self._auth = authorization or unwired(PricingAuthorizationPolicy)
 
     def execute(self, connection, *, actor_user_id: str, operation_id: str,
                 policy: str) -> PricingResult:

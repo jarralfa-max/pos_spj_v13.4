@@ -29,6 +29,27 @@ def gs1_check_digit(digits: str) -> int:
     return (10 - (total % 10)) % 10
 
 
+#: GS1 040-049: números de circulación restringida dentro de la empresa. No chocan
+#: con los de báscula (prefijo 2x, peso embebido) ni con los de fabricante.
+INTERNAL_EAN_PREFIX = "04"
+
+
+def internal_ean13(sequence: int, *, prefix: str = INTERNAL_EAN_PREFIX) -> str:
+    """EAN-13 interno: prefijo + consecutivo a 10 dígitos + dígito verificador."""
+    body = f"{prefix}{int(sequence):0{12 - len(prefix)}d}"
+    if len(body) != 12:
+        raise InvalidBarcodeError("Se agotó el rango de códigos de barras internos")
+    return body + str(gs1_check_digit(body))
+
+
+def internal_ean_sequence(value: str, *, prefix: str = INTERNAL_EAN_PREFIX) -> int | None:
+    """Consecutivo de un EAN-13 interno válido; ``None`` si no lo es."""
+    if (len(value or "") == 13 and value.isdigit() and value.startswith(prefix)
+            and _valid_gs1(value, 13)):
+        return int(value[len(prefix):12])
+    return None
+
+
 def _valid_gs1(value: str, expected_len: int | None = None) -> bool:
     if not value.isdigit():
         return False

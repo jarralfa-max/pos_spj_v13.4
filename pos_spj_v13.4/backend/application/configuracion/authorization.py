@@ -54,18 +54,28 @@ class SessionPermissionChecker:
     (`"MODULO.*"`) and the global wildcard (`"*"`) against the real
     `rol_permisos`/`usuario_permisos`/`usuario_sucursal_permisos` grant —
     the same branch-scoped grant infrastructure every other module's
-    `verificar_permiso()` call already uses. `user_id` is accepted for
-    Protocol compatibility but ignored: this repo has one active session
-    per process, so the session already IS the acting user (see
-    `core/permissions.py::verificar_permiso`, same simplification)."""
+    `verificar_permiso()` call already uses.
+
+    Auditoría de permisos 968e0bc (PER-03): antes `user_id` se aceptaba y se
+    IGNORABA («la sesión ya es el usuario»). Pero los casos de uso de permisos
+    usan el actor declarado en el comando para la autoedición, el escalamiento
+    y la auditoría: una sesión `A` con el permiso respondía «sí» al preguntar
+    por `B`, y el cambio quedaba atribuido a quien no lo hizo. Ahora concede
+    sólo si el usuario consultado ES el de la sesión. No exige sucursal activa:
+    Configuración es de empresa y es donde se reparan las sucursales."""
 
     def __init__(self, session) -> None:
         self._session = session
 
     def has_permission(self, user_id: str, permission_code: str) -> bool:
-        if self._session is None or not getattr(self._session, "is_active", False):
+        session = self._session
+        if session is None or not getattr(session, "is_active", False):
             return False
-        return bool(self._session.tiene_permiso(permission_code))
+        session_user_id = str(getattr(session, "user_id", "") or "").strip()
+        if not session_user_id or session_user_id != str(user_id or "").strip():
+            return False
+        check = getattr(session, "tiene_permiso", None)
+        return bool(callable(check) and check(permission_code))
 
 
 class ConfiguracionAuthorizationPolicy:

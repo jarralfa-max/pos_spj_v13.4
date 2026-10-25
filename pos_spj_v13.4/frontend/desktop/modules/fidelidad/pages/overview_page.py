@@ -14,6 +14,7 @@ from decimal import Decimal
 
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from backend.application.loyalty.permissions import LoyaltyPermissions
 from frontend.desktop.components import KPIBar, KPIDTO
 from frontend.desktop.components.buttons import create_secondary_button
 from frontend.desktop.components.view_states import ViewState, create_state_widget
@@ -61,6 +62,17 @@ class FidelidadOverviewPage(StandardPage):
             self.reload()
 
     def reload(self) -> None:
+        # Auditoría de Fidelidad 968e0bc (FID-08): la ruta Resumen pide sólo
+        # `VIEW`, pero los indicadores exigen `DASHBOARD_VIEW`. Un rol de
+        # lectura parcial veía un error; ahora ve por qué no hay indicadores.
+        if not self._presenter.can(LoyaltyPermissions.DASHBOARD_VIEW):
+            self._status.setProperty("state", ViewState.NO_PERMISSION)
+            self._status.setText(
+                "Tu rol puede entrar a Fidelidad, pero no ver los indicadores ni los "
+                "pendientes del programa. Pídelo a quien administra los permisos.")
+            self._status.show()
+            self._loaded = True
+            return
         try:
             resumen = self._presenter.overview()
             alertas = self._presenter.alerts()

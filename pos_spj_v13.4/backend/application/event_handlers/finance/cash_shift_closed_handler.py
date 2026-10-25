@@ -61,7 +61,7 @@ class CashShiftClosedHandler(FinanceEventHandler):
             lines.append(LineSpec(general_cash, debit=to_general,
                                   description=f"Efectivo de ventas del corte {shift_id[:8]}"))
         if difference.is_negative():
-            lines.append(LineSpec(profile.account_for("cash_over_short_account_id"),
+            lines.append(LineSpec(profile.account_for("cash_short_account_id"),
                                   debit=difference.abs(), description="Faltante de caja"))
         if sales_cash.is_negative():
             lines.append(LineSpec(register_account, debit=sales_cash.abs(),
@@ -70,7 +70,7 @@ class CashShiftClosedHandler(FinanceEventHandler):
             lines.append(LineSpec(register_account, credit=sales_cash,
                                   description=f"Vaciado de caja registradora {shift_id[:8]}"))
         if difference.is_positive():
-            lines.append(LineSpec(profile.account_for("breakage_income_account_id"),
+            lines.append(LineSpec(profile.account_for("cash_over_account_id"),
                                   credit=difference, description="Sobrante de caja"))
         if to_general.is_negative():
             lines.append(LineSpec(general_cash, credit=to_general.abs(),

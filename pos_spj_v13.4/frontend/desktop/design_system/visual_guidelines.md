@@ -102,10 +102,15 @@ la ventana. `ApplicationWindow` conserva su barra de estado y contexto de sesió
 Los mensajes nativos de `statusBar()` no se borran al ajustar geometría o tema.
 Consultar el [punto 8](../../../docs/refactor/standard_window_phase_8.md).
 
-`ApplicationWindow → ContentHost → PageViewport → página actual` compone el
-shell. `StandardPage` mantiene cabecera y acciones fuera del scroll del cuerpo.
+`ApplicationWindow → ContentHost → PageViewport → PageStack → página actual`
+compone el shell. `PageStack` calcula el mínimo solo con la página activa;
+el viewport conserva el desplazamiento de cada instancia en caché. Las páginas
+ocultas no deben añadir barras a una página pequeña. `StandardPage` mantiene
+cabecera y acciones fuera del scroll del cuerpo; sus mínimos no incluyen la
+altura preferida del contenido que ya dispone de scroll.
 Usar `WorklistPage`, `DashboardPage`, `FormPage`, `TabbedPage`,
 `MasterDetailPage`, `POSPage` o `WizardPage` según la operación.
+Ver la [matriz de PageViewport](../../../docs/refactor/page_viewport_phase_10.md).
 
 No introducir tamaños fijos para hacer caber una pantalla. Una tabla conserva
 anchos legibles y ofrece scroll horizontal; sus columnas secundarias pueden

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from backend.application.losses.permissions import LossPermissions
 from backend.domain.losses.exceptions import LossConfigurationError, LossScopeError
+from backend.security.permissions.codes import is_granted
 
 
 @dataclass(frozen=True)
@@ -25,7 +26,7 @@ class LossExecutionContext:
 
     @property
     def has_global_scope(self) -> bool:
-        return LossPermissions.VIEW_ALL_BRANCHES in self.permissions
+        return is_granted(self.permissions, LossPermissions.VIEW_ALL_BRANCHES)
 
     def enforce_branch(self, target_branch_id: str) -> None:
         target = str(target_branch_id or "").strip()

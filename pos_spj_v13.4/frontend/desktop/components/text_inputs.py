@@ -183,9 +183,8 @@ class StandardTextArea(QPlainTextEdit):
 class PasswordInput(QLineEdit):
     """Masked password input.
 
-    The virtual keyboard is intentionally not attached automatically here.
-    Authentication screens can opt into a secure keyboard implementation
-    separately.
+    Authentication screens can opt into the shared password keyboard. It edits
+    this field directly, respecting its echo mode and preserving whitespace.
     """
 
     def __init__(
@@ -193,6 +192,7 @@ class PasswordInput(QLineEdit):
         parent=None,
         *,
         placeholder: str = "Contraseña",
+        keyboard_enabled: bool = False,
     ) -> None:
         super().__init__(parent)
 
@@ -202,6 +202,13 @@ class PasswordInput(QLineEdit):
         self.setEchoMode(QLineEdit.Password)
         self.setPlaceholderText(placeholder)
         self.setAccessibleName("Contraseña")
+        self._virtual_keyboard_action = (
+            attach_virtual_keyboard_action(self, input_mode="password")
+            if keyboard_enabled else None
+        )
+
+    def keyboard_action(self) -> Optional[QAction]:
+        return self._virtual_keyboard_action
 
     def set_revealed(self, revealed: bool) -> None:
         self.setEchoMode(

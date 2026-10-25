@@ -31,8 +31,8 @@ class LoyaltyTransactionRepository(LoyaltyRepositoryBase):
                 status, operation_id, source_module, source_document_type,
                 source_document_id, sale_id, branch_id, reversal_transaction_id,
                 reason_code, notes, created_by_user_id, available_at, expires_at,
-                created_at
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                created_at, point_value, monetary_value
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(id) DO UPDATE SET
                 status=excluded.status,
                 reversal_transaction_id=excluded.reversal_transaction_id
@@ -46,6 +46,10 @@ class LoyaltyTransactionRepository(LoyaltyRepositoryBase):
                 transaction.reversal_transaction_id, transaction.reason_code,
                 transaction.notes, transaction.created_by_user_id,
                 transaction.available_at, transaction.expires_at, transaction.created_at,
+                dec_str(transaction.point_value) if transaction.point_value is not None
+                else None,
+                dec_str(transaction.monetary_value) if transaction.monetary_value is not None
+                else None,
             ),
         )
 
@@ -120,4 +124,7 @@ class LoyaltyTransactionRepository(LoyaltyRepositoryBase):
             created_by_user_id=row["created_by_user_id"],
             available_at=row["available_at"], expires_at=row["expires_at"],
             created_at=row["created_at"],
+            point_value=to_decimal(row["point_value"]) if row.get("point_value") else None,
+            monetary_value=(to_decimal(row["monetary_value"]) if row.get("monetary_value")
+                            else None),
         )

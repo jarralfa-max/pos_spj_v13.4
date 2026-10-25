@@ -211,7 +211,9 @@ def local_datetime_text(value, *, date_only: bool = False) -> str:
 
 PAYABLE_STATUS_ES = {
     "OPEN": "Pendiente de pago", "SCHEDULED": "Pago programado",
-    "PARTIALLY_PAID": "Pagada parcialmente", "SETTLED": "Pagada", "CANCELLED": "Cancelada",
+    "AUTHORIZED": "Pago autorizado", "PARTIALLY_PAID": "Pagada parcialmente",
+    "PAID": "Pagada", "OVERDUE": "Vencida", "DISPUTED": "En disputa",
+    "CANCELLED": "Cancelada",
 }
 
 

@@ -189,6 +189,12 @@ SCHEDULED_UPDATE_INTERVAL_MS = 60 * 1000
 #: Auditoría de Caja CJA-04 (2026-10-16): reintento de lo que Caja no pudo
 #: entregar a Finanzas (Corte Z, entrega de valores).
 CASH_OUTBOX_INTERVAL_MS = 2 * 60 * 1000
+#: FIN-ERP (2026-10-22): merma valuada hacia el mayor, vencimientos de CxC/CxP
+#: y entrega del finance_outbox.
+FINANCE_CYCLE_INTERVAL_MS = 5 * 60 * 1000
+#: Auditoría Fidelidad 968e0bc FID-10: ventas pendientes hacia Fidelidad y
+#: Finanzas (puntos, canje, vales) tras un fallo o un cierre a media operación.
+LOYALTY_SALES_INTERVAL_MS = 2 * 60 * 1000
 
 
 def _build_background_services(*, context: ApplicationContext, connection):
@@ -232,6 +238,19 @@ def _build_background_services(*, context: ApplicationContext, connection):
     supervisor.bind("cash_register.outbox", PeriodicTaskService(
         _cash_outbox_tick(connection), interval_ms=CASH_OUTBOX_INTERVAL_MS,
         name="cola de Caja a Finanzas"))
+    # Auditoría Fidelidad 968e0bc FID-10: ventas pendientes hacia Fidelidad y
+    # Finanzas se reintentan solas (antes, hasta la siguiente operación del POS).
+    registry.register(BackgroundServiceDescriptor(
+        "loyalty.sales_events", "Ventas pendientes hacia Fidelidad y Finanzas",
+        module_id="fidelidad"))
+    supervisor.bind("loyalty.sales_events", PeriodicTaskService(
+        _loyalty_sales_tick(connection), interval_ms=LOYALTY_SALES_INTERVAL_MS,
+        name="ventas a Fidelidad"))
+    registry.register(BackgroundServiceDescriptor(
+        "finance.cycle", "Merma, vencimientos y eventos de Finanzas", module_id="finance"))
+    supervisor.bind("finance.cycle", PeriodicTaskService(
+        _finance_cycle_tick(connection), interval_ms=FINANCE_CYCLE_INTERVAL_MS,
+        name="ciclo de Finanzas"))
     registry.register(BackgroundServiceDescriptor(
         "software_updates.maintenance_window", "Actualización en la ventana de mantenimiento"))
     supervisor.bind("software_updates.maintenance_window", PeriodicTaskService(
@@ -249,6 +268,24 @@ def _cash_outbox_tick(connection):
         from backend.application.cash_register.finance_wiring import dispatch_cash_outbox
         from backend.shared.events.application_bus import get_bus
         return dispatch_cash_outbox(connection, get_bus())
+    return tick
+
+
+def _loyalty_sales_tick(connection):
+    """sales_outbox + puente Fidelidad→Finanzas (idempotente)."""
+    def tick():
+        from backend.bootstrap.wiring.event_wiring import loyalty_sales_tick
+        from backend.shared.events.application_bus import get_bus
+        return loyalty_sales_tick(connection, get_bus())
+    return tick
+
+
+def _finance_cycle_tick(connection):
+    """Merma valuada pendiente, vencimientos y finance_outbox (idempotente)."""
+    def tick():
+        from backend.application.finance.wiring import finance_periodic_tick
+        from backend.shared.events.application_bus import get_bus
+        return finance_periodic_tick(connection, get_bus())
     return tick
 
 

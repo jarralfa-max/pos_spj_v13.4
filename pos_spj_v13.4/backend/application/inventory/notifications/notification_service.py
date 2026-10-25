@@ -23,6 +23,7 @@ from backend.application.inventory.notifications.gateway import (
 )
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.notification_rule import NotificationRule
 from backend.domain.inventory.enums import (
     ALERT_EVENT_SEVERITY,
@@ -177,7 +178,7 @@ class InventoryNotificationService:
 
 class SetNotificationRuleUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, event_name: str, channel: NotificationChannel,
                 recipient_type: NotificationRecipientType, recipient_ref: str,

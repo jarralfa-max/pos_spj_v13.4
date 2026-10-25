@@ -27,14 +27,10 @@ from backend.application.finance.authorization import (
 from backend.application.finance.finance_commands import FinanceCommandService
 from backend.application.finance.permissions import FinancePermissions
 from backend.application.services.finance.posting_engine import PostingEngine
-from backend.application.use_cases.finance.capital_and_asset_use_cases import (
-    CapitalizeAssetUseCase,
-)
-from backend.application.use_cases.finance.receivable_use_cases import (
-    CreateReceivableUseCase,
-    RegisterCollectionUseCase,
-    RegisterSaleCreditChargeUseCase,
-)
+from backend.application.use_cases.finance.capitalize_asset_use_case import CapitalizeAssetUseCase
+from backend.application.use_cases.finance.create_receivable_use_case import CreateReceivableUseCase
+from backend.application.use_cases.finance.register_collection_use_case import RegisterCollectionUseCase
+from backend.application.use_cases.finance.register_sale_credit_charge_use_case import RegisterSaleCreditChargeUseCase
 from backend.domain.finance.entities.commercial_obligation import CommercialObligation
 from backend.domain.finance.enums import (
     CommercialInstrumentType,
@@ -46,7 +42,7 @@ from backend.domain.finance.enums import (
 from backend.domain.finance.exceptions import (
     ConcurrencyConflictError,
     FinanceDomainError,
-    FinancePermissionDeniedError,
+    PermissionDeniedError,
     IdempotencyConflictError,
 )
 from backend.domain.finance.services.journal_posting_service import LineSpec
@@ -55,7 +51,7 @@ from backend.domain.finance.value_objects.posting_reference import PostingRefere
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
 from backend.shared.ids import new_uuid
 from frontend.desktop.modules.finance.finance_routes import build_finance_presenter
-from tests.integration.finance.conftest import account_id, register_supplier
+from tests.integration.finance.conftest import account_id, fund, register_supplier
 
 TODAY = date(2026, 7, 16)
 
@@ -130,12 +126,15 @@ class TestF02CommandAuthorization:
         user = new_uuid()
         presenter = build_finance_presenter(
             bootstrapped_conn, _session(user, {FinancePermissions.TREASURY_TRANSFER}))
+        fund(bootstrapped_conn, _treasury(bootstrapped_conn, TreasuryAccountType.GENERAL_CASH).id,
+             "10.00")
         ok, _ = presenter.register_treasury_transfer(
             source_id=_treasury(bootstrapped_conn, TreasuryAccountType.GENERAL_CASH).id,
             target_id=_treasury(bootstrapped_conn).id, amount="10.00", reference="x")
         assert ok
         assert bootstrapped_conn.execute(
-            "SELECT created_by FROM journal_entries").fetchone()[0] == user
+            "SELECT created_by FROM journal_entries WHERE posting_purpose='TREASURY_TRANSFER'"
+        ).fetchone()[0] == user
 
     def test_direct_command_invocation_is_rejected_without_permission(self, bootstrapped_conn):
         service = FinanceCommandService(
@@ -146,7 +145,7 @@ class TestF02CommandAuthorization:
                      lambda: service.authorize_payment("p"),
                      lambda: service.close_period(2026, 7, soft=False),
                      lambda: service.reverse_entry("e", reason="r")):
-            with pytest.raises(FinancePermissionDeniedError):
+            with pytest.raises(PermissionDeniedError):
                 call()
 
     def test_absent_actor_is_rejected_even_with_permissive_checker(self, bootstrapped_conn):
@@ -154,13 +153,13 @@ class TestF02CommandAuthorization:
             connection_provider=lambda: bootstrapped_conn, use_cases={},
             authorization=FinanceAuthorizationPolicy(AllowAllFinancePermissionCheckerForTests()),
             actor_provider=lambda: None)
-        with pytest.raises(FinancePermissionDeniedError):
+        with pytest.raises(PermissionDeniedError):
             service.treasury_transfer(source_id="a", target_id="b", amount="1")
 
     def test_authorizing_a_payment_needs_the_permission_not_just_another_id(self):
         session = _session("u2", {FinancePermissions.PAYMENT_SCHEDULE})
         policy = FinanceAuthorizationPolicy(FinanceSessionPermissionChecker(session))
-        with pytest.raises(FinancePermissionDeniedError):
+        with pytest.raises(PermissionDeniedError):
             policy.require("u2", FinancePermissions.PAYMENT_AUTHORIZE)
 
 
@@ -261,8 +260,9 @@ class TestF11SubledgerAndLedgerAgree:
             issue_date=TODAY, operation_id=new_uuid(),
             counterpart_account_id=account_id(bootstrapped_conn, "4101"))
         RegisterCollectionUseCase().execute(
-            bootstrapped_conn, receivable_id=receivable.id, amount="100.00",
+            bootstrapped_conn, customer_id=receivable.customer_id, amount="100.00",
             treasury_account_id=_treasury(bootstrapped_conn).id, collection_date=TODAY,
+            applications=[{"receivable_id": receivable.id, "amount": "100.00"}],
             operation_id=new_uuid())
         assert str(_ledger(bootstrapped_conn, "1130")) == "0.00"
 
@@ -300,7 +300,7 @@ class TestF12CreditNoteAppliedToTheInvoice:
             "SELECT outstanding_amount FROM receivables").fetchone()[0]
         document = bootstrapped_conn.execute(
             "SELECT outstanding_amount FROM financial_documents"
-            " WHERE document_type='SALES_INVOICE'").fetchone()[0]
+            " WHERE document_type='CUSTOMER_INVOICE'").fetchone()[0]
         assert receivable == "80.00" and document == "80.00"
 
 

@@ -53,11 +53,30 @@ ACCOUNT_ROLES = (
     "asset_account_id",
     "accumulated_depreciation_account_id",
     "depreciation_expense_account_id",
-    "cash_over_short_account_id",
+    # §14: sobrante y faltante de caja, cada uno en su cuenta configurable.
+    "cash_over_account_id",
+    "cash_short_account_id",
     "discount_account_id",
     # Auditoría Compras C12: crédito del proveedor por devolución que ya no
     # tiene CxP que acreditar (pagada o de contado).
     "supplier_advance_account_id",
+    # FIN-ERP (2026-10-21)
+    "customer_advance_account_id",
+    "write_off_expense_account_id",
+    "early_payment_discount_account_id",
+    "retention_account_id",
+    "bank_charge_account_id",
+    "bank_interest_account_id",
+    "loan_payable_account_id",
+    "loan_interest_account_id",
+    "owner_withdrawal_account_id",
+    "asset_sale_gain_account_id",
+    "asset_sale_loss_account_id",
+    "asset_clearing_account_id",
+    "inventory_in_transit_account_id",
+    "transfer_difference_account_id",
+    "reconciliation_adjustment_account_id",
+    "income_tax_expense_account_id",
 )
 
 

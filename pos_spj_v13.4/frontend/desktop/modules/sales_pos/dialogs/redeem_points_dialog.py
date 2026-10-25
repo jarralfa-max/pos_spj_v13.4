@@ -77,6 +77,17 @@ class RedeemPointsDialog(StandardDialog):
             self._show_error("Indica cuántos puntos canjear.")
             return
         result = self._presenter.redeem_loyalty_points(sale_id=self._sale.id, points=puntos)
+        if not result.success and getattr(result, "error_code", "") == "MARGIN_PROTECTED":
+            from frontend.desktop.modules.sales_pos.dialogs.stock_authorization_dialog import (
+                ask_margin_authorization,
+            )
+            quien, motivo = ask_margin_authorization(
+                self._presenter, result.message, self, "Autorizar y canjear")
+            if quien is None:
+                self._show_error(result.message)
+                return
+            result = self._presenter.redeem_loyalty_points(
+                sale_id=self._sale.id, points=puntos, authorizer_user_id=quien, reason=motivo)
         if not result.success:
             self._show_error(result.message)
             return

@@ -26,17 +26,19 @@ CÓMO SE CONSTRUYE — dos fuentes, y ninguna es una lista copiada a mano:
 
 DEUDA CONOCIDA, declarada y no disimulada:
 
-- TRES contextos (`losses`, `suppliers`, `transfers`) todavía usan códigos
-  PLANOS estilo `TRANSFERS_APPROVE`, sin el formato `MODULO.accion`.
-  (`pricing` salió de esta lista el 2026-09-16: migró a `PRECIOS.<accion>` y
-  ahora sus acciones SÍ son otorgables desde la matriz. No dejó nada inerte
-  porque `PRECIOS` nunca estuvo sembrado en `rol_permisos`.)
-  No se pueden derivar y NO se traducen aquí: inventarles un módulo sería
-  fabricar vocabulario. Quedan fuera del catálogo y listados en
-  `FLAT_CODE_CONTEXTS`. Mientras tanto sus acciones no son otorgables desde la
-  matriz de permisos — que es exactamente el estado real, y por eso
-  `TransferSessionPermissionChecker` traduce a mano el puñado de códigos que sí
-  tienen contrapartida y deniega el resto (fail-closed).
+- Ya NO quedan contextos con códigos PLANOS. `pricing` migró el 2026-09-16 a
+  `PRECIOS.<accion>`; `losses`, `suppliers` y `transfers` migraron en la
+  auditoría de permisos 968e0bc (PER-04) a `MERMA.`, `PROVEEDORES.` y
+  `TRANSFERENCIAS.<accion>`, con correspondencia 1:1 explícita en la migración
+  347 (que traduce cualquier fila guardada con el código plano). Hasta entonces
+  sus acciones NO eran otorgables desde la matriz: Mermas sólo existía para los
+  roles de acceso total, y aprobar/despachar/recibir una transferencia se
+  denegaba a todos. `FLAT_CODE_CONTEXTS` sigue existiendo, vacío, porque el test
+  de arquitectura comprueba que no vuelva a crecer.
+- `MERMA.crear/editar/eliminar` (gruesos del sembrado) quedan INERTES, como las
+  gruesas de Inventario con la migración 179: Mermas tiene ahora dueño
+  granular. `PROVEEDORES` y `TRANSFERENCIAS` conservan sus gruesas DECLARADAS
+  porque sus verificadores de sesión las usan de respaldo (ver abajo).
 - `FINANZAS` y `CLIENTES_CRM` son claves que el menú lateral canónico exige
   (`frontend/desktop/modules/{finance,customers_crm}/shell_registration.py`)
   pero que el sembrado de roles NO otorga: ahí siembra `FINANZAS_UNIFICADAS` y
@@ -65,6 +67,7 @@ _CONTEXT_PERMISSION_MODULES = (
     "backend.application.inventory.permissions",
     "backend.application.logistics.permissions",
     "backend.application.loyalty.permissions",
+    "backend.application.losses.permissions",
     "backend.application.loyalty_cards.permissions",
     "backend.application.meat_processing.permissions",
     "backend.application.orders_delivery.permissions",
@@ -74,17 +77,15 @@ _CONTEXT_PERMISSION_MODULES = (
     "backend.application.quality.permissions",
     "backend.application.quotes.permissions",
     "backend.application.sales.permissions",
+    "backend.application.suppliers.permissions",
+    "backend.application.transfers.permissions",
 )
 
 #: Contextos cuyos códigos siguen siendo planos (`LOSSES_VIEW`) y por eso no
 #: entran al catálogo. No es una allowlist para tapar un fallo (§16): es el
 #: registro explícito de una migración pendiente, y el test de arquitectura lo
 #: usa para comprobar que la lista no crece.
-FLAT_CODE_CONTEXTS = (
-    "backend.application.losses.permissions",
-    "backend.application.suppliers.permissions",
-    "backend.application.transfers.permissions",
-)
+FLAT_CODE_CONTEXTS: tuple[str, ...] = ()
 
 #: Las 5 acciones gruesas que `m000_base_schema._seed_system_roles()` otorga a
 #: TODOS los módulos que siembra. Cualquier módulo del sembrado las tiene.
@@ -143,10 +144,17 @@ _DECLARED_MODULE_ACTIONS: dict[str, tuple[str, ...]] = {
         "exportar", "configurar",
     ),
 
-    # Entrada gruesa de Transferencias. El valor exacto está documentado en el
-    # docstring de backend/application/transfers/session_authorization.py, que
-    # traduce los códigos planos del contexto contra estas cuatro acciones.
+    # Entrada gruesa de Transferencias. Desde PER-04 el contexto publica su
+    # vocabulario granular; estas cuatro se conservan porque
+    # backend/application/transfers/session_authorization.py las usa de
+    # respaldo (`ver` → páginas de consulta, `crear` → captura de solicitud).
     "TRANSFERENCIAS": ("ver", "crear", "recibir", "cancelar"),
+
+    # Gruesas de Proveedores: el respaldo que decidió el usuario (2026-09-16)
+    # en backend/application/suppliers/session_authorization.py usa `editar`
+    # y `eliminar`. Sin declararlas, las filas sembradas quedarían huérfanas
+    # en la matriz: visibles para la sesión pero imposibles de retirar.
+    "PROVEEDORES": _SEEDED_COARSE_ACTIONS,
 
     # Catálogo legado de Clientes (4 acciones). Documentado en el docstring de
     # backend/application/customers/permissions.py. Se conserva otorgable

@@ -24,9 +24,10 @@ from backend.infrastructure.db.repositories.customer_privacy.support_repositorie
     CustomerPrivacyOutboxRepository,
     CustomerPrivacyProcessedEventRepository,
 )
+from backend.infrastructure.db.transaction import TransactionalUnitOfWork
 
 
-class CustomerPrivacyUnitOfWork:
+class CustomerPrivacyUnitOfWork(TransactionalUnitOfWork):
     def __init__(self, connection: Any) -> None:
         self.connection = connection
         self.consents = CustomerConsentRepository(connection)
@@ -37,24 +38,3 @@ class CustomerPrivacyUnitOfWork:
         self.outbox = CustomerPrivacyOutboxRepository(connection)
         self.processed_events = CustomerPrivacyProcessedEventRepository(connection)
         self._completed = False
-
-    def __enter__(self) -> "CustomerPrivacyUnitOfWork":
-        self._completed = False
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> bool:
-        if exc_type is not None:
-            self.rollback()
-        elif not self._completed:
-            self.commit()
-        return False
-
-    def commit(self) -> None:
-        self.connection.commit()
-        self._completed = True
-
-    def rollback(self) -> None:
-        rollback = getattr(self.connection, "rollback", None)
-        if rollback is not None:
-            rollback()
-        self._completed = True

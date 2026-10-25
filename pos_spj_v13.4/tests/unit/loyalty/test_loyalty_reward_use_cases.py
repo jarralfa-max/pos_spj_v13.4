@@ -74,7 +74,7 @@ def _enrolled_membership_with_points(conn, auth, points: str):
     AccrueLoyaltyPointsUseCase(auth).execute(
         conn, loyalty_account_id=loyalty_account_id, points_amount=Decimal(points),
         operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
-        source_module="sales")
+        source_module="sales", source_document_id=new_uuid())
     return program_id, membership_id, loyalty_account_id
 
 

@@ -43,6 +43,33 @@ from backend.infrastructure.db.repositories.loyalty.unit_of_work import LoyaltyU
 from backend.shared.ids import new_uuid
 
 
+#: Orígenes de captura manual: nunca acreditan directo (FID-05).
+MANUAL_SOURCE_MODULES = frozenset({"fidelidad_ui", "manual", "desktop", ""})
+
+
+def _manual_adjust_limits(connection) -> tuple[Decimal, Decimal]:
+    from backend.application.settings.configuration_reader import ConfigurationReader
+    reader = ConfigurationReader(connection)
+    return (Decimal(str(reader.get("loyalty.manual_adjust_max_points"))),
+            Decimal(str(reader.get("loyalty.manual_adjust_daily_max_points"))))
+
+
+def _today_prefix() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _current_point_value(connection) -> Decimal | None:
+    """Valor del punto vigente, para congelarlo en el movimiento (FID-02)."""
+    try:
+        from backend.application.loyalty.queries.redemption_preview_query import (
+            LoyaltyRedemptionPreviewQuery,
+        )
+        return LoyaltyRedemptionPreviewQuery(connection).settings().point_value
+    except Exception:  # noqa: BLE001 - sin ajustes legibles, la contabilidad usa el vigente
+        return None
+
+
 class AccrueLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
     def execute(
         self, connection, *, loyalty_account_id: str, points_amount: Decimal,
@@ -55,8 +82,19 @@ class AccrueLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
     ) -> LoyaltyResult:
         try:
             self._auth.require(actor_user_id, LoyaltyPermissions.POINTS_CREDIT)
+            self._auth.require_branch(actor_user_id, actor_branch_id)
         except LoyaltyDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
+        # Auditoría 968e0bc FID-05: acreditar es para orígenes con DOCUMENTO
+        # (venta, campaña, reto…). Dar puntos a mano es una corrección y va
+        # por `AdjustLoyaltyPointsUseCase` (documento, motivo, tope y otra
+        # persona que autoriza); antes «Acreditar» la eludía.
+        if source_module in MANUAL_SOURCE_MODULES or not str(source_document_id or "").strip():
+            return fail_from_domain_error(
+                LoyaltyDomainError(
+                    "Acreditar puntos exige un documento de origen. Para dar puntos a mano "
+                    "usa «Corrección manual»: pide documento, motivo y autorización."),
+                operation_id=operation_id)
         with LoyaltyUnitOfWork(connection) as uow:
             account = uow.accounts.get(loyalty_account_id)
             if account is None:
@@ -78,7 +116,7 @@ class AccrueLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
                     source_module=source_module, source_document_id=source_document_id,
                     sale_id=sale_id, branch_id=actor_branch_id, reason_code=reason_code,
                     created_by_user_id=actor_user_id, available_at=available_at,
-                    expires_at=expires_at,
+                    expires_at=expires_at, point_value=_current_point_value(connection),
                 )
             except LoyaltyDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
@@ -112,6 +150,7 @@ class ReserveLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
                 operation_id=operation_id)
         try:
             self._auth.require(actor_user_id, LoyaltyPermissions.POINTS_REDEEM)
+            self._auth.require_branch(actor_user_id, actor_branch_id)
         except LoyaltyDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
         with LoyaltyUnitOfWork(connection) as uow:
@@ -154,6 +193,7 @@ class ConfirmReservedLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
                 actor_branch_id: str, operation_id: str) -> LoyaltyResult:
         try:
             self._auth.require(actor_user_id, LoyaltyPermissions.POINTS_REDEEM)
+            self._auth.require_branch(actor_user_id, actor_branch_id)
         except LoyaltyDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
         with LoyaltyUnitOfWork(connection) as uow:
@@ -185,6 +225,7 @@ class ReleaseLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
                 actor_branch_id: str, operation_id: str) -> LoyaltyResult:
         try:
             self._auth.require(actor_user_id, LoyaltyPermissions.POINTS_REDEEM)
+            self._auth.require_branch(actor_user_id, actor_branch_id)
         except LoyaltyDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
         with LoyaltyUnitOfWork(connection) as uow:
@@ -221,16 +262,23 @@ class RedeemLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
         operation_id: str, actor_user_id: str, actor_branch_id: str,
         source_module: str = "", reason_code: str | None = None,
         membership_id: str | None = None, sale_id: str | None = None,
+        point_value: Decimal | None = None, monetary_value: Decimal | None = None,
+        owns_transaction: bool = True,
     ) -> LoyaltyResult:
+        """`owns_transaction=False` (auditoría 968e0bc FID-01): el canje del POS
+        corre DENTRO de la transacción de la venta. Antes hacía su propio
+        commit antes de que Ventas guardara el descuento: si guardar la venta
+        fallaba, los puntos quedaban descontados sin descuento en la venta."""
         if points_amount <= 0:
             return fail_from_domain_error(
                 LoyaltyDomainError("El monto a canjear debe ser positivo"),
                 operation_id=operation_id)
         try:
             self._auth.require(actor_user_id, LoyaltyPermissions.POINTS_REDEEM)
+            self._auth.require_branch(actor_user_id, actor_branch_id)
         except LoyaltyDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
-        with LoyaltyUnitOfWork(connection) as uow:
+        with LoyaltyUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
             account = uow.accounts.get(loyalty_account_id)
             if account is None:
                 return fail_from_domain_error(
@@ -249,6 +297,7 @@ class RedeemLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
                     operation_id=operation_id, membership_id=membership_id,
                     source_module=source_module, reason_code=reason_code, sale_id=sale_id,
                     branch_id=actor_branch_id, created_by_user_id=actor_user_id,
+                    point_value=point_value, monetary_value=monetary_value,
                 )
             except LoyaltyDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
@@ -274,8 +323,30 @@ class AdjustLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
         self, connection, *, loyalty_account_id: str, points_amount: Decimal,
         reason_code: str, requested_by: str, authorizer_user_id: str,
         actor_branch_id: str, operation_id: str, membership_id: str | None = None,
+        source_document: str = "", evidence: str = "",
     ) -> LoyaltyResult:
+        """Corrección manual (auditoría 968e0bc FID-05): la ÚNICA vía para dar o
+        quitar puntos a mano. Exige documento de respaldo (folio de venta,
+        queja, ticket), motivo, otra persona que autoriza, y respeta los topes
+        por corrección y por cliente al día — lo exige el caso de uso, no sólo
+        el formulario."""
+        points_amount = Decimal(str(points_amount))
+        documento = str(source_document or "").strip()
+        if not documento:
+            return fail_from_domain_error(
+                LoyaltyDomainError("Captura el documento que respalda la corrección "
+                                   "(folio de venta, queja o ticket)."),
+                operation_id=operation_id)
+        if not str(reason_code or "").strip():
+            return fail_from_domain_error(LoyaltyDomainError("Captura el motivo."),
+                                          operation_id=operation_id)
+        tope, tope_diario = _manual_adjust_limits(connection)
+        if abs(points_amount) > tope:
+            return fail_from_domain_error(
+                LoyaltyDomainError(f"Una corrección manual no puede pasar de {tope} puntos."),
+                operation_id=operation_id)
         try:
+            self._auth.require_branch(requested_by, actor_branch_id)
             self._auth.authorize_exception(
                 authorizer_user_id=authorizer_user_id, requested_by=requested_by,
                 permission_code=LoyaltyPermissions.POINTS_ADJUST,
@@ -290,12 +361,29 @@ class AdjustLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
                 return fail_from_domain_error(
                     LoyaltyAccountNotFoundError(f"Cuenta {loyalty_account_id} no existe"),
                     operation_id=operation_id)
+            if points_amount > 0:
+                hoy = _today_prefix()
+                dado_hoy = sum(
+                    (t.points_amount for t in uow.transactions.list_for_account(loyalty_account_id)
+                     if t.transaction_type is TransactionType.ADJUSTMENT
+                     and t.points_amount > 0 and str(t.created_at).startswith(hoy)),
+                    Decimal("0"))
+                if dado_hoy + points_amount > tope_diario:
+                    return fail_from_domain_error(
+                        LoyaltyDomainError(
+                            f"Este cliente ya recibió {dado_hoy} puntos por corrección hoy; "
+                            f"el tope diario es {tope_diario}."),
+                        operation_id=operation_id)
             try:
                 adjustment = LoyaltyTransaction.adjustment(
                     loyalty_account_id=loyalty_account_id, points_amount=points_amount,
                     operation_id=operation_id, reason_code=reason_code,
                     membership_id=membership_id, branch_id=actor_branch_id,
                     created_by_user_id=authorizer_user_id,
+                    source_module="manual_correction", source_document_type="MANUAL_CORRECTION",
+                    notes=(f"Documento: {documento}. Pidió: {requested_by}."
+                           + (f" Evidencia: {evidence.strip()}" if evidence.strip() else "")),
+                    point_value=_current_point_value(connection),
                 )
                 saldo = LoyaltyBalancePolicy.balance(
                     uow.transactions.list_for_account(loyalty_account_id))
@@ -308,7 +396,8 @@ class AdjustLoyaltyPointsUseCase(_LoyaltyBaseUseCase):
             self._emit(uow, LoyaltyEvents.POINTS_ADJUSTED, entity_id=adjustment.id,
                        operation_id=operation_id, branch_id=actor_branch_id,
                        actor_user_id=authorizer_user_id, requested_by=requested_by,
-                       points_amount=str(points_amount), reason_code=reason_code)
+                       points_amount=str(points_amount), reason_code=reason_code,
+                       source_document=documento)
         return LoyaltyResult.ok(
             "Ajuste registrado", entity_id=adjustment.id, operation_id=operation_id,
             transaction=LoyaltyTransactionDTO.from_entity(adjustment))
@@ -321,6 +410,7 @@ class ReverseLoyaltyTransactionUseCase(_LoyaltyBaseUseCase):
     ) -> LoyaltyResult:
         try:
             self._auth.require(actor_user_id, LoyaltyPermissions.POINTS_REVERSE)
+            self._auth.require_branch(actor_user_id, actor_branch_id)
         except LoyaltyDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
         with LoyaltyUnitOfWork(connection) as uow:

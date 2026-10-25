@@ -12,6 +12,7 @@ section the layout disabled/omitted.
 
 from __future__ import annotations
 from decimal import Decimal, InvalidOperation
+import os
 
 from PyQt5.QtCore import QSize, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QFont, QGuiApplication, QPixmap
@@ -418,6 +419,8 @@ class CustomerDisplayWindow(QWidget):
         self._fit_ad_pixmap()
 
     def _play_video(self, media_path: str) -> bool:
+        if os.name == "nt":
+            os.environ.setdefault("QT_MULTIMEDIA_PREFERRED_PLUGINS", "windowsmediafoundation")
         try:
             from PyQt5.QtCore import QUrl
             from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QMediaPlaylist
@@ -426,7 +429,10 @@ class CustomerDisplayWindow(QWidget):
             return False
         if self._video_widget is None:
             self._video_widget = QVideoWidget(self)
-            self._video_player = QMediaPlayer(self, QMediaPlayer.VideoSurface)
+            # QVideoWidget uses the native renderer. VideoSurface forces a
+            # different service capability and selects DirectShow over WMF,
+            # which fails to connect filters for otherwise valid MP4 files.
+            self._video_player = QMediaPlayer(self)
             self._video_player.setVideoOutput(self._video_widget)
             self._video_player.setMuted(True)
             self._video_player.error.connect(self._video_failed)

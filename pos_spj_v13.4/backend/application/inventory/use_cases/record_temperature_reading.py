@@ -18,6 +18,7 @@ from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.services.lot_quality_projection import (
     project_lot_quality_transition,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.cold_chain import (
     TemperatureExcursion,
     TemperatureReading,
@@ -43,7 +44,7 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class RecordTemperatureReadingUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
         self._policy = ColdChainPolicy()
 
     def execute(self, connection, *, sensor_id: str, warehouse_id: str, temperature,

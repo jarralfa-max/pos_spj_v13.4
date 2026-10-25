@@ -199,6 +199,39 @@ class TestRenderIdleAd:
             window.close()
 
 
+class TestVideoBackend:
+    def test_widget_player_does_not_force_surface_backend(self, app, monkeypatch):
+        from PyQt5 import QtMultimedia
+        real_player = QtMultimedia.QMediaPlayer
+        requested_flags = []
+
+        def create_player(parent=None, flags=real_player.Flags()):
+            requested_flags.append(flags)
+            return real_player(parent, flags)
+
+        create_player.VideoSurface = real_player.VideoSurface
+        monkeypatch.setattr(QtMultimedia, "QMediaPlayer", create_player)
+        window = CustomerDisplayWindow()
+        try:
+            window._play_video("unavailable-test-video.mp4")
+            assert not (requested_flags[0] & real_player.VideoSurface)
+        finally:
+            window.close()
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows multimedia preference")
+    def test_windows_prefers_media_foundation_without_overriding_explicit_choice(self, app, monkeypatch):
+        monkeypatch.delenv("QT_MULTIMEDIA_PREFERRED_PLUGINS", raising=False)
+        window = CustomerDisplayWindow()
+        try:
+            window._play_video("unavailable-test-video.mp4")
+            assert os.environ.get("QT_MULTIMEDIA_PREFERRED_PLUGINS") == "windowsmediafoundation"
+            monkeypatch.setenv("QT_MULTIMEDIA_PREFERRED_PLUGINS", "directshow")
+            window._play_video("unavailable-test-video.mp4")
+            assert os.environ["QT_MULTIMEDIA_PREFERRED_PLUGINS"] == "directshow"
+        finally:
+            window.close()
+
+
 class TestRealTopLevelWindowWhenParented:
     """SET-18 repegado: real bug found while smoke-testing the ad
     rotation — `SalesPosWorkspace` constructs this window with itself as

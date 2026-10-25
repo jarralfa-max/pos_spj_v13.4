@@ -56,6 +56,12 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
+from backend.domain.finance.enums import OPEN_RECEIVABLE_STATUSES, sql_in
+
+#: Estados con saldo exigible que publica Finanzas (FIN-ERP): una CxC vencida o en
+#: disputa sigue consumiendo el límite de crédito.
+_OPEN_RECEIVABLES = sql_in(OPEN_RECEIVABLE_STATUSES)
+
 
 @dataclass(frozen=True)
 class CustomerAccountsReceivableSummary:
@@ -140,7 +146,7 @@ class CustomerAccountsReceivableSummaryQuery:
             (row[0], row[1], None, row[2])
             for row in self._conn.execute(
                 "SELECT outstanding_amount, issue_date, due_date FROM receivables"
-                f" WHERE customer_id IN ({marks}) AND status IN ('OPEN','PARTIALLY_COLLECTED')",
+                f" WHERE customer_id IN ({marks}) AND status IN {_OPEN_RECEIVABLES}",
                 ids).fetchall()
         ]
 

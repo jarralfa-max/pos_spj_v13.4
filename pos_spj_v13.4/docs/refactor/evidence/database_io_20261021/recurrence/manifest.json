@@ -1,0 +1,17 @@
+[
+  {
+    "name": "spj_pos_database.db",
+    "bytes": 14217216,
+    "sha256": "d7eb88ffdea82f110d7283ae7aee7d52f3f7891ff9c3e452bebca1739ec8ad7b"
+  },
+  {
+    "name": "spj_pos_database.db-wal",
+    "bytes": 24752,
+    "sha256": "9c9a215caa526cb89653d93f4a6beacaf6988a74639581d1593da79f5680c5df"
+  },
+  {
+    "name": "spj_pos_database.db-shm",
+    "bytes": 32768,
+    "sha256": "3e4d0ac8ec8f36884f0c75fa38cd8c456266bcf42a95db5a495588c4a106f550"
+  }
+]

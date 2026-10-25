@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 
 from backend.application.event_handlers.inventory._ingress import resolve_ingress
+from backend.application.inventory.integration_grants import integration_use_case
 from backend.application.inventory.use_cases.lot_use_cases import (
     RegisterInventoryLotUseCase,
 )
@@ -52,8 +53,10 @@ class PurchaseReceiptHandler:
                  use_case: PostInventoryMovementUseCase | None = None,
                  lot_use_case: RegisterInventoryLotUseCase | None = None) -> None:
         self._conn = connection
-        self._uc = use_case or PostInventoryMovementUseCase()
-        self._lot_uc = lot_use_case or RegisterInventoryLotUseCase()
+        # Sin caso de uso inyectado se usa la concesión de Compras (PER-02):
+        # antes era el default permisivo, que no revisaba nada.
+        self._uc = use_case
+        self._lot_uc = lot_use_case
 
     def handle(self, payload: dict) -> None:
         ingress, reason = resolve_ingress(payload)
@@ -81,8 +84,13 @@ class PurchaseReceiptHandler:
             warehouse_id=ingress.warehouse_id, source_module="procurement",
             source_document_type=_SOURCE_DOCUMENT_TYPE, source_document_id=document_id,
             operation_id=ingress.operation_id, created_by_user_id=user, lines=built)
-        result = self._uc.execute(self._conn, movement, actor_user_id=user)
-        if not result.success and result.error_code != "PERMISSION_DENIED":
+        uc = self._uc or integration_use_case(PostInventoryMovementUseCase, "procurement", user)
+        result = uc.execute(self._conn, movement, actor_user_id=user)
+        if not result.success and result.error_code == "PERMISSION_DENIED":
+            # No se relanza (el bus no debe caer), pero tampoco se calla.
+            logger.error("purchase receipt %s DENEGADA: %s", ingress.operation_id,
+                         result.message)
+        elif not result.success:
             logger.error("purchase receipt %s falló: %s", ingress.operation_id,
                          result.message)
             raise RuntimeError(result.message)
@@ -118,7 +126,9 @@ class PurchaseReceiptHandler:
         inspección» aunque nadie fuera a inspeccionarlo, y Producción —que sólo
         reserva lotes liberados— no podía transformar nada comprado."""
         extra = {"quality_status": LotQualityStatus.RELEASED} if released else {}
-        res = self._lot_uc.execute(
+        lot_uc = self._lot_uc or integration_use_case(
+            RegisterInventoryLotUseCase, "procurement", user)
+        res = lot_uc.execute(
             self._conn, product_id=product_id, lot_code=lot_code,
             origin_type=LotOrigin.PURCHASE,
             operation_id=f"{operation_id}:lot:{product_id}:{lot_code}",

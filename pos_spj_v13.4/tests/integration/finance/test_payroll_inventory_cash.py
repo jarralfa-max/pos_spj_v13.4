@@ -9,9 +9,6 @@ from backend.application.event_handlers.finance.inventory_adjustment_handler imp
     InventoryAdjustmentHandler,
     ProductionCompletedHandler,
 )
-from backend.application.event_handlers.finance.waste_registered_handler import (
-    WasteRegisteredHandler,
-)
 from backend.application.event_handlers.finance.payroll_paid_handler import PayrollPaidHandler
 from backend.domain.finance.enums import PostingPurpose
 from backend.domain.finance.exceptions import FinanceDomainError
@@ -98,19 +95,6 @@ class TestCashShift:
 
 
 class TestInventoryEvents:
-    def test_waste_posts_cost(self, bootstrapped_conn):
-        handler = WasteRegisteredHandler(bootstrapped_conn)
-        waste_id = new_uuid()
-        handler.handle({
-            "event_id": new_uuid(), "operation_id": new_uuid(),
-            "waste_id": waste_id, "occurred_at": OCCURRED, "amount": "350.00",
-        })
-        with FinanceUnitOfWork(bootstrapped_conn) as uow:
-            entry = uow.journal_entries.find_by_posting_reference(
-                "inventory", waste_id, PostingPurpose.WASTE)
-        assert entry.is_balanced()
-        assert entry.total_debits().to_string() == "350.00"
-
     def test_adjustment_directions(self, bootstrapped_conn):
         handler = InventoryAdjustmentHandler(bootstrapped_conn)
         for direction in ("INCREASE", "DECREASE"):

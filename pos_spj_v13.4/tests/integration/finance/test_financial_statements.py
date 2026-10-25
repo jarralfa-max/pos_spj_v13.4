@@ -1,5 +1,7 @@
 """FASES 17-18 — estados financieros y query services de solo lectura."""
 
+from datetime import date
+
 from backend.application.event_handlers.finance.payroll_paid_handler import PayrollPaidHandler
 from backend.application.event_handlers.finance.purchase_received_handler import (
     PurchaseReceivedHandler,
@@ -7,14 +9,12 @@ from backend.application.event_handlers.finance.purchase_received_handler import
 from backend.application.event_handlers.finance.sale_completed_handler import (
     SaleCompletedHandler,
 )
-from backend.application.queries.finance.finance_read_services import (
-    CommercialObligationQueryService,
-    FinanceDashboardQueryService,
-    JournalQueryService,
-    PayableQueryService,
-    ReceivableQueryService,
-    TreasuryQueryService,
-)
+from backend.application.queries.finance.commercial_obligation_query_service import CommercialObligationQueryService
+from backend.application.queries.finance.finance_dashboard_query_service import FinanceDashboardQueryService
+from backend.application.queries.finance.journal_query_service import JournalQueryService
+from backend.application.queries.finance.payable_query_service import PayableQueryService
+from backend.application.queries.finance.receivable_query_service import ReceivableQueryService
+from backend.application.queries.finance.treasury_query_service import TreasuryQueryService
 from backend.application.queries.finance.financial_statement_query_service import (
     FinancialStatementQueryService,
 )
@@ -87,11 +87,12 @@ class TestStatements:
 class TestReadServices:
     def test_dashboard_overview(self, bootstrapped_conn):
         _seed_activity(bootstrapped_conn)
-        overview = FinanceDashboardQueryService(bootstrapped_conn).overview(
-            month_from=FROM, month_to=TO)
-        assert overview["revenue"] == "435.17"
+        dashboard = FinanceDashboardQueryService(bootstrapped_conn).dashboard(
+            today=date(2026, 7, 31), with_charts=False)
+        kpis = {k.key: k.value for k in dashboard.kpis}
+        assert kpis["net_sales"] == "405.17"       # 435.17 - 30 descuento
         # Suma exacta en Decimal, con el formato monetario canónico (F20).
-        assert overview["open_payables"] == "1160.00"
+        assert kpis["payables"] == "1160.00"
 
     def test_journal_query_lists_entries_and_lines(self, bootstrapped_conn):
         _seed_activity(bootstrapped_conn)

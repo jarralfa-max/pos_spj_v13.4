@@ -480,11 +480,9 @@ def test_10_permissions_are_denied_in_the_screen_and_in_the_backend(env):
 
 # ── 11 ────────────────────────────────────────────────────────────────────────
 def test_11_credit_purchase_ends_in_a_paid_payable(env):
-    from backend.application.use_cases.finance.payable_use_cases import (
-        AuthorizeSupplierPaymentUseCase,
-        ExecuteSupplierPaymentUseCase,
-        ScheduleSupplierPaymentUseCase,
-    )
+    from backend.application.use_cases.finance.authorize_supplier_payment_use_case import AuthorizeSupplierPaymentUseCase
+    from backend.application.use_cases.finance.execute_supplier_payment_use_case import ExecuteSupplierPaymentUseCase
+    from backend.application.use_cases.finance.schedule_supplier_payment_use_case import ScheduleSupplierPaymentUseCase
     buyer, approver, order = _sent_order(env, [{"product_id": "p-alas", "quantity": "50",
                                                 "unit_price": "42", "discount": "100",
                                                 "tax": "320"}])
@@ -508,16 +506,29 @@ def test_11_credit_purchase_ends_in_a_paid_payable(env):
     # Finanzas F13: un pago por banco necesita la cuenta del beneficiario.
     env.conn.execute("UPDATE proveedores SET cuenta_bancaria='012180001234567897'"
                      " WHERE id='019a0000-0000-7000-8000-0000000000a1'")
-    payment = ScheduleSupplierPaymentUseCase().execute(
+    from backend.application.use_cases.finance.register_capital_movement_use_case import (
+        RegisterCapitalMovementUseCase,
+    )
+    from backend.domain.finance.enums import CapitalMovementKind
+    from backend.infrastructure.integrations.finance_supplier_directory import (
+        SqliteSupplierDirectory,
+    )
+    # Tesorería F05: una salida exige saldo; el banco recibe una aportación.
+    RegisterCapitalMovementUseCase().execute(
+        env.conn, kind=CapitalMovementKind.CONTRIBUTION, amount="5000.00",
+        movement_date=date.today(), treasury_account_id=bank, counterparty="Socio",
+        operation_id=new_uuid(), created_by="tesorero")
+    directory = SqliteSupplierDirectory(env.conn)
+    payment = ScheduleSupplierPaymentUseCase(directory).execute(
         env.conn, payable_id=env.conn.execute("SELECT id FROM payables").fetchone()[0],
         amount="2320.00", scheduled_date=date.today(), treasury_account_id=bank,
         scheduled_by="tesorero", operation_id=new_uuid())
     AuthorizeSupplierPaymentUseCase().execute(env.conn, payment_id=payment.id,
                                               authorized_by="director", operation_id=new_uuid())
-    ExecuteSupplierPaymentUseCase().execute(env.conn, payment_id=payment.id,
-                                            executed_date=date.today(), operation_id=new_uuid(),
-                                            execution_reference="SPEI-900")
-    assert buyer.invoice_detail(invoice["entity_id"]).payable["status"] == "SETTLED"
+    ExecuteSupplierPaymentUseCase(directory).execute(
+        env.conn, payment_id=payment.id, executed_date=date.today(), operation_id=new_uuid(),
+        executed_by="cajero", execution_reference="SPEI-900")
+    assert buyer.invoice_detail(invoice["entity_id"]).payable["status"] == "PAID"
     debit, credit = env.conn.execute(
         "SELECT SUM(CAST(debit_amount AS NUMERIC)), SUM(CAST(credit_amount AS NUMERIC))"
         " FROM journal_lines").fetchone()

@@ -13,13 +13,14 @@ from __future__ import annotations
 
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
 from backend.application.inventory.permissions import InventoryPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.policies.catch_weight_policy import CatchWeightPolicy
 from backend.domain.inventory.value_objects.catch_weight import WeightReading
 
 
 class WeightCaptureService:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
         self._policy = CatchWeightPolicy()
 
     def capture_from_scale(self, gateway, *, actor_user_id: str,

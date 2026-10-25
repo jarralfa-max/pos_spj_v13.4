@@ -7,6 +7,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from backend.infrastructure.db.repositories.commercial_instruments.batch_repository import (
+    InstrumentBatchItemRepository,
+    InstrumentBatchRepository,
+    VoucherRulesRepository,
+)
 from backend.infrastructure.db.repositories.commercial_instruments.coupon_repository import (
     CouponDefinitionRepository,
     CouponInstanceRepository,
@@ -21,9 +26,10 @@ from backend.infrastructure.db.repositories.commercial_instruments.voucher_repos
     VoucherRedemptionRepository,
     VoucherTransactionRepository,
 )
+from backend.infrastructure.db.transaction import TransactionalUnitOfWork
 
 
-class CommercialInstrumentsUnitOfWork:
+class CommercialInstrumentsUnitOfWork(TransactionalUnitOfWork):
     def __init__(self, connection: Any, *, owns_transaction: bool = True) -> None:
         self.connection = connection
         self._owns_transaction = owns_transaction
@@ -35,27 +41,8 @@ class CommercialInstrumentsUnitOfWork:
         self.voucher_transactions = VoucherTransactionRepository(connection)
         self.voucher_redemptions = VoucherRedemptionRepository(connection)
         self.outbox = CommercialInstrumentsOutboxRepository(connection)
+        # Lotes físicos (auditoría de Fidelidad 968e0bc, ampliación).
+        self.batches = InstrumentBatchRepository(connection)
+        self.batch_items = InstrumentBatchItemRepository(connection)
+        self.voucher_rules = VoucherRulesRepository(connection)
         self._completed = False
-
-    def __enter__(self) -> "CommercialInstrumentsUnitOfWork":
-        self._completed = False
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> bool:
-        if exc_type is not None:
-            self.rollback()
-        elif not self._completed:
-            self.commit()
-        return False
-
-    def commit(self) -> None:
-        if self._owns_transaction:
-            self.connection.commit()
-        self._completed = True
-
-    def rollback(self) -> None:
-        if self._owns_transaction:
-            rollback = getattr(self.connection, "rollback", None)
-            if rollback is not None:
-                rollback()
-        self._completed = True

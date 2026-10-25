@@ -31,6 +31,7 @@ from backend.application.products.commands.product_unit_commands import (
     SetUnitConversionActiveCommand,
 )
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.product_unit_conversion import (
     ProductUnitConversion,
 )
@@ -60,7 +61,7 @@ class _Base:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = UnitRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def _rollback(self) -> None:
         rb = getattr(self._conn, "rollback", None)

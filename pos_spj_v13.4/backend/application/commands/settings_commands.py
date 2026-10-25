@@ -150,10 +150,13 @@ class SaveRolePermissionsCommand(BaseCommand):
 @dataclass(frozen=True)
 class SaveUserPermissionsCommand(BaseCommand):
     """`permissions`: `{"module", "action", "state"}` con state INHERIT, GRANT o
-    DENY. `target_user_id` es el usuario editado; `user_id` es quien actúa."""
+    DENY. `target_user_id` es el usuario editado; `user_id` es quien actúa.
+    `scope_branch_id` vacío = excepción en todas las sucursales; con valor, sólo
+    en esa sucursal (auditoría de permisos 968e0bc, PER-08)."""
 
     target_user_id: str = ""
     permissions: tuple[Mapping[str, Any], ...] = field(default_factory=tuple)
+    scope_branch_id: str = ""
 
     def validate_context(self) -> None:
         super().validate_context()

@@ -23,9 +23,10 @@ from backend.infrastructure.db.repositories.sweepstakes.entry_repository import 
 from backend.infrastructure.db.repositories.sweepstakes.outbox_repository import (
     SweepstakesOutboxRepository,
 )
+from backend.infrastructure.db.transaction import TransactionalUnitOfWork
 
 
-class SweepstakesUnitOfWork:
+class SweepstakesUnitOfWork(TransactionalUnitOfWork):
     def __init__(self, connection: Any, *, owns_transaction: bool = True) -> None:
         self.connection = connection
         self._owns_transaction = owns_transaction
@@ -38,26 +39,3 @@ class SweepstakesUnitOfWork:
         self.winners = SweepstakesWinnerRepository(connection)
         self.outbox = SweepstakesOutboxRepository(connection)
         self._completed = False
-
-    def __enter__(self) -> "SweepstakesUnitOfWork":
-        self._completed = False
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> bool:
-        if exc_type is not None:
-            self.rollback()
-        elif not self._completed:
-            self.commit()
-        return False
-
-    def commit(self) -> None:
-        if self._owns_transaction:
-            self.connection.commit()
-        self._completed = True
-
-    def rollback(self) -> None:
-        if self._owns_transaction:
-            rollback = getattr(self.connection, "rollback", None)
-            if rollback is not None:
-                rollback()
-        self._completed = True

@@ -82,7 +82,8 @@ class LoyaltyAccrualEvaluator:
         momento = instante.astimezone()
         ajustes = LoyaltyProgramSettingsQuery(self._conn).accrual()
         elegible = LoyaltyAccrualPolicy.eligible_amount(
-            total=_dec(total), credit_amount=_dec(credit_amount), settings=ajustes)
+            total=_dec(total), credit_amount=_dec(credit_amount), settings=ajustes,
+            payments=payments)
         lineas = [dict(ln) for ln in lines or ()]
         categorias = self._reader.category_ids(
             [str(ln.get("product_id")) for ln in lineas if ln.get("product_id")])
@@ -231,9 +232,15 @@ class EvaluateCustomerBenefitsQuery:
             ganar, desglose = 0, ()
             avisos.append("Sin cliente: la compra no acumula puntos")
         else:
+            # La MISMA base que la venta confirmada (FID-04): el total tras
+            # descuentos y, como pagos, el vale y el medio elegido.
+            pagos_base = list(pagos or ())
+            if vales > 0:
+                pagos_base.append({"method": "VOUCHER", "amount": str(vales)})
             evaluacion = LoyaltyAccrualEvaluator(self._conn).evaluate(
-                customer_id=request.customer_id, branch_id=request.branch_id, total=a_pagar,
-                credit_amount=credito, lines=request.sale_lines, payments=pagos or (),
+                customer_id=request.customer_id, branch_id=request.branch_id,
+                total=max(subtotal - descuento, _ZERO), credit_amount=credito,
+                lines=request.sale_lines, payments=pagos_base,
                 channel=request.channel, occurred_at=request.occurred_at)
             ganar = evaluacion.points
             desglose = tuple({"rule_id": a.rule_id, "code": a.code, "name": a.name,

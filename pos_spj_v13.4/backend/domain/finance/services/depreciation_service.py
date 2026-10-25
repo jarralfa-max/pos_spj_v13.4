@@ -27,7 +27,7 @@ class DepreciationDomainService:
     def depreciable_assets(assets: list[FixedAsset], period_code: str) -> list[FixedAsset]:
         return [
             asset for asset in assets
-            if asset.status is FixedAssetStatus.CAPITALIZED
+            if asset.status is FixedAssetStatus.ACTIVE
             and (asset.last_depreciated_period is None or asset.last_depreciated_period < period_code)
             and asset.capitalization_date is not None
             and f"{asset.capitalization_date.year:04d}-{asset.capitalization_date.month:02d}" <= period_code

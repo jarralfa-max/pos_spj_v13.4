@@ -31,6 +31,7 @@ from backend.application.inventory.services.weight_capture_service import (
 from backend.application.inventory.use_cases.adjustment_use_cases import (
     CreateAdjustmentUseCase,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.enums import AdjustmentReason
 from backend.domain.inventory.exceptions import (
     InventoryDomainError,
@@ -41,7 +42,7 @@ from backend.domain.inventory.exceptions import (
 
 class RecordCatchWeightUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
         self._capture = WeightCaptureService(self._auth)
         self._adjust = CreateAdjustmentUseCase(self._auth)
 

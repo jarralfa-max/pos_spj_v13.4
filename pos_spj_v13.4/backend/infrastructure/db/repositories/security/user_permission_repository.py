@@ -1,13 +1,19 @@
-"""Escritura de `usuario_permisos`: excepciones de permiso de UN usuario.
+"""Escritura de las excepciones de permiso de UN usuario.
+
+- `usuario_permisos`: excepción en TODAS las sucursales.
+- `usuario_sucursal_permisos`: excepción sólo en UNA sucursal. Hasta la
+  auditoría de permisos 968e0bc (PER-08) esta capa se leía al resolver pero no
+  tenía ningún escritor: no había forma de administrarla.
 
 `permitido=1` concede algo que su rol no tiene; `permitido=0` niega algo que su
 rol sí tiene (lo aplica `PermissionQueryService._apply_overrides`). Sin fila,
 el usuario tiene exactamente lo de su rol.
 
-La tabla no tiene llave única por (usuario, módulo, acción), así que fijar una
-excepción BORRA antes las que hubiera para ese código: dos filas del mismo
-permiso se aplicarían en orden y la última ganaría sin que nadie lo vea.
-No confirma: el caso de uso cierra la transacción junto con la auditoría.
+Desde la migración 347 ambas tablas tienen índice ÚNICO por (usuario[,
+sucursal], módulo, acción). Fijar una excepción sigue borrando antes la que
+hubiera, dentro de la transacción del caso de uso: equivale a un UPSERT y
+funciona también en una base anterior a la 347. No confirma: el caso de uso
+cierra la transacción junto con la auditoría.
 """
 
 from __future__ import annotations
@@ -43,3 +49,36 @@ class SqliteUserPermissionRepository(SecurityRepositoryBase):
         self._conn.execute(
             "INSERT INTO usuario_permisos (id, usuario_id, modulo, accion, permitido)"
             " VALUES (?,?,?,?,?)", (new_uuid(), str(user_id), modulo, accion, 1 if granted else 0))
+
+    # ── excepciones en UNA sucursal ─────────────────────────────────────────
+    def branch_overrides(self, user_id: str, branch_id: str) -> dict[str, bool]:
+        rows = self._query(
+            "SELECT modulo, accion, permitido FROM usuario_sucursal_permisos"
+            " WHERE usuario_id=? AND sucursal_id=?", (str(user_id), str(branch_id)))
+        return {permission_code(r["modulo"], r["accion"]): bool(r["permitido"]) for r in rows}
+
+    def clear_branch(self, user_id: str, branch_id: str, code: str) -> None:
+        modulo, accion = code.split(".", 1)
+        self._conn.execute(
+            "DELETE FROM usuario_sucursal_permisos WHERE usuario_id=? AND sucursal_id=?"
+            " AND upper(modulo)=upper(?) AND lower(accion)=lower(?)",
+            (str(user_id), str(branch_id), modulo, accion))
+
+    def set_branch(self, user_id: str, branch_id: str, code: str, granted: bool) -> None:
+        self.clear_branch(user_id, branch_id, code)
+        modulo, accion = code.split(".", 1)
+        self._conn.execute(
+            "INSERT INTO usuario_sucursal_permisos"
+            " (id, usuario_id, sucursal_id, modulo, accion, permitido) VALUES (?,?,?,?,?,?)",
+            (new_uuid(), str(user_id), str(branch_id), modulo.upper(), accion.lower(),
+             1 if granted else 0))
+
+    def active_branch(self, branch_id: str) -> tuple[str, str] | None:
+        """`(id, nombre)` de una sucursal activa, o `None`."""
+        row = self._query_one("SELECT id, nombre FROM sucursales WHERE id=? AND activa=1",
+                              (str(branch_id),))
+        return None if row is None else (str(row["id"]), str(row["nombre"]))
+
+    def active_branches(self) -> tuple[tuple[str, str], ...]:
+        rows = self._query("SELECT id, nombre FROM sucursales WHERE activa=1 ORDER BY nombre")
+        return tuple((str(r["id"]), str(r["nombre"])) for r in rows)

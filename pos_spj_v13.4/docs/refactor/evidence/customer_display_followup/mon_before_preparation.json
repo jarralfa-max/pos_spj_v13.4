@@ -1,0 +1,27 @@
+{
+  "campaign": {
+    "id": "01a15256-90e0-7964-8da0-306627f33985",
+    "name": "mon",
+    "content_id": "01a15255-790c-7242-ab40-f340505ddbbc",
+    "status": "DRAFT",
+    "starts_at": "2026-10-15T22:07:13",
+    "ends_at": "2026-10-19T22:07:13",
+    "created_by_user_id": "01a0d664-e618-7659-ad9e-cdaad8f61247",
+    "approved_by_user_id": null,
+    "activated_by_user_id": null,
+    "reason": null,
+    "created_at": "2026-10-19T04:06:07+00:00",
+    "updated_at": "2026-10-19T04:07:47+00:00"
+  },
+  "slots": [
+    {
+      "id": "01a11e47-8d42-7bb6-bf7e-2d939d35c4ad",
+      "code": "CAD01",
+      "mode": "THANK_YOU",
+      "display_order": 1,
+      "active": true,
+      "created_at": "2026-10-09T01:29:28+00:00",
+      "updated_at": "2026-10-19T03:52:18+00:00"
+    }
+  ]
+}

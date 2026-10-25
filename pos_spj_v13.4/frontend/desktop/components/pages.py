@@ -41,6 +41,12 @@ class StandardPage(QWidget):
         self.root_layout.addWidget(self.actions)
         self.actions.hide()
 
+    def heightForWidth(self, width: int) -> int:
+        # A parent scroll area treats this as a minimum. Reserve only the
+        # actual header/actions height; the body already owns its overflow.
+        return max(self.root_layout.minimumHeightForWidth(width),
+                   self.minimumSizeHint().height(), self.minimumHeight())
+
     def add_content(self, widget: QWidget, stretch: int = 0) -> None:
         self.content_layout.addWidget(widget, stretch)
 

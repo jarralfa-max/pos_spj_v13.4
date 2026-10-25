@@ -139,13 +139,38 @@ class SqliteUserDirectoryRepository(SettingsRepositoryBase):
         rows = self._conn.execute("SELECT nombre FROM roles ORDER BY nombre").fetchall()
         return [row[0] for row in rows]
 
+    def role_name(self, role_id: str) -> str | None:
+        row = self._conn.execute("SELECT nombre FROM roles WHERE id = ?",
+                                 (validate_uuidv7(role_id),)).fetchone()
+        return None if row is None else str(row[0] or "")
+
+    def user_role(self, user_id: str) -> str | None:
+        """Rol (por nombre) de un usuario, o `None` si no existe."""
+        row = self._conn.execute("SELECT rol FROM usuarios WHERE id = ?",
+                                 (str(user_id or ""),)).fetchone()
+        return None if row is None else str(row[0] or "")
+
     def save_role(self, *, role_id: str | None, name: str, description: str) -> str:
         persisted_id = validate_uuidv7(role_id) if role_id else new_uuid()
         if role_id and self._exists("roles", persisted_id):
-            self._conn.execute(
-                "UPDATE roles SET nombre = ?, descripcion = ? WHERE id = ?",
-                (name, description, persisted_id),
-            )
+            anterior = self.role_name(persisted_id)
+            # `usuarios.rol` guarda el NOMBRE del rol. Renombrar sin arrastrar a
+            # sus usuarios los dejaba con un rol inexistente y SIN NINGÚN permiso
+            # (auditoría de permisos 968e0bc). Las dos escrituras van juntas.
+            self._conn.execute("SAVEPOINT rename_role")
+            try:
+                self._conn.execute(
+                    "UPDATE roles SET nombre = ?, descripcion = ? WHERE id = ?",
+                    (name, description, persisted_id),
+                )
+                if anterior is not None and anterior != name:
+                    self._conn.execute("UPDATE usuarios SET rol = ? WHERE rol = ?",
+                                       (name, anterior))
+                self._conn.execute("RELEASE SAVEPOINT rename_role")
+            except Exception:
+                self._conn.execute("ROLLBACK TO SAVEPOINT rename_role")
+                self._conn.execute("RELEASE SAVEPOINT rename_role")
+                raise
         else:
             self._conn.execute(
                 "INSERT INTO roles (id, nombre, descripcion) VALUES (?, ?, ?)",

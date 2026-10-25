@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.channel_enums import SalesChannel
 from backend.domain.products.entities.assortment import Assortment, AssortmentProduct
 from backend.domain.products.entities.branch_product import BranchProduct
@@ -41,7 +42,7 @@ class _Base:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = BranchAssortmentRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def _commit(self) -> None:
         self._conn.commit()

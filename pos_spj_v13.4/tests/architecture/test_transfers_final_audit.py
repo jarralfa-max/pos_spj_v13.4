@@ -43,7 +43,8 @@ def test_transfer_events_permissions_offline_inventory_and_legacy_are_canonical(
     assert ALL_TRANSFER_EVENTS
     assert all(name.startswith("TRANSFER_") for name in ALL_TRANSFER_EVENTS)
     assert ALL_TRANSFER_PERMISSIONS
-    assert all(code.startswith("TRANSFERS_") for code in ALL_TRANSFER_PERMISSIONS)
+    # Auditoría de permisos 968e0bc (PER-04): `TRANSFERENCIAS.<accion>`, otorgable.
+    assert all(code.startswith("TRANSFERENCIAS.") for code in ALL_TRANSFER_PERMISSIONS)
     inventory = (ROOT / "backend/application/transfers/integrations/inventory_gateway.py").read_text()
     offline = (ROOT / "backend/application/transfers/offline_sync.py").read_text()
     assert "InventoryEngine" not in inventory and "sqlite3" not in inventory

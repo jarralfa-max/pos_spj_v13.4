@@ -196,29 +196,10 @@ def _create_auth(conn):
             activo      INTEGER DEFAULT 1
         )
     """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS permisos (
-            id          TEXT NOT NULL PRIMARY KEY,
-            codigo      TEXT UNIQUE NOT NULL,
-            modulo      TEXT NOT NULL,
-            descripcion TEXT
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS roles_permisos (
-            rol_id     TEXT,
-            permiso_id TEXT,
-            PRIMARY KEY (rol_id, permiso_id)
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios_roles (
-            usuario_id  TEXT,
-            rol_id      TEXT,
-            sucursal_id TEXT,
-            PRIMARY KEY (usuario_id, rol_id, sucursal_id)
-        )
-    """)
+    # `permisos`, `roles_permisos` y `usuarios_roles` (RBAC heredado de
+    # `security/rbac.py`) ya NO se crean: sin escritores ni lectores desde la
+    # auditoría de permisos 968e0bc (PER-05). La 348 las retira de las bases
+    # existentes. Los permisos viven en `rol_permisos` + excepciones.
     # Overrides de permisos por usuario y restricciones por sucursal (RBAC).
     # usuario_id/sucursal_id son UUID TEXT — nunca enteros.
     conn.execute("""

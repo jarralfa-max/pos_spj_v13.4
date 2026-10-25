@@ -48,8 +48,20 @@ def wire_cross_context_events(connection) -> dict:
         wire_cash_attendance,
     )
 
+    from backend.application.finance.wiring import wire_finance
+    from backend.application.services.finance.finance_bootstrap import bootstrap_finance
+
     bus = get_bus()
+    # FIN-ERP (2026-10-22): el catálogo financiero (perfiles contables) se siembra
+    # ANTES de despachar lo pendiente de Caja, Compras o RR. HH. Nunca impide el
+    # arranque: sin él, esos eventos quedan pendientes y visibles.
+    try:
+        bootstrap_finance(connection)
+    except Exception:
+        logger.exception("siembra inicial del catálogo financiero fallida")
     summary = {
+        # La merma valuada llega al mayor (antes nadie la consumía).
+        "finance": wire_finance(bus, connection),
         "procurement": wire_procurement(bus, connection),
         # Fase 6 (2026-09-18): la venta completada llega a contabilidad.
         "sales": wire_sales(bus, connection),
@@ -70,6 +82,9 @@ def wire_cross_context_events(connection) -> dict:
         # Auditoría RRHH HR-03 (2026-10-14): apertura y cierre de caja registran
         # la asistencia del cajero (antes cero suscriptores).
         "hr_attendance": wire_cash_attendance(bus, connection),
+        # Auditoría Fidelidad 968e0bc FID-04: lo vendido a crédito acumula al
+        # cobrarse (antes nadie escuchaba COLLECTION_APPLIED).
+        "loyalty": _wire_loyalty(bus, connection),
     }
     for context, result in summary.items():
         logger.info("cross-context wiring: %s -> %d subscriptions", context, result["count"])
@@ -97,14 +112,42 @@ def wire_cross_context_events(connection) -> dict:
         dispatch_cash_outbox(connection, bus)
     except Exception:
         logger.exception("despacho inicial de cash_outbox fallido")
+    # Fidelidad (auditoría 968e0bc FID-10): lo que una venta dejó pendiente
+    # (puntos, canje, vales) se entregaba sólo en la siguiente operación del POS.
     try:
-        from backend.application.services.finance.outbox_dispatcher import (
-            dispatch_finance_outbox,
-        )
-        dispatch_finance_outbox(connection, bus)
+        loyalty_sales_tick(connection, bus)
     except Exception:
-        logger.exception("despacho inicial de finance_outbox fallido")
+        logger.exception("despacho inicial de ventas a Fidelidad fallido")
+    # Finanzas (FIN-ERP): merma valuada pendiente, vencimientos y finance_outbox.
+    try:
+        from backend.application.finance.wiring import finance_periodic_tick
+        finance_periodic_tick(connection, bus)
+    except Exception:
+        logger.exception("ciclo inicial de Finanzas fallido")
     return summary
+
+
+def _wire_loyalty(bus, connection) -> dict:
+    from backend.application.loyalty.integrations.credit_collection import (
+        wire_loyalty_finance,
+    )
+    return wire_loyalty_finance(bus, connection)
+
+
+def loyalty_sales_tick(connection, bus) -> dict:
+    """Entrega `sales_outbox` (Fidelidad acredita, retira o devuelve el canje;
+    Finanzas asienta) y pasa el puente Fidelidad→Finanzas. Idempotente: los
+    consumidores lo son por evento/documento. Lo usa el arranque y el ciclo
+    periódico del shell."""
+    from backend.application.loyalty.integrations.finance_posting import (
+        post_loyalty_finance,
+    )
+    from backend.application.sales.integrations.wiring import dispatch_sales_outbox
+
+    post_loyalty_finance(connection)
+    ventas = dispatch_sales_outbox(connection, bus)
+    post_loyalty_finance(connection)
+    return {"sales_outbox": ventas}
 
 
 def wire_procurement_downstream_bridges(bus, connection) -> dict:

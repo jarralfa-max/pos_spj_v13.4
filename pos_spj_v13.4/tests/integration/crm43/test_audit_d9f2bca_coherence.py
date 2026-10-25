@@ -55,9 +55,7 @@ class TestF06Merge:
         from backend.application.customer_credit.queries.customer_accounts_receivable_summary_query import (
             CustomerAccountsReceivableSummaryQuery,
         )
-        from backend.application.use_cases.finance.receivable_use_cases import (
-            CreateReceivableUseCase,
-        )
+        from backend.application.use_cases.finance.create_receivable_use_case import CreateReceivableUseCase
         owner, _ = presenter_for(conn, "system_owner")
         other_owner, _ = presenter_for(conn, "system_owner")
         master = new_customer(owner, "Cremería Sol")

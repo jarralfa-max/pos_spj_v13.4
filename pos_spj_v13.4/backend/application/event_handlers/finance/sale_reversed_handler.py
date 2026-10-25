@@ -38,6 +38,15 @@ class SaleReversedHandler(FinanceEventHandler):
                 f"SALE_REVERSED: no existe asiento contabilizado para la venta {sale_id}"
             )
 
+        # Rentabilidad (§33): la venta cancelada deja de contar, renglón por renglón.
+        for fact in uow.profitability.facts_of(fact_type="SALE", source_module="sales",
+                                               source_document_id=sale_id):
+            mirror = {k: fact[k] for k in fact if k not in ("id", "created_at", "fact_type",
+                                                             "fact_date", "operation_id")}
+            uow.profitability.record(**mirror, fact_type="RETURN",
+                                     fact_date=reversal_date.isoformat(),
+                                     operation_id=str(payload["operation_id"]))
+
         # Cancel the open receivable of a reversed credit sale.
         for document in uow.financial_documents.find_by_source("sales", sale_id):
             receivable = uow.receivables.find_by_document(document.id)

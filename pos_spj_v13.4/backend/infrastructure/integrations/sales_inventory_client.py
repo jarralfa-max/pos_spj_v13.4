@@ -122,6 +122,16 @@ def _reserve_operation_id(sale_id: str, product_id: str) -> str:
     return f"{sale_id}:reserve:{product_id}"
 
 
+def _sale_movement_use_case(use_case_cls, actor_user_id):
+    """La salida por venta y el reingreso por devolución usan la concesión de
+    Ventas a Inventario (auditoría de permisos 968e0bc, PER-02), en nombre del
+    cajero. Antes usaban el caso de uso sin política, que caía en el default
+    permisivo y no revisaba nada; y la política de SESIÓN no sirve aquí, porque
+    exigiría al cajero el permiso de movimiento manual para poder vender."""
+    from backend.application.inventory.integration_grants import integration_use_case
+    return integration_use_case(use_case_cls, "sales", str(actor_user_id or ""))
+
+
 class SalesInventoryClient:
     def __init__(
         self, connection, *, branch_id: str, actor_user_id: str = "",
@@ -460,7 +470,7 @@ class SalesInventoryClient:
             source_document_type="SALE", source_document_id=str(sale.id),
             operation_id=f"{sale.id}:sale-issue",
             created_by_user_id=str(self._actor_user_id), lines=lines)
-        result = PostInventoryMovementUseCase().execute(
+        result = _sale_movement_use_case(PostInventoryMovementUseCase, self._actor_user_id).execute(
             self._connection, movement, actor_user_id=str(self._actor_user_id),
             negative_allowed=True, authorized=True, owns_transaction=False)
         if not result.success:
@@ -528,7 +538,7 @@ class SalesInventoryClient:
             source_document_type="SALE", source_document_id=str(sale_id),
             operation_id=f"{sale_id}:sale-issue",
             created_by_user_id=str(self._actor_user_id), lines=lines)
-        result = PostInventoryMovementUseCase().execute(
+        result = _sale_movement_use_case(PostInventoryMovementUseCase, self._actor_user_id).execute(
             self._connection, movement, actor_user_id=str(self._actor_user_id),
             owns_transaction=False)
         if not result.success:
@@ -693,7 +703,7 @@ class SalesInventoryClient:
             warehouse_id=self.warehouse_id, source_module="sales",
             source_document_type=source_document_type, source_document_id=str(sale_id),
             operation_id=str(operation_id), created_by_user_id=str(actor_user_id), lines=lines)
-        result = PostInventoryMovementUseCase().execute(
+        result = _sale_movement_use_case(PostInventoryMovementUseCase, actor_user_id).execute(
             self._connection, movement, actor_user_id=str(actor_user_id),
             owns_transaction=False)
         if not result.success:

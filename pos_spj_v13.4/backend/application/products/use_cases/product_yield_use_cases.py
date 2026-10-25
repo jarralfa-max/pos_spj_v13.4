@@ -22,6 +22,7 @@ from backend.application.products.commands.product_yield_commands import (
     YieldVersionTransitionCommand,
 )
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.yield_output import YieldOutput
 from backend.domain.products.entities.yield_profile import YieldProfile
 from backend.domain.products.entities.yield_profile_version import YieldProfileVersion
@@ -63,7 +64,7 @@ class _BaseYieldUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = YieldRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
         self._validator = YieldValidationService()
 
     def _rollback(self) -> None:

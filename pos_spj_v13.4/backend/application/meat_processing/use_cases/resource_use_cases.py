@@ -15,6 +15,7 @@ from backend.application.meat_processing.permissions import MeatProcessingPermis
 from backend.application.meat_processing.result import MeatProcessingResult
 from backend.application.meat_processing.use_cases._shared import fail as _fail
 from backend.application.meat_processing.use_cases._shared import scope_fail as _scope_fail
+from backend.application.security.unwired_policy import unwired
 from backend.domain.meat_processing.entities.equipment_assignment import EquipmentAssignment
 from backend.domain.meat_processing.entities.production_area import ProductionArea
 from backend.domain.meat_processing.entities.production_equipment import ProductionEquipment
@@ -32,7 +33,7 @@ from backend.shared.ids import new_uuid
 
 class CreateProductionAreaUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, branch_id: str, warehouse_id: str, code: str, name: str,
@@ -58,7 +59,7 @@ class CreateProductionAreaUseCase:
 
 class CreateWorkCenterUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, production_area_id: str, code: str, name: str, actor_user_id: str,
@@ -86,7 +87,7 @@ class CreateWorkCenterUseCase:
 
 class CreateProductionStationUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, work_center_id: str, code: str, name: str, actor_user_id: str,
@@ -111,7 +112,7 @@ class CreateProductionStationUseCase:
 
 class RegisterEquipmentUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, work_center_id: str, code: str, name: str, equipment_type: str,
@@ -142,7 +143,7 @@ class RegisterEquipmentUseCase:
 
 class StartEquipmentMaintenanceUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, equipment_id: str, actor_user_id: str,
@@ -170,7 +171,7 @@ class StartEquipmentMaintenanceUseCase:
 
 class CompleteEquipmentMaintenanceUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, equipment_id: str, actor_user_id: str,
@@ -198,7 +199,7 @@ class CompleteEquipmentMaintenanceUseCase:
 
 class RetireEquipmentUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, equipment_id: str, actor_user_id: str,
@@ -231,7 +232,7 @@ class AssignEquipmentUseCase:
     CapacityValidationService already applied)."""
 
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, equipment_id: str, operation_id: str,
@@ -276,7 +277,7 @@ class AssignEquipmentUseCase:
 
 class ReleaseEquipmentAssignmentUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, assignment_id: str, operation_id: str, actor_user_id: str,

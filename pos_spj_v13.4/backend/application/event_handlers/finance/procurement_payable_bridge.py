@@ -18,9 +18,9 @@ Also posts the recognition entry (Debit Inventario/Gasto/Activo per
 ``purchase_nature`` — Credit CxP) — CLAUDE.md §11 requires every financial
 impact to carry a balanced journal entry, and creating the obligation is one.
 The event carries ``nature_subtotals`` (pre-tax subtotal per purchase_nature,
-built by ``SupplierInvoiceLine.purchase_nature`` — see MIGRATION_LOG.md);
-older/legacy payloads without it are only supported through the payable
-creation, never guessed into a journal entry.
+built by ``SupplierInvoiceLine.purchase_nature`` — see MIGRATION_LOG.md). It is
+REQUIRED (FIN-ERP 2026-10-21): a payable without its recognition entry would
+leave the subledger and the ledger apart, so the event is rejected instead.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from backend.application.event_handlers.finance.procurement_posting_policy impor
     purchase_issue_date,
 )
 from backend.application.services.finance.posting_engine import PostingEngine
-from backend.application.use_cases.finance.payable_use_cases import CreatePayableUseCase
+from backend.application.use_cases.finance.create_payable_use_case import create_payable_in
 from backend.domain.finance.enums import JournalType, PostingPurpose
 from backend.domain.finance.exceptions import FinanceDomainError
 from backend.domain.finance.services.journal_posting_service import LineSpec
@@ -44,9 +44,8 @@ from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceU
 class ProcurementPayableBridgeHandler:
     event_name = "PAYABLE_CREATED"
 
-    def __init__(self, connection, use_case: CreatePayableUseCase | None = None) -> None:
+    def __init__(self, connection) -> None:
         self._connection = connection
-        self._use_case = use_case or CreatePayableUseCase()
         self._engine = PostingEngine()
 
     def handle(self, payload: dict) -> None:
@@ -60,16 +59,22 @@ class ProcurementPayableBridgeHandler:
             raise FinanceDomainError(
                 "PAYABLE_CREATED (procurement) requiere supplier_id, document_number, "
                 "amount y operation_id")
+        if not payload.get("nature_subtotals"):
+            raise FinanceDomainError(
+                "PAYABLE_CREATED (procurement) sin desglose por naturaleza "
+                "(nature_subtotals): no se reconoce una CxP sin su asiento")
         currency_code = str(payload.get("currency_code") or "MXN")
         issue_date = purchase_issue_date(payload)
         branch_id = payload.get("branch_id") or None
         with FinanceUnitOfWork(self._connection) as uow:
-            self._use_case.create_in(
+            create_payable_in(
                 uow, supplier_id=supplier_id, amount=str(amount), currency_code=currency_code,
                 document_number=document_number, issue_date=issue_date,
                 due_date=_due_date(issue_date, payload), branch_id=branch_id,
                 source_module="procurement", source_document_id=payload.get("document_id"),
-                operation_id=operation_id)
+                operation_id=operation_id,
+                purchase_order_id=payload.get("purchase_order_id") or None,
+                goods_receipt_id=payload.get("goods_receipt_id") or None)
             self._post_recognition_entry(
                 uow, payload, document_number=document_number, amount=str(amount),
                 currency_code=currency_code, issue_date=issue_date,
@@ -78,10 +83,6 @@ class ProcurementPayableBridgeHandler:
     def _post_recognition_entry(self, uow, payload: dict, *, document_number: str, amount: str,
                                 currency_code: str, issue_date: date, operation_id: str,
                                 branch_id: str | None) -> None:
-        if not payload.get("nature_subtotals"):
-            # payload predates the purchase_nature breakdown — never guess an
-            # account. The ledger-vs-subledger close control reports the gap.
-            return
         profile = uow.posting_profiles.find_effective("PURCHASE", issue_date,
                                                      branch_id=branch_id)
         if profile is None:
@@ -91,7 +92,8 @@ class ProcurementPayableBridgeHandler:
         lines = purchase_debit_lines(profile, payload, currency_code=currency_code,
                                      label=f"CxP {document_number}", total=total)
         if not lines:
-            return
+            raise FinanceDomainError(
+                f"El desglose por naturaleza de {document_number} no produce cargos")
         lines.append(LineSpec(profile.account_for("payable_account_id"), credit=total,
                               description=f"CxP proveedor {document_number}"))
         self._engine.post(
@@ -111,20 +113,9 @@ def _due_date(issue_date: date, payload: dict) -> date | None:
     from datetime import timedelta
     explicit = str(payload.get("due_date") or "").strip()
     if explicit:
-        # Regularización (migración 340): la CxP se reconoce en un periodo
-        # abierto, pero vence cuando vencía según la recepción original.
-        try:
-            return date.fromisoformat(explicit[:10])
-        except ValueError:
-            pass
+        # La CxP vence cuando vencía según la recepción original.
+        return date.fromisoformat(explicit[:10])
     dias = payload.get("payment_term_days")
     if dias is None or dias == "":
         return None
-    try:
-        return issue_date + timedelta(days=max(0, int(dias)))
-    except (TypeError, ValueError):
-        return None
-
-
-#: Compatibilidad: algunos llamadores importaban el nombre privado.
-_issue_date = purchase_issue_date
+    return issue_date + timedelta(days=max(0, int(dias)))

@@ -68,6 +68,9 @@ LOYALTY_TABLES: tuple[str, ...] = (
     "loyalty_birthday_configs",
     "loyalty_fraud_cases",
     "loyalty_outbox",
+    "loyalty_deferred_accruals",
+    "loyalty_deferred_accrual_collections",
+    "loyalty_margin_floors",
 )
 
 _DDL = (
@@ -161,6 +164,8 @@ _DDL = (
         available_at TEXT,
         expires_at TEXT,
         created_at TEXT NOT NULL,
+        point_value TEXT,                 -- FID-02: valor del punto en el movimiento
+        monetary_value TEXT,              -- FID-02: importe en pesos (canje: el descuento)
         UNIQUE(source_module, source_document_id, transaction_type, reason_code)
     )
     """,
@@ -451,6 +456,57 @@ _INDEXES = (
 )
 
 
+#: Auditoría 968e0bc FID-04: lo vendido a crédito acumula AL COBRARSE. Al
+#: vender se registra lo pendiente; cada aplicación de cobro acredita su parte
+#: una sola vez (idempotente por aplicación).
+_DEFERRED_DDL = (
+    """
+    CREATE TABLE IF NOT EXISTS loyalty_deferred_accruals (
+        sale_id TEXT NOT NULL PRIMARY KEY,
+        customer_id TEXT NOT NULL,
+        loyalty_account_id TEXT,
+        branch_id TEXT,
+        credit_amount TEXT NOT NULL,          -- la parte a crédito de la base
+        deferred_points TEXT NOT NULL,        -- puntos que esa parte vale
+        collected_amount TEXT NOT NULL DEFAULT '0',
+        accrued_points TEXT NOT NULL DEFAULT '0',
+        status TEXT NOT NULL DEFAULT 'OPEN',  -- OPEN | CLOSED | CANCELLED
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS loyalty_deferred_accrual_collections (
+        application_id TEXT NOT NULL PRIMARY KEY,
+        sale_id TEXT NOT NULL REFERENCES loyalty_deferred_accruals(sale_id),
+        amount TEXT NOT NULL,
+        points TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_loyalty_deferred_accruals_status"
+    " ON loyalty_deferred_accruals(status)",
+    # FID-03: margen mínimo que ningún beneficio puede comerse, por categoría y
+    # con excepción por producto. Sin renglón rige `loyalty.benefit_min_margin_percent`.
+    """
+    CREATE TABLE IF NOT EXISTS loyalty_margin_floors (
+        id TEXT NOT NULL PRIMARY KEY,
+        scope_type TEXT NOT NULL CHECK (scope_type IN ('CATEGORY', 'PRODUCT')),
+        scope_id TEXT NOT NULL,
+        min_margin_percent TEXT NOT NULL,
+        updated_by TEXT,
+        updated_at TEXT NOT NULL,
+        UNIQUE (scope_type, scope_id)
+    )
+    """,
+)
+
+
+def create_loyalty_deferred_accrual_schema(conn) -> None:
+    for statement in _DEFERRED_DDL:
+        conn.execute(statement)
+
+
 def create_loyalty_schema(conn) -> None:
     """Create the canonical Fidelidad/Loyalty schema (idempotent). DDL lives
     only here."""
@@ -458,6 +514,7 @@ def create_loyalty_schema(conn) -> None:
         conn.execute(statement)
     for index in _INDEXES:
         conn.execute(index)
+    create_loyalty_deferred_accrual_schema(conn)
 
 
 def drop_loyalty_schema(conn) -> list[str]:

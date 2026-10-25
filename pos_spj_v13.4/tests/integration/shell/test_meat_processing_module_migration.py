@@ -236,16 +236,17 @@ def test_the_remaining_routes_are_still_honest_placeholders(app, conn):
     """No se declara más avance del real. PASS 6 sumó los registros con tablas
     reales detrás (`_RECORD_ROUTES` y Pesajes y consumos); la Fase 10 sumó
     Configuración (tolerancias de rendimiento); la auditoría 32cfbf sumó
-    Transformación directa. Las otras 15 —Resumen, Plan de
-    producción, Trazabilidad, Alertas, Análisis y las 10 de sacrificio— siguen
-    sin página."""
+    Transformación directa; después llegaron Resumen, Plan de producción y
+    Trazabilidad. Las otras 12 —Alertas, Análisis y las 10 de sacrificio—
+    siguen sin página."""
     from backend.infrastructure.desktop import meat_processing_factory as factory
 
     view = _navigate(conn)
     reales = {REAL_PAGE_ID, "mp_weighings_consumptions", "mp_settings",
-              "mp_direct_transformation", *factory._RECORD_ROUTES}
+              "mp_direct_transformation", "mp_overview", "mp_production_plan",
+              "mp_traceability", *factory._RECORD_ROUTES}
     pending = [e.page_id for e in MEAT_PROCESSING_NAV if e.page_id not in reales]
-    assert len(pending) == 15
+    assert len(pending) == 12, pending
     for page_id in pending:
         assert isinstance(
             view._page_builder(page_id), MeatProcessingPlaceholderPage), page_id

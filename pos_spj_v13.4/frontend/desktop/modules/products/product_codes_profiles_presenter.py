@@ -79,6 +79,14 @@ class ProductCodesProfilesPresenter:
             operation_id=op, product_id=product_id, value=value,
             barcode_type=barcode_type, is_primary=is_primary, user_id=user))
 
+    def preview_internal_barcode(self) -> str:
+        """EAN-13 interno sugerido para quien no trae código de fabricante."""
+        barcodes_qs, _profiles_qs = self._read()
+        try:
+            return barcodes_qs.preview_internal_barcode()
+        except Exception:  # noqa: BLE001 — sin sugerencia; se captura a mano
+            return ""
+
     def set_barcode_active(self, barcode_id: str, active: bool) -> tuple[bool, str]:
         from backend.application.products.commands.product_barcode_commands import (
             SetBarcodeActiveCommand,

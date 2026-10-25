@@ -70,6 +70,7 @@ class LoyaltyFinanceLinkRepository:
     _TXN = ("SELECT t.id, t.loyalty_account_id, t.transaction_type, t.points_amount, t.status,"
             " t.operation_id, t.source_module, t.source_document_type, t.source_document_id,"
             " t.sale_id, t.branch_id, t.reason_code, t.expires_at, t.created_at,"
+            " t.point_value, t.monetary_value,"
             " a.customer_id FROM loyalty_transactions t"
             " LEFT JOIN loyalty_accounts a ON a.id = t.loyalty_account_id")
 

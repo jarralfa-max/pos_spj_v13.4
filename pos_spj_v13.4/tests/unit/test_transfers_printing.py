@@ -65,7 +65,7 @@ def test_print_is_authorized_rendered_audited_and_idempotent():
     print_id = service.execute(command())
     assert service.execute(command()) == print_id
     assert len(gateway.calls) == 1
-    assert authorization.calls[0]["permission_code"] == "TRANSFERS_PRINT"
+    assert authorization.calls[0]["permission_code"] == "TRANSFERENCIAS.imprimir"
     assert audit.records[0]["status"] == "PRINTED"
     assert b"Matriz &amp; Norte" in gateway.calls[0]["artifact"].content
 
@@ -80,7 +80,7 @@ def test_reprint_requires_reason_and_existing_original_from_same_transfer():
     result = service.execute(command(operation_id="reprint", original_print_id="original",
                                      reprint_reason="Etiqueta dañada"))
     assert result and audit.records[-1]["command"].reprint_reason == "Etiqueta dañada"
-    assert authorization.calls[-1]["permission_code"] == "TRANSFERS_REPRINT"
+    assert authorization.calls[-1]["permission_code"] == "TRANSFERENCIAS.reimprimir"
 
 
 def test_package_label_contains_barcode_and_qr_and_gateway_failures_are_audited():

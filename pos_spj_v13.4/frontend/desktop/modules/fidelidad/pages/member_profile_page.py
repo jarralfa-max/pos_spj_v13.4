@@ -8,19 +8,13 @@ LOY-29: el cliente se elige con el buscador estándar de Clientes
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
-
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QLabel
 
 from frontend.desktop.components import (
     ColumnSpec,
     CustomerSearchBox,
-    FormField,
-    StandardForm,
     StandardTable,
 )
-from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
-from frontend.desktop.components.text_inputs import StandardLineEdit
 from frontend.desktop.components.pages import StandardPage
 from frontend.desktop.themes.tokens import Spacing
 
@@ -67,26 +61,12 @@ class MemberProfilePage(StandardPage):
              ColumnSpec("Fecha", "date")], self)
         layout.addWidget(self._ledger_table)
 
-        layout.addWidget(QLabel("Acreditar / canjear puntos", self))
-        self._points_form = StandardForm(self)
-        self._points_amount_input = StandardLineEdit(self)
-        self._points_form.add_field(
-            "points_amount", FormField("Cantidad de puntos", self._points_amount_input,
-                                       required=True))
-        self._reason_input = StandardLineEdit(self)
-        self._points_form.add_field(
-            "reason", FormField("Motivo", self._reason_input, required=True))
-        layout.addWidget(self._points_form)
-
-        points_actions = QHBoxLayout()
-        accrue_btn = create_primary_button(self, "Acreditar puntos")
-        accrue_btn.clicked.connect(self._accrue_points)
-        points_actions.addWidget(accrue_btn)
-        redeem_btn = create_secondary_button(self, "Canjear puntos")
-        redeem_btn.clicked.connect(self._redeem_points)
-        points_actions.addWidget(redeem_btn)
-        points_actions.addStretch(1)
-        layout.addLayout(points_actions)
+        aviso = QLabel(
+            "Los puntos se ganan y se gastan en el punto de venta o con una recompensa. Para "
+            "corregir un saldo usa Puntos → Cuentas → «Corrección manual» (documento, motivo y "
+            "otra persona que autoriza).", self)
+        aviso.setWordWrap(True)
+        layout.addWidget(aviso)
         layout.addStretch(1)
 
     def ensure_loaded(self) -> None:
@@ -135,43 +115,6 @@ class MemberProfilePage(StandardPage):
         ])
         self._show_message("", error=False)
         self._status.hide()
-
-    def _accrue_points(self) -> None:
-        self._apply_points_action(self._presenter.accrue_points, "acreditados")
-
-    def _redeem_points(self) -> None:
-        self._apply_points_action(self._presenter.redeem_points, "canjeados")
-
-    def _apply_points_action(self, action, verb: str) -> None:
-        if not self._current_account_id:
-            self._show_message("Busca un cliente primero.", error=True)
-            return
-        errors = {}
-        amount: Decimal | None = None
-        try:
-            amount = Decimal(self._points_amount_input.text().strip())
-            if amount <= 0:
-                errors["points_amount"] = "Debe ser positivo"
-        except (InvalidOperation, ValueError):
-            errors["points_amount"] = "Cantidad inválida"
-        if not self._reason_input.text().strip():
-            errors["reason"] = "El motivo es obligatorio"
-        self._points_form.set_errors(errors)
-        if errors:
-            return
-        result = action(
-            loyalty_account_id=self._current_account_id, points_amount=amount,
-            reason_code=self._reason_input.text().strip())
-        if result.success:
-            message = result.message or f"Puntos {verb}."
-        else:
-            message = result.message
-        self._show_message(message, error=not result.success)
-        if result.success:
-            self._points_amount_input.clear()
-            self._reason_input.clear()
-            self._points_form.clear_errors()
-            self._search()
 
     def _show_message(self, message: str, *, error: bool) -> None:
         if not message:

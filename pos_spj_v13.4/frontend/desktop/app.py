@@ -319,9 +319,11 @@ def _logout_and_reauthenticate(app, window, coordinator) -> bool:
 
 
 def _make_update_handoff(app, connection, ventana: dict):
-    """Cierre ordenado para instalar: servicios de fondo, conexiones, candado
-    y, sólo entonces, el actualizador externo. Si el actualizador no arranca,
-    la aplicación sigue abierta y nada cambió."""
+    """Launch the updater waiting for this PID, then use normal exit cleanup.
+
+    A launch failure restarts background services and keeps the session open.
+    Connections and the instance lock remain owned until the main finally.
+    """
 
     def handoff(launch_request) -> bool:
         from backend.application.software_updates.installation import SoftwareInstallation
@@ -349,14 +351,8 @@ def _make_update_handoff(app, connection, ventana: dict):
                 window.service_supervisor.start_all()
             return False
         logger.info("Cerrando para instalar la versión %s.", launch_request.job.to_version)
-        try:
-            from backend.infrastructure.db.connection import close_thread_connection
-
-            close_thread_connection()
-            connection.close()
-        except Exception:
-            pass
-        _release_instance_lock()
+        # The launcher waits for this PID. The same finally block as a normal
+        # exit closes resources before releasing the instance lock.
         app.quit()
         return True
 
@@ -416,11 +412,47 @@ def main() -> int:
             f"{APP_NAME} ya está abierto en esta computadora.")
         return 0
 
+    resources = {}
+    try:
+        return _run_desktop_session(app, resources)
+    finally:
+        from frontend.desktop.shell.application_lifecycle import set_update_handoff
+
+        set_update_handoff(None)
+        _shutdown_desktop_resources(resources)
+        _release_instance_lock()
+        logger.info("Recursos del escritorio cerrados; bloqueo de instancia liberado.")
+
+
+def _shutdown_desktop_resources(resources: dict) -> None:
+    """Stop producers, then close SQLite even on cancelled/failed startup."""
+    window = resources.get("window")
+    if window is not None and window.service_supervisor is not None:
+        try:
+            window.service_supervisor.stop_all()
+        except Exception:
+            logger.exception("No se pudieron detener todos los servicios del escritorio.")
+    from backend.infrastructure.db.connection import close_thread_connection
+
+    try:
+        close_thread_connection()
+    except Exception:
+        logger.exception("No se pudo cerrar la conexión del hilo del escritorio.")
+    connection = resources.get("connection")
+    if connection is not None:
+        try:
+            connection.close()
+        except Exception:
+            logger.exception("No se pudo cerrar la conexión principal del escritorio.")
+
+
+def _run_desktop_session(app, ventana: dict) -> int:
     if not _relocate_legacy_database():
         return 1
 
     bootstrap = _prepare_database()
     connection = bootstrap.context.conn
+    ventana["connection"] = connection
     _record_station_start(connection)
     services = _build_services()
 
@@ -435,14 +467,13 @@ def main() -> int:
         # no la operación local.
         logger.exception("No se pudo cablear la integración entre contextos.")
 
-    ventana = {}
-
     from frontend.desktop.shell.application_lifecycle import set_update_handoff
 
     set_update_handoff(_make_update_handoff(app, connection, ventana))
 
     def _on_authenticated(context) -> None:
         """Se llama una sola vez, con el login ya resuelto."""
+        from backend.application.security.session_grant_refresh import SessionGrantRefresher
         from backend.bootstrap.legacy_session_adapter import LegacySessionAdapter
         from frontend.desktop.shell.desktop_shell_window_composition import (
             build_application_window,
@@ -451,7 +482,10 @@ def main() -> int:
         window = build_application_window(
             context=context,
             connection=connection,
-            session_context=LegacySessionAdapter(context),
+            # Las revocaciones rigen en la sesión abierta (auditoría de permisos
+            # 968e0bc, PER-08), no sólo al volver a iniciar sesión.
+            session_context=LegacySessionAdapter(
+                context, grant_refresher=SessionGrantRefresher(connection)),
             health_report=bootstrap.health_report,
         )
         window.setWindowTitle(f"{APP_NAME} v{VERSION}")
@@ -478,7 +512,5 @@ def main() -> int:
         return 0
 
     exit_code = app.exec_()
-    set_update_handoff(None)
-    _release_instance_lock()
     logger.info("Sistema cerrado. Código: %s", exit_code)
     return exit_code

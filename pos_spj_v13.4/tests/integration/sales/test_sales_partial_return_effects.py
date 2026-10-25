@@ -229,9 +229,7 @@ def test_a_credit_refund_lowers_the_customer_receivable_with_a_credit_note(conn)
     from backend.application.event_handlers.finance.sale_returned_handler import (
         SaleReturnedHandler,
     )
-    from backend.application.use_cases.finance.receivable_use_cases import (
-        CreateReceivableUseCase,
-    )
+    from backend.application.use_cases.finance.create_receivable_use_case import CreateReceivableUseCase
 
     customer, sale_id = new_uuid(), new_uuid()
     CreateReceivableUseCase().execute(
@@ -250,6 +248,6 @@ def test_a_credit_refund_lowers_the_customer_receivable_with_a_credit_note(conn)
         "SELECT outstanding_amount FROM receivables WHERE customer_id=?", (customer,)).fetchone()
     assert Decimal(saldo["outstanding_amount"]) == Decimal("200")
     nota = conn.execute(
-        "SELECT document_type FROM financial_documents WHERE document_type='CREDIT_NOTE'"
+        "SELECT document_type FROM financial_documents WHERE document_type='CUSTOMER_CREDIT_NOTE'"
     ).fetchone()
     assert nota is not None

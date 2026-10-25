@@ -58,11 +58,11 @@ def test_adapter_drives_the_real_transfers_composition(app):
 
     # The sidebar is gated by transfers' own granular permission scheme
     # (`backend.application.transfers.permissions.TransferPermissions`,
-    # e.g. "TRANSFERS_DASHBOARD_VIEW") — a different set of codes than the
-    # route-level "TRANSFERENCIAS.ver" catalog code. Granting one of those
-    # here proves the adapter's tiene_permiso() really flows through to the
-    # real UI, not just that it exists without erroring.
-    adapter = LegacySessionAdapter(_context(permissions={"TRANSFERS_DASHBOARD_VIEW"}))
+    # e.g. "TRANSFERENCIAS.tablero.ver" since the 968e0bc permissions audit) —
+    # a different code than the route-level "TRANSFERENCIAS.ver". Granting one
+    # of those here proves the adapter's tiene_permiso() really flows through
+    # to the real UI, not just that it exists without erroring.
+    adapter = LegacySessionAdapter(_context(permissions={"TRANSFERENCIAS.TABLERO.VER"}))
     view = create_transfers_view(conn, adapter)
     assert isinstance(view, TransfersView)
     assert view.sidebar.count() > 0

@@ -125,6 +125,18 @@ class ProductsPresenter:
             logger.exception("No se pudo previsualizar el código")
             return None
 
+    def suggest_catalog_code(self, kind: str, name: str, *,
+                             scope_id: str | None = None) -> str:
+        """PROD-23: código sugerido (del nombre, libre en su ámbito) para
+        categorías, marcas, atributos, opciones, especies, regiones y cortes."""
+        if self._code_factory is None:
+            return ""
+        try:
+            return self._code_factory().suggest_catalog_code(kind, name, scope_id=scope_id)
+        except Exception:  # pragma: no cover - defensive
+            logger.exception("No se pudo sugerir el código")
+            return ""
+
     # ── categorías jerárquicas (P1-01) ────────────────────────────────────
     @property
     def can_manage_categories(self) -> bool:

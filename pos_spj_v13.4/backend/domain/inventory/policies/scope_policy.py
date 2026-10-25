@@ -12,6 +12,7 @@ from collections.abc import Iterable
 
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.domain.inventory.exceptions import BranchScopeError, WarehouseScopeError
+from backend.security.permissions.codes import is_granted
 
 
 class InventoryScopePolicy:
@@ -40,7 +41,11 @@ class InventoryScopePolicy:
         pertenencia LITERAL, que no entiende comodines (a diferencia de
         `PermissionEvaluator`). Eso sigue afectando SÓLO al escape global
         `VIEW_ALL_BRANCHES`, no al acceso a la sucursal propia, y se dejó
-        deliberadamente fuera de esta decisión.
+        deliberadamente fuera de esta decisión. CERRADO en la auditoría de
+        permisos 968e0bc (PER-07): ahora usa `is_granted`, la regla única de
+        comodines, y además compara normalizado — la sesión entrega los códigos
+        en MAYÚSCULAS y la constante está en minúsculas, así que ni siquiera un
+        `VIEW_ALL_BRANCHES` concedido explícitamente coincidía.
 
         La regla de abajo es la de `LossExecutionContext.enforce_branch` y
         `MeatProcessingExecutionContext.enforce_branch`, copiada a propósito:
@@ -51,7 +56,7 @@ class InventoryScopePolicy:
         target = str(target_branch_id or "").strip()
         if not target:
             raise BranchScopeError("La operación requiere una sucursal válida")
-        if InventoryPermissions.VIEW_ALL_BRANCHES in set(user_permissions):
+        if is_granted(frozenset(user_permissions), InventoryPermissions.VIEW_ALL_BRANCHES):
             return
         allowed = {str(user_branch_id or "").strip()}
         allowed.update(str(branch or "").strip() for branch in assigned_branch_ids)

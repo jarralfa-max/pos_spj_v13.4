@@ -117,11 +117,25 @@ def test_legacy_and_canonical_debt_add_up(conn):
     assert _summary(conn, customer_id).current_exposure == Decimal("500")
 
 
+def test_overdue_or_disputed_debt_keeps_counting(conn):
+    """FIN-ERP: una CxC vencida o en disputa sigue consumiendo el límite."""
+    customer_id = new_uuid()
+    _register_credit_sale(conn, customer_id=customer_id, amount="120.00")
+    _register_credit_sale(conn, customer_id=customer_id, amount="80.00")
+    rows = conn.execute("SELECT id FROM receivables WHERE customer_id=? ORDER BY id",
+                        (customer_id,)).fetchall()
+    conn.execute("UPDATE receivables SET status='OVERDUE' WHERE id=?", (rows[0][0],))
+    conn.execute("UPDATE receivables SET status='DISPUTED' WHERE id=?", (rows[1][0],))
+    conn.commit()
+
+    assert _summary(conn, customer_id).current_exposure == Decimal("200")
+
+
 def test_settled_debt_stops_counting(conn):
     """Una cuenta liquidada ya no consume límite."""
     customer_id = new_uuid()
     _register_credit_sale(conn, customer_id=customer_id, amount="120.00")
-    conn.execute("UPDATE receivables SET status='SETTLED' WHERE customer_id=?", (customer_id,))
+    conn.execute("UPDATE receivables SET status='COLLECTED' WHERE customer_id=?", (customer_id,))
     conn.commit()
 
     assert _summary(conn, customer_id).current_exposure == Decimal("0")

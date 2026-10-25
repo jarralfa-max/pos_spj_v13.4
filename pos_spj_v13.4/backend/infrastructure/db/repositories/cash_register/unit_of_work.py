@@ -8,15 +8,18 @@ from .repositories import (
     CashDifferencePolicyRepository, CashDrawerEventRepository,
     CashDepositPreparationRepository, CashEventRepository, CashHandoverRepository,
     CashIdempotencyRepository, CashLedgerRepository, CashMovementReasonRepository,
-    CashOutboxRepository, CashSettlementRepository, CashShiftRepository, CashSyncRepository,
+    CashOutboxRepository, CashSettlementRepository, CashShiftRepository,
 )
 from .configuration_repository import CashConfigurationWriteRepository
 from .folio_repository import CashDocumentFolioRepository
 from .notification_repository import CashNotificationRepository
 from .printing_repository import CashPrintRepository
+from backend.infrastructure.db.transaction import TransactionalUnitOfWork
 
 
-class CashRegisterUnitOfWork:
+class CashRegisterUnitOfWork(TransactionalUnitOfWork):
+    _reject_double_commit = True
+
     """``owns_transaction=False`` (auditoría de Ventas V06, 2026-10-15): Caja se
     compone dentro de la transacción de quien la llama — el cobro o la
     devolución de Ventas — en vez de confirmar por su cuenta. Así el efectivo
@@ -43,33 +46,7 @@ class CashRegisterUnitOfWork:
         self.difference_policies = CashDifferencePolicyRepository(connection)
         self.events = CashEventRepository(connection)
         self.outbox = CashOutboxRepository(connection)
-        self.sync = CashSyncRepository(connection)
         self.notifications = CashNotificationRepository(connection)
         self.printing = CashPrintRepository(connection)
         self.audit = CashAuditRepository(connection)
         self._completed = False
-
-    def __enter__(self) -> "CashRegisterUnitOfWork":
-        self._completed = False
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> bool:
-        if exc_type is not None:
-            self.rollback()
-        elif not self._completed:
-            self.commit()
-        return False
-
-    def commit(self) -> None:
-        if self._completed:
-            raise RuntimeError("Cash Register UnitOfWork already completed")
-        if self._owns_transaction:
-            self.connection.commit()
-        self._completed = True
-
-    def rollback(self) -> None:
-        if self._completed:
-            return
-        if self._owns_transaction:
-            self.connection.rollback()
-        self._completed = True

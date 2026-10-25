@@ -85,6 +85,11 @@ class LoyaltyTransaction:
     available_at: str | None = None
     expires_at: str | None = None
     created_at: str = field(default_factory=_utcnow)
+    #: Auditoría Fidelidad 968e0bc FID-02: valor del punto y su importe en pesos
+    #: AL MOMENTO del movimiento. Un reintento o la contabilidad usan esto, no
+    #: la configuración vigente (cambiarla rige lo futuro, nunca lo pasado).
+    point_value: Decimal | None = None
+    monetary_value: Decimal | None = None
 
     def __post_init__(self) -> None:
         if not self.loyalty_account_id:
@@ -103,6 +108,7 @@ class LoyaltyTransaction:
               branch_id: str | None = None, reason_code: str | None = None,
               notes: str = "", created_by_user_id: str | None = None,
               available_at: str | None = None, expires_at: str | None = None,
+              point_value: Decimal | None = None, monetary_value: Decimal | None = None,
               ) -> "LoyaltyTransaction":
         initial_status = TransactionStatus.PENDING if available_at else status
         return cls(
@@ -114,7 +120,7 @@ class LoyaltyTransaction:
             source_document_id=source_document_id, sale_id=sale_id,
             branch_id=branch_id, reason_code=reason_code, notes=notes,
             created_by_user_id=created_by_user_id, available_at=available_at,
-            expires_at=expires_at,
+            expires_at=expires_at, point_value=point_value, monetary_value=monetary_value,
         )
 
     @classmethod

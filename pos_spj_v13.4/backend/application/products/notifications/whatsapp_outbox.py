@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 def drain_product_whatsapp_outbox(connection, *, client=None) -> dict:
@@ -50,7 +51,7 @@ class RetryProductWhatsAppMessageUseCase:
     def __init__(self, connection,
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def execute(self, *, message_id: str, user_id: str | None,
                 operation_id: str) -> tuple[bool, str]:

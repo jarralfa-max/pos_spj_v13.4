@@ -45,3 +45,7 @@ data/
 *.sqlite
 *.sqlite3
 .claude/worktrees/
+
+# Logs rotados y temporales de pruebas (no van al repositorio)
+*.log.*
+.test_tmp/

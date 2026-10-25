@@ -41,6 +41,11 @@ class CreateProductMasterCommand:
     catch_weight_enabled: bool = False
     quality_controlled: bool = False
     traceability_required: bool = False
+    # PROD-23: código de barras capturado en el alta; se asigna como PRINCIPAL en
+    # la MISMA transacción (si ya pertenece a otro producto, no se crea nada).
+    # Sólo lo lee el alta; la edición usa Más acciones → Códigos de barras.
+    initial_barcode: str | None = None
+    initial_barcode_type: str = "EAN"
 
     def validate(self) -> None:
         required = ["operation_id", "name", "product_type", "base_unit_id"]

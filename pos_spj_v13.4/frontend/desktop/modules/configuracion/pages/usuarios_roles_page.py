@@ -262,10 +262,14 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
         if matrix.mode == "FULL_ACCESS":
             QMessageBox.information(self, "Usuarios y Roles", matrix.note)
             return
-        dlg = UserPermissionsDialog(self, matrix=matrix)
+        dlg = UserPermissionsDialog(
+            self, matrix=matrix,
+            load_matrix=lambda branch_id: self._presenter.user_permission_matrix(
+                user_id, branch_id))
         if dlg.exec_() != QDialog.Accepted:
             return
-        ok, message = self._presenter.save_user_permissions(user_id=user_id, changes=dlg.changes())
+        ok, message = self._presenter.save_user_permissions(
+            user_id=user_id, changes=dlg.changes(), branch_id=dlg.scope_branch_id())
         (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
 
     def _on_role_permissions(self) -> None:

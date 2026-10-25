@@ -11,9 +11,9 @@ from backend.domain.finance.value_objects.money import Money
 class DepreciationPolicy:
     def monthly_amount(self, asset: FixedAsset, period_code: str) -> Money:
         """Amount to depreciate for one period. Never exceeds the remaining base."""
-        if asset.status is not FixedAssetStatus.CAPITALIZED:
+        if asset.status is not FixedAssetStatus.ACTIVE:
             raise FinanceDomainError(
-                f"Asset {asset.name!r} is {asset.status.value}; only CAPITALIZED assets depreciate"
+                f"Asset {asset.name!r} is {asset.status.value}; only ACTIVE assets depreciate"
             )
         if asset.depreciation_method is not DepreciationMethod.STRAIGHT_LINE:
             raise FinanceDomainError(f"Unsupported depreciation method: {asset.depreciation_method}")

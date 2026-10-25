@@ -32,6 +32,7 @@ from frontend.desktop.components.buttons import create_ghost_button, create_prim
 from frontend.desktop.components.branding import BrandLabel
 from frontend.desktop.components.dialogs import StandardDialog
 from frontend.desktop.components.page_header import PageHeader
+from frontend.desktop.components.selection_controls import StandardCheckBox
 from frontend.desktop.components.text_inputs import PasswordInput, StandardLineEdit
 from frontend.desktop.themes.tokens import DialogMetrics
 
@@ -65,9 +66,12 @@ class LoginWindow(StandardDialog):
 
         form = QFormLayout()
         self._username_input = StandardLineEdit(self, placeholder="Usuario", required=True)
-        self._password_input = PasswordInput(self, placeholder="Contraseña")
+        self._password_input = PasswordInput(self, placeholder="Contraseña", keyboard_enabled=True)
         form.addRow("Usuario", self._username_input)
         form.addRow("Contraseña", self._password_input)
+        self._show_password = StandardCheckBox("Mostrar contraseña", self)
+        self._show_password.toggled.connect(self._password_input.set_revealed)
+        form.addRow("", self._show_password)
         self.content_layout().addLayout(form)
 
         self._error_label = QLabel(self)
@@ -122,4 +126,12 @@ class LoginWindow(StandardDialog):
     def _show_error(self, message: str) -> None:
         self._error_label.setText(message)
         self._error_label.setVisible(True)
+        self._show_password.setChecked(False)
         self._password_input.clear()
+
+    def hideEvent(self, event) -> None:
+        self._show_password.setChecked(False)
+        controller = self._password_input._keyboard_controller
+        if controller.keyboard is not None:
+            controller.keyboard.hide()
+        super().hideEvent(event)

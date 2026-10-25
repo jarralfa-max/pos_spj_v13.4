@@ -14,6 +14,7 @@ from backend.application.products.authorization.policy import (
     ProductsAuthorizationPolicy,
 )
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.enums import LifecycleStatus
 from backend.domain.products.events import ProductEvents
 from backend.domain.products.exceptions import (
@@ -27,7 +28,7 @@ from backend.shared.ids import new_uuid
 class QualityStatusHandler:
     def __init__(self, connection, *, authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
-        self._authz = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._authz = authorization or unwired(ProductsAuthorizationPolicy)
 
     def handle(self, event_name: str, payload: dict) -> bool:
         """Return True if a state change was applied, False if a no-op/duplicate."""

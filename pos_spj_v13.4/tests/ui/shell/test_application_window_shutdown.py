@@ -51,3 +51,26 @@ def test_close_event_captures_a_failed_shutdown_result_without_raising():
     win = ApplicationWindow(router=_router(), shutdown_coordinator=coordinator)
     win.closeEvent(QCloseEvent())  # must not raise even though the shutdown itself failed
     assert win.last_shutdown_result.success is False
+
+
+def test_main_window_close_stops_owned_customer_monitor_and_background_services():
+    from unittest.mock import Mock
+    from frontend.desktop.modules.sales_pos.customer_display_window import CustomerDisplayWindow
+
+    supervisor = Mock()
+    win = ApplicationWindow(router=_router(), service_supervisor=supervisor)
+    display = CustomerDisplayWindow(win)
+    player = Mock()
+    display._video_player = player
+    closed = Mock()
+    display.closed.connect(closed)
+    try:
+        win.show()
+        display.show()
+        win.close()
+        closed.assert_called_once()
+        player.stop.assert_called_once()
+        supervisor.stop_all.assert_called_once()
+    finally:
+        display.close()
+        win.deleteLater()

@@ -95,6 +95,21 @@ class TestPantallaClientePageStructure:
 
 
 class TestPantallaClientePageLoadsRealData:
+    def test_publication_status_explains_why_an_uploaded_image_is_not_playing(self, app, conn):
+        content = CreateContentUseCase(conn).execute(
+            title="Publicidad", content_type=ContentType.TEXT, body="Oferta")
+        CreateContentCampaignUseCase(conn).execute(name="Nueva campaña", content_id=content.id)
+        view = _view(app, conn)
+        try:
+            view.show_route("config_pantalla_cliente")
+            page = view._pages["config_pantalla_cliente"]
+            assert "Nueva campaña" in page.delivery_status.text()
+            assert "no está activa" in page.delivery_status.text()
+            assert "sin asignación" in page.delivery_status.text()
+            assert "Carrito o Reposo" in page.delivery_status.text()
+        finally:
+            view.close()
+
     def test_content_table_loads_real_content(self, app, conn):
         CreateContentUseCase(conn).execute(title="Promo", content_type=ContentType.TEXT, body="2x1")
 

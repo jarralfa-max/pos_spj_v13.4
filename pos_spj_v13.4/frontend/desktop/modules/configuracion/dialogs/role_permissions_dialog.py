@@ -27,7 +27,6 @@ class RolePermissionsDialog(FormDialog):
         self._initial = {o.code: o.code in matrix.granted
                          for m in matrix.modules for o in m.actions}
         self._state = dict(self._initial)
-        self._grant_only = matrix.mode == "GRANT_ONLY"
         self._boxes: dict[str, StandardCheckBox] = {}
 
         nota = QLabel(matrix.note, self)
@@ -99,9 +98,6 @@ class RolePermissionsDialog(FormDialog):
         finally:
             self.module.blockSignals(False)
 
-    def _locked(self, code: str) -> bool:
-        return self._grant_only and self._initial[code]
-
     def _render(self) -> None:
         while self._list_layout.count():
             widget = self._list_layout.takeAt(0).widget()
@@ -118,7 +114,6 @@ class RolePermissionsDialog(FormDialog):
             box = StandardCheckBox(opcion.label, self._list)
             box.setToolTip(opcion.code)
             box.setChecked(self._state[opcion.code])
-            box.setEnabled(not self._locked(opcion.code))
             box.toggled.connect(lambda checked, code=opcion.code: self._toggle(code, checked))
             self._list_layout.addWidget(box)
             self._boxes[opcion.code] = box
@@ -134,8 +129,7 @@ class RolePermissionsDialog(FormDialog):
         if modulo is None:
             return
         for opcion in modulo.actions:
-            if not self._locked(opcion.code):
-                self._state[opcion.code] = value
+            self._state[opcion.code] = value
         self._refresh_modules()
         self._render()
 

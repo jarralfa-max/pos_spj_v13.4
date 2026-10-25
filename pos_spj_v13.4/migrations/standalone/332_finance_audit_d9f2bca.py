@@ -30,10 +30,9 @@ def _tabla(conn, nombre: str) -> bool:
 
 
 def run(conn) -> None:
+    # FIN-ERP (2026-10-21): las tablas y columnas financieras de esta auditoría
+    # viven ya en la definición born-clean (migración 117); aquí sólo queda RR. HH.
     agregadas: list[str] = []
-    if _tabla(conn, "journal_entries"):
-        from backend.infrastructure.db.schema.finance_schema import upgrade_finance_schema
-        agregadas += upgrade_finance_schema(conn)
     if _tabla(conn, "hr_outbox"):
         from backend.infrastructure.db.schema.hr_schema import upgrade_hr_schema
         agregadas += upgrade_hr_schema(conn)

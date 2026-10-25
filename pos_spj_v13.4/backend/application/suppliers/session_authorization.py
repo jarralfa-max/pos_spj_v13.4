@@ -1,65 +1,51 @@
 """Adaptador RBAC de Proveedores sobre la sesión viva de la aplicación.
 
-POR QUÉ TRADUCE EN VEZ DE COMPARAR DIRECTO
-------------------------------------------
-`SupplierPermissions.*` usa códigos PLANOS (`SUPPLIERS_ACTIVATE`) que NO están
-registrados en `backend/application/security/permission_catalog.py`: Proveedores
-figura en su `FLAT_CODE_CONTEXTS`, es decir, sus acciones **no son otorgables**
-desde Configuración → Seguridad → Permisos. Lo único que la base concede es el
-módulo grueso `PROVEEDORES` con cinco acciones (`ver`, `crear`, `editar`,
-`eliminar`, `exportar`), sembradas por `m000_base_schema._seed_system_roles()`.
+Auditoría de permisos 968e0bc (PER-04): `SupplierPermissions.*` dejó de ser un
+código PLANO (`SUPPLIERS_ACTIVATE`) y es `PROVEEDORES.<accion>`, registrado en el
+catálogo y otorgable desde Configuración → Seguridad → Permisos. Se concede en
+este orden:
 
-Sin traducción, cablear este verificador denegaría TODAS las operaciones de
-proveedor — el módulo pasaría de "no puedo activar" a "no puedo nada". Se sigue
-el mismo patrón que `TransferSessionPermissionChecker`, que existe por esta
-misma razón: traducir el puñado de códigos con contrapartida real y denegar el
-resto fail-closed.
+1. El código granular, tal cual (`PROVEEDORES.aprobar`).
+2. Si no, la acción GRUESA que lo traducía antes (abajo) — se conserva porque
+   fue decisión del usuario (2026-09-16) y los roles sembrados sólo tienen las
+   cinco acciones gruesas: quitarla dejaría a gerente y almacén sin módulo.
 
-QUÉ SE PIERDE CON ESTA TRADUCCIÓN (decidido explícitamente, no por descuido)
----------------------------------------------------------------------------
-* **Aprobar deja de ser un permiso distinto de editar.** Quien tiene
-  `PROVEEDORES.editar` puede enviar a aprobación, aprobar, activar, suspender y
-  dar de baja. La granularidad real vuelve el día que Proveedores migre a
-  códigos punteados `PROVEEDORES.<accion>` y salga de `FLAT_CODE_CONTEXTS`.
-* **La segregación de funciones NO se pierde**: `SupplierApprovalPolicy` compara
+QUÉ SIGUE PERDIÉNDOSE CON EL RESPALDO GRUESO (decidido, no por descuido)
+------------------------------------------------------------------------
+* Quien tiene `PROVEEDORES.editar` puede enviar a aprobación, aprobar, activar,
+  suspender y dar de baja. Para separar esas funciones, se le quita `editar` al
+  rol y se conceden los códigos granulares que correspondan.
+* La segregación de funciones NO se pierde: `SupplierApprovalPolicy` compara
   identidades (quien captura no aprueba), y eso es independiente del permiso.
-* **Bloquear/desbloquear y verificar cuenta bancaria** se mapean a `eliminar`,
-  la acción gruesa más privilegiada, no a `editar`: sacar a un proveedor de
-  operación y habilitar que se le pague son decisiones de otro calibre.
-* Los códigos de sólo lectura sensibles (`SUPPLIERS_VIEW_FINANCIAL`,
-  `..._VIEW_BANK`, `..._VIEW_DOCUMENTS`, `..._VIEW_AUDIT`) quedan SIN mapear y
-  por tanto denegados. Hoy es inocuo: ningún caso de uso los exige (los query
-  services no pasan por esta política). Mapearlos a `ver` expondría datos
-  bancarios y financieros a cualquiera que pueda abrir el módulo.
-
-No añadas entradas nuevas aquí inventando acciones del catálogo: si hace falta
-vocabulario nuevo, se registra en `permission_catalog.py` primero.
+* Bloquear/desbloquear y verificar cuenta bancaria se respaldan en `eliminar`,
+  la acción gruesa más privilegiada: sacar a un proveedor de operación y
+  habilitar que se le pague son decisiones de otro calibre.
+* Las lecturas sensibles (`finanzas.ver`, `banco.ver`, `documentos.ver`,
+  `auditoria.ver`) NO tienen respaldo grueso: sólo con su código granular.
 """
 
 from __future__ import annotations
 
-#: `SupplierPermissions.*` -> código de catálogo `PROVEEDORES.<accion>` real.
-_PERMISSION_MAP = {
-    # lectura / alta / edición
-    "SUPPLIERS_VIEW": "PROVEEDORES.ver",
-    "SUPPLIERS_CREATE": "PROVEEDORES.crear",
-    "SUPPLIERS_EDIT": "PROVEEDORES.editar",
-    "SUPPLIERS_EXPORT": "PROVEEDORES.exportar",
+from backend.application.suppliers.permissions import SupplierPermissions as P
+
+#: Respaldo grueso: código granular → acción gruesa sembrada que lo concede.
+#: `ver`/`crear`/`editar`/`exportar` no aparecen: el código granular ES el grueso.
+COARSE_FALLBACK = {
     # ciclo de vida comercial
-    "SUPPLIERS_SUBMIT": "PROVEEDORES.editar",
-    "SUPPLIERS_APPROVE": "PROVEEDORES.editar",
-    "SUPPLIERS_ACTIVATE": "PROVEEDORES.editar",
-    "SUPPLIERS_SUSPEND": "PROVEEDORES.editar",
-    "SUPPLIERS_DEACTIVATE": "PROVEEDORES.editar",
+    P.SUBMIT: "PROVEEDORES.editar",
+    P.APPROVE: "PROVEEDORES.editar",
+    P.ACTIVATE: "PROVEEDORES.editar",
+    P.SUSPEND: "PROVEEDORES.editar",
+    P.DEACTIVATE: "PROVEEDORES.editar",
     # datos asociados
-    "SUPPLIERS_EDIT_TERMS": "PROVEEDORES.editar",
-    "SUPPLIERS_EDIT_BANK": "PROVEEDORES.editar",
-    "SUPPLIERS_UPLOAD_DOCUMENTS": "PROVEEDORES.editar",
-    "SUPPLIERS_EVALUATE": "PROVEEDORES.editar",
+    P.EDIT_TERMS: "PROVEEDORES.editar",
+    P.EDIT_BANK: "PROVEEDORES.editar",
+    P.UPLOAD_DOCUMENTS: "PROVEEDORES.editar",
+    P.EVALUATE: "PROVEEDORES.editar",
     # más privilegiadas: sacan de operación o habilitan pagos
-    "SUPPLIERS_BLOCK": "PROVEEDORES.eliminar",
-    "SUPPLIERS_UNBLOCK": "PROVEEDORES.eliminar",
-    "SUPPLIERS_VERIFY_BANK": "PROVEEDORES.eliminar",
+    P.BLOCK: "PROVEEDORES.eliminar",
+    P.UNBLOCK: "PROVEEDORES.eliminar",
+    P.VERIFY_BANK: "PROVEEDORES.eliminar",
 }
 
 
@@ -67,9 +53,9 @@ class SupplierSessionPermissionChecker:
     """`PermissionChecker` de `SupplierAuthorizationPolicy` sobre la sesión viva.
 
     Concede sólo cuando la sesión está activa, pertenece al usuario que pide la
-    operación, tiene sucursal activa y posee el permiso de catálogo mapeado.
-    Sin sesión / sesión inactiva / usuario distinto / sin sucursal / código sin
-    mapear / sin `tiene_permiso` → deniega.
+    operación, tiene sucursal activa y posee el código granular o su respaldo
+    grueso. Sin sesión / sesión inactiva / usuario distinto / sin sucursal /
+    sin `tiene_permiso` → deniega.
     """
 
     def __init__(self, session) -> None:
@@ -85,8 +71,10 @@ class SupplierSessionPermissionChecker:
         branch_id = str(getattr(session, "active_branch_id", "") or "").strip()
         if not branch_id:
             return False
-        catalog_code = _PERMISSION_MAP.get(permission_code)
-        if catalog_code is None:
-            return False
         check = getattr(session, "tiene_permiso", None)
-        return bool(callable(check) and check(catalog_code))
+        if not callable(check):
+            return False
+        if check(permission_code):
+            return True
+        coarse = COARSE_FALLBACK.get(permission_code)
+        return coarse is not None and bool(check(coarse))

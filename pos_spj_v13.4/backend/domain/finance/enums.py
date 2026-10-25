@@ -67,15 +67,30 @@ class FiscalPeriodStatus(str, Enum):
 
 
 class FinancialDocumentType(str, Enum):
-    SALES_INVOICE = "SALES_INVOICE"
+    """Documento fuente (§10). El asiento NO sustituye al documento: cada
+    documento con impacto económico se relaciona con su asiento, pero son
+    responsabilidades distintas."""
+
+    CUSTOMER_INVOICE = "CUSTOMER_INVOICE"
+    CUSTOMER_CREDIT_NOTE = "CUSTOMER_CREDIT_NOTE"
+    CUSTOMER_ADVANCE = "CUSTOMER_ADVANCE"
     SALES_RETURN = "SALES_RETURN"
-    CREDIT_NOTE = "CREDIT_NOTE"
     SUPPLIER_INVOICE = "SUPPLIER_INVOICE"
     SUPPLIER_CREDIT_NOTE = "SUPPLIER_CREDIT_NOTE"
-    PAYROLL_RUN = "PAYROLL_RUN"
-    EXPENSE_VOUCHER = "EXPENSE_VOUCHER"
+    SUPPLIER_ADVANCE = "SUPPLIER_ADVANCE"
+    PAYROLL_DOCUMENT = "PAYROLL_DOCUMENT"
+    EXPENSE_DOCUMENT = "EXPENSE_DOCUMENT"
     CAPITAL_CONTRIBUTION = "CAPITAL_CONTRIBUTION"
+    OWNER_WITHDRAWAL = "OWNER_WITHDRAWAL"
+    LOAN = "LOAN"
+    LOAN_REPAYMENT = "LOAN_REPAYMENT"
+    BANK_CHARGE = "BANK_CHARGE"
+    BANK_INTEREST = "BANK_INTEREST"
+    BANK_DEPOSIT = "BANK_DEPOSIT"
+    BANK_WITHDRAWAL = "BANK_WITHDRAWAL"
+    MANUAL_ADJUSTMENT = "MANUAL_ADJUSTMENT"
     ASSET_ACQUISITION = "ASSET_ACQUISITION"
+    ASSET_DISPOSAL = "ASSET_DISPOSAL"
     INVENTORY_ADJUSTMENT = "INVENTORY_ADJUSTMENT"
     WASTE_REPORT = "WASTE_REPORT"
     CASH_SHIFT_CLOSE = "CASH_SHIFT_CLOSE"
@@ -101,17 +116,48 @@ class FinancialDocumentStatus(str, Enum):
 class ReceivableStatus(str, Enum):
     OPEN = "OPEN"
     PARTIALLY_COLLECTED = "PARTIALLY_COLLECTED"
-    SETTLED = "SETTLED"
-    WRITTEN_OFF = "WRITTEN_OFF"
+    COLLECTED = "COLLECTED"
+    OVERDUE = "OVERDUE"
+    DISPUTED = "DISPUTED"
     CANCELLED = "CANCELLED"
+    WRITTEN_OFF = "WRITTEN_OFF"
+
+
+#: Estados de una CxC que todavía se debe cobrar.
+OPEN_RECEIVABLE_STATUSES = frozenset({
+    ReceivableStatus.OPEN, ReceivableStatus.PARTIALLY_COLLECTED,
+    ReceivableStatus.OVERDUE, ReceivableStatus.DISPUTED,
+})
 
 
 class PayableStatus(str, Enum):
     OPEN = "OPEN"
-    SCHEDULED = "SCHEDULED"
     PARTIALLY_PAID = "PARTIALLY_PAID"
-    SETTLED = "SETTLED"
+    SCHEDULED = "SCHEDULED"
+    AUTHORIZED = "AUTHORIZED"
+    PAID = "PAID"
+    OVERDUE = "OVERDUE"
+    DISPUTED = "DISPUTED"
     CANCELLED = "CANCELLED"
+
+
+#: Estados de una CxP que todavía se debe pagar.
+OPEN_PAYABLE_STATUSES = frozenset({
+    PayableStatus.OPEN, PayableStatus.PARTIALLY_PAID, PayableStatus.SCHEDULED,
+    PayableStatus.AUTHORIZED, PayableStatus.OVERDUE, PayableStatus.DISPUTED,
+})
+
+
+def sql_in(statuses) -> str:
+    """Lista SQL literal de estados (constantes del dominio, nunca entrada de usuario)."""
+    return "(" + ",".join(f"'{s.value}'" for s in sorted(statuses, key=lambda x: x.value)) + ")"
+
+
+class PaymentPriority(str, Enum):
+    LOW = "LOW"
+    NORMAL = "NORMAL"
+    HIGH = "HIGH"
+    CRITICAL = "CRITICAL"
 
 
 class SupplierPaymentStatus(str, Enum):
@@ -120,6 +166,33 @@ class SupplierPaymentStatus(str, Enum):
     EXECUTED = "EXECUTED"
     RECONCILED = "RECONCILED"
     CANCELLED = "CANCELLED"
+
+
+class CollectionStatus(str, Enum):
+    """Un cobro registrado se aplica explícitamente a documentos (§11). Lo no
+    aplicado es saldo a favor del cliente (anticipo), nunca un cobro perdido."""
+
+    UNAPPLIED = "UNAPPLIED"
+    PARTIALLY_APPLIED = "PARTIALLY_APPLIED"
+    APPLIED = "APPLIED"
+    REVERSED = "REVERSED"
+
+
+class SupplierAdvanceStatus(str, Enum):
+    OPEN = "OPEN"
+    PARTIALLY_APPLIED = "PARTIALLY_APPLIED"
+    APPLIED = "APPLIED"
+    CANCELLED = "CANCELLED"
+
+
+class PurchaseDebitNature(str, Enum):
+    """Naturaleza configurada del débito de una compra (§21): nunca texto libre."""
+
+    INVENTORY = "INVENTORY"
+    OPERATING_EXPENSE = "OPERATING_EXPENSE"
+    PREPAID_EXPENSE = "PREPAID_EXPENSE"
+    FIXED_ASSET = "FIXED_ASSET"
+    OTHER_ASSET = "OTHER_ASSET"
 
 
 class TreasuryAccountType(str, Enum):
@@ -132,6 +205,15 @@ class TreasuryAccountType(str, Enum):
     CLEARING_ACCOUNT = "CLEARING_ACCOUNT"
 
 
+class TreasuryMovementKind(str, Enum):
+    """Movimientos de tesorería con documento propio (§13)."""
+
+    DEPOSIT = "DEPOSIT"
+    WITHDRAWAL = "WITHDRAWAL"
+    BANK_CHARGE = "BANK_CHARGE"
+    BANK_INTEREST = "BANK_INTEREST"
+
+
 class ReconciliationStatus(str, Enum):
     OPEN = "OPEN"
     IN_PROGRESS = "IN_PROGRESS"
@@ -139,23 +221,68 @@ class ReconciliationStatus(str, Enum):
     REVERTED = "REVERTED"
 
 
+class StatementLineStatus(str, Enum):
+    """Estado de una partida del estado de cuenta (§15)."""
+
+    UNMATCHED = "UNMATCHED"
+    SUGGESTED = "SUGGESTED"
+    MATCHED = "MATCHED"
+    IGNORED = "IGNORED"
+    ADJUSTMENT_REQUIRED = "ADJUSTMENT_REQUIRED"
+
+
 class BudgetStatus(str, Enum):
     DRAFT = "DRAFT"
     SUBMITTED = "SUBMITTED"
     APPROVED = "APPROVED"
+    ACTIVE = "ACTIVE"
     CLOSED = "CLOSED"
+    CANCELLED = "CANCELLED"
+
+
+#: Presupuestos que controlan el gasto.
+CONTROLLING_BUDGET_STATUSES = frozenset({BudgetStatus.APPROVED, BudgetStatus.ACTIVE})
+
+
+class BudgetControlLevel(str, Enum):
+    """Resultado del control presupuestario de una partida (§16)."""
+
+    AVAILABLE = "AVAILABLE"
+    WARNING = "WARNING"
+    BLOCKING = "BLOCKING"
+
+
+class ExpenseRequestStatus(str, Enum):
+    """Solicitud → aprobación (compromiso) → documento (devengo) → liquidación (pago)."""
+
+    REQUESTED = "REQUESTED"
+    APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+    ACCRUED = "ACCRUED"
+    SETTLED = "SETTLED"
+    CANCELLED = "CANCELLED"
 
 
 class FixedAssetStatus(str, Enum):
     DRAFT = "DRAFT"
-    CAPITALIZED = "CAPITALIZED"
-    FULLY_DEPRECIATED = "FULLY_DEPRECIATED"
+    ACTIVE = "ACTIVE"
+    SUSPENDED = "SUSPENDED"
     DISPOSED = "DISPOSED"
+    SOLD = "SOLD"
+    WRITTEN_OFF = "WRITTEN_OFF"
 
 
 class DepreciationMethod(str, Enum):
     STRAIGHT_LINE = "STRAIGHT_LINE"
+
+
+class CapitalMovementKind(str, Enum):
+    """Capital, préstamos y CAPEX separados (§17): nada de esto es ingreso."""
+
+    CONTRIBUTION = "CONTRIBUTION"
+    WITHDRAWAL = "WITHDRAWAL"
+    LOAN_RECEIVED = "LOAN_RECEIVED"
+    LOAN_REPAYMENT = "LOAN_REPAYMENT"
 
 
 class CommercialInstrumentType(str, Enum):
@@ -234,6 +361,28 @@ class PostingPurpose(str, Enum):
     PAYABLE_RECOGNITION = "PAYABLE_RECOGNITION"
     REVERSAL = "REVERSAL"
     MANUAL = "MANUAL"
+    # ── Ronda 2 FIN-ERP (2026-10-21) ────────────────────────────────────
+    CUSTOMER_ADVANCE = "CUSTOMER_ADVANCE"
+    CUSTOMER_ADVANCE_APPLICATION = "CUSTOMER_ADVANCE_APPLICATION"
+    RECEIVABLE_WRITE_OFF = "RECEIVABLE_WRITE_OFF"
+    SUPPLIER_ADVANCE = "SUPPLIER_ADVANCE"
+    SUPPLIER_ADVANCE_APPLICATION = "SUPPLIER_ADVANCE_APPLICATION"
+    EARLY_PAYMENT_DISCOUNT = "EARLY_PAYMENT_DISCOUNT"
+    BANK_DEPOSIT = "BANK_DEPOSIT"
+    BANK_WITHDRAWAL = "BANK_WITHDRAWAL"
+    BANK_CHARGE = "BANK_CHARGE"
+    BANK_INTEREST = "BANK_INTEREST"
+    RECONCILIATION_ADJUSTMENT = "RECONCILIATION_ADJUSTMENT"
+    LOAN_RECEIVED = "LOAN_RECEIVED"
+    LOAN_REPAYMENT = "LOAN_REPAYMENT"
+    OWNER_WITHDRAWAL = "OWNER_WITHDRAWAL"
+    EXPENSE_ACCRUAL = "EXPENSE_ACCRUAL"
+    EXPENSE_SETTLEMENT = "EXPENSE_SETTLEMENT"
+    ASSET_SALE = "ASSET_SALE"
+    ASSET_WRITE_OFF = "ASSET_WRITE_OFF"
+    TRANSFER_SHIPMENT = "TRANSFER_SHIPMENT"
+    TRANSFER_RECEIPT = "TRANSFER_RECEIPT"
+    TRANSFER_DIFFERENCE = "TRANSFER_DIFFERENCE"
 
 
 class SettlementType(str, Enum):
@@ -250,6 +399,66 @@ class SettlementType(str, Enum):
     GIFT_CARD = "GIFT_CARD"
     STORE_CREDIT = "STORE_CREDIT"
     PROMOTIONAL_BALANCE = "PROMOTIONAL_BALANCE"
+
+
+class LineRole(str, Enum):
+    """Papel de una línea. ``ROUNDING`` lleva sólo importe en moneda base: la
+    diferencia de redondeo de una conversión va VISIBLE a su cuenta (§24)."""
+
+    NORMAL = "NORMAL"
+    ROUNDING = "ROUNDING"
+
+
+class AuditAction(str, Enum):
+    """Acciones auditables de Finanzas (§25)."""
+
+    ACCOUNT_CREATED = "ACCOUNT_CREATED"
+    ACCOUNT_UPDATED = "ACCOUNT_UPDATED"
+    SETTINGS_UPDATED = "SETTINGS_UPDATED"
+    JOURNAL_ENTRY_CREATED = "JOURNAL_ENTRY_CREATED"
+    JOURNAL_ENTRY_VALIDATED = "JOURNAL_ENTRY_VALIDATED"
+    JOURNAL_ENTRY_POSTED = "JOURNAL_ENTRY_POSTED"
+    JOURNAL_ENTRY_CANCELLED = "JOURNAL_ENTRY_CANCELLED"
+    JOURNAL_ENTRY_REVERSED = "JOURNAL_ENTRY_REVERSED"
+    PERIOD_OPENED = "PERIOD_OPENED"
+    PERIOD_CLOSED = "PERIOD_CLOSED"
+    PERIOD_REOPENED = "PERIOD_REOPENED"
+    RECEIVABLE_CREATED = "RECEIVABLE_CREATED"
+    RECEIVABLE_WRITTEN_OFF = "RECEIVABLE_WRITTEN_OFF"
+    RECEIVABLE_DISPUTED = "RECEIVABLE_DISPUTED"
+    COLLECTION_REGISTERED = "COLLECTION_REGISTERED"
+    COLLECTION_APPLIED = "COLLECTION_APPLIED"
+    PAYABLE_CREATED = "PAYABLE_CREATED"
+    PAYABLE_BLOCKED = "PAYABLE_BLOCKED"
+    PAYMENT_SCHEDULED = "PAYMENT_SCHEDULED"
+    PAYMENT_AUTHORIZED = "PAYMENT_AUTHORIZED"
+    PAYMENT_EXECUTED = "PAYMENT_EXECUTED"
+    TREASURY_MOVEMENT = "TREASURY_MOVEMENT"
+    STATEMENT_IMPORTED = "STATEMENT_IMPORTED"
+    RECONCILED = "RECONCILED"
+    UNRECONCILED = "UNRECONCILED"
+    BUDGET_CHANGED = "BUDGET_CHANGED"
+    EXPENSE_DECIDED = "EXPENSE_DECIDED"
+    ASSET_CAPITALIZED = "ASSET_CAPITALIZED"
+    ASSET_CHANGED = "ASSET_CHANGED"
+    DEPRECIATION_RUN = "DEPRECIATION_RUN"
+    CAPITAL_MOVEMENT = "CAPITAL_MOVEMENT"
+    TAX_CONFIGURED = "TAX_CONFIGURED"
+    DATA_EXPORTED = "DATA_EXPORTED"
+
+
+class TaxKind(str, Enum):
+    """Naturaleza fiscal de un código de impuesto (§22)."""
+
+    VAT = "VAT"                              # IVA
+    WITHHOLDING_VAT = "WITHHOLDING_VAT"      # retención de IVA
+    WITHHOLDING_INCOME = "WITHHOLDING_INCOME"  # retención de ISR
+    EXCISE = "EXCISE"                        # IEPS
+
+
+class TaxDirection(str, Enum):
+    SALES = "SALES"          # trasladado
+    PURCHASES = "PURCHASES"  # acreditable / retenido
 
 
 class CashFlowCategory(str, Enum):

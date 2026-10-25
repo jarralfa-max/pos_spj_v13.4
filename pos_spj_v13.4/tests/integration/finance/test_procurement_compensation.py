@@ -13,7 +13,7 @@ from backend.application.event_handlers.finance.procurement_compensation_bridges
     ProcurementReturnCreditHandler,
 )
 from backend.application.services.finance.posting_engine import PostingEngine
-from backend.application.use_cases.finance.payable_use_cases import CreatePayableUseCase
+from backend.application.use_cases.finance.create_payable_use_case import create_payable_in
 from backend.domain.finance.enums import JournalType, PostingPurpose
 from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.money import Money
@@ -45,7 +45,7 @@ def _return_payload(**overrides):
 def test_return_credit_reduces_the_invoice_payable(bootstrapped_conn):
     invoice_id = new_uuid()
     with FinanceUnitOfWork(bootstrapped_conn) as uow:
-        payable = CreatePayableUseCase.create_in(
+        payable = create_payable_in(
             uow, supplier_id=new_uuid(), amount="1160.00", currency_code="MXN",
             document_number="F-1", issue_date=TODAY, due_date=None, branch_id=None,
             source_module="procurement", source_document_id=invoice_id,
@@ -65,7 +65,7 @@ def test_return_credit_reduces_the_invoice_payable(bootstrapped_conn):
 def test_return_without_open_payable_becomes_supplier_advance(bootstrapped_conn):
     invoice_id = new_uuid()
     with FinanceUnitOfWork(bootstrapped_conn) as uow:
-        payable = CreatePayableUseCase.create_in(
+        payable = create_payable_in(
             uow, supplier_id=new_uuid(), amount="50.00", currency_code="MXN",
             document_number="F-2", issue_date=TODAY, due_date=None, branch_id=None,
             source_module="procurement", source_document_id=invoice_id,

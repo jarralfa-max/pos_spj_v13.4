@@ -12,6 +12,7 @@ import json
 import logging
 from dataclasses import dataclass
 
+from backend.application.products.catalog_codes import CatalogCodeKind, resolve_catalog_code
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.commands.product_attribute_commands import (
     AddAttributeOptionCommand,
@@ -21,6 +22,7 @@ from backend.application.products.commands.product_attribute_commands import (
     UpdateAttributeOptionCommand,
 )
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.product_attribute import (
     AttributeOption,
     ProductAttribute,
@@ -47,7 +49,7 @@ class _BaseAttributeUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductAttributeRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def _require_manage(self, user_id: str | None) -> None:
         self._auth.require(user_id or "", ProductPermissions.ATTRIBUTES_MANAGE)
@@ -67,7 +69,8 @@ class CreateProductAttributeUseCase(_BaseAttributeUseCase):
     def execute(self, command: CreateAttributeCommand) -> AttributeResult:
         command.validate()
         self._require_manage(command.user_id)
-        code = (command.code or "").strip().upper()
+        code = resolve_catalog_code(self._conn, CatalogCodeKind.ATTRIBUTE, code=command.code,
+                                    name=command.name)
         if self._repo.code_exists(code):
             return AttributeResult(False, None, f"El código '{code}' ya existe")
         from backend.shared.ids import new_uuid
@@ -155,7 +158,8 @@ class AddAttributeOptionUseCase(_BaseAttributeUseCase):
         attribute = self._repo.get(command.attribute_id)
         if attribute is None:
             return AttributeResult(False, None, "El atributo no existe")
-        code = (command.code or "").strip().upper()
+        code = resolve_catalog_code(self._conn, CatalogCodeKind.ATTRIBUTE_OPTION, code=command.code,
+                                    name=command.label, scope_id=command.attribute_id)
         try:
             attribute.ensure_accepts_options()  # sólo LISTA admite opciones
             if self._repo.option_code_exists(command.attribute_id, code):

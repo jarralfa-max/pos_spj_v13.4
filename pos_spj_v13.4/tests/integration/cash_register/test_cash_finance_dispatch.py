@@ -26,7 +26,10 @@ from backend.bootstrap.application_context import ApplicationContext, FeatureCon
 from backend.bootstrap.legacy_session_adapter import LegacySessionAdapter
 from backend.domain.finance.enums import PostingPurpose
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
-from backend.infrastructure.db.schema.finance_schema import create_finance_schema
+from backend.infrastructure.db.schema.finance_schema import (
+    create_finance_schema,
+    drop_legacy_finance_tables,
+)
 from backend.infrastructure.desktop.cash_register_factory import build_cash_register_presenter
 from backend.security.credentials.password_hasher import BcryptPasswordHasher
 from backend.security.credentials.password_policy import PasswordPolicy
@@ -58,8 +61,7 @@ def conn():
     c = make_db()
     # m000 aún crea las tablas previas a Finanzas canónica; la base real ya
     # las reemplazó.
-    for legacy in ("journal_entries", "financial_documents", "fixed_assets"):
-        c.execute(f"DROP TABLE {legacy}")
+    drop_legacy_finance_tables(c)
     create_finance_schema(c)
     bootstrap_finance(c, today=date.today())
     ProvisionInstallationUseCase(

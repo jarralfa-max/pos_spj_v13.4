@@ -82,8 +82,10 @@ SETTINGS_CATALOG: tuple[SettingSpec, ...] = (
         ValueType.DECIMAL, Decimal("10"), "Cuántos pesos de compra acumulan un punto.",
         validation_schema={"min": 0.01}),
     SettingSpec(
-        "loyalty.credit_earns", "loyalty", "Programa de puntos", "Las ventas a crédito acumulan",
-        ValueType.BOOLEAN, True),
+        "loyalty.credit_earns", "loyalty", "Programa de puntos",
+        "Las ventas a crédito acumulan al cobrarse", ValueType.BOOLEAN, True,
+        "Auditoría 968e0bc FID-04: lo vendido a crédito no acumula al vender; con esto "
+        "activo acumula cuando el cliente lo paga, en proporción a lo cobrado."),
     SettingSpec(
         "loyalty.points_expiration_months", "loyalty", "Programa de puntos",
         "Vigencia de los puntos (meses)", ValueType.INTEGER, 12,
@@ -94,6 +96,22 @@ SETTINGS_CATALOG: tuple[SettingSpec, ...] = (
     SettingSpec(
         "loyalty.min_points_to_redeem", "loyalty", "Programa de puntos",
         "Mínimo de puntos para canjear", ValueType.INTEGER, 0, validation_schema={"min": 0}),
+    SettingSpec(
+        "loyalty.benefit_min_margin_percent", "loyalty", "Programa de puntos",
+        "Margen mínimo protegido (%)", ValueType.DECIMAL, Decimal("10"),
+        "Auditoría 968e0bc FID-03: puntos, cupones, promociones y descuentos de una venta "
+        "nunca dejan menos de este margen sobre el costo. Se puede fijar otro por "
+        "categoría o producto en Fidelidad → Beneficios.",
+        validation_schema={"min": 0, "max": 90}),
+    SettingSpec(
+        "loyalty.manual_adjust_max_points", "loyalty", "Programa de puntos",
+        "Tope de una corrección manual (puntos)", ValueType.INTEGER, 500,
+        "Auditoría 968e0bc FID-05: más que esto no se corrige a mano, aunque lo "
+        "autorice otra persona.", validation_schema={"min": 1, "max": 1000000}),
+    SettingSpec(
+        "loyalty.manual_adjust_daily_max_points", "loyalty", "Programa de puntos",
+        "Tope diario de correcciones manuales a favor por cliente (puntos)",
+        ValueType.INTEGER, 1000, validation_schema={"min": 1, "max": 10000000}),
     SettingSpec(
         "loyalty.max_redeem_fraction", "loyalty", "Programa de puntos",
         "Parte máxima del ticket pagadera con puntos", ValueType.DECIMAL, Decimal("0.5"),

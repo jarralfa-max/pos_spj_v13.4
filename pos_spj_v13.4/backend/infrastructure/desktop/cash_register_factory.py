@@ -8,7 +8,6 @@ and active-context callbacks already wired.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from decimal import Decimal
 
 from PyQt5.QtWidgets import QVBoxLayout, QWidget
@@ -68,7 +67,9 @@ from backend.application.cash_register.offline_sync import (
     CashSyncStateQueryService,
     ResolveCashSyncConflictUseCase,
     SetCashSyncConnectivityUseCase,
+    ensure_cash_sync_device,
 )
+from backend.application.sync.replication_outbox import MissingReplicationTransport
 from backend.application.cash_register.operational_read_query_service import (
     CashOperationalReadQueryService,
 )
@@ -165,11 +166,6 @@ class _NoOpZCutNotifier:
         return None
 
 
-class _MissingCashSyncTransport:
-    def push(self, *, device_id: str, branch_id: str, envelopes):
-        raise RuntimeError("Gateway de sincronizacion de Caja no configurado")
-
-
 class _DesktopCashSyncQueryService:
     def __init__(self, connection, query: CashSyncStateQueryService) -> None:
         self._connection = connection
@@ -238,19 +234,8 @@ def _cash_limit_policy(connection, operation_type: str) -> EffectiveCashLimitPol
 
 def _ensure_cash_sync_device(connection, *, device_id: str | None,
                              branch_id: str | None) -> str | None:
-    """Register the active POS terminal as sync identity if session lacks one."""
-    if not device_id or not branch_id:
-        return None
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    connection.execute(
-        """INSERT INTO cash_sync_devices
-        (id,branch_id,local_sequence,last_synced_sequence,connectivity,sync_status,updated_at)
-        VALUES(?,?,0,0,'ONLINE','IDLE',?)
-        ON CONFLICT(id) DO NOTHING""",
-        (str(device_id), str(branch_id), now),
-    )
-    connection.commit()
-    return str(device_id)
+    """La terminal activa es la estación de replicación (motor único, Slice 2)."""
+    return ensure_cash_sync_device(connection, device_id=device_id, branch_id=branch_id)
 
 
 def _after_cash_command(connection, handler, deliver_notifications):
@@ -507,7 +492,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         "cash_sync_service": resolve_attr(
             "cash_sync_service",
             lambda: CashOfflineSyncService(
-                getattr(composition_root, "cash_sync_transport", _MissingCashSyncTransport())
+                getattr(composition_root, "cash_sync_transport", MissingReplicationTransport())
             ),
         ),
         "cash_sync_connectivity_uc": resolve_attr(

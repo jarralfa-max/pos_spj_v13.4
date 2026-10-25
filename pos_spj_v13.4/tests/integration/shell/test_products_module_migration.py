@@ -122,7 +122,11 @@ def test_navigate_builds_a_real_products_view(app, conn):
     result = router.navigate(PRODUCTS_ROUTE_ID)
     assert isinstance(result.view, ProductsView)
     assert result.route.breadcrumb == ("Productos",)
-    assert result.view.nav.count() == 7
+    # PROD-22 sumó páginas de CONSULTA (especies, cortes, unidades, sucursales,
+    # recetas, rendimientos, despiece, calidad de datos, configuración…) que el
+    # puente concede con `PRODUCTOS.ver`. Las sensibles —códigos de barras,
+    # catálogo externo, importaciones, notificaciones, auditoría— siguen ocultas.
+    assert result.view.nav.count() == 14
 
 
 def test_navigate_without_the_required_permission_is_denied(app, conn):

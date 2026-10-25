@@ -21,6 +21,7 @@ from backend.application.products.commands.product_barcode_commands import (
     SetBarcodeActiveCommand,
 )
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.product_alternate_code import (
     ProductAlternateCode,
 )
@@ -47,7 +48,7 @@ class _Base:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = BarcodeRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def _rollback(self) -> None:
         rb = getattr(self._conn, "rollback", None)
@@ -73,16 +74,8 @@ class AssignBarcodeUseCase(_Base):
         if self._repo.active_owner(pb.value) == command.product_id and not command.is_primary:
             return BarcodeResult(True, None, "El código ya estaba asignado a este producto")
         try:
-            self._repo.assign(pb)
-            if command.is_primary:
-                self._repo.make_primary(command.product_id, pb.value)
-            record_product_audit_entry(
-                self._conn, action="PRODUCT_BARCODE_ASSIGNED", entity_id=command.product_id,
-                user_id=command.user_id, operation_id=command.operation_id,
-                after={"barcode_id": pb.id, "value": pb.value,
-                      "barcode_type": pb.barcode.barcode_type.value})
-            _emit(self._conn, ProductEvents.PRODUCT_BARCODE_ASSIGNED, command,
-                 command.product_id, {"barcode_id": pb.id, "value": pb.value})
+            stage_barcode_assignment(self._conn, pb, user_id=command.user_id,
+                                     operation_id=command.operation_id)
             self._conn.commit()
         except ProductsDomainError as exc:
             self._rollback()
@@ -144,6 +137,32 @@ class AddAlternateCodeUseCase(_Base):
             logger.exception("add alternate code failed op=%s", command.operation_id)
             raise
         return BarcodeResult(True, code.id, "PRODUCT_ALTERNATE_CODE_ADDED")
+
+
+def stage_barcode_assignment(conn, pb: ProductBarcode, *, user_id: str | None,
+                             operation_id: str) -> None:
+    """Asigna el código (unicidad activa, principal único, consecutivo interno,
+    auditoría y evento) SIN commit: lo usan la asignación suelta y el alta del
+    producto con su código de barras inicial (PROD-23), en una sola transacción.
+    Lanza ``ProductsDomainError`` si el código ya pertenece a otro producto."""
+    from types import SimpleNamespace
+
+    from backend.application.products.queries.internal_barcode import (
+        advance_internal_barcode_sequence,
+    )
+    repo = BarcodeRepository(conn)
+    repo.assign(pb)
+    if pb.is_primary:
+        repo.make_primary(pb.product_id, pb.value)
+    advance_internal_barcode_sequence(conn, pb.value)
+    record_product_audit_entry(
+        conn, action="PRODUCT_BARCODE_ASSIGNED", entity_id=pb.product_id,
+        user_id=user_id, operation_id=operation_id,
+        after={"barcode_id": pb.id, "value": pb.value,
+               "barcode_type": pb.barcode.barcode_type.value})
+    _emit(conn, ProductEvents.PRODUCT_BARCODE_ASSIGNED,
+          SimpleNamespace(operation_id=operation_id), pb.product_id,
+          {"barcode_id": pb.id, "value": pb.value})
 
 
 def _emit(conn, event_name: str, command, entity_id: str, extra: dict) -> None:

@@ -69,6 +69,9 @@ class _Session:
     """Sesión con los códigos efectivos que resuelve la app real."""
 
     def __init__(self, conn, rol):
+        # El verificador sólo responde por el usuario de la sesión (auditoría de
+        # permisos 968e0bc, PER-03), así que la sesión tiene que decir quién es.
+        self.user_id = f"u-{rol}"
         self._codes = PermissionQueryService(
             SqlitePermissionRepository(conn)).permission_codes_for_user(f"u-{rol}")
 

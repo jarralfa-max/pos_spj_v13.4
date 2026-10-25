@@ -10,7 +10,7 @@ from __future__ import annotations
 from backend.application.finance.permissions import ALL_FINANCE_PERMISSIONS
 from backend.domain.finance.exceptions import (
     FinanceConfigurationError,
-    FinancePermissionDeniedError,
+    PermissionDeniedError,
 )
 
 
@@ -25,14 +25,14 @@ class FinanceAuthorizationPolicy:
 
     def require(self, user_id: str, permission_code: str) -> None:
         if permission_code not in ALL_FINANCE_PERMISSIONS:
-            raise FinancePermissionDeniedError(f"Permiso desconocido: {permission_code}")
+            raise PermissionDeniedError(f"Permiso desconocido: {permission_code}")
         if self._checker is None:
             raise FinanceConfigurationError(
                 "FinanceAuthorizationPolicy requiere un PermissionChecker")
         if not user_id or not str(user_id).strip():
-            raise FinancePermissionDeniedError("Operación sin usuario autenticado")
+            raise PermissionDeniedError("Operación sin usuario autenticado")
         if not self._checker.has_permission(str(user_id), permission_code):
-            raise FinancePermissionDeniedError(
+            raise PermissionDeniedError(
                 f"No tienes permiso para esta acción ({permission_code}).")
 
 

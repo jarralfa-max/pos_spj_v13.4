@@ -8,52 +8,52 @@ from backend.domain.finance.entities.fiscal_period import FiscalPeriod
 from backend.domain.finance.enums import FiscalPeriodStatus
 from backend.infrastructure.db.repositories.finance.base import FinanceRepositoryBase
 
-_COLUMNS = ("id, year, month, status, opened_at, soft_closed_at, closed_at,"
-            " reopened_at, closed_by, reopen_reason, created_at, updated_at")
-
 
 def _to_entity(row: dict) -> FiscalPeriod:
     return FiscalPeriod(
         id=row["id"], year=row["year"], month=row["month"],
         status=FiscalPeriodStatus(row["status"]),
         opened_at=row["opened_at"], soft_closed_at=row["soft_closed_at"],
-        closed_at=row["closed_at"], reopened_at=row["reopened_at"],
-        closed_by=row["closed_by"], reopen_reason=row["reopen_reason"],
+        soft_closed_by=row["soft_closed_by"],
+        closed_at=row["closed_at"], closed_by=row["closed_by"],
+        reopened_at=row["reopened_at"], reopened_by=row["reopened_by"],
+        reopen_reason=row["reopen_reason"],
         created_at=row["created_at"], updated_at=row["updated_at"],
     )
 
 
+def _mutable(period: FiscalPeriod) -> dict:
+    return {
+        "status": period.status.value, "soft_closed_at": period.soft_closed_at,
+        "soft_closed_by": period.soft_closed_by, "closed_at": period.closed_at,
+        "closed_by": period.closed_by, "reopened_at": period.reopened_at,
+        "reopened_by": period.reopened_by, "reopen_reason": period.reopen_reason,
+        "updated_at": period.updated_at,
+    }
+
+
 class FiscalPeriodRepository(FinanceRepositoryBase):
     def save(self, period: FiscalPeriod) -> None:
-        self._execute(
-            f"INSERT INTO fiscal_periods ({_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (period.id, period.year, period.month, period.status.value, period.opened_at,
-             period.soft_closed_at, period.closed_at, period.reopened_at,
-             period.closed_by, period.reopen_reason, period.created_at, period.updated_at),
-        )
+        values = {"id": period.id, "year": period.year, "month": period.month,
+                  "opened_at": period.opened_at, "created_at": period.created_at}
+        values.update(_mutable(period))
+        self._insert("fiscal_periods", values)
 
     def update(self, period: FiscalPeriod) -> None:
-        self._execute(
-            "UPDATE fiscal_periods SET status=?, soft_closed_at=?, closed_at=?,"
-            " reopened_at=?, closed_by=?, reopen_reason=?, updated_at=? WHERE id=?",
-            (period.status.value, period.soft_closed_at, period.closed_at,
-             period.reopened_at, period.closed_by, period.reopen_reason,
-             period.updated_at, period.id),
-        )
+        self._update("fiscal_periods", _mutable(period), where="id=?", params=(period.id,))
 
     def get(self, period_id: str) -> FiscalPeriod | None:
-        row = self._query_one(f"SELECT {_COLUMNS} FROM fiscal_periods WHERE id=?", (period_id,))
+        row = self._query_one("SELECT * FROM fiscal_periods WHERE id=?", (period_id,))
         return _to_entity(row) if row else None
 
     def find_for_date(self, value: date) -> FiscalPeriod | None:
         return self.find_by_code(value.year, value.month)
 
     def find_by_code(self, year: int, month: int) -> FiscalPeriod | None:
-        row = self._query_one(
-            f"SELECT {_COLUMNS} FROM fiscal_periods WHERE year=? AND month=?", (year, month)
-        )
+        row = self._query_one("SELECT * FROM fiscal_periods WHERE year=? AND month=?",
+                              (year, month))
         return _to_entity(row) if row else None
 
     def list_all(self) -> list[FiscalPeriod]:
-        rows = self._query(f"SELECT {_COLUMNS} FROM fiscal_periods ORDER BY year, month")
-        return [_to_entity(row) for row in rows]
+        return [_to_entity(row) for row in
+                self._query("SELECT * FROM fiscal_periods ORDER BY year, month")]

@@ -60,12 +60,11 @@ def build_supplier_presenter(connection, session_context=None) -> SupplierPresen
         "risk": SupplierRiskQueryService(connection),
     }
     # RBAC real. Antes CADA caso de uso se construía sin checker, y
-    # `SupplierAuthorizationPolicy` sin checker PERMITE todo: cualquier usuario
-    # con acceso al módulo podía aprobar, bloquear o verificar cuentas
-    # bancarias. El checker traduce los códigos planos al vocabulario grueso
-    # que la base sí concede (ver su docstring) y deniega lo no mapeado.
-    authorization = SupplierAuthorizationPolicy(
-        SupplierSessionPermissionChecker(session_context))
+    # `SupplierAuthorizationPolicy` sin checker PERMITÍA todo (ya no: falla
+    # cerrada). El checker concede el código granular `PROVEEDORES.<accion>` o
+    # su respaldo grueso (ver su docstring).
+    permission_checker = SupplierSessionPermissionChecker(session_context)
+    authorization = SupplierAuthorizationPolicy(permission_checker)
 
     use_cases = {
         "create": CreateSupplierUseCase(authorization),
@@ -98,6 +97,7 @@ def build_supplier_presenter(connection, session_context=None) -> SupplierPresen
         query_services=query_services,
         use_cases=use_cases,
         session_context=session_context,
+        permission_checker=permission_checker,
     )
 
 

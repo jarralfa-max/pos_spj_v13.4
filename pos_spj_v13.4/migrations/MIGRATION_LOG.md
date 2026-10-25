@@ -5,6 +5,18 @@ documentarse aquí antes del commit.
 
 ---
 
+## Productos: códigos de catálogo automáticos y código de barras en el alta (PROD-23, sin migración) — 2026-10-22
+
+Categorías, marcas, atributos, opciones, especies, regiones y cortes: si el
+código viene vacío el alta lo genera del nombre (único en su ámbito) y el escrito
+a mano se respeta. «Nuevo producto» asigna su código de barras principal en la
+misma transacción (inválido o ajeno → no se crea el producto). EAN-13 interno con
+prefijo GS1 04 sobre `product_code_sequences` (clave `BARCODE-EAN13-04`, fila que
+se crea al primer uso; no requiere esquema nuevo). Detalle en
+`docs/refactor/PROD-23_codigos_automaticos_y_barras.md`.
+
+---
+
 ## Integración Logística · Transferencias · POS · Instalador (sin migración) — 2026-10-16
 
 Respuesta al encargo `32cfbf` (detalle en `docs/refactor/LOG-INT_auditoria_32cfbf.md`).
@@ -92,6 +104,31 @@ asientos.
 (Número 340: la 338/339 las tomó el actualizador de software.)
 
 ---
+
+## Limpieza de pruebas legacy, segunda ronda (sin migración) — 2026-10-23
+
+Alcance: lo que corre el CI (`tests/architecture`, `tests/unit`, `tests/integration`,
+`tests/ui`). Mismo criterio que la ronda del 2026-10-16: se retira una prueba sólo si
+su SUJETO ya no existe (`core`, `repositories`, `modulos`, el `api/` raíz, módulos
+retirados). Lo vivo que probaban se reescribió contra el código vigente.
+
+* Borradas (38; no importaban o probaban sólo código borrado): integration/api/test_anular_venta_endpoint, integration/pricing/test_pricing_service_shim, integration/test_card_batch_engine_lifecycle, integration/test_configuracion_event_idempotency, integration/test_configuracion_use_case_flows, integration/test_configuracion_uuid_identity, integration/test_delivery_qs_branches, integration/test_delivery_refactor, integration/test_driver_repo_uuid_identity, integration/test_finance_balance_uses_canonical_cash_and_cxc, integration/test_finanzas_uc_turno_str, integration/test_forecast_generated_event_published, integration/test_forecast_handles_missing_statsmodels, integration/test_growth_ledger_sale_id_cutover, integration/test_inventory_routes, integration/test_login_lockout_and_unlock_flow, integration/test_loyalty_snapshot_scheduler_schema, integration/test_microservice_launcher_uses_current_python, integration/test_permissions_resolved_for_all_roles, integration/test_permissions_uuid_user, integration/test_product_combo_recipe_crud, integration/test_productos_repo_uuid_identity, integration/test_purchase_planning_forecast_executes_with_uuid_ids, integration/test_recipe_engine_uuid_identity, integration/test_roles_permissions_canonical_flow, integration/test_sale_ticket_default_template, integration/test_session_permissions_uuid, integration/test_ticket_contains_branch_header, integration/test_treasury_service_unified_movement_api, integration/products/test_legacy_repoint_below_cost, integration/products/test_legacy_repoint_bi_cogs, integration/products/test_legacy_repoint_forecast_stock, integration/products/test_legacy_repoint_main_window_search, integration/products/test_legacy_repoint_price_cost, integration/products/test_legacy_repoint_sales_lines, integration/products/test_legacy_repoint_template_cost, integration/products/test_products_enterprise_host, integration/test_uuid_migration_103.
+* Reescritas contra el código vivo: el inicio de sesión del dueño
+  (`security/test_provision_installation_use_case`, `ui/test_initial_setup_wizard`) usa
+  `AuthenticateUserUseCase`, el login real; el aviso de Productos por WhatsApp
+  (`products/test_notification_dispatch`) comprueba `product_whatsapp_outbox`; las de
+  roles de `test_roles_uuidv7_identity` usan `SqliteRolePermissionRepository`.
+* Recortadas: `test_admin_unlocks_locked_user` (2 de 4: leían `modulos/configuracion.py` y
+  `ConfigRepository`) y `test_purchase_cash_ticket_printing` (2 de 3: `core/services/
+  printer_service.py` y `modulos/ventas.py`).
+* Corregidas por contenido, no borradas: `meat_processing/test_meat_processing_overview`
+  (fecha fija que caducó), `shell/test_meat_processing_module_migration` y
+  `shell/test_products_module_migration` (páginas que ya son reales),
+  `security/test_permission_query_service` (conteos fijos de sembrado: ahora compara
+  con lo sembrado), `ui/test_module_workspace_layout` (una prueba pegada dentro de otra
+  partía el archivo) y `test_loyalty_event_wiring_phase7` → `loyalty/test_loyalty_live_wiring`.
+* Fuera de alcance, sin tocar: ~170 archivos sueltos `tests/test_*.py` que el CI no
+  ejecuta y que importan los mismos paquetes borrados.
 
 ## Limpieza de pruebas legacy (sin migración) — 2026-10-16
 
@@ -5167,3 +5204,103 @@ convertidos desde `crm_outbox`. Idempotente.
 Pausar no descontaba la espera y una resolución tardía se mostraba «Cumplido». Agrega a
 `sla_instances` `paused_at`, `paused_seconds`, `first_response_outcome` y
 `resolution_outcome` (MET/MISSED); calcula el resultado de las ya resueltas. Idempotente.
+
+### 345 — contrato born-clean de Finanzas (2026-10-22, FIN-ERP ronda 2)
+
+Finanzas se reconstruyó como bounded context ERP (doble partida en moneda base con
+redondeo visible, dimensiones por renglón, CxC con aplicaciones explícitas, CxP con
+programar/autorizar/ejecutar, tesorería, conciliación CSV/XLSX, presupuesto con niveles
+de control, gastos, capital/préstamos, activos, impuestos y monedas configurables,
+bitácora `finance_audit_log`). El esquema vive sólo en `finance_schema.py` (51 tablas) y
+se crea en la 117; ya no hay `upgrade_finance_schema` ni rescates (la rama de Finanzas de
+la 332 se retiró). La 345 **verifica** el contrato: una base con un esquema financiero
+anterior se rechaza al arrancar con la instrucción de regenerarla (no se adapta). La 117
+además tira la `treasury_movements` legacy de la 083 (sin escritores vivos), cuyo nombre
+ahora es de la tabla canónica. Detalle y decisiones: `docs/refactor/finance_refactor_execution_plan.md` §R2.
+
+### 347 — auditoría global de permisos (2026-10-23, auditoría 968e0bc PER-04/06/08)
+
+Tres cosas, idempotente. (1) Traduce, con correspondencia 1:1 explícita, cualquier fila
+de `rol_permisos`, `usuario_permisos` o `usuario_sucursal_permisos` guardada con los
+códigos PLANOS de Mermas, Proveedores y Transferencias (`LOSSES_*`, `SUPPLIERS_*`,
+`TRANSFERS_*`) a `MERMA.`, `PROVEEDORES.` y `TRANSFERENCIAS.<accion>`; ningún código plano
+se traduce a más de uno, así que no amplía privilegios. (2) Normaliza (MÓDULO mayúsculas,
+acción minúsculas), quita duplicados —si chocan conceder y negar, se conserva NEGAR— y
+crea índices únicos en las dos tablas de excepciones. (3) Crea `security_grant_versions`:
+sube con cada cambio de concesión y las sesiones abiertas recargan sus permisos. Base real
+medida: 0 filas planas, 0 excepciones, 0 duplicados. NO retira las tablas del RBAC
+heredado (`permisos`, `roles_permisos`, `usuarios_roles`): 0 filas y sin consumidores,
+pero el corte UUID y la 116 todavía las nombran. Código retirado en la misma ronda:
+`security/rbac.py` (sin importadores de producción) y sus 5 pruebas. Detalle:
+`docs/refactor/PERM-AUD_auditoria_968e0bc.md`.
+
+### 346 — auditoría de Fidelidad 968e0bc (2026-10-22, FID-02/03/04)
+
+Idempotente. Agrega `loyalty_transactions.point_value` y `monetary_value`: el valor del punto y el importe
+en pesos de cada movimiento al hacerlo, para que un reintento del mismo canje no cambie el descuento si el
+valor del punto cambió. Crea `loyalty_deferred_accruals` y `loyalty_deferred_accrual_collections` (lo vendido
+a crédito acumula al cobrarse, decisión del usuario) y `loyalty_margin_floors` (margen mínimo protegido por
+categoría con excepción por producto). Base real medida: 0 movimientos, nada que rellenar. Detalle:
+`docs/refactor/FID-AUD_auditoria_968e0bc.md`.
+
+### 348 — retiro de las tablas del RBAC heredado (2026-10-23, auditoría 968e0bc PER-05)
+
+Borra `permisos`, `roles_permisos` y `usuarios_roles` sólo si están vacías; si alguna tiene filas la conserva
+y lo deja en el log. Antes: `m000` dejó de crearlas y `UuidCutover` filtra su especificación a tablas
+existentes. Ningún consumidor de producción (el notificador interno de Pedidos ya resuelve destinatarios con
+`usuarios.rol` + `usuarios_sucursales`). Base real: las tres retiradas (0 filas); segunda corrida sin efecto.
+
+### 349 — lotes físicos de cupones y vales (2026-10-24, auditoría de Fidelidad 968e0bc, ampliación)
+
+Idempotente; sólo tablas nuevas. `instrument_batches`, `instrument_batch_items` (folio legible, huella
+SHA-256 y prefijo del código público de cada pieza; el código completo no se guarda), `voucher_instance_rules`
+(foto de las reglas de canje de cada vale emitido por lote) y `commercial_instrument_secrets` (secreto de la
+instalación para derivar los códigos con HMAC). Un vale sin fila de reglas sigue siendo saldo libre. Siembra
+`GROWTH_ENGINE.lote.*` con el criterio de la 290: dueño y admin todo; gerente ver, crear e imprimir. Probada
+dos veces sobre una copia de la base real: integridad ok, sin violaciones de FK. Detalle:
+`docs/refactor/FID-AUD_auditoria_968e0bc.md`.
+
+### Slice 0 híbrido — frontera transaccional única y llaves foráneas (sin migración) — 2026-10-24
+
+Cierra R-01 y R-02 de `docs/architecture/hybrid_postgresql/06_migration_risk_register.md` (ADR-006).
+
+- `backend/infrastructure/db/transaction.py::TransactionalUnitOfWork` es la base de las 19 UoW de contexto y
+  de `ConnectionUnitOfWork`. Cada una pierde sus cuatro métodos copiados, y RRHH y Compras su registro
+  `_OPEN_DEPTH`.
+- La UoW más externa abre `BEGIN`; una anidada usa `SAVEPOINT` y ya no confirma la de afuera;
+  `owns_transaction=False` no toca la conexión. Antes, en el pool autocommit, un rollback no deshacía nada.
+- Nuevo paso de arranque `ForeignKeyEnforcementStep`, después de migrar: activa `foreign_keys=ON` si
+  `PRAGMA foreign_key_check` da 0; si no, avisa sin bloquear el POS.
+- Pruebas: `tests/integration/shared/test_unit_of_work_transaction_contract.py`.
+- Detalle y reversión: `docs/architecture/hybrid_postgresql/09_slice0_transactional_base.md`.
+
+### 350 — motor de replicación único (2026-10-24, arquitectura híbrida Slice 2)
+
+Idempotente.
+
+- Crea `replication_stations` y `replication_envelopes`, cada sobre con su propio estado de envío.
+- Traslada `cash_sync_devices` a estaciones, conservando id, sucursal y conectividad.
+- **Repara un defecto vivo**: el motor de CASH-19 escribía `cash_outbox.status` (`FAILED`/`DISPATCHED`), y
+  el despachador Caja → Finanzas sólo toma `PENDING`, así que un «Sincronizar» sin servidor dejaba
+  movimientos sin asentar. Sólo se tocan filas con `last_error` del motor viejo: sin `dispatched_at` vuelven
+  a `PENDING`; con él, a `DISPATCHED`.
+- Base real: 0 filas afectadas (outbox vacíos).
+- Código retirado en la misma ronda:
+  - despachador y transporte de INV-22 (muertos);
+  - captura offline de Mermas, LOSS-22 (sin llamadores; el registro normal ya maneja evidencias);
+  - `CashSyncRepository`.
+- Las tablas viejas se conservan hasta una migración de contracción.
+- Detalle: `docs/architecture/hybrid_postgresql/11_slice2_replication_engine.md`.
+
+### p001 — esquema central de replicación, PostgreSQL (2026-10-25, arquitectura híbrida Slice 3)
+
+Primera migración del carril `pg` (`migrations/engine.py::up_postgresql`).
+
+- Cada migración del carril corre en su propia transacción, con DDL transaccional, bajo `pg_advisory_lock`.
+- Crea `sync_stations`, `sync_inbox` (`event_id` PK = idempotencia; `UNIQUE (station_id, sequence_no)`),
+  `sync_aggregate_heads` y `sync_conflicts`.
+- Tipos: UUID sin valor por omisión, TIMESTAMPTZ, JSONB y BIGINT; nada autoincremental ni flotante.
+- Sólo corre en el servidor central. Las estaciones siguen en SQLite con el carril de arriba.
+- Probada contra PostgreSQL 16 real en el CI (`central-postgres`); aquí no hay PostgreSQL.
+- Detalle: `docs/architecture/hybrid_postgresql/12_slice3_postgresql_minimum.md`.
+

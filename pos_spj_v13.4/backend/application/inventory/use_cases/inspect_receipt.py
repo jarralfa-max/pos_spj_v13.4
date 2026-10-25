@@ -22,6 +22,7 @@ from backend.application.inventory.execution_context import InventoryExecutionCo
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.services.movement_posting import post_movement
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.inventory_movement import (
     InventoryMovement,
     InventoryMovementLine,
@@ -47,7 +48,7 @@ def _fail(exc, operation_id):
 
 class InspectReceiptUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, balance_id: str, passed: bool, operation_id: str,
                 actor_user_id: str, reason: str = "",

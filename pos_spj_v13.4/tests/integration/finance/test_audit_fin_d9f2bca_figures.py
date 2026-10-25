@@ -14,42 +14,32 @@ from backend.application.event_handlers.finance.sale_completed_handler import (
     SaleCompletedHandler,
 )
 from backend.application.queries.finance.base_finance_query_service import decimal_sum
-from backend.application.queries.finance.finance_read_services import (
-    ReceivableQueryService,
-    TreasuryQueryService,
-)
+from backend.application.queries.finance.receivable_query_service import ReceivableQueryService
+from backend.application.queries.finance.treasury_query_service import TreasuryQueryService
 from backend.application.queries.finance.financial_statement_query_service import (
     FinancialStatementQueryService,
 )
+from backend.application.queries.finance.base_finance_query_service import LedgerFilter
 from backend.application.queries.finance.general_ledger_query_service import (
     GeneralLedgerQueryService,
 )
 from backend.application.services.finance.posting_engine import PostingEngine
-from backend.application.use_cases.finance.budget_use_cases import (
-    ApproveBudgetUseCase,
-    CreateBudgetUseCase,
-    RegisterExpenseRequestUseCase,
-    ResolveExpenseRequestUseCase,
-    SubmitBudgetUseCase,
+from backend.application.use_cases.finance.approve_expense_use_case import ApproveExpenseUseCase
+from backend.application.use_cases.finance.finance_configuration_use_cases import ManageCurrencyUseCase
+from backend.application.use_cases.finance.register_expense_request_use_case import RegisterExpenseRequestUseCase
+from backend.application.use_cases.finance.accrue_expense_use_case import (
+    AccrueExpenseUseCase,
+    CancelExpenseUseCase,
 )
-from backend.application.use_cases.finance.capital_and_asset_use_cases import (
-    CapitalizeAssetUseCase,
-    RegisterCapitalContributionUseCase,
-    RunDepreciationUseCase,
-)
-from backend.application.use_cases.finance.payable_use_cases import (
-    AuthorizeSupplierPaymentUseCase,
-    CreatePayableUseCase,
-    ExecuteSupplierPaymentUseCase,
-    ScheduleSupplierPaymentUseCase,
-)
-from backend.application.use_cases.finance.receivable_use_cases import (
-    RegisterCollectionUseCase,
-    RegisterSaleCreditChargeUseCase,
-)
-from backend.application.use_cases.finance.treasury_use_cases import (
-    RegisterTreasuryTransferUseCase,
-)
+from backend.application.use_cases.finance.capitalize_asset_use_case import CapitalizeAssetUseCase
+from backend.application.use_cases.finance.run_depreciation_use_case import RunDepreciationUseCase
+from backend.application.use_cases.finance.authorize_supplier_payment_use_case import AuthorizeSupplierPaymentUseCase
+from backend.application.use_cases.finance.create_payable_use_case import CreatePayableUseCase
+from backend.application.use_cases.finance.execute_supplier_payment_use_case import ExecuteSupplierPaymentUseCase
+from backend.application.use_cases.finance.schedule_supplier_payment_use_case import ScheduleSupplierPaymentUseCase
+from backend.application.use_cases.finance.register_collection_use_case import RegisterCollectionUseCase
+from backend.application.use_cases.finance.register_sale_credit_charge_use_case import RegisterSaleCreditChargeUseCase
+from backend.application.use_cases.finance.register_treasury_transfer_use_case import RegisterTreasuryTransferUseCase
 from backend.domain.finance.entities.treasury_account import TreasuryAccount
 from backend.domain.finance.enums import (
     FixedAssetStatus,
@@ -59,6 +49,7 @@ from backend.domain.finance.enums import (
 )
 from backend.domain.finance.exceptions import (
     CurrencyMismatchError,
+    ExchangeRateNotFoundError,
     FinanceDomainError,
     PaymentAuthorizationError,
 )
@@ -70,7 +61,8 @@ from backend.domain.finance.value_objects.money import Money
 from backend.domain.finance.value_objects.posting_reference import PostingReference
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
 from backend.shared.ids import new_uuid
-from tests.integration.finance.conftest import account_id, register_supplier
+from backend.infrastructure.integrations.finance_supplier_directory import SqliteSupplierDirectory
+from tests.integration.finance.conftest import account_id, approved_budget, fund, register_supplier
 
 TODAY = date(2026, 7, 16)
 
@@ -81,9 +73,7 @@ def _treasury(conn, account_type=TreasuryAccountType.BANK):
 
 
 def _contribute(conn, amount="100.00", treasury=None):
-    return RegisterCapitalContributionUseCase().execute(
-        conn, amount=amount, contribution_date=TODAY,
-        treasury_account_id=(treasury or _treasury(conn)).id, operation_id=new_uuid())
+    return fund(conn, (treasury or _treasury(conn)).id, amount, on=TODAY)
 
 
 def _position(conn):
@@ -127,7 +117,7 @@ class TestF05TreasuryPosition:
         bank = _treasury(bootstrapped_conn)
         with FinanceUnitOfWork(bootstrapped_conn) as uow:
             journal = uow.journals.get_by_type(JournalType.BANK)
-            period = PostingEngine()._resolve_period(uow, TODAY)
+            period = PostingEngine().resolve_period(uow, TODAY)
             draft = JournalPostingService().build_entry(
                 journal.id, "BORRADOR-1", TODAY, period, "Borrador",
                 PostingReference("finance", new_uuid(), PostingPurpose.MANUAL, new_uuid()),
@@ -151,7 +141,21 @@ class TestF05TreasuryPosition:
 
 
 class TestF06Currency:
+    def test_foreign_currency_without_rate_is_rejected(self, bootstrapped_conn):
+        with pytest.raises(ExchangeRateNotFoundError):
+            with FinanceUnitOfWork(bootstrapped_conn) as uow:
+                PostingEngine().post(
+                    uow, JournalType.GENERAL, TODAY, "USD sin tipo de cambio",
+                    PostingReference("finance", new_uuid(), PostingPurpose.MANUAL, new_uuid()),
+                    [LineSpec(_treasury(bootstrapped_conn).ledger_account_id,
+                              debit=Money.from_string("100.00", "USD")),
+                     LineSpec(account_id(bootstrapped_conn, "3110"),
+                              credit=Money.from_string("100.00", "USD"))])
+
     def test_ledger_never_adds_two_currencies(self, bootstrapped_conn):
+        ManageCurrencyUseCase().register_rate(
+            bootstrapped_conn, from_currency="USD", to_currency="MXN", rate="18.50",
+            effective_date=date(2026, 7, 1), operation_id=new_uuid(), created_by="t")
         bank = _treasury(bootstrapped_conn).ledger_account_id
         capital = account_id(bootstrapped_conn, "3110")
         engine = PostingEngine()
@@ -163,8 +167,9 @@ class TestF06Currency:
                             [LineSpec(bank, debit=Money.from_string("100.00", currency)),
                              LineSpec(capital, credit=Money.from_string("100.00", currency))])
         rows = {r.account_code: r for r in GeneralLedgerQueryService(
-            bootstrapped_conn).account_balances(currency_code="MXN")}
-        assert rows["1110"].natural_balance().to_string() == "100.00"
+            bootstrapped_conn).account_balances(LedgerFilter())}
+        # 100 MXN + 100 USD x 18.50 = 1,950 MXN: nunca 200 "pesos-dolar".
+        assert rows["1110"].natural_balance().to_string() == "1950.00"
 
     def test_entry_lines_cannot_mix_currencies(self, bootstrapped_conn):
         with pytest.raises(CurrencyMismatchError):
@@ -188,7 +193,8 @@ class TestF06Currency:
             payment_id=new_uuid(), folio="V-6", amount="100.00", issue_date=TODAY)
         with pytest.raises(CurrencyMismatchError):
             RegisterCollectionUseCase().execute(
-                bootstrapped_conn, receivable_id=receivable.id, amount="100.00",
+                bootstrapped_conn, customer_id=receivable.customer_id, amount="100.00",
+                applications=[{"receivable_id": receivable.id, "amount": "100.00"}],
                 treasury_account_id=usd.id, collection_date=TODAY, operation_id=new_uuid())
         assert bootstrapped_conn.execute("SELECT COUNT(*) FROM collections").fetchone()[0] == 0
 
@@ -201,7 +207,8 @@ class TestF13PaymentExecutionRevalidates:
             issue_date=TODAY, operation_id=new_uuid(),
             counterpart_account_id=account_id(conn, "6130"))
         bank = _treasury(conn)
-        payment = ScheduleSupplierPaymentUseCase().execute(
+        _contribute(conn, "500.00", bank)
+        payment = ScheduleSupplierPaymentUseCase(SqliteSupplierDirectory(conn)).execute(
             conn, payable_id=payable.id, amount="100.00", scheduled_date=TODAY,
             treasury_account_id=bank.id, scheduled_by=new_uuid(), operation_id=new_uuid())
         AuthorizeSupplierPaymentUseCase().execute(
@@ -214,7 +221,7 @@ class TestF13PaymentExecutionRevalidates:
             bank.active = False
             uow.treasury.update(bank)
         with pytest.raises(FinanceDomainError, match="inactiva"):
-            ExecuteSupplierPaymentUseCase().execute(
+            ExecuteSupplierPaymentUseCase(SqliteSupplierDirectory(bootstrapped_conn)).execute(
                 bootstrapped_conn, payment_id=payment.id, executed_date=TODAY,
                 operation_id=new_uuid(), execution_reference="SPEI-1")
 
@@ -224,7 +231,7 @@ class TestF13PaymentExecutionRevalidates:
             "UPDATE proveedores SET bloqueado_financiero=1, motivo_bloqueo='auditoría'"
             " WHERE id=?", (supplier_id,))
         with pytest.raises(PaymentAuthorizationError, match="bloqueados"):
-            ExecuteSupplierPaymentUseCase().execute(
+            ExecuteSupplierPaymentUseCase(SqliteSupplierDirectory(bootstrapped_conn)).execute(
                 bootstrapped_conn, payment_id=payment.id, executed_date=TODAY,
                 operation_id=new_uuid(), execution_reference="SPEI-1")
 
@@ -235,7 +242,7 @@ class TestF13PaymentExecutionRevalidates:
             issue_date=TODAY, operation_id=new_uuid(),
             counterpart_account_id=account_id(bootstrapped_conn, "6130"))
         with pytest.raises(PaymentAuthorizationError, match="no existe"):
-            ScheduleSupplierPaymentUseCase().execute(
+            ScheduleSupplierPaymentUseCase(SqliteSupplierDirectory(bootstrapped_conn)).execute(
                 bootstrapped_conn, payable_id=payable.id, amount="50.00",
                 scheduled_date=TODAY, treasury_account_id=_treasury(bootstrapped_conn).id,
                 scheduled_by=new_uuid(), operation_id=new_uuid())
@@ -243,11 +250,11 @@ class TestF13PaymentExecutionRevalidates:
     def test_execution_requires_and_keeps_its_evidence(self, bootstrapped_conn):
         payment, _, _ = self._authorized(bootstrapped_conn)
         with pytest.raises(PaymentAuthorizationError, match="evidencia"):
-            ExecuteSupplierPaymentUseCase().execute(
+            ExecuteSupplierPaymentUseCase(SqliteSupplierDirectory(bootstrapped_conn)).execute(
                 bootstrapped_conn, payment_id=payment.id, executed_date=TODAY,
                 operation_id=new_uuid())
         executor = new_uuid()
-        ExecuteSupplierPaymentUseCase().execute(
+        ExecuteSupplierPaymentUseCase(SqliteSupplierDirectory(bootstrapped_conn)).execute(
             bootstrapped_conn, payment_id=payment.id, executed_date=TODAY,
             operation_id=new_uuid(), executed_by=executor, execution_reference="SPEI-777")
         row = bootstrapped_conn.execute(
@@ -262,7 +269,7 @@ class TestF14PromotionalBalanceIsNotMoney:
                                             TreasuryAccountType.DIGITAL_WALLET,
                                             account_id(bootstrapped_conn, "2134"))
             uow.treasury.save(wallet)
-        with pytest.raises(FinanceDomainError, match="not cash"):
+        with pytest.raises(FinanceDomainError, match="no es dinero"):
             RegisterTreasuryTransferUseCase().execute(
                 bootstrapped_conn, source_treasury_account_id=wallet.id,
                 target_treasury_account_id=_treasury(bootstrapped_conn).id,
@@ -272,27 +279,28 @@ class TestF14PromotionalBalanceIsNotMoney:
 
 class TestF15BudgetCommitments:
     def _approved(self, conn):
-        expense = account_id(conn, "6130")
-        budget = CreateBudgetUseCase().execute(
-            conn, name="2026", fiscal_year=2026, operation_id=new_uuid(),
-            lines=[{"account_id": expense, "period_code": "2026-07",
-                    "planned_amount": "1000.00"}])
-        SubmitBudgetUseCase().execute(conn, budget_id=budget.id, submitted_by="a")
-        ApproveBudgetUseCase().execute(conn, budget_id=budget.id, approved_by="b",
-                                       operation_id=new_uuid())
-        return expense
+        approved_budget(conn, planned="1000.00")
+        return account_id(conn, "6130")
+
+    def _request(self, conn, expense, amount, operation=None):
+        request_id = RegisterExpenseRequestUseCase().execute(
+            conn, account_id=expense, amount=amount, request_date=TODAY,
+            operation_id=operation or new_uuid(), requested_by="ana")
+        ApproveExpenseUseCase().approve(conn, expense_request_id=request_id,
+                                        approver_id="beto", operation_id=new_uuid())
+        return request_id
 
     def _committed(self, conn):
         return conn.execute("SELECT committed_amount, accrued_amount FROM budget_lines").fetchone()
 
     def test_replayed_request_commits_once(self, bootstrapped_conn):
         expense, operation = self._approved(bootstrapped_conn), new_uuid()
-        first = RegisterExpenseRequestUseCase().execute(
+        register = RegisterExpenseRequestUseCase()
+        first, second = (register.execute(
             bootstrapped_conn, account_id=expense, amount="100.00", request_date=TODAY,
-            operation_id=operation)
-        second = RegisterExpenseRequestUseCase().execute(
-            bootstrapped_conn, account_id=expense, amount="100.00", request_date=TODAY,
-            operation_id=operation)
+            operation_id=operation, requested_by="ana") for _ in range(2))
+        ApproveExpenseUseCase().approve(bootstrapped_conn, expense_request_id=first,
+                                        approver_id="beto", operation_id=new_uuid())
         assert first == second
         assert self._committed(bootstrapped_conn)[0] == "100.00"
         assert bootstrapped_conn.execute(
@@ -301,27 +309,30 @@ class TestF15BudgetCommitments:
 
     def test_release_and_accrual_close_the_cycle(self, bootstrapped_conn):
         expense = self._approved(bootstrapped_conn)
-        cancelled = RegisterExpenseRequestUseCase().execute(
-            bootstrapped_conn, account_id=expense, amount="100.00", request_date=TODAY,
-            operation_id=new_uuid())
-        invoiced = RegisterExpenseRequestUseCase().execute(
-            bootstrapped_conn, account_id=expense, amount="40.00", request_date=TODAY,
-            operation_id=new_uuid())
-        uc = ResolveExpenseRequestUseCase()
-        uc.release(bootstrapped_conn, expense_request_id=cancelled, reason="Se canceló")
-        uc.accrue(bootstrapped_conn, expense_request_id=invoiced, document_reference="FAC-1")
+        cancelled = self._request(bootstrapped_conn, expense, "100.00")
+        invoiced = self._request(bootstrapped_conn, expense, "40.00")
+        CancelExpenseUseCase().execute(bootstrapped_conn, expense_request_id=cancelled,
+                                       reason="Se canceló", operation_id=new_uuid(),
+                                       cancelled_by="ana")
+        supplier = register_supplier(bootstrapped_conn)
+        accrue = AccrueExpenseUseCase()
+        accrue.execute(bootstrapped_conn, expense_request_id=invoiced, document_reference="FAC-1",
+                       accrual_date=TODAY, operation_id=new_uuid(), accrued_by="carla",
+                       supplier_id=supplier)
         assert self._committed(bootstrapped_conn) == ("0.00", "40.00")
         with pytest.raises(FinanceDomainError):
-            uc.accrue(bootstrapped_conn, expense_request_id=invoiced, document_reference="FAC-1")
+            accrue.execute(bootstrapped_conn, expense_request_id=invoiced,
+                           document_reference="FAC-1", accrual_date=TODAY,
+                           operation_id=new_uuid(), accrued_by="carla", supplier_id=supplier)
 
 
 class TestF19DepreciationSchedule:
     def test_last_month_of_useful_life_liquidates_the_rounding(self, bootstrapped_conn):
+        _contribute(bootstrapped_conn, "500.00")
         asset = CapitalizeAssetUseCase().execute(
             bootstrapped_conn, name="Equipo", acquisition_cost="100.00",
             useful_life_months=3, capitalization_date=TODAY, operation_id=new_uuid(),
             paid_from_treasury_account_id=_treasury(bootstrapped_conn).id)
-        _contribute(bootstrapped_conn, "500.00")
         amounts = []
         for month in (7, 8, 9, 10):
             for entry_id in RunDepreciationUseCase().execute(
@@ -331,7 +342,9 @@ class TestF19DepreciationSchedule:
                     " AND CAST(debit_amount AS REAL) > 0", (entry_id,)).fetchone()[0])
         assert amounts == ["33.33", "33.33", "33.34"]
         with FinanceUnitOfWork(bootstrapped_conn) as uow:
-            assert uow.fixed_assets.get(asset.id).status is FixedAssetStatus.FULLY_DEPRECIATED
+            stored = uow.fixed_assets.get(asset.id)
+        # Totalmente depreciado sigue ACTIVO (en uso) hasta su baja.
+        assert stored.status is FixedAssetStatus.ACTIVE and stored.is_fully_depreciated
 
 
 class TestF20Precision:
@@ -341,7 +354,7 @@ class TestF20Precision:
     def test_ledger_balance_keeps_cents_on_a_boundary_amount(self, bootstrapped_conn):
         _contribute(bootstrapped_conn, "9007199254740993.01")
         rows = {r.account_code: r for r in GeneralLedgerQueryService(
-            bootstrapped_conn).account_balances()}
+            bootstrapped_conn).account_balances(LedgerFilter())}
         assert rows["1110"].natural_balance().to_string() == "9007199254740993.01"
 
 

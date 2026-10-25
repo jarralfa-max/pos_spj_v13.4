@@ -83,7 +83,10 @@ class LoyaltyRewardInventoryClient:
                 product_id=product_id, quantity=r.quantity, from_location_id=r.location_id,
                 lot_id=r.lot_id, from_status=InventoryStatus.AVAILABLE,
                 reason_code="LOYALTY_REWARD", unit_cost=costo) for r in rebanadas])
-        resultado = PostInventoryMovementUseCase().execute(
+        # Concesión de Fidelidad a Inventario (PER-02), en nombre del operador.
+        from backend.application.inventory.integration_grants import integration_use_case
+        resultado = integration_use_case(
+            PostInventoryMovementUseCase, "loyalty", str(self._actor)).execute(
             self._conn, movimiento, actor_user_id=str(self._actor), owns_transaction=False)
         if not resultado.success:
             raise RewardStockError(resultado.message or "No se pudo dar salida a la recompensa.")

@@ -15,6 +15,8 @@ new event_id no longer redeems a voucher twice.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from backend.application.event_handlers.finance.handler_base import FinanceEventHandler
 from backend.application.services.finance.posting_engine import PostingEngine
 from backend.domain.finance.entities.financial_document import FinancialDocument
@@ -165,6 +167,10 @@ class SaleCompletedHandler(FinanceEventHandler):
                                         entry_date, branch_id, currency)
 
         cogs = self.money(payload, "cogs_total", currency, required=False)
+        if not already_posted:
+            self._record_profitability(uow, payload, entry, sale_id, entry_date, branch_id,
+                                       currency, net_revenue=revenue.subtract(discount),
+                                       discount=discount, cogs=cogs)
         if cogs.is_positive():
             self._engine.post(
                 uow, JournalType.INVENTORY, entry_date, f"Costo de venta {folio}",
@@ -180,6 +186,51 @@ class SaleCompletedHandler(FinanceEventHandler):
         return entry
 
     # ── helpers ───────────────────────────────────────────────────────────
+    @staticmethod
+    def _record_profitability(uow, payload: dict, entry, sale_id: str, entry_date,
+                              branch_id, currency: str, *, net_revenue: Money,
+                              discount: Money, cogs: Money) -> None:
+        """Hechos de rentabilidad (§33), uno por renglón de la venta. El ingreso
+        neto y el descuento del asiento se prorratean por importe de renglón y el
+        último absorbe el redondeo: la suma de los hechos cuadra con el mayor."""
+        lines = [l for l in payload.get("lines") or [] if Decimal(str(l.get("amount") or "0"))]
+        common = dict(fact_type="SALE", source_module="sales", source_document_id=sale_id,
+                      journal_entry_id=entry.id, fact_date=entry_date.isoformat(),
+                      branch_id=branch_id, customer_id=payload.get("customer_id"),
+                      channel=payload.get("channel"), order_id=payload.get("order_id"),
+                      route_id=payload.get("route_id"), category_id=None,
+                      currency_code=currency, operation_id=str(payload["operation_id"]))
+        if not lines:
+            uow.profitability.record(
+                **common, line_reference="sale", product_id=None, quantity="0",
+                net_revenue=net_revenue.to_string(), discount=discount.to_string(),
+                cost_of_sales=cogs.to_string(), direct_cost="0.00")
+            return
+        cent = Decimal("0.01")
+        weights = [Decimal(str(l["amount"])) for l in lines]
+        total_weight = sum(weights, Decimal("0"))
+        remaining = {"revenue": net_revenue.amount, "discount": discount.amount,
+                     "cost": cogs.amount}
+        for index, (line, weight) in enumerate(zip(lines, weights)):
+            last = index == len(lines) - 1
+            share = {key: (remaining[key] if last else
+                           (total * weight / total_weight).quantize(cent))
+                     for key, total in (("revenue", net_revenue.amount),
+                                        ("discount", discount.amount))}
+            unit_cost = str(line.get("unit_cost") or "").strip()
+            line_cost = (remaining["cost"] if last else
+                         (Decimal(str(line.get("quantity") or "0")) * Decimal(unit_cost))
+                         .quantize(cent) if unit_cost else Decimal("0.00"))
+            remaining["revenue"] -= share["revenue"]
+            remaining["discount"] -= share["discount"]
+            remaining["cost"] -= line_cost
+            uow.profitability.record(
+                **common, line_reference=str(index), product_id=line.get("product_id"),
+                quantity=str(line.get("quantity") or "0"),
+                net_revenue=format(share["revenue"], "f"),
+                discount=format(share["discount"], "f"),
+                cost_of_sales=format(line_cost, "f"), direct_cost="0.00")
+
     def _instrument_settlement_line(self, uow, settlement: dict, settlement_type, amount,
                                     entry_date, folio, branch_id=None):
         """Línea de canje y la obligación que liquida. NO la modifica: el canje
@@ -230,7 +281,7 @@ class SaleCompletedHandler(FinanceEventHandler):
         # crédito). Crearla otra vez aquí duplicaría la deuda del cliente; este
         # manejador sólo aporta el ASIENTO, que aquélla no hace (Fase 6).
         for doc in uow.financial_documents.find_by_source("sales", sale_id):
-            if doc.document_type is not FinancialDocumentType.SALES_INVOICE:
+            if doc.document_type is not FinancialDocumentType.CUSTOMER_INVOICE:
                 continue
             existing = uow.receivables.find_by_document(doc.id)
             if existing is not None and existing.original_amount.amount != credit_amount.amount:
@@ -249,7 +300,7 @@ class SaleCompletedHandler(FinanceEventHandler):
                     currency_code=currency)
             return
         document = FinancialDocument.create(
-            FinancialDocumentType.SALES_INVOICE, folio, entry_date, credit_amount,
+            FinancialDocumentType.CUSTOMER_INVOICE, folio, entry_date, credit_amount,
             "sales", sale_id, new_uuid(),
             branch_id=branch_id, customer_id=customer_id,
         )

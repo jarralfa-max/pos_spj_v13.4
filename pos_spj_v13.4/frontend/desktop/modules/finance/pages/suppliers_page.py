@@ -1,21 +1,18 @@
-"""Proveedores — the supplier master as a page inside Finanzas.
+"""Proveedores — el maestro de proveedores como página dentro de Finanzas.
 
-The single supplier master lives here (no standalone PROVEEDORES menu). It embeds
-the self-contained SuppliersView, built from the finance connection.
+El presentador de proveedores se compone en ``finance_routes`` (auditoría
+F26); la página no recibe la conexión.
 """
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-from frontend.desktop.modules.finance.suppliers.supplier_routes import (
-    build_supplier_presenter,
-)
 from frontend.desktop.modules.finance.suppliers.suppliers_view import SuppliersView
 
 
 class SuppliersPage(QWidget):
-    """Finance navigation page hosting the supplier master."""
+    """Página de navegación de Finanzas que aloja el maestro de proveedores."""
 
     def __init__(self, finance_presenter, parent=None) -> None:
         super().__init__(parent)
@@ -23,19 +20,21 @@ class SuppliersPage(QWidget):
         self._loaded = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        # Auditoría F26: el presentador de proveedores se compone en
-        # finance_routes; la página ya no recibe la conexión cruda.
         supplier_presenter = finance_presenter.embedded_presenter("suppliers")
+        self._view = None
         if supplier_presenter is None:
-            supplier_presenter = build_supplier_presenter(
-                finance_presenter.connection(), finance_presenter.session_context())
+            message = QLabel("El maestro de proveedores no está disponible.", self)
+            message.setProperty("role", "muted")
+            layout.addWidget(message)
+            return
         self._view = SuppliersView(supplier_presenter, self)
         layout.addWidget(self._view)
 
     def ensure_loaded(self) -> None:
-        if not self._loaded:
+        if not self._loaded and self._view is not None:
             self._view.ensure_loaded()
             self._loaded = True
 
     def reload(self) -> None:
-        self._view.ensure_loaded()
+        if self._view is not None:
+            self._view.ensure_loaded()

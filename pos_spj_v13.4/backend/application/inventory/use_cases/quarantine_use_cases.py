@@ -15,6 +15,7 @@ from backend.application.inventory.execution_context import InventoryExecutionCo
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.services.movement_posting import post_movement
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.inventory_movement import (
     InventoryMovement,
     InventoryMovementLine,
@@ -87,7 +88,7 @@ def _status_transfer(uow, q, *, mtype, from_status, to_status, base_op, actor_us
 
 class QuarantineStockUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, product_id: str, branch_id: str, warehouse_id: str,
                 reason: QuarantineReason, quantity, operation_id: str, actor_user_id: str,
@@ -128,7 +129,7 @@ class QuarantineStockUseCase:
 class ReleaseQuarantineUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None,
                  *, self_release_forbidden: bool = True) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
         self._segregation = SegregationOfDutiesPolicy()
         self._self_release_forbidden = self_release_forbidden
 
@@ -170,7 +171,7 @@ class ReleaseQuarantineUseCase:
 
 class DisposeQuarantineUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, quarantine_id: str, operation_id: str,
                 actor_user_id: str, reason: str = "",

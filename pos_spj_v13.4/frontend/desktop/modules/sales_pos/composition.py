@@ -393,8 +393,10 @@ def build_sales_pos_presenter(
             QuickCreateCustomerForSaleUseCase(customer_auth).execute),
         "scan_loyalty_card": _h(ScanLoyaltyCardForSaleUseCase(auth).execute),
         "redeem_loyalty_points": _h(RedeemLoyaltyPointsUseCase(
-            auth, loyalty_authorization=loyalty_auth).execute),
-        "apply_coupon": _h(ApplyCouponToSaleUseCase(auth).execute),
+            auth, loyalty_authorization=loyalty_auth,
+            authorizer_authorization=authorizer_auth).execute),
+        "apply_coupon": _h(ApplyCouponToSaleUseCase(
+            auth, authorizer_authorization=authorizer_auth).execute),
         "remove_coupon": _h(RemoveCouponFromSaleUseCase(auth).execute),
         "sell_prepaid_voucher": _h(SellPrepaidVoucherUseCase(auth).execute),
         "scan_code": _scan_code_handler(connection, auth, pricing_client),

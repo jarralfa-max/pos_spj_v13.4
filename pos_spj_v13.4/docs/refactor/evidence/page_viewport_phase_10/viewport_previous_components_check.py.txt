@@ -1,0 +1,31 @@
+"""Reproduce unrelated suite failures with pre-phase-10 components in memory."""
+import importlib
+from pathlib import Path
+import subprocess
+import sys
+
+PACKAGE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PACKAGE))
+
+for name, relative in (
+    ("frontend.desktop.components.page_viewport", "frontend/desktop/components/page_viewport.py"),
+    ("frontend.desktop.components.pages", "frontend/desktop/components/pages.py"),
+    ("frontend.desktop.shell.application_shell.content_host", "frontend/desktop/shell/application_shell/content_host.py"),
+):
+    source = subprocess.check_output(
+        ["git", "show", f"cebf67a7:pos_spj_v13.4/{relative}"], cwd=PACKAGE,
+    ).decode("utf-8")
+    module = importlib.import_module(name)
+    exec(compile(source, f"cebf67a7/{relative}", "exec"), module.__dict__)
+
+import frontend.desktop.components as components
+import frontend.desktop.components.module_layout as module_layout
+from frontend.desktop.components.page_viewport import PageViewport
+module_layout.PageViewport = PageViewport
+components.PageViewport = PageViewport
+pages = importlib.import_module("frontend.desktop.components.pages")
+for name in ("StandardPage", "ScrollablePage", "FormPage", "DashboardPage", "WizardPage"):
+    setattr(components, name, getattr(pages, name))
+
+import pytest
+raise SystemExit(pytest.main(sys.argv[1:]))

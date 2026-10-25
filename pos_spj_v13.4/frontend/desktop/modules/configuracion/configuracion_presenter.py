@@ -9,8 +9,10 @@ from __future__ import annotations
 import json
 import logging
 
+from backend.application.configuracion.authorization import ConfiguracionAuthorizationPolicy
 from backend.application.configuracion.permissions import ConfiguracionPermissions
 from frontend.desktop.modules.configuracion.navigation.configuracion_sidebar import CONFIGURACION_NAV
+from backend.application.security.unwired_policy import unwired
 from backend.application.use_cases.configuracion.device_management_use_cases import DeviceStatusAction
 from backend.application.use_cases.configuracion.document_template_use_cases import (
     DocumentTemplateStatusAction,
@@ -67,6 +69,7 @@ from backend.domain.offline.exceptions import OfflineDomainError
 from backend.domain.document_output.exceptions import DocumentOutputDomainError
 from backend.domain.feature_flags.exceptions import FeatureFlagsDomainError
 from backend.domain.settings.exceptions import (
+    ConfigurationAuthorizationConfigurationError,
     ConfigurationDomainError,
     ConfigurationPermissionDeniedError,
 )
@@ -303,23 +306,21 @@ class ConfiguracionPresenter:
         self._save_user_permissions_uc = save_user_permissions_uc
         self._import_display_media_uc = import_display_media_uc
         self._set_device_windows_printer_uc = set_device_windows_printer_uc
-        # SET-1: optional — a presenter built without `authorization` skips
-        # enforcement entirely (existing tests / isolated call sites keep
-        # working unchanged). The live app (configuracion_routes.py) always
-        # wires a real ConfiguracionAuthorizationPolicy.
-        self._authorization = authorization
+        # Sin política ya NO se omite la autorización (auditoría de permisos
+        # 968e0bc, PER-02): falla cerrada. La app (configuracion_routes.py)
+        # siempre cablea una política real.
+        self._authorization = authorization or unwired(ConfiguracionAuthorizationPolicy)
         self._audit_log = audit_log_repository
 
     # authorization / audit -----------------------------------------------------
     def _authorize(self, permission_code: str) -> str | None:
         """Returns an error message if the actor lacks `permission_code`,
-        else None. No-op when no policy is wired (see __init__ note)."""
-        if self._authorization is None:
-            return None
+        else None."""
         try:
             self._authorization.require(self._actor(), permission_code)
             return None
-        except ConfigurationPermissionDeniedError as exc:
+        except (ConfigurationPermissionDeniedError,
+                ConfigurationAuthorizationConfigurationError) as exc:
             return str(exc)
 
     def _record_audit(
@@ -479,6 +480,9 @@ class ConfiguracionPresenter:
 
     def list_content_campaigns(self):
         return self._query_service.list_content_campaigns()
+
+    def display_advertising_diagnostics(self):
+        return self._query_service.display_advertising_diagnostics()
 
     def list_advertising_slots(self):
         return self._query_service.list_advertising_slots()
@@ -1022,24 +1026,27 @@ class ConfiguracionPresenter:
                                    "action": code.split(".", 1)[1], "allowed": bool(allowed)}
                                   for code, allowed in changes.items()))
             result = self._save_role_permissions_uc.execute(command)
-            return True, (f"{result.message} Rigen la próxima vez que cada usuario del rol "
-                          "inicie sesión.")
+            return True, (f"{result.message} Rigen en las sesiones abiertas del rol en "
+                          "unos segundos.")
         except (ConfigurationDomainError, ValueError) as exc:
             return False, str(exc)
         except Exception:
             logger.exception("ConfiguracionPresenter.save_role_permissions failed")
             return False, "Error inesperado; revise el log."
 
-    def user_permission_matrix(self, user_id: str):
-        """Lo de su rol y sus excepciones, ya resuelto."""
+    def user_permission_matrix(self, user_id: str, branch_id: str = ""):
+        """Lo de su rol, sus excepciones en el ámbito pedido (todas las
+        sucursales o una) y el permiso efectivo con su origen, ya resuelto."""
         self._require_read(ConfiguracionPermissions.USUARIOS_VIEW)
         if self._user_permission_matrix_query is None:
             return None
-        return self._user_permission_matrix_query.matrix(user_id)
+        return self._user_permission_matrix_query.matrix(user_id, branch_id or None)
 
-    def save_user_permissions(self, *, user_id: str, changes: dict) -> tuple[bool, str]:
-        """`changes`: `código → INHERIT | GRANT | DENY`. El caso de uso revalida
-        permiso, autoedición, escalamiento, dueño y administradores."""
+    def save_user_permissions(self, *, user_id: str, changes: dict,
+                              branch_id: str = "") -> tuple[bool, str]:
+        """`changes`: `código → INHERIT | GRANT | DENY`; `branch_id` vacío =
+        todas las sucursales. El caso de uso revalida permiso, autoedición,
+        escalamiento, sucursal y roles de acceso total."""
         if self._save_user_permissions_uc is None:
             return False, "Permisos por usuario no disponibles."
         if not changes:
@@ -1047,12 +1054,12 @@ class ConfiguracionPresenter:
         try:
             command = SaveUserPermissionsCommand(
                 operation_id=new_uuid(), branch_id=self._session_branch_id(),
-                user_id=self._actor(), target_user_id=user_id,
+                user_id=self._actor(), target_user_id=user_id, scope_branch_id=branch_id,
                 permissions=tuple({"module": code.split(".", 1)[0],
                                    "action": code.split(".", 1)[1], "state": state}
                                   for code, state in changes.items()))
             result = self._save_user_permissions_uc.execute(command)
-            return True, f"{result.message} Rigen la próxima vez que inicie sesión."
+            return True, f"{result.message} Rigen en sus sesiones abiertas en unos segundos."
         except (ConfigurationDomainError, ValueError) as exc:
             return False, str(exc)
         except Exception:

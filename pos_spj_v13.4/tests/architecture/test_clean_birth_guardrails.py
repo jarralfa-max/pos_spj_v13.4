@@ -461,9 +461,11 @@ def test_treasury_tables_are_born_clean_uuid_identity():
 
     tl = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(treasury_ledger)").fetchall()}
     assert tl["sucursal_id"] == "TEXT"
+    # FIN-ERP (2026-10-22): treasury_movements es ahora la tabla CANÓNICA de
+    # Finanzas (la de la 083 se tira en la 117); sus referencias son TEXT.
     tm = {r[1]: r[2].upper() for r in conn.execute("PRAGMA table_info(treasury_movements)").fetchall()}
-    assert tm["branch_id"] == "TEXT" and tm["source_id"] == "TEXT"
-    assert tm["financial_document_id"] == "TEXT"
+    assert tm["branch_id"] == "TEXT" and tm["treasury_account_id"] == "TEXT"
+    assert tm["financial_document_id"] == "TEXT" and tm["journal_entry_id"] == "TEXT"
 
 
     # Los servicios legacy que esta prueba leía para verificar que acuñaban

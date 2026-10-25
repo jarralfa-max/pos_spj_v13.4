@@ -122,6 +122,18 @@ class SaleReturnedHandler(FinanceEventHandler):
                               branch_id)
 
         cogs = self.money(payload, "cogs_amount", currency, required=False)
+        if not already_posted:
+            # Rentabilidad (§33): lo devuelto resta ingreso, descuento y costo.
+            uow.profitability.record(
+                fact_type="RETURN", source_module="sales", source_document_id=sale_id,
+                line_reference=f"return:{return_id}", journal_entry_id=entry.id,
+                fact_date=entry_date.isoformat(), branch_id=branch_id, product_id=None,
+                category_id=None, customer_id=payload.get("customer_id"),
+                channel=payload.get("channel"), order_id=None, route_id=None, quantity="0",
+                net_revenue=gross.subtract(tax).subtract(discount).to_string(),
+                discount=discount.to_string(), cost_of_sales=cogs.to_string(),
+                direct_cost="0.00", currency_code=currency,
+                operation_id=str(payload["operation_id"]))
         if cogs.is_positive():
             self._engine.post(
                 uow, JournalType.INVENTORY, entry_date, f"Costo devuelto {folio}",
@@ -166,6 +178,6 @@ class SaleReturnedHandler(FinanceEventHandler):
         invoice.apply_settlement(amount)
         uow.financial_documents.update(invoice)
         uow.financial_documents.save(FinancialDocument.create(
-            FinancialDocumentType.CREDIT_NOTE, f"NC-{folio}", entry_date, amount,
+            FinancialDocumentType.CUSTOMER_CREDIT_NOTE, f"NC-{folio}", entry_date, amount,
             "sales", return_id, new_uuid(), branch_id=branch_id,
             customer_id=str(payload.get("customer_id") or "") or None))

@@ -1,26 +1,34 @@
 """Transfers RBAC adapter over the live application session.
 
-Unlike Inventory (whose ``InventoryPermissions.*`` vocabulary IS the catalog
-vocabulary — see ``backend/application/inventory/session_authorization.py``),
-the granular ``TransferPermissions.*`` codes used by
-``TransferAuthorizationPolicy`` (e.g. ``TRANSFERS_REQUEST_CREATE``) do not
-match what is actually registered in
-``core/security/permission_catalog.py``, which only exposes a coarse
-``"TRANSFERENCIAS": ["ver", "crear", "recibir", "cancelar"]``. This checker
-translates the handful of codes needed by the use cases wired so far; every
-other ``TransferPermissions.*`` code has no catalog counterpart yet and denies
-fail-closed. Widen ``_PERMISSION_MAP`` as later phases wire more use cases —
-do not invent new catalog actions here without also registering them in
-``permission_catalog.py``.
+Auditoría de permisos 968e0bc (PER-04). Hasta aquí `TransferPermissions.*` eran
+códigos PLANOS (`TRANSFERS_APPROVE`) fuera del catálogo, y este verificador sólo
+traducía tres a `TRANSFERENCIAS.ver`/`crear`; todo lo demás devolvía `False`
+ANTES de consultar la sesión. Medido: aprobar, rechazar, surtir, despachar y
+recibir una transferencia se denegaban a TODOS — administrador y dueño
+incluidos —, así que el ciclo que orquesta `TransferCycleService` no podía pasar
+de «solicitud enviada».
+
+Ahora los códigos son `TRANSFERENCIAS.<accion>`, registrados en el catálogo y
+otorgables desde Configuración, y se consultan tal cual. Respaldo grueso, el
+mismo criterio que Productos (PROD-22) y Mermas: `TRANSFERENCIAS.ver` concede las
+páginas de consulta, y `TRANSFERENCIAS.crear` la captura de la solicitud — lo
+que ya concedía antes. Nada más: aprobar, mover mercancía, diferencias,
+reversos, auditoría y configuración sólo con su código granular.
 """
 
 from __future__ import annotations
 
-# TransferPermissions.* code -> registered "TRANSFERENCIAS.accion" catalog code.
-_PERMISSION_MAP = {
-    "TRANSFERS_ACCESS": "TRANSFERENCIAS.ver",
-    "TRANSFERS_REQUEST_VIEW": "TRANSFERENCIAS.ver",
-    "TRANSFERS_REQUEST_CREATE": "TRANSFERENCIAS.crear",
+from backend.application.transfers.permissions import TransferPermissions as P
+
+#: Respaldo grueso: código granular → acción gruesa sembrada que lo concede.
+COARSE_FALLBACK = {
+    P.ACCESS: "TRANSFERENCIAS.ver",
+    P.DASHBOARD_VIEW: "TRANSFERENCIAS.ver",
+    P.REQUEST_VIEW: "TRANSFERENCIAS.ver",
+    P.DISPATCH_VIEW: "TRANSFERENCIAS.ver",
+    P.RECEIVE_VIEW: "TRANSFERENCIAS.ver",
+    P.DIFFERENCE_VIEW: "TRANSFERENCIAS.ver",
+    P.REQUEST_CREATE: "TRANSFERENCIAS.crear",
 }
 
 
@@ -29,10 +37,9 @@ class TransferSessionPermissionChecker:
     ``TransferAuthorizationPolicy``.
 
     Grants only when the session is active, belongs to the requesting user,
-    has an active branch, and the mapped catalog code is held
+    has an active branch, and holds the granular code or its coarse fallback
     (``session.tiene_permiso``). No session / inactive session / user mismatch
-    / no active branch / unmapped permission code / no ``tiene_permiso`` →
-    deny.
+    / no active branch / no ``tiene_permiso`` → deny.
     """
 
     def __init__(self, session) -> None:
@@ -48,8 +55,10 @@ class TransferSessionPermissionChecker:
         branch_id = str(getattr(session, "active_branch_id", "") or "").strip()
         if not branch_id:
             return False
-        catalog_code = _PERMISSION_MAP.get(permission_code)
-        if catalog_code is None:
-            return False
         check = getattr(session, "tiene_permiso", None)
-        return bool(callable(check) and check(catalog_code))
+        if not callable(check):
+            return False
+        if check(permission_code):
+            return True
+        coarse = COARSE_FALLBACK.get(permission_code)
+        return coarse is not None and bool(check(coarse))

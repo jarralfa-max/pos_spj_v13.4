@@ -6,10 +6,15 @@ Revalida todo aunque la pantalla ya lo filtre (§57):
 2. Nadie edita sus propios permisos (concederse algo es escalarse).
 3. Sólo permisos del catálogo canónico.
 4. Sin escalamiento: nadie concede lo que no tiene (salvo dueño y administradores).
-5. Un usuario con rol administrador no lleva excepciones: tiene acceso total.
-6. Al dueño de la instalación no se le niega nada.
+5. Un usuario con rol de acceso total (administradores y el dueño de la
+   instalación) no lleva excepciones.
 Cada cambio queda auditado con el antes y el después, en la misma transacción.
-Rige en el siguiente inicio de sesión del usuario.
+
+Auditoría de permisos 968e0bc:
+- El ámbito puede ser una sucursal (`scope_branch_id`): la tercera capa de
+  `PermissionQueryService`, que hasta aquí se leía pero nadie podía escribir.
+- Sube la versión de concesiones en la misma transacción: las sesiones abiertas
+  del usuario recargan sus permisos en segundos, no al volver a entrar.
 """
 
 from __future__ import annotations
@@ -29,6 +34,9 @@ from backend.application.use_cases.base_use_case import BaseUseCase
 from backend.domain.settings.exceptions import (
     ConfigurationInvalidValueError,
     ConfigurationPermissionDeniedError,
+)
+from backend.infrastructure.db.repositories.security.grant_version_repository import (
+    SqliteGrantVersionRepository,
 )
 from backend.infrastructure.db.repositories.security.permission_repository import (
     SqlitePermissionRepository,
@@ -52,6 +60,7 @@ class SaveUserPermissionsUseCase(BaseUseCase[SaveUserPermissionsCommand]):
         self._auth = authorization
         self._users = SqliteUserPermissionRepository(connection)
         self._permissions = SqlitePermissionRepository(connection)
+        self._versions = SqliteGrantVersionRepository(connection)
         self._audit = ConfiguracionAuditLogRepository(connection)
 
     def execute(self, command: SaveUserPermissionsCommand) -> UseCaseResult:
@@ -68,42 +77,58 @@ class SaveUserPermissionsUseCase(BaseUseCase[SaveUserPermissionsCommand]):
         mode = role_mode(role_name)
         if mode == "FULL_ACCESS":
             raise ConfigurationInvalidValueError(
-                f"{user_name} tiene un rol administrador con acceso total; no lleva excepciones.")
+                f"{user_name} tiene un rol con acceso total; no lleva excepciones.")
 
-        current = self._users.overrides(user_id)
+        scope = str(command.scope_branch_id or "").strip()
+        branch_name = ""
+        if scope:
+            branch = self._users.active_branch(scope)
+            if branch is None:
+                raise ConfigurationInvalidValueError("La sucursal no existe o no está activa.")
+            branch_name = branch[1]
+            current = self._users.branch_overrides(user_id, scope)
+        else:
+            current = self._users.overrides(user_id)
         changes = {
             code: state for code, state in self._requested(command).items()
             if state != _state_of(current, code)}
         if not changes:
             return UseCaseResult(success=True, operation_id=command.operation_id,
                                  entity_id=user_id, message="Sin cambios.", data={"changes": {}})
-        if mode == "GRANT_ONLY" and DENY in changes.values():
-            raise ConfigurationInvalidValueError(
-                "Al dueño de la instalación no se le puede negar ningún permiso.")
         self._guard_escalation(actor, [c for c, s in changes.items() if s == GRANT])
 
         antes = {c: _state_of(current, c) for c in changes}
         try:
             for code, state in changes.items():
-                if state == INHERIT:
+                if scope and state == INHERIT:
+                    self._users.clear_branch(user_id, scope, code)
+                elif scope:
+                    self._users.set_branch(user_id, scope, code, state == GRANT)
+                elif state == INHERIT:
                     self._users.clear(user_id, code)
                 else:
                     self._users.set(user_id, code, state == GRANT)
+            ambito = {"sucursal_id": scope, "sucursal": branch_name} if scope else {
+                "sucursal": "todas"}
             self._audit.record(
                 entity_type="user_permissions", entity_id=user_id, action="ACTUALIZAR_PERMISOS",
                 user_id=actor, operation_id=command.operation_id,
-                before_json=json.dumps({"usuario": user_name, "excepciones": antes},
+                before_json=json.dumps({"usuario": user_name, **ambito, "excepciones": antes},
                                        ensure_ascii=False),
-                after_json=json.dumps({"usuario": user_name, "excepciones": changes},
+                after_json=json.dumps({"usuario": user_name, **ambito, "excepciones": changes},
                                       ensure_ascii=False),
-                reason=f"{len(changes)} excepciones cambiadas", branch_id=command.branch_id or None)
+                reason=f"{len(changes)} excepciones cambiadas"
+                       + (f" en {branch_name}" if scope else ""),
+                branch_id=command.branch_id or None)
+            self._versions.bump()
             self._conn.commit()
         except Exception:
             self._conn.rollback()
             raise
         return UseCaseResult(
             success=True, operation_id=command.operation_id, entity_id=user_id,
-            message=f"{len(changes)} permisos actualizados para {user_name}.",
+            message=f"{len(changes)} permisos actualizados para {user_name}"
+                    + (f" en {branch_name}." if scope else "."),
             data={"changes": dict(changes)})
 
     @staticmethod
@@ -122,8 +147,6 @@ class SaveUserPermissionsUseCase(BaseUseCase[SaveUserPermissionsCommand]):
 
     def _guard_escalation(self, actor: str, grant: list[str]) -> None:
         if not grant:
-            return
-        if role_mode(self._permissions.user_role_name(actor) or "") == "GRANT_ONLY":
             return
         mios = PermissionQueryService(self._permissions).permission_codes_for_user(actor)
         if GLOBAL_WILDCARD in mios:

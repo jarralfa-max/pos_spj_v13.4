@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
+from backend.application.inventory.integration_grants import integration_use_case
 from backend.application.inventory.use_cases.post_inventory_movement import (
     PostInventoryMovementUseCase,
 )
@@ -51,7 +52,8 @@ class CanonicalSaleInventoryHandler:
     def __init__(self, connection_provider,
                  use_case: PostInventoryMovementUseCase | None = None) -> None:
         self._conn = connection_provider
-        self._uc = use_case or PostInventoryMovementUseCase()
+        # Sin caso de uso inyectado: concesión del módulo origen (PER-02).
+        self._uc = use_case
 
     def handle(self, payload: dict) -> None:
         branch_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
@@ -81,11 +83,12 @@ class CanonicalSaleInventoryHandler:
         # The sale opens its own SAVEPOINT and dispatches SALE_ITEMS_PROCESS
         # synchronously on the shared connection; the outer sale owns the commit
         # (legacy contract: decrease_stock(auto_commit=False)). So we join that
-        # transaction instead of committing here. A SALE_ISSUE is system-driven
-        # (no manual permission gate — the default use case carries no checker);
-        # any failure must abort the sale rather than silently skip the
-        # deduction and leak stock, so we raise on every non-success.
-        result = self._uc.execute(self._conn(), movement, actor_user_id=user,
+        # transaction instead of committing here. A SALE_ISSUE goes through the
+        # Sales integration grant (no manual-movement permission for the
+        # cashier); any failure must abort the sale rather than silently skip
+        # the deduction and leak stock, so we raise on every non-success.
+        uc = self._uc or integration_use_case(PostInventoryMovementUseCase, "sales", user)
+        result = uc.execute(self._conn(), movement, actor_user_id=user,
                                   owns_transaction=False)
         if not result.success:
             raise RuntimeError(result.message or "No se pudo descontar inventario de la venta.")

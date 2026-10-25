@@ -98,10 +98,12 @@ class DatabaseMobileCredentialVerifier:
         except Exception:  # noqa: BLE001 - sin permisos legibles, la sesión no ve nada extra
             logger.exception("permisos móviles no disponibles")
             return ()
-        # `permission_codes_for_user` normaliza a MAYÚSCULAS y el flujo móvil
-        # compara contra la grafía canónica (`LOGISTICA.embarque.crear`): sin
-        # traducirlas, toda acción del teléfono respondía 403.
+        # La sesión móvil lleva las acciones de Logística en su grafía canónica
+        # (`LOGISTICA.embarque.crear`), decididas con la regla única de
+        # concesión: así cuentan el comodín del acceso total (dueño, admin) y
+        # `LOGISTICA.*`. Antes se filtraban los códigos por prefijo y el dueño,
+        # que recibe `*`, llegaba al teléfono sin ninguna acción (todo 403).
         from backend.application.logistics.permissions import ALL_LOGISTICS_PERMISSIONS
-        canonical = {code.upper(): code for code in ALL_LOGISTICS_PERMISSIONS}
-        return tuple(sorted({canonical.get(str(c).upper(), str(c)) for c in codes
-                             if str(c).upper().startswith("LOGISTICA")}))
+        from backend.security.permissions.codes import is_granted, normalize_permission
+        concedidos = frozenset(normalize_permission(str(c)) for c in codes)
+        return tuple(sorted(p for p in ALL_LOGISTICS_PERMISSIONS if is_granted(concedidos, p)))

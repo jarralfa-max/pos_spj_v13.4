@@ -2,7 +2,8 @@
 
 UI-only: captura los datos MAESTRO (identidad, tipo, unidad base, estado, flags de
 capacidad) y delega el guardado en ``ProductsPresenter.save_product`` (use cases
-canónicos). Sin SQL ni lógica de negocio. El precio se gestiona en el módulo de
+canónicos). PROD-23: en el alta puede capturarse el código de barras principal
+(escaneado, tecleado o interno generado); se asigna en la misma transacción. Sin SQL ni lógica de negocio. El precio se gestiona en el módulo de
 Precios; la existencia en Inventario — este formulario NO los captura.
 """
 
@@ -28,6 +29,10 @@ from backend.domain.products.enums import MEAT_PRODUCT_TYPES
 from frontend.desktop.components import (
     SearchableComboBox,
     create_secondary_button,
+)
+from frontend.desktop.components.barcode_input import BarcodeInput
+from frontend.desktop.modules.products.product_codes_profiles_presenter import (
+    BARCODE_TYPE_ES,
 )
 from frontend.desktop.modules.products.view_models import (
     LIFECYCLE_ES,
@@ -135,6 +140,8 @@ class ProductFormDialog(StandardDialog):
         self._apply_code_mode()
         self._apply_meat_visibility()
 
+        self._build_barcode_box(layout)
+
         flags_box = QGroupBox("Capacidades")
         grid = QGridLayout(flags_box)
         for i, (key, label) in enumerate(_FLAGS):
@@ -158,6 +165,11 @@ class ProductFormDialog(StandardDialog):
             self._btn_images = create_secondary_button(text="Imágenes…")
             self._btn_images.clicked.connect(self._open_gallery)
             buttons.addButton(self._btn_images, QDialogButtonBox.ActionRole)
+        # PROD-23: en edición los códigos de barras se gestionan desde aquí también.
+        if not self._is_new and self._codes is not None:
+            self._btn_barcodes = create_secondary_button(text="Códigos de barras…")
+            self._btn_barcodes.clicked.connect(self._open_barcodes)
+            buttons.addButton(self._btn_barcodes, QDialogButtonBox.ActionRole)
         buttons.accepted.connect(self._on_save)
         buttons.rejected.connect(self.reject)
         self.add_footer_widget(buttons)
@@ -179,6 +191,64 @@ class ProductFormDialog(StandardDialog):
                          if (u.get("code") or "").upper() == code), None)
             if unit is not None:
                 self.base_unit.set_current_id(unit["id"])
+
+    # ── código de barras (PROD-23) ─────────────────────────────────────────
+    def _build_barcode_box(self, layout) -> None:
+        """Sección opcional del ALTA: el código que leerá el POS."""
+        self._codes = getattr(self._presenter, "codes_profiles", None)
+        self.barcode_box = QGroupBox("Lleva código de barras")
+        self.barcode_box.setCheckable(True)
+        self.barcode_box.setChecked(False)
+        form = QFormLayout(self.barcode_box)
+        self.barcode_value = BarcodeInput(clear_after_scan=False)
+        self.barcode_value.setAccessibleName("Código de barras")
+        self.barcode_value.textEdited.connect(self._guess_barcode_type)
+        self.barcode_value.scanned.connect(self._guess_barcode_type)
+        self.barcode_type = QComboBox()
+        for key, label in BARCODE_TYPE_ES.items():
+            self.barcode_type.addItem(label, key)
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.addWidget(self.barcode_value, 1)
+        self.btn_generate_barcode = create_secondary_button(text="Generar interno")
+        self.btn_generate_barcode.setToolTip(
+            "Para productos sin código de fabricante: EAN-13 interno (prefijo 04) "
+            "que no se repite.")
+        self.btn_generate_barcode.clicked.connect(self._generate_barcode)
+        row_layout.addWidget(self.btn_generate_barcode)
+        form.addRow("Código *", row)
+        form.addRow("Tipo *", self.barcode_type)
+        hint = QLabel("Escanéalo o escríbelo; si no trae de fabricante, genera uno "
+                      "interno. Se guarda como principal (el que lee el POS).")
+        hint.setProperty("role", "muted")
+        hint.setWordWrap(True)
+        form.addRow(hint)
+        layout.addWidget(self.barcode_box)
+        can = bool(self._codes is not None
+                   and getattr(self._codes, "can_manage_barcodes", False))
+        self._barcode_enabled = self._is_new and can
+        self.barcode_box.setVisible(self._barcode_enabled)
+
+    def _guess_barcode_type(self, text: str) -> None:
+        value = (text or "").strip()
+        if value.isdigit() and len(value) in (13, 12):
+            self._select(self.barcode_type, "EAN" if len(value) == 13 else "UPC")
+
+    def _generate_barcode(self) -> None:
+        value = self._codes.preview_internal_barcode() if self._codes is not None else ""
+        if not value:
+            self._error.setText("No se pudo generar un código interno; escríbelo.")
+            return
+        self.barcode_value.setText(value)
+        self._select(self.barcode_type, "EAN")
+
+    def _open_barcodes(self) -> None:
+        from frontend.desktop.modules.products.dialogs.barcodes_dialog import (
+            BarcodesDialog,
+        )
+        BarcodesDialog(self._codes, product_id=self._product_id,
+                       product_name=self.name.text() or "Producto", parent=self).exec_()
 
     def _open_gallery(self) -> None:
         from frontend.desktop.modules.products.dialogs.image_gallery_dialog import (
@@ -286,6 +356,9 @@ class ProductFormDialog(StandardDialog):
         else:
             fields["code"] = self.code.text().strip().upper()
         fields.update({key: cb.isChecked() for key, cb in self._flag_boxes.items()})
+        if self._barcode_enabled and self.barcode_box.isChecked():
+            fields["initial_barcode"] = self.barcode_value.code()
+            fields["initial_barcode_type"] = self.barcode_type.currentData()
         return fields
 
     def _on_save(self) -> None:
@@ -298,6 +371,10 @@ class ProductFormDialog(StandardDialog):
             return
         if self._is_meat_type() and not fields.get("species_id"):
             self._error.setText("Los productos cárnicos requieren especie.")
+            return
+        if "initial_barcode" in fields and not fields["initial_barcode"]:
+            self._error.setText("Escanea o escribe el código de barras (o genera uno "
+                                "interno), o desmarca «Lleva código de barras».")
             return
         ok, message, _pid = self._presenter.save_product(
             product_id=self._product_id, fields=fields)

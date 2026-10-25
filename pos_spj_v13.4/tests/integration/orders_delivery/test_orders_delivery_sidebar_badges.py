@@ -133,13 +133,10 @@ def test_without_an_active_branch_there_are_no_counts(app, conn):
 # -- alertas: por persona ----------------------------------------------------------------
 def _admin(conn):
     user_id = new_uuid()
-    rol = conn.execute("SELECT id FROM roles WHERE LOWER(nombre)='admin'").fetchone()[0]
     conn.execute(
         "INSERT INTO usuarios (id, nombre, usuario, password_hash, rol, sucursal_id, activo)"
         " VALUES (?,?,?,?,?,?,1)",
         (user_id, "Admin", f"admin-{user_id[-12:]}", "hash", "admin", SUCURSAL))
-    conn.execute("INSERT INTO usuarios_roles (usuario_id, rol_id, sucursal_id) VALUES (?,?,?)",
-                 (user_id, rol, SUCURSAL))
     return user_id
 
 

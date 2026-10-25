@@ -77,9 +77,16 @@ class TestFidelidadCompositionRoot:
         assert view_before.found
         assert view_before.balance == Decimal("0")
 
-        accrue = presenter.accrue_points(
-            loyalty_account_id=view_before.account.id, points_amount=Decimal("100"),
-            reason_code="Bono de bienvenida")
+        # Los puntos entran por un origen con documento (FID-05), p. ej. la venta.
+        from backend.application.loyalty.authorization import LoyaltyAuthorizationPolicy
+        from backend.application.loyalty.use_cases.ledger_use_cases import (
+            AccrueLoyaltyPointsUseCase,
+        )
+        accrue = AccrueLoyaltyPointsUseCase(
+            LoyaltyAuthorizationPolicy.permissive_for_tests()).execute(
+            conn, loyalty_account_id=view_before.account.id, points_amount=Decimal("100"),
+            operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
+            source_module="sales", source_document_id=new_uuid(), reason_code="SALE")
         assert accrue.success
 
         view_after = presenter.member_profile(customer_id)

@@ -15,6 +15,7 @@ import logging
 from backend.application.products.audit import record_product_audit_entry
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.product import Product
 from backend.domain.products.enums import LifecycleStatus, ProductType
 from backend.domain.products.internal_enums import InternalStage
@@ -68,7 +69,7 @@ class _BaseLifecycleUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = ProductMasterRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def execute(self, *, product_id: str, user_id: str,
                 operation_id: str | None = None) -> _LifecycleResult:

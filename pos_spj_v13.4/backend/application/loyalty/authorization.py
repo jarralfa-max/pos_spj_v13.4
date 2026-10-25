@@ -84,6 +84,22 @@ class LoyaltyAuthorizationPolicy:
             raise LoyaltyPermissionDeniedError(
                 f"El usuario {user_id} no tiene el permiso {permission_code}")
 
+    def require_branch(self, user_id: str, branch_id: str | None) -> None:
+        """Auditoría 968e0bc FID-06: la sucursal con la que se registra un
+        movimiento la aporta quien llama; debe ser una de las sucursales de la
+        sesión (activa o asignadas). Un verificador sin noción de sucursal
+        (ventas, tareas del sistema, pruebas) la deja pasar: su sucursal ya
+        viene de un documento confiable (la venta)."""
+        if self._checker is None:
+            raise LoyaltyConfigurationError(
+                "LoyaltyAuthorizationPolicy requiere un PermissionChecker")
+        allowed = getattr(self._checker, "branch_allowed", None)
+        if allowed is None:
+            return
+        if not allowed(user_id, branch_id):
+            raise LoyaltyPermissionDeniedError(
+                "La sucursal de la operación no es una de las de tu sesión")
+
     def authorize_exception(
         self,
         *,

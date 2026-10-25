@@ -28,9 +28,10 @@ from backend.infrastructure.db.repositories.suppliers.support_repositories impor
     SupplierOutboxRepository,
     SupplierProcessedEventRepository,
 )
+from backend.infrastructure.db.transaction import TransactionalUnitOfWork
 
 
-class SupplierUnitOfWork:
+class SupplierUnitOfWork(TransactionalUnitOfWork):
     def __init__(self, connection: Any) -> None:
         self.connection = connection
         self.suppliers = SupplierRepository(connection)
@@ -46,24 +47,3 @@ class SupplierUnitOfWork:
         self.outbox = SupplierOutboxRepository(connection)
         self.processed_events = SupplierProcessedEventRepository(connection)
         self._completed = False
-
-    def __enter__(self) -> "SupplierUnitOfWork":
-        self._completed = False
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> bool:
-        if exc_type is not None:
-            self.rollback()
-        elif not self._completed:
-            self.commit()
-        return False
-
-    def commit(self) -> None:
-        self.connection.commit()
-        self._completed = True
-
-    def rollback(self) -> None:
-        rollback = getattr(self.connection, "rollback", None)
-        if rollback is not None:
-            rollback()
-        self._completed = True

@@ -10,7 +10,9 @@ import sqlite3
 from uuid import UUID
 
 from backend.shared.ids import SYSTEM_ROLE_UUIDS
-from repositories.config_repository import ConfigRepository
+from backend.infrastructure.db.repositories.security.role_permission_repository import (
+    SqliteRolePermissionRepository,
+)
 from tests.integration._born_clean_db import make_db
 
 MIG116 = importlib.import_module("migrations.standalone.116_roles_uuidv7_identity")
@@ -31,20 +33,19 @@ def test_born_clean_roles_have_canonical_uuidv7():
 
 
 def test_save_role_permissions_does_not_raise_uuid_error():
+    # Antes sobre `repositories.config_repository.ConfigRepository` (borrado); el
+    # repositorio vivo de la matriz de roles es el que escribe hoy.
     conn = make_db()
-    repo = ConfigRepository(conn)
+    repo = SqliteRolePermissionRepository(conn)
     cajero_id = conn.execute("SELECT id FROM roles WHERE nombre='cajero'").fetchone()[0]
-    # No debe lanzar "role_id must be a canonical lowercase UUIDv7"
-    repo.save_role_permissions(cajero_id, {("POS", "ver"): True, ("CAJA", "crear"): True})
-    saved = repo.role_permissions(cajero_id)
-    assert saved.get(("POS", "ver")) is True
+    repo.grant(cajero_id, "CAJA.reembolso.autorizar")
+    assert "CAJA.reembolso.autorizar" in repo.granted(cajero_id)
 
 
 def test_cajero_has_dashboard_ver():
     conn = make_db()
     cajero_id = conn.execute("SELECT id FROM roles WHERE nombre='cajero'").fetchone()[0]
-    perms = ConfigRepository(conn).role_permissions(cajero_id)
-    assert perms.get(("DASHBOARD", "ver")) is True
+    assert "DASHBOARD.ver" in SqliteRolePermissionRepository(conn).granted(cajero_id)
 
 
 def test_migration_116_remaps_integer_role_ids():
@@ -68,15 +69,6 @@ def test_migration_116_remaps_integer_role_ids():
     # Idempotente
     MIG116.run(conn)
     assert conn.execute("SELECT id FROM roles WHERE nombre='cajero'").fetchone()[0] == canonical
-
-
-def test_rbac_seed_uses_canonical_role_uuids():
-    from security.rbac import inicializar_rbac
-
-    conn = make_db()
-    inicializar_rbac(conn)  # idempotente sobre roles ya sembrados
-    for rid, nombre in conn.execute("SELECT id, nombre FROM roles").fetchall():
-        assert _is_canonical_v7(rid), f"rbac dejó rol {nombre} con id no-UUIDv7: {rid}"
 
 
 def test_047_no_longer_seeds_integer_roles():

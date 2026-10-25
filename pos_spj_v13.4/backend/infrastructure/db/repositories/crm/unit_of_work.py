@@ -63,9 +63,10 @@ from backend.infrastructure.db.repositories.crm.support_repositories import (
     CRMProcessedEventRepository,
 )
 from backend.infrastructure.db.repositories.crm.task_repository import CRMTaskRepository
+from backend.infrastructure.db.transaction import TransactionalUnitOfWork
 
 
-class CRMUnitOfWork:
+class CRMUnitOfWork(TransactionalUnitOfWork):
     def __init__(self, connection: Any, *, owns_transaction: bool = True) -> None:
         """``owns_transaction=False``: participa en la transacción de quien llama
         (p. ej. la oportunidad dentro de la conversión del prospecto) y no
@@ -105,26 +106,3 @@ class CRMUnitOfWork:
         self.outbox = CRMOutboxRepository(connection)
         self.processed_events = CRMProcessedEventRepository(connection)
         self._completed = False
-
-    def __enter__(self) -> "CRMUnitOfWork":
-        self._completed = False
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> bool:
-        if exc_type is not None:
-            self.rollback()
-        elif not self._completed:
-            self.commit()
-        return False
-
-    def commit(self) -> None:
-        if self._owns_transaction:
-            self.connection.commit()
-        self._completed = True
-
-    def rollback(self) -> None:
-        if self._owns_transaction:
-            rollback = getattr(self.connection, "rollback", None)
-            if rollback is not None:
-                rollback()
-        self._completed = True

@@ -8,6 +8,13 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
+class AdDeliveryDiagnosticDTO:
+    campaign_id: str
+    name: str
+    issues: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ResolvedAdDTO:
     placement_id: str
     campaign_id: str

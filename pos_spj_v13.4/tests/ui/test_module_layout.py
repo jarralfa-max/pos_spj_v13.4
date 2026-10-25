@@ -34,7 +34,7 @@ def themed_app(qt_font_resources, ui_tmp_path, monkeypatch):
 @pytest.mark.parametrize("module_name", ["pricing", "purchasing", "sales_pos"])
 @pytest.mark.parametrize("resolution", RESOLUTIONS)
 @pytest.mark.parametrize("theme", ["light", "dark"])
-@pytest.mark.parametrize("density", ["comfortable", "touch"])
+@pytest.mark.parametrize("density", ["compact", "comfortable", "touch"])
 def test_module_layout_at_supported_resolutions(
         themed_app, monkeypatch, module_name, resolution, theme, density):
     app, manager = themed_app
@@ -61,20 +61,26 @@ def test_module_layout_at_supported_resolutions(
         _settle(app)
         content = layout.viewport.page()
         header = _rect(layout.header, owner)
+        is_pos = module_name == "sales_pos"
         assert owner.size().width() == resolution[0]
         assert owner.size().height() == resolution[1]
-        assert header.x() == 20 and header.y() == 16
-        assert header.width() == owner.width() - 40
+        if is_pos:
+            assert owner.property("moduleLayoutVariant") == "pos"
+            assert layout.header.isHidden()
+        else:
+            assert owner.property("moduleLayoutVariant") == "standard"
+            assert header.x() == 20 and header.y() == 16
+            assert header.width() == owner.width() - 40
         for collapsed in ((False, True) if nav is not None else (False,)):
             if nav is not None:
                 nav.set_collapsed(collapsed)
             _settle(app)
             assert _rect(layout.header, owner) == header
             viewport = _rect(layout.viewport, owner)
-            assert viewport.y() == header.bottom() + 13
+            assert viewport.y() == (4 if is_pos else header.bottom() + 13)
             assert owner.rect().contains(viewport)
-            assert viewport.right() == owner.width() - 21
-            assert viewport.bottom() == owner.height() - 17
+            assert viewport.right() == owner.width() - (5 if is_pos else 21)
+            assert viewport.bottom() == owner.height() - (5 if is_pos else 17)
             assert layout.viewport.page() is content
             if nav is not None:
                 side = _rect(nav, owner)
@@ -84,7 +90,7 @@ def test_module_layout_at_supported_resolutions(
                 assert viewport.x() == side.right() + 17
                 assert nav._toggle.isVisible()
             else:
-                assert viewport.x() == 20
+                assert viewport.x() == 4
                 assert owner._splitter.count() == 2
                 assert owner._splitter.widget(0) is owner.catalog
                 assert owner._splitter.widget(1) is owner.checkout
@@ -99,6 +105,17 @@ def test_module_layout_at_supported_resolutions(
         owner.close()
         sip.delete(owner)
         _settle(app)
+
+
+@pytest.mark.parametrize("variant,with_sidebar", [("custom", False), ("pos", True)])
+def test_module_layout_rejects_undefined_or_contradictory_variants(themed_app, variant, with_sidebar):
+    owner = QWidget()
+    try:
+        with pytest.raises(ValueError):
+            ModuleLayout(owner, title="Prueba", sidebar=SideNav() if with_sidebar else None,
+                         content=QWidget(), variant=variant)
+    finally:
+        sip.delete(owner)
 
 
 def test_overflow_scrolls_only_body_and_context_order_is_stable(themed_app):

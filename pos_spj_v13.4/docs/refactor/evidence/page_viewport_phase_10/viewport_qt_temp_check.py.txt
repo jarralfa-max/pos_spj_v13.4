@@ -1,0 +1,39 @@
+"""Run selected tests with Qt temporary directories inheriting workspace ACLs."""
+from pathlib import Path
+import sys
+
+import pytest
+from PyQt5.QtCore import QTemporaryDir
+
+PACKAGE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PACKAGE))
+
+
+class WorkspaceTemps:
+    @pytest.fixture(scope="session")
+    def tmp_path_factory(self):
+        class Factory:
+            def __init__(self):
+                self.directories = []
+
+            def mktemp(self, basename, numbered=True):
+                assert Path(basename).name == basename
+                directory = QTemporaryDir(str(PACKAGE / ".test_tmp" / (basename + "-XXXXXX")))
+                assert directory.isValid()
+                self.directories.append(directory)
+                return Path(directory.path())
+
+            def getbasetemp(self):
+                return PACKAGE / ".test_tmp"
+
+        factory = Factory()
+        yield factory
+        for directory in factory.directories:
+            directory.remove()
+
+    @pytest.fixture
+    def tmp_path(self, tmp_path_factory):
+        return tmp_path_factory.mktemp("viewport-shell")
+
+
+raise SystemExit(pytest.main(sys.argv[1:], plugins=[WorkspaceTemps()]))

@@ -20,6 +20,7 @@ import logging
 from dataclasses import dataclass
 
 from backend.application.products.audit import record_product_audit_entry
+from backend.application.products.catalog_codes import CatalogCodeKind, resolve_catalog_code
 from backend.application.products.authorization.policy import ProductsAuthorizationPolicy
 from backend.application.products.commands.product_meat_classification_commands import (
     ClassifyMeatProductCommand,
@@ -31,6 +32,7 @@ from backend.application.products.commands.product_meat_classification_commands 
     SetSpeciesActiveCommand,
 )
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.anatomical_region import AnatomicalRegion
 from backend.domain.products.entities.cut_classification import CutClassification
 from backend.domain.products.entities.species import Species
@@ -63,7 +65,7 @@ class _Base:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = MeatClassificationRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def _rollback(self) -> None:
         rb = getattr(self._conn, "rollback", None)
@@ -78,7 +80,8 @@ class CreateSpeciesUseCase(_Base):
     def execute(self, command: CreateSpeciesCommand) -> MeatClassificationResult:
         command.validate()
         self._auth.require(command.user_id or "", ProductPermissions.SPECIES_MANAGE)
-        code = (command.code or "").strip().upper()
+        code = resolve_catalog_code(self._conn, CatalogCodeKind.SPECIES, code=command.code,
+                                    name=command.name)
         if self._repo.species_code_exists(code):
             return MeatClassificationResult(False, None, f"El código '{code}' ya existe")
         try:
@@ -137,7 +140,8 @@ class CreateAnatomicalRegionUseCase(_Base):
                            ProductPermissions.MEAT_CLASSIFICATION_MANAGE)
         if self._repo.get_species(command.species_id) is None:
             return MeatClassificationResult(False, None, "La especie no existe")
-        code = (command.code or "").strip().upper()
+        code = resolve_catalog_code(self._conn, CatalogCodeKind.ANATOMICAL_REGION, code=command.code,
+                                    name=command.name, scope_id=command.species_id)
         if self._repo.region_code_exists(command.species_id, code):
             return MeatClassificationResult(
                 False, None, f"El código '{code}' ya existe para esta especie")
@@ -205,7 +209,8 @@ class CreateCutClassificationUseCase(_Base):
         region = self._repo.get_region(command.anatomical_region_id)
         if region is None:
             return MeatClassificationResult(False, None, "La región anatómica no existe")
-        code = (command.code or "").strip().upper()
+        code = resolve_catalog_code(self._conn, CatalogCodeKind.CUT, code=command.code,
+                                    name=command.name, scope_id=command.species_id)
         if self._repo.cut_code_exists(command.species_id, code):
             return MeatClassificationResult(
                 False, None, f"El código '{code}' ya existe para esta especie")

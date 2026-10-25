@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="10" skipped="0" tests="10" time="11.317" timestamp="2026-10-21T06:14:15.325428+00:00" hostname="LAPTOP-9AUM7IBI"><testcase classname="pos_spj_v13.4.tests.ui.test_login_password_controls" name="test_visibility_toggle_preserves_text_cursor_and_selection" time="1.174"><failure message="AttributeError: 'LoginWindow' object has no attribute '_show_password'">login = (&lt;frontend.desktop.auth.login_window.LoginWindow object at 0x000001B6F9386D50&gt;, &lt;Mock id='1885370771376'&gt;, &lt;frontend.d....theme_manager.ThemeManager object at 0x000001B6F9386B10&gt;, &lt;PyQt5.QtWidgets.QApplication object at 0x000001B6F9386A80&gt;)
+
+    def test_visibility_toggle_preserves_text_cursor_and_selection(login):
+        window, _, _, app = login
+        password = window._password_input
+        password.setText('  Clave-9!  ')
+        password.setSelection(2, 5)
+        assert password.echoMode() == QLineEdit.Password
+&gt;       window._show_password.click()
+        ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'LoginWindow' object has no attribute '_show_password'
+
+tests\ui\test_login_password_controls.py:44: AttributeError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_login_password_controls" name="test_keyboard_enters_password_and_login_submits_it_once" time="0.503"><failure message="AttributeError: 'PasswordInput' object has no attribute 'keyboard_action'">login = (&lt;frontend.desktop.auth.login_window.LoginWindow object at 0x000001B6F9386E70&gt;, &lt;Mock id='1885377417904'&gt;, &lt;frontend.d....theme_manager.ThemeManager object at 0x000001B6F93871D0&gt;, &lt;PyQt5.QtWidgets.QApplication object at 0x000001B6F9386A80&gt;)
+
+    def test_keyboard_enters_password_and_login_submits_it_once(login):
+        window, authenticate, _, app = login
+        password = window._password_input
+        window._username_input.setText('operador')
+&gt;       password.keyboard_action().trigger()
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'PasswordInput' object has no attribute 'keyboard_action'
+
+tests\ui\test_login_password_controls.py:60: AttributeError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_login_password_controls" name="test_symbol_bank_covers_punctuation_and_returns_to_letters" time="0.508"><failure message="AttributeError: 'PasswordInput' object has no attribute 'keyboard_action'">login = (&lt;frontend.desktop.auth.login_window.LoginWindow object at 0x000001B6F93876E0&gt;, &lt;Mock id='1885370771376'&gt;, &lt;frontend.d....theme_manager.ThemeManager object at 0x000001B6F9387650&gt;, &lt;PyQt5.QtWidgets.QApplication object at 0x000001B6F9386A80&gt;)
+
+    def test_symbol_bank_covers_punctuation_and_returns_to_letters(login):
+        window, _, _, _ = login
+        field = window._password_input
+&gt;       field.keyboard_action().trigger()
+        ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'PasswordInput' object has no attribute 'keyboard_action'
+
+tests\ui\test_login_password_controls.py:86: AttributeError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_login_password_controls" name="test_error_and_reopening_remask_password" time="0.939"><failure message="AttributeError: 'LoginWindow' object has no attribute '_show_password'">login = (&lt;frontend.desktop.auth.login_window.LoginWindow object at 0x000001B6F93872F0&gt;, &lt;Mock id='1885377417232'&gt;, &lt;frontend.d....theme_manager.ThemeManager object at 0x000001B6F9386F90&gt;, &lt;PyQt5.QtWidgets.QApplication object at 0x000001B6F9386A80&gt;)
+
+    def test_error_and_reopening_remask_password(login):
+        window, authenticate, _, app = login
+        from backend.security.authentication.errors import AuthenticationFailedError
+        authenticate.execute.side_effect = AuthenticationFailedError('Datos incorrectos')
+        window._username_input.setText('operador')
+        window._password_input.setText('Clave9!')
+&gt;       window._show_password.click()
+        ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'LoginWindow' object has no attribute '_show_password'
+
+tests\ui\test_login_password_controls.py:106: AttributeError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_login_password_controls" name="test_password_controls_fit_and_follow_theme_density[compact-light]" time="0.593"><failure message="AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'">login = (&lt;frontend.desktop.auth.login_window.LoginWindow object at 0x000001B6F99AB800&gt;, &lt;Mock id='1885370771376'&gt;, &lt;frontend.d....theme_manager.ThemeManager object at 0x000001B6F99AB9B0&gt;, &lt;PyQt5.QtWidgets.QApplication object at 0x000001B6F9386A80&gt;)
+theme = 'light', density = 'compact'
+
+    @pytest.mark.parametrize('theme', ['light', 'dark'])
+    @pytest.mark.parametrize('density', ['compact', 'comfortable', 'touch'])
+    def test_password_controls_fit_and_follow_theme_density(login, theme, density):
+        window, _, manager, app = login
+        manager.apply(app, theme, density=density)
+        for _ in range(4):
+            app.processEvents()
+        field = window._password_input
+&gt;       button = field._keyboard_controller.button
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'
+
+tests\ui\test_login_password_controls.py:127: AttributeError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_login_password_controls" name="test_password_controls_fit_and_follow_theme_density[compact-dark]" time="1.122"><failure message="AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'">login = (&lt;frontend.desktop.auth.login_window.LoginWindow object at 0x000001B6F9386D50&gt;, &lt;Mock id='1885377417568'&gt;, &lt;frontend.d....theme_manager.ThemeManager object at 0x000001B6F99AB890&gt;, &lt;PyQt5.QtWidgets.QApplication object at 0x000001B6F9386A80&gt;)
+theme = 'dark', density = 'compact'
+
+    @pytest.mark.parametrize('theme', ['light', 'dark'])
+    @pytest.mark.parametrize('density', ['compact', 'comfortable', 'touch'])
+    def test_password_controls_fit_and_follow_theme_density(login, theme, density):
+        window, _, manager, app = login
+        manager.apply(app, theme, density=density)
+        for _ in range(4):
+            app.processEvents()
+        field = window._password_input
+&gt;       button = field._keyboard_controller.button
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'
+
+tests\ui\test_login_password_controls.py:127: AttributeError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_login_password_controls" name="test_password_controls_fit_and_follow_theme_density[comfortable-light]" time="0.585"><failure message="AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'">login = (&lt;frontend.desktop.auth.login_window.LoginWindow object at 0x000001B6F9387260&gt;, &lt;Mock id='1885370771376'&gt;, &lt;frontend.d....theme_manager.ThemeManager object at 0x000001B6F9387DA0&gt;, &lt;PyQt5.QtWidgets.QApplication object at 0x000001B6F9386A80&gt;)
+theme = 'light', density = 'comfortable'
+
+    @pytest.mark.parametrize('theme', ['light', 'dark'])
+    @pytest.mark.parametrize('density', ['compact', 'comfortable', 'touch'])
+    def test_password_controls_fit_and_follow_theme_density(login, theme, density):
+        window, _, manager, app = login
+        manager.apply(app, theme, density=density)
+        for _ in range(4):
+            app.processEvents()
+        field = window._password_input
+&gt;       button = field._keyboard_controller.button
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'
+
+tests\ui\test_login_password_controls.py:127: AttributeError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_login_password_controls" name="test_password_controls_fit_and_follow_theme_density[comfortable-dark]" time="0.786"><failure message="AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'">login = (&lt;frontend.desktop.auth.login_window.LoginWindow object at 0x000001B6F93876E0&gt;, &lt;Mock id='1885377422272'&gt;, &lt;frontend.d....theme_manager.ThemeManager object at 0x000001B6F9387650&gt;, &lt;PyQt5.QtWidgets.QApplication object at 0x000001B6F9386A80&gt;)
+theme = 'dark', density = 'comfortable'
+
+    @pytest.mark.parametrize('theme', ['light', 'dark'])
+    @pytest.mark.parametrize('density', ['compact', 'comfortable', 'touch'])
+    def test_password_controls_fit_and_follow_theme_density(login, theme, density):
+        window, _, manager, app = login
+        manager.apply(app, theme, density=density)
+        for _ in range(4):
+            app.processEvents()
+        field = window._password_input
+&gt;       button = field._keyboard_controller.button
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'
+
+tests\ui\test_login_password_controls.py:127: AttributeError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_login_password_controls" name="test_password_controls_fit_and_follow_theme_density[touch-light]" time="0.612"><failure message="AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'">login = (&lt;frontend.desktop.auth.login_window.LoginWindow object at 0x000001B6F99ABBF0&gt;, &lt;Mock id='1885370771376'&gt;, &lt;frontend.d....theme_manager.ThemeManager object at 0x000001B6F99AB9B0&gt;, &lt;PyQt5.QtWidgets.QApplication object at 0x000001B6F9386A80&gt;)
+theme = 'light', density = 'touch'
+
+    @pytest.mark.parametrize('theme', ['light', 'dark'])
+    @pytest.mark.parametrize('density', ['compact', 'comfortable', 'touch'])
+    def test_password_controls_fit_and_follow_theme_density(login, theme, density):
+        window, _, manager, app = login
+        manager.apply(app, theme, density=density)
+        for _ in range(4):
+            app.processEvents()
+        field = window._password_input
+&gt;       button = field._keyboard_controller.button
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'
+
+tests\ui\test_login_password_controls.py:127: AttributeError</failure></testcase><testcase classname="pos_spj_v13.4.tests.ui.test_login_password_controls" name="test_password_controls_fit_and_follow_theme_density[touch-dark]" time="0.833"><failure message="AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'">login = (&lt;frontend.desktop.auth.login_window.LoginWindow object at 0x000001B6F99D4290&gt;, &lt;Mock id='1885377423280'&gt;, &lt;frontend.d....theme_manager.ThemeManager object at 0x000001B6F9387DA0&gt;, &lt;PyQt5.QtWidgets.QApplication object at 0x000001B6F9386A80&gt;)
+theme = 'dark', density = 'touch'
+
+    @pytest.mark.parametrize('theme', ['light', 'dark'])
+    @pytest.mark.parametrize('density', ['compact', 'comfortable', 'touch'])
+    def test_password_controls_fit_and_follow_theme_density(login, theme, density):
+        window, _, manager, app = login
+        manager.apply(app, theme, density=density)
+        for _ in range(4):
+            app.processEvents()
+        field = window._password_input
+&gt;       button = field._keyboard_controller.button
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'PasswordInput' object has no attribute '_keyboard_controller'
+
+tests\ui\test_login_password_controls.py:127: AttributeError</failure></testcase></testsuite></testsuites>

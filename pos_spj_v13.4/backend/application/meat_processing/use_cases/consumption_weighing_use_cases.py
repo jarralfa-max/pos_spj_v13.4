@@ -26,6 +26,7 @@ from backend.application.meat_processing.ports import (
 from backend.application.meat_processing.result import MeatProcessingResult
 from backend.application.meat_processing.use_cases._shared import fail as _fail
 from backend.application.meat_processing.use_cases._shared import scope_fail as _scope_fail
+from backend.application.security.unwired_policy import unwired
 from backend.domain.meat_processing.entities.material_consumption import MaterialConsumption
 from backend.domain.meat_processing.entities.process_weighing import ProcessWeighing
 from backend.domain.meat_processing.enums import ConsumptionStatus, WeighingType
@@ -45,7 +46,7 @@ from backend.shared.ids import new_uuid
 
 class CaptureProcessWeighingUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, weighing_type: WeighingType,
@@ -111,7 +112,7 @@ class CaptureMaterialConsumptionUseCase:
     real flow: an operator weighs, then logs the real quantity consumed)."""
 
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, product_id: str,
@@ -174,7 +175,7 @@ class PostMaterialConsumptionUseCase:
         authorization: MeatProcessingAuthorizationPolicy | None = None,
         inventory_port: InventoryConsumptionPort | None = None,
     ) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
         self._inventory = inventory_port or NullInventoryConsumptionPort()
 
     def execute(

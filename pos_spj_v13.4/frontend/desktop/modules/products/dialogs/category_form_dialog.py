@@ -1,6 +1,6 @@
 """CategoryFormDialog — alta/edición de una categoría de producto (P1-01).
 
-UI-only: captura código, nombre y orden; en alta permite elegir la categoría padre
+UI-only: captura nombre, código (automático desde el nombre, reescribible) y orden; en alta permite elegir la categoría padre
 (el nivel se deriva solo). El movimiento de ramas ya existentes se hace desde la
 página con ``MoveCategoryDialog``. Delega el guardado en el presenter.
 """
@@ -8,6 +8,10 @@ página con ``MoveCategoryDialog``. Delega el guardado en el presenter.
 from __future__ import annotations
 
 from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.modules.products.dialogs.auto_code import (
+    AutoCodeBinder,
+    catalog_suggester,
+)
 
 from PyQt5.QtWidgets import (
     QComboBox,
@@ -40,8 +44,12 @@ class CategoryFormDialog(StandardDialog):
         self.sort_order.setRange(0, 9999)
         self.sort_order.setValue(int(self._category.get("sort_order") or 0))
 
-        form.addRow("Código *", self.code)
         form.addRow("Nombre *", self.name)
+        form.addRow("Código" if self._category_id is None else "Código *", self.code)
+        # PROD-23: en el alta el código se genera del nombre (reescribible).
+        self._auto = (AutoCodeBinder(self.name, self.code, catalog_suggester(
+            self._presenter, "CATEGORY"))
+            if self._category_id is None else None)
 
         # El padre sólo se elige al crear; para mover una rama existente se usa
         # la acción "Mover" (reescribe rutas del subárbol de forma transaccional).
@@ -73,10 +81,12 @@ class CategoryFormDialog(StandardDialog):
 
     def _on_save(self) -> None:
         self._error.setText("")
-        code = self.code.text().strip().upper()
+        code = (self._auto.code_for_save() if self._auto is not None
+                else self.code.text().strip().upper())
         name = self.name.text().strip()
-        if not code or not name:
-            self._error.setText("Código y Nombre son obligatorios.")
+        if not name or (self._auto is None and not code):
+            self._error.setText("Nombre es obligatorio." if self._auto is not None
+                                else "Código y Nombre son obligatorios.")
             return
         parent_id = self.parent.currentData() if self._category_id is None else None
         ok, message, _cid = self._presenter.save_category(

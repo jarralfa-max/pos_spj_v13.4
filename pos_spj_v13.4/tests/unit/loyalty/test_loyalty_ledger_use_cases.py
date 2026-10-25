@@ -86,7 +86,7 @@ class TestAccrue:
         result = AccrueLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=new_uuid(), points_amount=Decimal("10"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
-            source_module="sales")
+            source_module="sales", source_document_id=new_uuid())
         assert not result.success
         assert result.error_code == "ACCOUNT_NOT_FOUND"
 
@@ -94,7 +94,7 @@ class TestAccrue:
         AccrueLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("100"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
-            source_module="sales", estimated_fair_value=Decimal("10.00"),
+            source_module="sales", source_document_id=new_uuid(), estimated_fair_value=Decimal("10.00"),
             currency_code="MXN")
         row = conn.execute(
             "SELECT payload_json FROM loyalty_outbox WHERE event_name='LOYALTY_POINTS_ISSUED'"
@@ -111,7 +111,7 @@ class TestReserveConfirmRelease:
         AccrueLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("100"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
-            source_module="sales")
+            source_module="sales", source_document_id=new_uuid())
         result = ReserveLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("30"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid())
@@ -129,7 +129,7 @@ class TestReserveConfirmRelease:
         AccrueLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("100"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
-            source_module="sales")
+            source_module="sales", source_document_id=new_uuid())
         reserve = ReserveLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("30"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid())
@@ -144,7 +144,7 @@ class TestReserveConfirmRelease:
         AccrueLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("100"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
-            source_module="sales")
+            source_module="sales", source_document_id=new_uuid())
         reserve = ReserveLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("30"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid())
@@ -158,7 +158,7 @@ class TestReserveConfirmRelease:
         AccrueLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("100"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
-            source_module="sales")
+            source_module="sales", source_document_id=new_uuid())
         reserve = ReserveLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("30"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid())
@@ -177,7 +177,7 @@ class TestRedeem:
         AccrueLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("100"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
-            source_module="sales")
+            source_module="sales", source_document_id=new_uuid())
         result = RedeemLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("40"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid())
@@ -197,7 +197,7 @@ class TestAdjust:
         actor = new_uuid()
         result = AdjustLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("15"),
-            reason_code="CORRECCION", requested_by=actor, authorizer_user_id=actor,
+            reason_code="CORRECCION", source_document="Queja Q-1", requested_by=actor, authorizer_user_id=actor,
             actor_branch_id=new_uuid(), operation_id=new_uuid())
         assert not result.success
         assert result.error_code == "SEGREGATION_OF_DUTIES"
@@ -205,7 +205,7 @@ class TestAdjust:
     def test_adjust_with_distinct_authorizer_succeeds(self, conn, auth, account):
         result = AdjustLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("15"),
-            reason_code="CORRECCION", requested_by=new_uuid(),
+            reason_code="CORRECCION", source_document="Queja Q-1", requested_by=new_uuid(),
             authorizer_user_id=new_uuid(), actor_branch_id=new_uuid(),
             operation_id=new_uuid())
         assert result.success
@@ -217,7 +217,7 @@ class TestReverse:
         accrue = AccrueLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("100"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
-            source_module="sales")
+            source_module="sales", source_document_id=new_uuid())
         result = ReverseLoyaltyTransactionUseCase(auth).execute(
             conn, transaction_id=accrue.entity_id, reason_code="ERROR_CAPTURA",
             actor_user_id=new_uuid(), actor_branch_id=new_uuid(), operation_id=new_uuid())
@@ -228,7 +228,7 @@ class TestReverse:
         accrue = AccrueLoyaltyPointsUseCase(auth).execute(
             conn, loyalty_account_id=account.id, points_amount=Decimal("100"),
             operation_id=new_uuid(), actor_user_id=new_uuid(), actor_branch_id=new_uuid(),
-            source_module="sales")
+            source_module="sales", source_document_id=new_uuid())
         ReverseLoyaltyTransactionUseCase(auth).execute(
             conn, transaction_id=accrue.entity_id, reason_code="ERROR_CAPTURA",
             actor_user_id=new_uuid(), actor_branch_id=new_uuid(), operation_id=new_uuid())

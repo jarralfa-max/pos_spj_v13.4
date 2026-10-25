@@ -64,6 +64,24 @@ class FidelidadPresenter:
     def command_handler(self, key: str) -> Callable[..., object] | None:
         return self._command_handlers.get(key)
 
+    # -- Lotes de cupones y vales (auditoría de Fidelidad 968e0bc) -----------
+    def instrument_batches(self):
+        service = self.query_service("instrument_batches")
+        return () if service is None else service.batches(actor_user_id=self.current_user_id())
+
+    def instrument_batch_pieces(self, batch_id: str):
+        service = self.query_service("instrument_batches")
+        return () if service is None else service.pieces(
+            actor_user_id=self.current_user_id(), batch_id=batch_id)
+
+    def instrument_definitions(self) -> dict:
+        """Definiciones de cupón y de vale para elegir al crear un lote."""
+        from backend.application.loyalty.queries.records_query_service import (
+            LoyaltyRecord as R,
+        )
+        return {"COUPON": self.record_options(R.COUPON_DEFINITIONS, ("name", "code")),
+                "VOUCHER": self.record_options(R.VOUCHER_DEFINITIONS, ("name", "code"))}
+
     # -- Registros (LOY-29) -------------------------------------------------
     def records(self, record, *, query: str = "", status: str | None = None,
                 filters: dict | None = None, page: int = 0, page_size: int | None = None):
@@ -242,7 +260,7 @@ class FidelidadPresenter:
         service = self.query_service("member_profile")
         if service is None:
             return LoyaltyMemberProfileView(found=False)
-        return service.get_profile(customer_id)
+        return service.get_profile(customer_id, actor_user_id=self.current_user_id())
 
     def enroll_membership(self, *, customer_id: str, program_id: str) -> LoyaltyResult:
         handler = self.command_handler("enroll_membership")
@@ -251,28 +269,6 @@ class FidelidadPresenter:
         return handler(
             customer_id=customer_id, program_id=program_id, actor_user_id=self.current_user_id(),
             actor_branch_id=self.current_branch_id(), operation_id=new_uuid())
-
-    def accrue_points(self, *, loyalty_account_id: str, points_amount: Decimal,
-                      reason_code: str, membership_id: str | None = None) -> LoyaltyResult:
-        handler = self.command_handler("accrue_points")
-        if handler is None:
-            return LoyaltyResult.fail(_NOT_WIRED, "NOT_WIRED")
-        return handler(
-            loyalty_account_id=loyalty_account_id, points_amount=points_amount,
-            source_module="fidelidad_ui", reason_code=reason_code, membership_id=membership_id,
-            actor_user_id=self.current_user_id(), actor_branch_id=self.current_branch_id(),
-            operation_id=new_uuid())
-
-    def redeem_points(self, *, loyalty_account_id: str, points_amount: Decimal,
-                      reason_code: str, membership_id: str | None = None) -> LoyaltyResult:
-        handler = self.command_handler("redeem_points")
-        if handler is None:
-            return LoyaltyResult.fail(_NOT_WIRED, "NOT_WIRED")
-        return handler(
-            loyalty_account_id=loyalty_account_id, points_amount=points_amount,
-            source_module="fidelidad_ui", reason_code=reason_code, membership_id=membership_id,
-            actor_user_id=self.current_user_id(), actor_branch_id=self.current_branch_id(),
-            operation_id=new_uuid())
 
     # -- Recompensas -------------------------------------------------------
     def redeem_reward(self, *, reward_id: str, membership_id: str) -> LoyaltyResult:

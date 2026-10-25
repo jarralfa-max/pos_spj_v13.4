@@ -28,6 +28,7 @@ from backend.application.products.queries.product_settings_query import (
     WHATSAPP_PHONES_KEY,
     ProductSettingsQuery,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.application.settings.governance import GovernedSettingsWriter
 from backend.domain.settings.exceptions import ConfigurationDomainError
 
@@ -62,7 +63,7 @@ class UpdateProductSettingsUseCase:
     def __init__(self, connection,
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def execute(self, *, changes: dict, user_id: str | None, operation_id: str,
                 reason: str = "Productos → Configuración") -> SettingsResult:

@@ -65,6 +65,44 @@ jobs:
           for file in frontend/web/logistics/*.js; do node --check "$file"; done
           node --test tests/pwa/*.test.mjs
 
+  # Arquitectura híbrida, Slice 3: el esquema central contra un PostgreSQL 16
+  # REAL (servicio efímero de GitHub Actions; sin costo ni instalación local).
+  central-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: spj_ci
+          POSTGRES_PASSWORD: spj_ci_only
+          POSTGRES_DB: spj_central
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U spj_ci -d spj_central"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PYTHONUNBUFFERED: "1"
+      SPJ_TEST_PG_DSN: postgresql://spj_ci:spj_ci_only@localhost:5432/spj_central
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install central server dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-server.txt pytest
+      - name: Central PostgreSQL schema and lane
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/unit/central_pg tests/integration/central_pg -v -rs
+      - name: Fail if the real-PostgreSQL tests were skipped
+        run: |
+          cd pos_spj_v13.4
+          python -m pytest tests/integration/central_pg -q -rs | tee pg.log
+          ! grep -q "SKIPPED" pg.log
+
   ventas:
     runs-on: ubuntu-latest
     env:

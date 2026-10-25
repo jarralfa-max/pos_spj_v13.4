@@ -30,7 +30,7 @@ def test_not_installed_module_is_denied_even_to_the_administrator():
     assert evaluator.has_permission("POS.ver")
     assert not evaluator.has_permission("RRHH.nomina.generar")
     assert not evaluator.has_permission("FINANZAS.ver")
-    assert not evaluator.has_permission("LOSSES_VIEW")
+    assert not evaluator.has_permission("MERMA.ver")  # auditoría de permisos 968e0bc: Mermas es `MERMA.<accion>`
     cashier = make_context(permissions=frozenset({"RRHH.*", "POS.VER"}), capabilities=ESSENTIAL)
     assert not PermissionEvaluator(cashier).has_permission("RRHH.ver")
     full = make_context(roles=("admin",), permissions=frozenset())

@@ -1,10 +1,13 @@
 """FASE 8 — PURCHASE_RECEIVED: inventario contra CxP, nunca contra Caja."""
 
+from datetime import date
+
 import pytest
 
 from backend.application.event_handlers.finance.purchase_received_handler import (
     PurchaseReceivedHandler,
 )
+from backend.application.finance.ports import NoOperationalSources
 from backend.domain.finance.enums import PostingPurpose
 from backend.domain.finance.exceptions import FinanceDomainError
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
@@ -68,15 +71,11 @@ class TestPurchaseReceived:
 
 class TestPeriodCloseChecklist:
     def test_open_reconciliation_blocks_close(self, bootstrapped_conn):
-        from backend.application.use_cases.finance.fiscal_period_use_cases import (
-            CloseFiscalPeriodUseCase,
-        )
+        from backend.application.use_cases.finance.close_fiscal_period_use_case import CloseFiscalPeriodUseCase
         from backend.application.use_cases.finance.reconcile_bank_statement_use_case import (
             ReconcileBankStatementUseCase,
         )
-        from backend.application.use_cases.finance.treasury_use_cases import (
-            ImportBankStatementUseCase,
-        )
+        from backend.application.use_cases.finance.import_bank_statement_use_case import ImportBankStatementUseCase
         from backend.domain.finance.enums import TreasuryAccountType
         from backend.domain.finance.exceptions import MaterialDifferenceError
 
@@ -85,11 +84,11 @@ class TestPeriodCloseChecklist:
                         if a.account_type is TreasuryAccountType.BANK)
         statement = ImportBankStatementUseCase().execute(
             bootstrapped_conn, treasury_account_id=bank.id,
-            statement_date=__import__("datetime").date(2026, 7, 16),
+            statement_date=date(2026, 7, 16),
             opening_balance="0.00", closing_balance="0.00", lines=[],
             operation_id=new_uuid())
         ReconcileBankStatementUseCase().start(
             bootstrapped_conn, bank_statement_id=statement.id, operation_id=new_uuid())
         with pytest.raises(MaterialDifferenceError):
-            CloseFiscalPeriodUseCase().execute(
+            CloseFiscalPeriodUseCase(NoOperationalSources()).execute(
                 bootstrapped_conn, 2026, 7, closed_by=new_uuid(), operation_id=new_uuid())

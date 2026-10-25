@@ -10,7 +10,7 @@ used (admin bypass, exact code, `MODULE.*`, global `*`) — reusing
 """
 from __future__ import annotations
 
-from backend.security.permissions.codes import normalize_permission
+from backend.security.permissions.codes import is_granted, normalize_permission
 
 from backend.bootstrap.application_context import ApplicationContext
 
@@ -28,11 +28,7 @@ class PermissionEvaluator:
             return False
         if self._context.is_admin():
             return True
-        permissions = self._context.permissions
-        if "*" in permissions or normalized in permissions:
-            return True
-        module = normalized.split(".", 1)[0] if "." in normalized else ""
-        return bool(module) and f"{module}.*" in permissions
+        return is_granted(self._context.permissions, normalized)
 
     def require_permission(self, code: str, *, action: str = "") -> None:
         if not self.has_permission(code):

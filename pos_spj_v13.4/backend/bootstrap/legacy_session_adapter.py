@@ -36,15 +36,48 @@ adapter wraps it; there is nothing to mutate through it).
 """
 from __future__ import annotations
 
+import dataclasses
+import logging
+
 from backend.bootstrap.application_context import ApplicationContext
 from backend.bootstrap.permission_evaluator import PermissionEvaluator
 from backend.shared.ids import is_uuidv7
 
+logger = logging.getLogger("spj.session")
+
 
 class LegacySessionAdapter:
-    def __init__(self, context: ApplicationContext) -> None:
+    def __init__(self, context: ApplicationContext, *, grant_refresher=None) -> None:
         self._context = context
         self._evaluator = PermissionEvaluator(context)
+        # Auditoría de permisos 968e0bc (PER-08): sin refrescador, los permisos
+        # son los del inicio de sesión (pruebas, autoprueba de la interfaz).
+        self._refresher = grant_refresher
+        self._revoked = False
+
+    def _refresh_permissions(self) -> None:
+        """Si cambió alguna concesión, recarga los permisos de ESTA sesión. Sólo
+        cambia el conjunto de permisos: usuario, sucursal y rol siguen igual."""
+        if self._refresher is None or not self._refresher.changed():
+            return
+        try:
+            nuevos = self._refresher.load(self._context.user_id, self._context.branch_id)
+        except Exception:  # noqa: BLE001 - si no se pudo recargar, se conserva lo anterior
+            logger.exception("No se pudieron recargar los permisos de la sesión.")
+            return
+        if nuevos is None:
+            # La cuenta se desactivó con la sesión abierta: no se concede nada
+            # más, ni por rol de acceso total.
+            self._revoked = True
+            logger.warning("Sesión revocada: la cuenta %s ya no está activa.",
+                           self._context.user_name)
+            return
+        if nuevos == self._context.permissions:
+            return
+        self._context = dataclasses.replace(self._context, permissions=frozenset(nuevos))
+        self._evaluator = PermissionEvaluator(self._context)
+        logger.info("Permisos de la sesión recargados: %s (%d códigos).",
+                    self._context.user_name, len(nuevos))
 
     @property
     def user_id(self) -> str:
@@ -94,14 +127,18 @@ class LegacySessionAdapter:
 
     @property
     def permisos(self):
+        self._refresh_permissions()
         return frozenset(self._context.permissions)
 
     @property
     def is_active(self) -> bool:
         # An ApplicationContext only exists after a successful login — unlike
         # the legacy singleton, there is no "constructed but not yet
-        # authenticated" state for this adapter to represent.
-        return True
+        # authenticated" state for this adapter to represent. It stops being
+        # active if the account is deactivated while the session is open
+        # (auditoría de permisos 968e0bc, PER-08).
+        self._refresh_permissions()
+        return not self._revoked
 
     @property
     def es_admin(self) -> bool:
@@ -145,6 +182,9 @@ class LegacySessionAdapter:
         return bool(self._context.branch_id)
 
     def tiene_permiso(self, codigo_permiso: str) -> bool:
+        self._refresh_permissions()
+        if self._revoked:
+            return False
         return self._evaluator.has_permission(codigo_permiso)
 
     def requiere_permiso(self, codigo_permiso: str, accion: str = "") -> bool:

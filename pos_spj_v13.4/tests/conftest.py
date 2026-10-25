@@ -289,3 +289,25 @@ def bi_svc(full_db):
     # Nota: En producción, AnalyticsEngine se inicializa con container completo
     engine = AnalyticsEngine(None)  # type: ignore
     return engine
+
+
+# ── Políticas sin cablear (auditoría de permisos 968e0bc, PER-02) ────────────
+# En producción, un caso de uso construido sin política recibe
+# `unwired(Policy)`, que falla cerrada. Las pruebas FUNCIONALES construyen
+# casos de uso sueltos para probar su lógica, así que aquí ese punto único se
+# resuelve a la política permisiva EXPLÍCITA de cada contexto. Una prueba que
+# verifica justamente que el default falla cerrado lleva la marca
+# `@pytest.mark.unwired_fails_closed`.
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "unwired_fails_closed: no sustituir el default de las políticas sin cablear")
+
+
+@pytest.fixture(autouse=True)
+def _unwired_policies_are_explicitly_permissive_in_tests(request, monkeypatch):
+    if request.node.get_closest_marker("unwired_fails_closed"):
+        return
+    from backend.application.security import unwired_policy
+    monkeypatch.setattr(unwired_policy, "_resolver",
+                        lambda policy_cls: policy_cls.permissive_for_tests())

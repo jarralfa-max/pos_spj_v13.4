@@ -154,7 +154,7 @@ def test_submit_transfer_request_requires_backend_permission_and_emits_event():
 
     assert dto.status == TransferStatus.PENDING_APPROVAL.value
     assert events.events[0]["event_name"] == "TRANSFER_REQUEST_SUBMITTED"
-    assert TransferPermissions.REQUEST_SUBMIT == "TRANSFERS_REQUEST_SUBMIT"
+    assert TransferPermissions.REQUEST_SUBMIT == "TRANSFERENCIAS.solicitud.enviar"
 
 
 def test_approve_transfer_request_supports_full_approval_workflow_and_event():

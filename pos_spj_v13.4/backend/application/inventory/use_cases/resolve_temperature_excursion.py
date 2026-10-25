@@ -23,6 +23,7 @@ from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.use_cases.lot_use_cases import (
     SetLotQualityStatusUseCase,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.enums import LotQualityStatus
 from backend.domain.inventory.events import InventoryEvents, build_event_payload
 from backend.domain.inventory.exceptions import (
@@ -42,7 +43,7 @@ _RESOLUTION_STATUS = {
 
 class ResolveTemperatureExcursionUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, excursion_id: str,
                 resolution: Literal["RELEASE", "REJECT"], operation_id: str,

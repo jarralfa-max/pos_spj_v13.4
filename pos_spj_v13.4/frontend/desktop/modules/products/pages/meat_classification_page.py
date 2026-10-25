@@ -30,6 +30,10 @@ from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.page_viewport import PageViewport
 from frontend.desktop.components.tabs import Tabs
 from frontend.desktop.components.text_inputs import StandardLineEdit
+from frontend.desktop.modules.products.dialogs.auto_code import (
+    AutoCodeBinder,
+    catalog_suggester,
+)
 from frontend.desktop.modules.products.meat_classification_presenter import (
     BONE_STATUS_ES,
     CUT_LEVEL_ES,
@@ -47,6 +51,7 @@ class MeatClassificationPage(QWidget):
         super().__init__(parent)
         self.setObjectName("meatClassificationPage")
         self._meat = getattr(presenter, "meat", None)
+        self._presenter = presenter  # PROD-23: sugiere códigos de catálogo
         self._species: list[dict] = []
         self._regions: list[dict] = []
         self._cuts: list[dict] = []
@@ -200,7 +205,8 @@ class MeatClassificationPage(QWidget):
 
     # ── especies ─────────────────────────────────────────────────────────
     def _new_species(self) -> None:
-        dialog = CodeNameDialog("Nueva especie", parent=self)
+        dialog = CodeNameDialog("Nueva especie", parent=self,
+                                suggest=catalog_suggester(self._presenter, "SPECIES"))
         if dialog.exec_():
             self._apply(self._meat.create_species(**dialog.values()), "Especie creada.")
 
@@ -218,7 +224,9 @@ class MeatClassificationPage(QWidget):
         if not species_id:
             return
         dialog = CodeNameDialog(f"Nueva región — {self.species_combo.currentText()}",
-                                parent=self)
+                                parent=self, suggest=catalog_suggester(
+                                    self._presenter, "ANATOMICAL_REGION",
+                                    scope_id=species_id))
         if dialog.exec_():
             self._apply(self._meat.create_region(species_id=species_id, **dialog.values()),
                         "Región anatómica creada.")
@@ -247,7 +255,8 @@ class MeatClassificationPage(QWidget):
         dialog = CutDialog(active_regions,
                            [c for c in self._cuts if c.get("status") == "ACTIVE"],
                            title=f"Nuevo corte — {self.species_combo.currentText()}",
-                           parent=self)
+                           parent=self, suggest=catalog_suggester(
+                               self._presenter, "CUT", scope_id=species_id))
         if dialog.exec_():
             self._apply(self._meat.create_cut(species_id=species_id, **dialog.values()),
                         "Corte creado.")
@@ -263,15 +272,17 @@ class MeatClassificationPage(QWidget):
 
 
 class CodeNameDialog(StandardDialog):
-    """Código + nombre (especie, región anatómica)."""
+    """Nombre + código (especie, región anatómica); el código sale del nombre
+    y es reescribible (PROD-23)."""
 
-    def __init__(self, title: str, parent=None) -> None:
+    def __init__(self, title: str, parent=None, *, suggest=None) -> None:
         super().__init__(parent, title=title)
         form = QFormLayout()
         self.code = StandardLineEdit(placeholder="Ej. PECHUGA")
         self.name = StandardLineEdit(placeholder="Nombre visible")
-        form.addRow("Código *", self.code)
         form.addRow("Nombre *", self.name)
+        form.addRow("Código", self.code)
+        self._auto = AutoCodeBinder(self.name, self.code, suggest or (lambda _n: ""))
         self.content_layout().addLayout(form)
         self.error = QLabel("")
         self.error.setWordWrap(True)
@@ -280,19 +291,18 @@ class CodeNameDialog(StandardDialog):
         box.button(QDialogButtonBox.Ok).setText("Guardar")
 
     def values(self) -> dict:
-        return {"code": self.code.text().strip().upper(), "name": self.name.text().strip()}
+        return {"code": self._auto.code_for_save(), "name": self.name.text().strip()}
 
     def _accept(self) -> None:
-        values = self.values()
-        if not values["code"] or not values["name"]:
-            self.error.setText("Código y nombre son obligatorios.")
+        if not self.values()["name"]:
+            self.error.setText("El nombre es obligatorio.")
             return
         self.accept()
 
 
 class CutDialog(StandardDialog):
     def __init__(self, regions: list[dict], cuts: list[dict], *, title: str,
-                 parent=None) -> None:
+                 parent=None, suggest=None) -> None:
         super().__init__(parent, title=title)
         form = QFormLayout()
         self.code = StandardLineEdit(placeholder="Ej. PECHUGA_DESHUESADA")
@@ -303,7 +313,8 @@ class CutDialog(StandardDialog):
         self.fat = self._combo(list(FAT_CLASS_ES.items()), default="NOT_APPLICABLE")
         self.grade = StandardLineEdit(placeholder="Opcional")
         self.parent_cut = self._combo([("", "(Ninguno)")] + [(c["id"], c["name"]) for c in cuts])
-        for label, widget in (("Código *", self.code), ("Nombre *", self.name),
+        self._auto = AutoCodeBinder(self.name, self.code, suggest or (lambda _n: ""))
+        for label, widget in (("Nombre *", self.name), ("Código", self.code),
                               ("Región anatómica *", self.region), ("Nivel *", self.level),
                               ("Hueso", self.bone), ("Grasa", self.fat),
                               ("Grado de calidad", self.grade),
@@ -327,7 +338,7 @@ class CutDialog(StandardDialog):
 
     def values(self) -> dict:
         return {
-            "code": self.code.text().strip().upper(), "name": self.name.text().strip(),
+            "code": self._auto.code_for_save(), "name": self.name.text().strip(),
             "anatomical_region_id": self.region.currentData(),
             "cut_level": self.level.currentData(), "bone_status": self.bone.currentData(),
             "fat_class": self.fat.currentData(),
@@ -336,8 +347,7 @@ class CutDialog(StandardDialog):
         }
 
     def _accept(self) -> None:
-        values = self.values()
-        if not values["code"] or not values["name"]:
-            self.error.setText("Código y nombre son obligatorios.")
+        if not self.values()["name"]:
+            self.error.setText("El nombre es obligatorio.")
             return
         self.accept()

@@ -30,6 +30,7 @@ from backend.security.provisioning.provision_installation_use_case import (
     ProvisionInstallationUseCase,
 )
 from backend.security.provisioning.recovery_code_repository import SqliteRecoveryCodeRepository
+from backend.application.logistics.permissions import ALL_LOGISTICS_PERMISSIONS
 from backend.shared.ids import new_uuid
 from tests.integration._born_clean_db import make_db
 
@@ -110,8 +111,20 @@ def test_wrong_password_gets_no_session():
         "duena", "otra-clave", "tel-1") is None
 
 
+def test_owner_has_full_access_on_the_phone_even_without_the_logistics_seed():
+    """Auditoría de permisos 968e0bc: el dueño es acceso total. Antes su
+    identidad móvil llegaba con CERO acciones (filtro por prefijo sobre `*`)."""
+    conn = _db(seed_logistics=False)
+    identity = DatabaseMobileCredentialVerifier(conn).authenticate_mobile(
+        "duena", PASSWORD, "tel-1")
+    assert identity is not None
+    assert set(identity.permissions) == set(ALL_LOGISTICS_PERMISSIONS)
+
+
 def test_no_logistics_permission_means_no_mobile_session():
     conn = _db(seed_logistics=False)
+    conn.execute("UPDATE usuarios SET rol='cajero' WHERE usuario='duena'")
+    conn.commit()
     assert DatabaseMobileCredentialVerifier(conn).authenticate_mobile(
         "duena", PASSWORD, "tel-1") is None
 

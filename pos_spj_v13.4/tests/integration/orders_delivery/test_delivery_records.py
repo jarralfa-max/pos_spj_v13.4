@@ -593,13 +593,10 @@ def test_an_incident_shows_its_reason_and_where_the_delivery_is_now(conn):
 def _usuario(conn, branch_id):
     """Un admin con el rol concedido en la sucursal, como lo resuelve el notificador."""
     user_id = new_uuid()
-    rol = conn.execute("SELECT id FROM roles WHERE LOWER(nombre)='admin'").fetchone()[0]
     conn.execute(
         "INSERT INTO usuarios (id, nombre, usuario, password_hash, rol, sucursal_id, activo)"
         " VALUES (?,?,?,?,?,?,1)",
         (user_id, "Admin", f"admin-{user_id[-12:]}", "hash", "admin", branch_id))
-    conn.execute("INSERT INTO usuarios_roles (usuario_id, rol_id, sucursal_id) VALUES (?,?,?)",
-                 (user_id, rol, branch_id))
     return user_id
 
 

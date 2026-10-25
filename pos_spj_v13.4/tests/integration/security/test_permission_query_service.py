@@ -65,24 +65,30 @@ def _create_user(conn, role: str, branch_id: str) -> str:
 
 
 # ── lo que concede cada rol sembrado ────────────────────────────────────────
-@pytest.mark.parametrize(
-    "role, expected_count",
-    [
-        # cajero: DASHBOARD.ver + POS(ver,crear,editar) + CAJA(ver,crear)
-        #       + CLIENTES(ver,crear) + COTIZACIONES(ver,crear)
-        #       + INVENTARIO.ver + PRODUCTOS.ver
-        ("cajero", 12),
-        # repartidor: sólo DELIVERY ver/editar
-        ("repartidor", 2),
-        # solo_lectura: `ver` en los 19 módulos sembrados
-        ("solo_lectura", 19),
-    ],
-)
-def test_seeded_roles_resolve_the_permissions_the_seed_grants(
-    service, conn, branch_id, role, expected_count,
-):
+#: Lo que `m000_base_schema._seed_system_roles()` concede de origen. Las
+#: migraciones posteriores (Caja, POS, Fidelidad, RR. HH.…) siembran MÁS, por
+#: eso la prueba ya no fija un conteo: exige exactamente lo sembrado en la base
+#: y, como piso, este núcleo.
+_BASE_SEED = {
+    # `CAJA.crear` (grueso) lo retiró el corte granular de Caja.
+    "cajero": {"DASHBOARD.VER", "POS.VER", "POS.CREAR", "POS.EDITAR", "CAJA.VER",
+               "CLIENTES.VER", "CLIENTES.CREAR", "COTIZACIONES.VER",
+               "COTIZACIONES.CREAR", "INVENTARIO.VER", "PRODUCTOS.VER"},
+    "repartidor": {"DELIVERY.VER", "DELIVERY.EDITAR"},
+    "solo_lectura": {"POS.VER", "INVENTARIO.VER", "PRODUCTOS.VER", "CAJA.VER"},
+}
+
+
+@pytest.mark.parametrize("role", sorted(_BASE_SEED))
+def test_seeded_roles_resolve_the_permissions_the_seed_grants(service, conn, branch_id, role):
     user_id = _create_user(conn, role, branch_id)
-    assert len(service.permission_codes_for_user(user_id, branch_id)) == expected_count
+    sembrado = {
+        f"{modulo}.{accion}".upper() for modulo, accion in conn.execute(
+            "SELECT rp.modulo, rp.accion FROM rol_permisos rp JOIN roles r ON r.id = rp.rol_id"
+            " WHERE lower(r.nombre)=? AND rp.permitido=1", (role,))}
+    resueltos = service.permission_codes_for_user(user_id, branch_id)
+    assert resueltos == frozenset(sembrado)
+    assert _BASE_SEED[role] <= resueltos
 
 
 def test_codes_come_back_in_comparison_form(service, conn, branch_id):

@@ -52,7 +52,14 @@ class BarcodesDialog(StandardDialog):
         for key, label in BARCODE_TYPE_ES.items():
             self.barcode_type.addItem(label, key)
         self.primary = QCheckBox("Principal (el que lee el POS)")
-        form.addRow("Código *", self.value)
+        value_row = QHBoxLayout()
+        value_row.addWidget(self.value, 1)
+        # PROD-23: EAN-13 interno para productos sin código de fabricante.
+        self.btn_generate = create_secondary_button(
+            self, "Generar interno", "EAN-13 interno (prefijo 04) que no se repite")
+        self.btn_generate.clicked.connect(self._generate)
+        value_row.addWidget(self.btn_generate)
+        form.addRow("Código *", value_row)
         form.addRow("Tipo *", self.barcode_type)
         form.addRow("", self.primary)
         assign.body().addLayout(form)
@@ -102,7 +109,7 @@ class BarcodesDialog(StandardDialog):
 
         can_barcodes = bool(getattr(self._p, "can_manage_barcodes", False))
         for widget in (self.value, self.barcode_type, self.primary, self.btn_assign,
-                       self.btn_toggle):
+                       self.btn_toggle, self.btn_generate):
             widget.setEnabled(can_barcodes)
         can_alt = bool(getattr(self._p, "can_manage_alternate_codes", False))
         self.alternate.setEnabled(can_alt)
@@ -142,6 +149,18 @@ class BarcodesDialog(StandardDialog):
             self.value.clear()
             self.primary.setChecked(False)
             self.refresh()
+
+    def _generate(self) -> None:
+        value = self._p.preview_internal_barcode()
+        if not value:
+            self._show(False, "No se pudo generar un código interno; escríbelo.")
+            return
+        self.value.setText(value)
+        idx = self.barcode_type.findData("EAN")
+        if idx >= 0:
+            self.barcode_type.setCurrentIndex(idx)
+        if not self._barcodes:
+            self.primary.setChecked(True)
 
     def _toggle(self) -> None:
         barcode_id = self.barcodes_table.selected_row_id()

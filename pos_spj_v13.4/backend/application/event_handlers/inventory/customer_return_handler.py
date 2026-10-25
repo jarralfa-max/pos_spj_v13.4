@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 
 from backend.application.event_handlers.inventory._ingress import resolve_ingress
+from backend.application.inventory.integration_grants import integration_use_case
 from backend.application.inventory.use_cases.post_inventory_movement import (
     PostInventoryMovementUseCase,
 )
@@ -30,7 +31,8 @@ class CustomerReturnHandler:
                  use_case: PostInventoryMovementUseCase | None = None,
                  default_status: InventoryStatus = InventoryStatus.PENDING_INSPECTION) -> None:
         self._conn = connection
-        self._uc = use_case or PostInventoryMovementUseCase()
+        # Sin caso de uso inyectado: concesión del módulo origen (PER-02).
+        self._uc = use_case
         self._default_status = default_status
 
     def handle(self, payload: dict) -> None:
@@ -57,8 +59,9 @@ class CustomerReturnHandler:
             source_document_id=ingress.document_id,
             operation_id=ingress.operation_id,
             created_by_user_id=ingress.actor_user_id, lines=built)
-        result = self._uc.execute(self._conn, movement,
-                                  actor_user_id=ingress.actor_user_id)
+        uc = self._uc or integration_use_case(
+            PostInventoryMovementUseCase, "sales", ingress.actor_user_id)
+        result = uc.execute(self._conn, movement, actor_user_id=ingress.actor_user_id)
         if not result.success:
             logger.error("customer return %s falló: %s", ingress.operation_id,
                          result.message)

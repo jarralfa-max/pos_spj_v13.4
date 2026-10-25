@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
+from backend.application.inventory.integration_grants import integration_use_case
 from backend.application.inventory.use_cases.post_inventory_movement import (
     PostInventoryMovementUseCase,
 )
@@ -49,7 +50,8 @@ class CanonicalProductionInventoryHandler:
     def __init__(self, connection_provider,
                  use_case: PostInventoryMovementUseCase | None = None) -> None:
         self._conn = connection_provider
-        self._uc = use_case or PostInventoryMovementUseCase()
+        # Sin caso de uso inyectado: concesión del módulo origen (PER-02).
+        self._uc = use_case
 
     def handle(self, payload: dict) -> None:
         branch_id = str(payload.get("branch_id") or payload.get("sucursal_id") or "")
@@ -100,7 +102,8 @@ class CanonicalProductionInventoryHandler:
             source_document_id=document_id, operation_id=operation_id,
             created_by_user_id=user, lines=lines)
         # Joins the production transaction; the outer flow owns the commit.
-        result = self._uc.execute(conn, movement, actor_user_id=user,
-                                  owns_transaction=False)
+        uc = self._uc or integration_use_case(
+            PostInventoryMovementUseCase, "meat_processing", user)
+        result = uc.execute(conn, movement, actor_user_id=user, owns_transaction=False)
         if not result.success:
             raise RuntimeError(result.message or "No se pudo aplicar el movimiento de producción.")

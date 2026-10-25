@@ -18,12 +18,22 @@ from backend.infrastructure.db.repositories.products.code_sequence_repository im
 
 class PreviewProductCodeQueryService:
     def __init__(self, connection) -> None:
+        self._conn = connection
         self._repo = ProductCodeSequenceRepository(connection)
 
     def preview(self, *, product_type: str, category_id: str | None = None) -> str:
         rules = self._repo.load_rules()
         rule = resolve_rule(rules, product_type=product_type, category_id=category_id)
         return format_code(rule, self._repo.peek(rule.prefix))
+
+    def suggest_catalog_code(self, kind: str, name: str, *,
+                             scope_id: str | None = None) -> str:
+        """PROD-23: código de categoría/marca/atributo/… derivado del nombre."""
+        from backend.application.products.catalog_codes import (
+            CatalogCodeSuggestionQueryService,
+        )
+        return CatalogCodeSuggestionQueryService(self._conn).suggest(
+            kind, name, scope_id=scope_id)
 
 
 def reserve_next_code(connection, *, product_type: str,

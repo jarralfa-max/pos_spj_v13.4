@@ -29,6 +29,7 @@ from backend.application.meat_processing.use_cases._shared import scope_fail as 
 from backend.application.meat_processing.use_cases._shared import (
     summarize_outputs_by_type as _summarize_outputs_by_type,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.meat_processing.entities.material_consumption import MaterialConsumption
 from backend.domain.meat_processing.entities.process_genealogy_link import ProcessGenealogyLink
 from backend.domain.meat_processing.entities.process_output import ProcessOutput
@@ -105,7 +106,7 @@ def _capture_output(uow, *, order, operation_id: str, product_id: str, output_ty
 
 class CaptureProcessOutputUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, product_id: str,
@@ -154,7 +155,7 @@ class PostProcessOutputUseCase:
         authorization: MeatProcessingAuthorizationPolicy | None = None,
         inventory_port: InventoryReceiptPort | None = None,
     ) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
         self._inventory = inventory_port or NullInventoryReceiptPort()
 
     def execute(
@@ -223,7 +224,7 @@ class RecordProcessOutputsUseCase:
     caller, never assumed equal to input (§26 "no hardcodear")."""
 
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, actor_user_id: str,
@@ -332,7 +333,7 @@ class ChainOutputAsConsumptionUseCase:
     having to reverse-engineer it from MaterialConsumption rows."""
 
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, upstream_output_id: str, downstream_order_id: str,

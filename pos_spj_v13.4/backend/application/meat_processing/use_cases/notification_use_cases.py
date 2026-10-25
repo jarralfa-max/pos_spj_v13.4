@@ -15,6 +15,7 @@ from backend.application.meat_processing.permissions import MeatProcessingPermis
 from backend.application.meat_processing.ports import NotificationPort, NullNotificationPort
 from backend.application.meat_processing.result import MeatProcessingResult
 from backend.application.meat_processing.use_cases._shared import fail as _fail
+from backend.application.security.unwired_policy import unwired
 from backend.domain.meat_processing.events import MeatProcessingEvents, build_meat_processing_event
 from backend.domain.meat_processing.exceptions import (
     MeatProcessingError,
@@ -35,7 +36,7 @@ class RequestProductionAlertUseCase:
         authorization: MeatProcessingAuthorizationPolicy | None = None,
         notification_port: NotificationPort | None = None,
     ) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
         self._notifications = notification_port or NullNotificationPort()
 
     def execute(

@@ -84,3 +84,91 @@ def test_failed_migration_exits_before_setup_or_login(app_module, monkeypatch):
     assert exit_result.value.code == 1
     coordinator.assert_not_called()
     app_module.QMessageBox.critical.assert_called_once()
+
+
+@pytest.mark.parametrize("outcome", ["cancel", "normal", "event_error", "services_error"])
+def test_every_exit_closes_connections_before_releasing_instance(app_module, monkeypatch, outcome):
+    connection = sqlite3.connect(":memory:")
+    events = []
+    monkeypatch.setattr(app_module, "_prepare_database", lambda: SimpleNamespace(
+        context=SimpleNamespace(conn=connection), health_report=None))
+    import backend.infrastructure.db.connection as db_connection
+    monkeypatch.setattr(db_connection, "close_thread_connection", lambda: events.append("pool_closed"))
+
+    def release():
+        with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+            connection.execute("SELECT 1")
+        events.append("lock_released")
+
+    monkeypatch.setattr(app_module, "_release_instance_lock", release)
+    from frontend.desktop.shell import desktop_shell_authentication_composition as auth
+    coordinator = Mock()
+    coordinator.run.return_value = outcome != "cancel"
+    monkeypatch.setattr(auth, "build_authentication_coordinator", lambda **kwargs: coordinator)
+    app_module.QApplication.return_value.exec_.return_value = 0
+    if outcome == "event_error":
+        app_module.QApplication.return_value.exec_.side_effect = RuntimeError("event loop failed")
+    if outcome == "services_error":
+        monkeypatch.setattr(app_module, "_build_services", Mock(side_effect=RuntimeError("services failed")))
+    try:
+        if outcome.endswith("error"):
+            with pytest.raises(RuntimeError):
+                app_module.main()
+        else:
+            assert app_module.main() == 0
+        assert events == ["pool_closed", "lock_released"]
+    finally:
+        connection.close()
+
+
+def test_database_failure_still_releases_instance_lock(app_module, monkeypatch):
+    monkeypatch.setattr(app_module, "_prepare_database", Mock(side_effect=SystemExit(1)))
+    release = Mock()
+    monkeypatch.setattr(app_module, "_release_instance_lock", release)
+    with pytest.raises(SystemExit):
+        app_module.main()
+    release.assert_called_once()
+
+
+def test_worker_stop_failure_does_not_skip_database_cleanup(app_module, monkeypatch):
+    connection = sqlite3.connect(":memory:")
+    window = Mock()
+    window.service_supervisor.stop_all.side_effect = RuntimeError("worker failed")
+    import backend.infrastructure.db.connection as db_connection
+    pool_close = Mock()
+    monkeypatch.setattr(db_connection, "close_thread_connection", pool_close)
+    app_module._shutdown_desktop_resources({"window": window, "connection": connection})
+    pool_close.assert_called_once()
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        connection.execute("SELECT 1")
+
+
+@pytest.mark.parametrize("launch_fails", [False, True])
+def test_update_handoff_keeps_resources_until_exit_and_recovers_if_launch_fails(app_module, monkeypatch, launch_fails):
+    from backend.application.software_updates.installation import SoftwareInstallation
+    from backend.infrastructure.updater import update_launcher
+    from backend.infrastructure.db import sqlite_backup
+
+    monkeypatch.setattr(SoftwareInstallation, "describe", lambda paths: Mock())
+    launcher = Mock()
+    if launch_fails:
+        launcher.launch.side_effect = RuntimeError("launch failed")
+    monkeypatch.setattr(update_launcher, "ExternalUpdaterLauncher", lambda installation: launcher)
+    monkeypatch.setattr(sqlite_backup, "checkpoint_wal", lambda connection: True)
+    release = Mock()
+    monkeypatch.setattr(app_module, "_release_instance_lock", release)
+    app, window, connection = Mock(), Mock(), Mock()
+    request = SimpleNamespace(job_path="pending-update.json", job=SimpleNamespace(to_version="test"))
+    handoff = app_module._make_update_handoff(app, connection, {"window": window})
+
+    assert handoff(request) is (not launch_fails)
+    window.service_supervisor.stop_all.assert_called_once()
+    launcher.launch.assert_called_once()
+    connection.close.assert_not_called()
+    release.assert_not_called()
+    if launch_fails:
+        app.quit.assert_not_called()
+        window.service_supervisor.start_all.assert_called_once()
+    else:
+        app.quit.assert_called_once()
+        window.service_supervisor.start_all.assert_not_called()

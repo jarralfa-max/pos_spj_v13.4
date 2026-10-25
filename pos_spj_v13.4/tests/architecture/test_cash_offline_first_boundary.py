@@ -15,7 +15,19 @@ class CashOfflineFirstBoundaryTest(unittest.TestCase):
 
     def test_transport_is_a_port_and_ui_has_no_sync_sql(self):
         source = (ROOT / "backend/application/cash_register/offline_sync.py").read_text(encoding="utf-8")
-        self.assertIn("class CashSyncTransport(Protocol)", source)
+        # Slice 2: el puerto es el del motor de replicación único.
+        self.assertIn("CashSyncTransport = ReplicationTransport", source)
+        self.assertIn("class ReplicationTransport(Protocol)", (
+            ROOT / "backend/application/sync/replication_outbox.py").read_text(encoding="utf-8"))
+
+    def test_sync_never_writes_the_finance_outbox(self):
+        """El motor viejo marcaba cash_outbox FAILED/DISPATCHED y Finanzas, que
+        sólo toma PENDING, nunca asentaba esos movimientos."""
+        for ruta in ("backend/application/cash_register/offline_sync.py",
+                     "backend/application/sync/replication_outbox.py",
+                     "backend/infrastructure/db/repositories/replication/replication_repository.py"):
+            texto = (ROOT / ruta).read_text(encoding="utf-8")
+            self.assertNotIn("UPDATE cash_outbox", texto, ruta)
         for path in (ROOT / "frontend/desktop/modules/cash_register").rglob("*.py"):
             text = path.read_text(encoding="utf-8").lower()
             self.assertNotIn("cash_sync_envelopes", text, path)

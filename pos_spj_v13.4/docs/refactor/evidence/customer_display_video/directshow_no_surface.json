@@ -1,0 +1,25 @@
+{
+  "backend": "directshow",
+  "frames": 0,
+  "errors": [
+    {
+      "code": 1,
+      "message": ""
+    }
+  ],
+  "statuses": [
+    2,
+    8,
+    1
+  ],
+  "probe_attached": true,
+  "qt_messages": [
+    "DirectShowPlayerService::doRender: Unresolved error code 0x80040266 (IDispatch error #102)"
+  ],
+  "service": "DirectShowPlayerService",
+  "url": "file:///C:/Users/Diego Rodriguez/AppData/Roaming/SPJ/SPJ ERP POS/media/pantalla_cliente/01a15cfa-f7de-7ad4-ad3a-2cafbaa335f1.mp4",
+  "position_ms": 0,
+  "duration_ms": 0,
+  "video_available": false,
+  "state": 0
+}

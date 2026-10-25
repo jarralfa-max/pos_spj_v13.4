@@ -123,8 +123,9 @@ class TestAuthorizeException:
 
 
 class _FakeSession:
-    def __init__(self, *, is_active: bool, grants: set[str]) -> None:
+    def __init__(self, *, is_active: bool, grants: set[str], user_id: str = "user-1") -> None:
         self.is_active = is_active
+        self.user_id = user_id
         self._grants = grants
 
     def tiene_permiso(self, codigo_permiso: str) -> bool:
@@ -146,3 +147,10 @@ class TestSessionPermissionChecker:
         checker = SessionPermissionChecker(session)
         assert checker.has_permission("user-1", ConfiguracionPermissions.DISPOSITIVOS_CREAR) is True
         assert checker.has_permission("user-1", ConfiguracionPermissions.EMPRESA_EDITAR) is False
+
+    def test_never_answers_for_a_different_user(self):
+        # Auditoría de permisos 968e0bc (PER-03): antes ignoraba `user_id` y una
+        # sesión con el permiso respondía «sí» por cualquier otro usuario.
+        session = _FakeSession(is_active=True, grants={ConfiguracionPermissions.DISPOSITIVOS_CREAR})
+        checker = SessionPermissionChecker(session)
+        assert checker.has_permission("otro", ConfiguracionPermissions.DISPOSITIVOS_CREAR) is False

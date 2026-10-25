@@ -177,8 +177,6 @@ def _command_table(connection, auth) -> dict:
         "suspend_membership": b(memberships.SuspendLoyaltyMembershipUseCase),
         "close_membership": b(memberships.CloseLoyaltyMembershipUseCase),
         # puntos
-        "accrue_points": b(ledger.AccrueLoyaltyPointsUseCase, source_module="fidelidad_ui"),
-        "redeem_points": b(ledger.RedeemLoyaltyPointsUseCase, source_module="fidelidad_ui"),
         "reverse_transaction": b(ledger.ReverseLoyaltyTransactionUseCase),
         # niveles, recompensas, retos
         "create_tier": b(tiers.CreateLoyaltyTierUseCase),
@@ -437,6 +435,31 @@ def _post_finance_handler(connection, auth):
     return run
 
 
+def _instrument_batch_queries(connection, auth):
+    from backend.application.commercial_instruments.queries.instrument_batch_query_service import (
+        InstrumentBatchQueryService,
+    )
+    return InstrumentBatchQueryService(connection, authorization=auth)
+
+
+def _batch_command_table(connection, auth) -> dict:
+    """Lotes físicos de cupones y vales (auditoría de Fidelidad 968e0bc)."""
+    from backend.application.commercial_instruments.use_cases import batch_use_cases as b
+
+    def de(caso):
+        return lambda **kw: caso(auth).execute(connection, **kw)
+
+    return {
+        "batch_create": de(b.CreateInstrumentBatchUseCase),
+        "batch_submit": de(b.SubmitInstrumentBatchUseCase),
+        "batch_approve": de(b.ApproveInstrumentBatchUseCase),
+        "batch_print": de(b.PrintInstrumentBatchUseCase),
+        "batch_activate": de(b.ActivateInstrumentBatchUseCase),
+        "batch_cancel": de(b.CancelInstrumentBatchUseCase),
+        "batch_revoke_piece": de(b.RevokeBatchPieceUseCase),
+    }
+
+
 def build_fidelidad_presenter(connection, session_context=None) -> FidelidadPresenter:
     checker = LoyaltySessionPermissionChecker(session_context)
     loyalty_auth = LoyaltyAuthorizationPolicy(checker)
@@ -446,7 +469,7 @@ def build_fidelidad_presenter(connection, session_context=None) -> FidelidadPres
 
     query_services = {
         "programs": lambda: _list_active_programs(connection),
-        "member_profile": LoyaltyMemberProfileQueryService(connection),
+        "member_profile": LoyaltyMemberProfileQueryService(connection, authorization=loyalty_auth),
         "sweepstakes_campaigns": lambda: _list_active_sweepstakes_campaigns(connection),
         "program_settings": lambda: _program_settings(connection),
         "records": LoyaltyRecordsQueryService(
@@ -455,6 +478,7 @@ def build_fidelidad_presenter(connection, session_context=None) -> FidelidadPres
         "card_resolver": _card_resolver(connection),
         "card_render": _card_render(connection),
         "authorizer_credentials": _authorizer_credentials(connection),
+        "instrument_batches": _instrument_batch_queries(connection, loyalty_auth),
     }
 
     def _legacy_shape(use_case_cls):
@@ -465,6 +489,7 @@ def build_fidelidad_presenter(connection, session_context=None) -> FidelidadPres
     command_handlers = _command_table(connection, loyalty_auth)
     command_handlers.update(_rule_command_table(connection, loyalty_auth))
     command_handlers["adjust_points"] = _adjust_points_handler(connection, session_context)
+    command_handlers.update(_batch_command_table(connection, loyalty_auth))
     # Todo lo que mueve puntos, vales, cupones o premios llega a contabilidad
     # al confirmarse (2026-10-03); las tarjetas no tienen efecto contable.
     command_handlers = {nombre: _with_finance(handler, connection)

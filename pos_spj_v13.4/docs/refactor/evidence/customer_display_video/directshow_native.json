@@ -1,0 +1,20 @@
+{
+  "backend": "directshow",
+  "frames": 0,
+  "errors": [
+    {
+      "code": 1,
+      "message": ""
+    }
+  ],
+  "statuses": [
+    2,
+    8,
+    1
+  ],
+  "probe_attached": true,
+  "position_ms": 0,
+  "duration_ms": 0,
+  "video_available": false,
+  "state": 0
+}

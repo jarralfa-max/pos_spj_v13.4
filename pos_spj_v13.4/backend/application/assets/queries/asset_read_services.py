@@ -6,8 +6,6 @@ infrastructure phase that builds real repositories automatically makes these
 usable end-to-end; a real implementation of ``AssetRepositoryPort.
 list_by_branch`` is also free to internally JOIN against categories/locations
 for efficiency, the N+1 lookups here are an interim shape, not a contract.
-Mirrors the bundled-file convention already used by
-``backend/application/queries/finance/finance_read_services.py``.
 """
 
 from __future__ import annotations

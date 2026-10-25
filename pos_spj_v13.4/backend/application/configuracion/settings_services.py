@@ -22,6 +22,12 @@ distintas llamadas igual haciendo cosas distintas.
 
 from __future__ import annotations
 
+from backend.security.permissions.principals import (
+    is_full_access_role,
+    is_owner_role,
+    is_reserved_role_name,
+)
+
 
 class UserManagementService:
     """Altas, bajas y edición de cuentas de usuario.
@@ -32,9 +38,13 @@ class UserManagementService:
     de CLAUDE.md exige dejar registrado.
     """
 
-    def __init__(self, user_directory_repository, audit_log_repository=None) -> None:
+    def __init__(self, user_directory_repository, audit_log_repository=None,
+                 grant_versions=None) -> None:
         self._repository = user_directory_repository
         self._audit = audit_log_repository
+        # Cambiar el rol de alguien o desactivarlo cambia sus permisos: las
+        # sesiones abiertas recargan (auditoría de permisos 968e0bc, PER-08).
+        self._grant_versions = grant_versions
 
     def list_users(self) -> list[tuple]:
         return self._repository.list_users()
@@ -47,26 +57,62 @@ class UserManagementService:
         role: str, branch_id: str, active: bool, employee_id: int | None,
         password_hash: str | None, operation_id: str = "", actor: str = "",
     ) -> str:
+        rol_anterior = self._repository.user_role(user_id) if user_id else None
+        self._guard_role_assignment(actor=actor, role=role, previous_role=rol_anterior)
         persisted_id = self._repository.save_user(
             user_id=user_id, username=username, name=name, email=email, role=role,
             branch_id=branch_id, active=active, employee_id=employee_id,
             password_hash=password_hash,
         )
+        detalle = f"usuario={username} rol={role}"
+        if is_full_access_role(role):
+            # Asignar acceso total es la concesión más grande que existe: queda
+            # señalada en la bitácora (PER-07).
+            detalle += " acceso_total=si"
         self._record(
             action="usuario.actualizar" if user_id else "usuario.crear",
             entity_id=persisted_id, operation_id=operation_id, actor=actor,
-            details=f"usuario={username} rol={role}",
+            details=detalle,
         )
+        if user_id and (rol_anterior or "") != (role or ""):
+            self._bump_grants()
         return persisted_id
 
     def set_user_active(
         self, user_id: str, active: bool, *, operation_id: str = "", actor: str = "",
     ) -> None:
+        if not active and is_owner_role(self._repository.user_role(user_id)):
+            raise ValueError("La cuenta del dueño de la instalación no se puede desactivar.")
         self._repository.set_user_active(user_id, active)
         self._record(
             action="usuario.activar" if active else "usuario.desactivar",
             entity_id=user_id, operation_id=operation_id, actor=actor,
         )
+        self._bump_grants()
+
+    def _guard_role_assignment(self, *, actor: str, role: str, previous_role: str | None) -> None:
+        """Cuentas raíz y roles de acceso total (auditoría de permisos 968e0bc, PER-07).
+
+        - La cuenta del dueño no cambia de rol: quedaría fuera de su instalación.
+        - Sólo el dueño asigna el rol de dueño.
+        - Sólo un actor con acceso total asigna un rol de acceso total: sería
+          concederse por la puerta de atrás todo lo que uno no tiene.
+        """
+        cambia = (previous_role or "").strip().lower() != (role or "").strip().lower()
+        if not cambia:
+            return
+        if is_owner_role(previous_role):
+            raise ValueError("La cuenta del dueño de la instalación no cambia de rol.")
+        rol_actor = self._repository.user_role(actor) if actor else None
+        if is_owner_role(role) and not is_owner_role(rol_actor):
+            raise ValueError("Sólo el dueño de la instalación asigna el rol de dueño.")
+        if is_full_access_role(role) and not is_full_access_role(rol_actor):
+            raise ValueError(
+                "Sólo un administrador o el dueño asigna un rol con acceso total.")
+
+    def _bump_grants(self) -> None:
+        if self._grant_versions is not None:
+            self._grant_versions.bump()
 
     def _record(self, *, action: str, entity_id: str, operation_id: str,
                 actor: str, details: str = "") -> None:
@@ -100,6 +146,16 @@ class RoleManagementService:
         self, *, role_id: str | None, name: str, description: str,
         operation_id: str = "", actor: str = "",
     ) -> str:
+        # Los roles de acceso total se reconocen por NOMBRE (`usuarios.rol` lo
+        # guarda así): un nombre reservado no se toma ni se abandona, o un rol
+        # cualquiera podría volverse administrador renombrándolo (auditoría de
+        # permisos 968e0bc, PER-07).
+        actual = self._repository.role_name(role_id) if role_id else None
+        mismo = actual is not None and actual.strip().lower() == name.strip().lower()
+        if actual is not None and is_reserved_role_name(actual) and not mismo:
+            raise ValueError(f"«{actual}» es un rol reservado; no se puede renombrar.")
+        if is_reserved_role_name(name) and not mismo:
+            raise ValueError(f"«{name}» es un nombre reservado para un rol de acceso total.")
         persisted_id = self._repository.save_role(
             role_id=role_id, name=name, description=description)
         if self._audit is not None:

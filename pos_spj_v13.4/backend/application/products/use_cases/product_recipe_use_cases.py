@@ -22,6 +22,7 @@ from backend.application.products.commands.product_recipe_commands import (
     UpdateDraftVersionCommand,
 )
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.recipe import Recipe
 from backend.domain.products.entities.recipe_component import RecipeComponent
 from backend.domain.products.entities.recipe_output import RecipeOutput
@@ -74,7 +75,7 @@ class _BaseRecipeUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = RecipeRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
         self._validator = RecipeValidationService()
 
     def _rollback(self) -> None:

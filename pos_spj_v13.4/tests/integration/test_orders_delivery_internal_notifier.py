@@ -1,5 +1,5 @@
 """ORD-26 — OrdersDeliveryInternalNotifier, against the REAL canonical
-`usuarios`/`usuarios_roles`/`roles`/`notification_inbox` schema (m000), plus
+`usuarios`/`roles`/`notification_inbox` schema (m000), plus
 the orders_delivery/inventory schemas layered on top (all `CREATE TABLE IF
 NOT EXISTS`, so layering is safe)."""
 
@@ -35,15 +35,10 @@ def _seed_admin(conn, *, branch_id: str) -> str:
     # install (roles.nombre is UNIQUE) — reuse it instead of inserting a
     # duplicate.
     user_id = new_uuid()
-    role_id = conn.execute(
-        "SELECT id FROM roles WHERE LOWER(nombre)='admin'").fetchone()[0]
     conn.execute(
         "INSERT INTO usuarios (id, nombre, usuario, password_hash, rol, sucursal_id, activo)"
         " VALUES (?,?,?,?,?,?,1)",
         (user_id, "Admin", f"admin-{user_id[:8]}", "hash", "admin", branch_id))
-    conn.execute(
-        "INSERT INTO usuarios_roles (usuario_id, rol_id, sucursal_id) VALUES (?, ?, ?)",
-        (user_id, role_id, branch_id))
     conn.commit()
     return user_id
 

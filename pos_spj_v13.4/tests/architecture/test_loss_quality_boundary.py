@@ -21,5 +21,7 @@ def test_loss11_uses_inventory_quality_routes_and_immutable_evidence():
 
 def test_quality_permissions_are_granular():
     permissions = (ROOT / "backend/application/losses/permissions.py").read_text(encoding="utf-8")
-    assert "LOSSES_QUALITY_REJECT" in permissions
-    assert "LOSSES_QUALITY_CONDEMN" in permissions
+    # Auditoría de permisos 968e0bc (PER-04): el vocabulario es `MERMA.<accion>`;
+    # se comprueba por la constante, que es lo que usan los casos de uso.
+    assert 'QUALITY_REJECT = "MERMA.calidad.rechazar"' in permissions
+    assert 'QUALITY_CONDEMN = "MERMA.calidad.condenar"' in permissions

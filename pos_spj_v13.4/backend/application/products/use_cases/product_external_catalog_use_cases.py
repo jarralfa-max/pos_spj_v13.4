@@ -37,6 +37,7 @@ from backend.application.products.permissions import ProductPermissions
 from backend.application.products.use_cases.product_master_use_cases import (
     CreateProductMasterUseCase,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.events import ProductEvents
 from backend.domain.products.exceptions import ProductsDomainError
 from backend.domain.products.policies.external_data_acceptance_policy import (
@@ -69,7 +70,7 @@ class _Base:
         self._conn = connection
         self._repo = ExternalCatalogRepository(connection)
         self._registry = registry
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def _rollback(self) -> None:
         rb = getattr(self._conn, "rollback", None)

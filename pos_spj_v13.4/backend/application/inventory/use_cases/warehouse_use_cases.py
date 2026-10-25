@@ -18,6 +18,7 @@ from backend.application.inventory.result import InventoryResult
 from backend.application.inventory.use_cases.ensure_technical_locations import (
     EnsureTechnicalLocationsUseCase,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.warehouse import (
     StorageLocation,
     Warehouse,
@@ -55,7 +56,7 @@ def _emit(uow, event_name, *, entity_id, actor, **extra):
 
 class CreateWarehouseUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, code: str, name: str, branch_id: str,
                 warehouse_type: WarehouseType, actor_user_id: str,
@@ -97,7 +98,7 @@ class UpdateWarehouseUseCase:
     """Edita datos mutables de un almacén (§24 "Editar almacén")."""
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, warehouse_id: str, actor_user_id: str,
                 **fields) -> InventoryResult:
@@ -129,7 +130,7 @@ class DeactivateWarehouseUseCase:
     ya no está en uso operativo."""
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, warehouse_id: str, actor_user_id: str,
                 reason: str = "") -> InventoryResult:
@@ -154,7 +155,7 @@ class DeactivateWarehouseUseCase:
 
 class SetWarehouseStatusUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, warehouse_id: str, activate: bool,
                 actor_user_id: str, reason: str = "") -> InventoryResult:
@@ -182,7 +183,7 @@ class SetWarehouseStatusUseCase:
 
 class CreateZoneUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, warehouse_id: str, code: str, name: str,
                 zone_type: WarehouseZoneType, actor_user_id: str) -> InventoryResult:
@@ -210,7 +211,7 @@ class CreateZoneUseCase:
 
 class CreateLocationUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, warehouse_id: str, code: str, name: str,
                 actor_user_id: str, zone_id: str | None = None,
@@ -243,7 +244,7 @@ class CreateLocationUseCase:
 
 class SetLocationStatusUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, location_id: str, activate: bool,
                 actor_user_id: str, reason: str = "") -> InventoryResult:
@@ -273,7 +274,7 @@ class UpdateLocationUseCase:
     """Edita datos mutables de una ubicación (§24 "Editar ubicación")."""
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, location_id: str, actor_user_id: str,
                 **fields) -> InventoryResult:
@@ -303,7 +304,7 @@ class DeactivateLocationUseCase:
     de bloquear, igual que en almacenes (ver `DeactivateWarehouseUseCase`)."""
 
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, location_id: str, actor_user_id: str,
                 reason: str = "") -> InventoryResult:

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 
+from backend.application.inventory.integration_grants import integration_use_case
 from backend.application.event_handlers.inventory._ingress import resolve_ingress
 from backend.application.inventory.use_cases.post_inventory_movement import (
     PostInventoryMovementUseCase,
@@ -43,7 +44,8 @@ class SupplierReturnHandler:
     def __init__(self, connection,
                  use_case: PostInventoryMovementUseCase | None = None) -> None:
         self._conn = connection
-        self._uc = use_case or PostInventoryMovementUseCase()
+        # Sin caso de uso inyectado: concesión del módulo origen (PER-02).
+        self._uc = use_case
 
     def handle(self, payload: dict) -> None:
         ingress, reason = resolve_ingress(payload)
@@ -82,8 +84,12 @@ class SupplierReturnHandler:
             warehouse_id=ingress.warehouse_id, source_module="procurement",
             source_document_type="PURCHASE_RETURN", source_document_id=document_id,
             operation_id=ingress.operation_id, created_by_user_id=user, lines=built)
-        result = self._uc.execute(self._conn, movement, actor_user_id=user)
-        if not result.success and result.error_code != "PERMISSION_DENIED":
+        uc = self._uc or integration_use_case(PostInventoryMovementUseCase, "procurement", user)
+        result = uc.execute(self._conn, movement, actor_user_id=user)
+        if not result.success and result.error_code == "PERMISSION_DENIED":
+            logger.error("supplier return %s DENEGADA: %s", ingress.operation_id,
+                         result.message)
+        elif not result.success:
             logger.error("supplier return %s falló: %s", ingress.operation_id,
                          result.message)
             raise RuntimeError(result.message)

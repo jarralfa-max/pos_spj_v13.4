@@ -41,3 +41,18 @@ class LoyaltySessionPermissionChecker:
             return False
         check = getattr(session, "tiene_permiso", None)
         return bool(callable(check) and check(permission_code))
+
+    def branch_allowed(self, user_id: str, branch_id: str | None) -> bool:
+        """FID-06: la sucursal declarada en un comando es la activa o una de
+        las asignadas a la sesión de ese mismo usuario."""
+        session = self._session
+        if session is None or not bool(getattr(session, "is_active", False)):
+            return False
+        if str(getattr(session, "user_id", "") or "").strip() != str(user_id or "").strip():
+            return False
+        sucursal = str(branch_id or "").strip()
+        if not sucursal:
+            return False
+        propias = {str(getattr(session, "active_branch_id", "") or "").strip()}
+        propias |= {str(b) for b in (getattr(session, "assigned_branch_ids", None) or ())}
+        return sucursal in propias

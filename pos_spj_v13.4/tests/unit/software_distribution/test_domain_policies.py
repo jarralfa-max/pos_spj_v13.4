@@ -273,7 +273,7 @@ def test_unknown_capability_is_rejected():
 def test_disabled_capability_blocks_its_permission_families_only():
     essential = EnabledCapabilities.resolve(InstallProfile.POS_ESSENTIAL)
     assert essential.permission_blocked("RRHH.NOMINA.GENERAR")
-    assert essential.permission_blocked("LOSSES_VIEW")
+    assert essential.permission_blocked("MERMA.VER")  # auditoría de permisos 968e0bc: Mermas es `MERMA.<accion>`
     assert not essential.permission_blocked("POS.VER")
     assert not essential.permission_blocked("GROWTH_ENGINE.PUNTOS.CANJEAR")
     assert not essential.is_enabled("hr") and essential.is_enabled("sales_pos")

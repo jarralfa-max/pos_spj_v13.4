@@ -41,6 +41,7 @@ from backend.application.meat_processing.ports import (
 from backend.application.meat_processing.result import MeatProcessingResult
 from backend.application.meat_processing.use_cases._shared import fail as _fail
 from backend.application.meat_processing.use_cases._shared import scope_fail as _scope_fail
+from backend.application.security.unwired_policy import unwired
 from backend.domain.meat_processing.entities.material_requirement import MaterialRequirement
 from backend.domain.meat_processing.entities.operator_assignment import OperatorAssignment
 from backend.domain.meat_processing.enums import (
@@ -114,7 +115,7 @@ class PrepareProcessingOrderUseCase:
         reservation_port_factory=None,
         master_data_policy: ProcessingMasterDataRequirementPolicy | None = None,
     ) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
         self._snapshots = recipe_snapshot_port or NullRecipeSnapshotPort()
         #: (orden, actor) → MaterialReservationPort. Sin fábrica no hay reserva.
         self._reservations = reservation_port_factory or (
@@ -254,7 +255,7 @@ class PrepareProcessingOrderUseCase:
 
 class AssignOperatorUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, user_id: str,
@@ -291,7 +292,7 @@ class AssignOperatorUseCase:
 
 class ReleaseOperatorAssignmentUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, assignment_id: str, operation_id: str, actor_user_id: str,

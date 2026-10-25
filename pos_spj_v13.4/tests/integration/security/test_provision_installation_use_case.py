@@ -98,21 +98,35 @@ def test_owner_account_can_log_in_through_the_live_auth_service():
     _execute(uc)
     conn.commit()
 
-    from core.services.audit_service import AuditService
-    from core.services.auth_service import AuthService
-    from core.services.security_service import SecurityService
-    from repositories.audit_repository import AuditRepository
-    from repositories.auth_repository import AuthRepository
-    from repositories.security_repository import SecurityRepository
-
-    auth_service = AuthService(
-        auth_repo=AuthRepository(conn),
-        security_service=SecurityService(SecurityRepository(conn)),
-        audit_service=AuditService(AuditRepository(conn)),
+    # El inicio de sesión VIVO (el de la ventana de login); el `AuthService`
+    # del paquete `core` que usaba antes esta prueba ya no existe.
+    from backend.security.authentication.authenticate_user_use_case import (
+        AuthenticateUserUseCase,
     )
-    result = auth_service.authenticate("jarralfa", "Correct-Horse-9!")
-    assert result["username"] == "jarralfa"
-    assert result["rol"] == "system_owner"
+    from backend.security.authentication.authentication_attempt_repository import (
+        SqliteAuthenticationAttemptRepository,
+    )
+    from backend.security.authentication.user_credentials import SqliteUserCredentialsRepository
+    from backend.security.credentials.password_hasher import (
+        Argon2idPasswordHasher,
+        BcryptPasswordHasher,
+    )
+    from backend.security.credentials.password_verification import MultiSchemePasswordVerifier
+    from backend.security.sessions.account_lockout_policy import AccountLockoutPolicy
+    from backend.security.sessions.session_manager import SessionManager
+    from backend.security.sessions.session_repository import InMemorySessionRepository
+
+    login = AuthenticateUserUseCase(
+        credentials_repository=SqliteUserCredentialsRepository(conn),
+        attempt_repository=SqliteAuthenticationAttemptRepository(conn),
+        password_verifier=MultiSchemePasswordVerifier(
+            primary=Argon2idPasswordHasher(), legacy=(BcryptPasswordHasher(),)),
+        lockout_policy=AccountLockoutPolicy(failed_attempt_limit=5, lockout_duration_seconds=900),
+        session_manager=SessionManager(session_repository=InMemorySessionRepository()),
+    )
+    resultado = login.execute(username="jarralfa", password="Correct-Horse-9!")
+    assert resultado.credentials.username == "jarralfa"
+    assert resultado.credentials.role == "system_owner"
 
 
 def test_double_provisioning_raises():

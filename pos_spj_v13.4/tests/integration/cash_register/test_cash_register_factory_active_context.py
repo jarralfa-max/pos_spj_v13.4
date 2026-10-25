@@ -27,6 +27,7 @@ class CashRegisterFactoryActiveContextTests(unittest.TestCase):
         self.db.execute("PRAGMA foreign_keys=ON")
         importlib.import_module("migrations.standalone.176_cash_register_configuration_schema").run(self.db)
         importlib.import_module("migrations.standalone.175_cash_register_bounded_context_schema").run(self.db)
+        importlib.import_module("migrations.standalone.350_replication_engine").run(self.db)
 
     def tearDown(self):
         self.db.close()
@@ -84,7 +85,7 @@ class CashRegisterFactoryActiveContextTests(unittest.TestCase):
         self.assertEqual(state["id"], terminal_id)
         self.assertEqual(
             self.db.execute(
-                "SELECT branch_id FROM cash_sync_devices WHERE id=?",
+                "SELECT branch_id FROM replication_stations WHERE id=?",
                 (terminal_id,),
             ).fetchone()[0],
             branch_id,

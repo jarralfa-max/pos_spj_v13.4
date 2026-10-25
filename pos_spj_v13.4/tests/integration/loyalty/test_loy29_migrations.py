@@ -20,6 +20,7 @@ from backend.application.loyalty_cards.permissions import ALL_LOYALTY_CARDS_PERM
 from backend.shared.ids import new_uuid
 
 _290 = importlib.import_module("migrations.standalone.290_seed_loyalty_role_permissions")
+_349 = importlib.import_module("migrations.standalone.349_instrument_batches")
 _291 = importlib.import_module("migrations.standalone.291_drop_legacy_loyalty_tables")
 
 
@@ -45,7 +46,10 @@ def _acciones(conn, rol: str, modulo: str) -> set[str]:
 
 class TestSeed290:
     def test_transcription_matches_the_context_permissions(self):
-        assert {f"GROWTH_ENGINE.{a}" for a in _290._FIDELIDAD} == ALL_LOYALTY_PERMISSIONS
+        # Lo que sembró la 290 más lo que sembraron después (349: lotes de
+        # cupones y vales): una acción nueva sin siembra no la usaría nadie.
+        sembrado = set(_290._FIDELIDAD) | set(_349.LOTES)
+        assert {f"GROWTH_ENGINE.{a}" for a in sembrado} == ALL_LOYALTY_PERMISSIONS
         assert {f"TARJETAS_FIDELIDAD.{a}" for a in _290._TARJETAS} == ALL_LOYALTY_CARDS_PERMISSIONS
 
     def test_owner_and_admin_get_everything(self, conn):
@@ -71,6 +75,17 @@ class TestSeed290:
         assert conn.execute("SELECT COUNT(*) FROM rol_permisos").fetchone()[0] == antes
         assert not _acciones(conn, "cajero", "GROWTH_ENGINE")
         assert not _acciones(conn, "cajero", "TARJETAS_FIDELIDAD")
+
+
+class TestSeed349:
+    def test_batch_actions_follow_the_290_criteria(self, conn):
+        _349.run(conn)
+        _349.run(conn)
+        for rol in ("system_owner", "admin"):
+            assert _acciones(conn, rol, "GROWTH_ENGINE") == set(_349.LOTES)
+        assert _acciones(conn, "gerente", "GROWTH_ENGINE") == {
+            "lote.ver", "lote.crear", "lote.imprimir"}
+        assert not _acciones(conn, "cajero", "GROWTH_ENGINE")
 
 
 class TestDropLegacy291:

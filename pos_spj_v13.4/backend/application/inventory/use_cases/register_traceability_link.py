@@ -14,6 +14,7 @@ import json
 from backend.application.inventory.authorization import InventoryAuthorizationPolicy
 from backend.application.inventory.permissions import InventoryPermissions
 from backend.application.inventory.result import InventoryResult
+from backend.application.security.unwired_policy import unwired
 from backend.domain.inventory.entities.traceability_link import TraceabilityLink
 from backend.domain.inventory.enums import TraceabilityLinkType
 from backend.domain.inventory.events import InventoryEvents, build_event_payload
@@ -28,7 +29,7 @@ from backend.infrastructure.db.repositories.inventory.unit_of_work import (
 
 class RegisterTraceabilityLinkUseCase:
     def __init__(self, authorization: InventoryAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or InventoryAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(InventoryAuthorizationPolicy)
 
     def execute(self, connection, *, parent_lot_id: str, child_lot_id: str,
                 link_type: TraceabilityLinkType, operation_id: str, actor_user_id: str,

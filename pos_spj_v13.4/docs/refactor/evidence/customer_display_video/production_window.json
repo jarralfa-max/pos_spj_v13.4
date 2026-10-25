@@ -1,0 +1,33 @@
+{
+  "backend": "windowsmediafoundation",
+  "frames": 141,
+  "errors": [],
+  "statuses": [
+    3,
+    6,
+    1
+  ],
+  "probe_attached": true,
+  "qt_messages": [
+    "QFontDatabase: Cannot find font directory C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/.venv/Lib/site-packages/PyQt5/Qt5/lib/fonts.\nNote that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.",
+    "QFontDatabase: Cannot find font directory C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/.venv/Lib/site-packages/PyQt5/Qt5/lib/fonts.\nNote that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.",
+    "QFontDatabase: Cannot find font directory C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/.venv/Lib/site-packages/PyQt5/Qt5/lib/fonts.\nNote that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.",
+    "QFontDatabase: Cannot find font directory C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/.venv/Lib/site-packages/PyQt5/Qt5/lib/fonts.\nNote that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.",
+    "QFontDatabase: Cannot find font directory C:/Users/Diego Rodriguez/Downloads/pos_spj_v13.4/.venv/Lib/site-packages/PyQt5/Qt5/lib/fonts.\nNote that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.",
+    "This plugin does not support propagateSizeHints()",
+    "This plugin does not support propagateSizeHints()"
+  ],
+  "service": "MFPlayerService",
+  "url": "file:///C:/Users/Diego Rodriguez/AppData/Roaming/SPJ/SPJ ERP POS/media/pantalla_cliente/01a15cfa-f7de-7ad4-ad3a-2cafbaa335f1.mp4",
+  "frame_size": [
+    720,
+    1280
+  ],
+  "position_ms": 2760,
+  "duration_ms": 20011,
+  "video_available": true,
+  "state": 1,
+  "muted": true,
+  "playlist_mode": 3,
+  "payment_stops_video": true
+}

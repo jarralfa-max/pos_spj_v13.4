@@ -26,7 +26,8 @@ services exist or run health polling on them afterward; a caller inspects
 `shutdown_coordinator` is given (SHELL-15), `closeEvent()` runs it before
 accepting the close — the natural Qt teardown hook — and stores the
 outcome in `last_shutdown_result` for inspection; without one, `closeEvent()`
-falls back to the base `QMainWindow` behavior, unchanged from SHELL-11.
+stops the bound background services. Both paths close owned top-level windows
+so the customer monitor releases playback resources when the shell exits.
 
 Deliberately standalone here: not wired into `main.py`, and not itself
 deciding *which* route to show first or what the sidebar's item list is —
@@ -48,6 +49,7 @@ from frontend.desktop.shell.background.background_service_supervisor import Back
 from frontend.desktop.shell.application_shell.notification_drawer import NotificationDrawer
 from frontend.desktop.shell.application_shell.status_bar import StatusBar
 from frontend.desktop.shell.application_shell.top_bar import TopBar
+from frontend.desktop.shell.application_shell.user_profile_dialog import UserProfileDialog
 from frontend.desktop.shell.loading.module_error_view import build_module_error_view
 from frontend.desktop.shell.loading.module_load_state import ModuleLoadState
 from frontend.desktop.shell.loading.module_loader import ModuleLoader, Scheduler, immediate_scheduler
@@ -88,6 +90,7 @@ class ApplicationWindow(StandardWindow):
         self.top_bar.logout_requested.connect(self._confirm_logout)
         self.top_bar.exit_requested.connect(self.close)
         self.top_bar.settings_requested.connect(self._open_settings)
+        self.top_bar.profile_requested.connect(self._open_profile)
         self.notification_drawer.unread_count_changed.connect(self.top_bar.set_unread_notification_count)
         if self.sidebar is not None:
             self.sidebar.item_activated.connect(self.navigate)
@@ -160,6 +163,7 @@ class ApplicationWindow(StandardWindow):
                 )
         self.content_host.display(result)
         self.top_bar.set_breadcrumb(result.route.breadcrumb)
+        self.top_bar.set_offline_status(result.context.offline_status, degraded=result.degraded_offline)
         self.status_bar.set_offline_status(result.context.offline_status, degraded=result.degraded_offline)
         if self.sidebar is not None:
             self.sidebar.set_active_route(result.route.route_id)
@@ -183,6 +187,15 @@ class ApplicationWindow(StandardWindow):
                 self, "Configuración no disponible",
                 "No se puede abrir Configuración con los permisos y la conexión actuales.",
             )
+
+    def _open_profile(self) -> None:
+        dialog = UserProfileDialog(
+            self._router.current_context, session_text=self.top_bar.session_text, parent=self,
+        )
+        try:
+            dialog.exec_()
+        finally:
+            dialog.deleteLater()
 
     def _confirm_logout(self) -> None:
         result = QMessageBox.question(
@@ -213,4 +226,11 @@ class ApplicationWindow(StandardWindow):
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt's own method name
         if self.shutdown_coordinator is not None:
             self.last_shutdown_result = self.shutdown_coordinator.shutdown()
+        elif self.service_supervisor is not None:
+            self.service_supervisor.stop_all()
+        # Owned top-level windows need their closeEvent too: merely hiding a
+        # shell leaves the customer monitor's player/timers alive.
+        for child in self.findChildren(QWidget):
+            if child.isWindow():
+                child.close()
         super().closeEvent(event)

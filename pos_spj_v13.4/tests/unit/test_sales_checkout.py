@@ -293,6 +293,19 @@ def _redeem(**kwargs):
 
 
 class TestRedeemLoyaltyPointsUseCase:
+    @pytest.fixture(autouse=True)
+    def _products_have_cost(self, monkeypatch):
+        """Desde la auditoría de Fidelidad 968e0bc (FID-03) no se canjea sobre
+        un producto sin costo confiable. Estas pruebas son del canje, no del
+        margen: cada producto cuesta $100 sobre un precio de $500. El margen lo
+        prueba tests/integration/loyalty/test_loyalty_audit_968e0bc.py."""
+        import backend.application.sales.cost_lookup as lookup
+
+        def con_costo(connection, sale, *, costs=None, virtual=None):
+            return {ln.product_id: Decimal("100") for ln in sale.goods_lines}, []
+
+        monkeypatch.setattr(lookup, "sale_unit_costs", con_costo)
+
     def test_fails_without_assigned_customer(self, loyalty_conn):
         branch, cashier = new_uuid(), new_uuid()
         sale_id = StartSaleUseCase(_allow_all()).execute(

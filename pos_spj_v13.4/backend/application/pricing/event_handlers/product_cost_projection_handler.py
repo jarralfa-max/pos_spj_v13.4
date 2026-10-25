@@ -90,6 +90,7 @@ class ProductCostProjectionHandler:
             )
             stock = CostingStockQueryService(connection)
         self._stock = stock
+        self._production_order_id: str | None = None
 
     def handle(self, payload: dict) -> None:
         event_id = str(payload.get("event_id") or "").strip()
@@ -102,6 +103,11 @@ class ProductCostProjectionHandler:
         operation_id = str(payload.get("operation_id") or event_id)
         user_id = payload.get("user_id")
         branch_id = str(payload.get("branch_id") or "").strip()
+        # El costo de producción llega con el operation_id de Costos; la salida
+        # en Inventario se reconoce por la orden.
+        self._production_order_id = (
+            str(payload.get("source_document_id") or "").strip() or None
+            if payload.get("source_module") == "costing" else None)
         changed: list[tuple[str, Money]] = []
         try:
             for line in _consolidated(lines):
@@ -143,8 +149,9 @@ class ProductCostProjectionHandler:
     def _project(self, product_id: str, qty: Decimal, unit_cost: Decimal, *,
                  operation_id: str, user_id, branch_id: str) -> Money | None:
         prior_avg, tracked_qty = self._repo.cost_basis(product_id, branch_id or _BRANCH_ALL)
-        on_hand = self._stock.on_hand_before(product_id, operation_id=operation_id,
-                                             branch_id=branch_id or None)
+        on_hand = self._stock.on_hand_before(
+            product_id, operation_id=operation_id, branch_id=branch_id or None,
+            production_order_id=self._production_order_id)
         prior_qty = tracked_qty if on_hand is None else on_hand
         try:
             update = self._costing.apply_receipt(

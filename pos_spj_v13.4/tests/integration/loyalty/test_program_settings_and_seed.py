@@ -100,6 +100,30 @@ def test_without_the_permission_the_page_is_read_only(app, conn):
     assert "Sólo lectura" in page._status.text()
 
 
+def test_the_page_explains_the_program_economy_while_editing(app, conn):
+    """FID-09 (auditoría de Fidelidad 968e0bc): cuánto regresa cada punto, en una
+    frase, recalculada al editar."""
+    page = _page(conn, {"GROWTH_ENGINE.configuracion.ver", "GROWTH_ENGINE.configuracion.editar"})
+    page.pesos_per_point.set_decimal("10")
+    page.point_value.set_decimal("0.50")
+    page.min_points.setValue(100)
+    page.max_percent.set_decimal_value(Decimal("30"))
+    texto = page.economy_label.text()
+    assert "regresa 5.00% de lo que compra" in texto
+    assert "tras $1,000.00 de compras y vale $50.00" in texto
+    assert "hasta 30.00% de un ticket" in texto
+
+
+def test_program_economy_is_pure_arithmetic():
+    from backend.domain.loyalty.policies.program_economy import ProgramEconomy
+
+    e = ProgramEconomy(pesos_per_point=Decimal("20"), point_value=Decimal("0.10"),
+                       min_points=0, max_percent=Decimal("0.5"))
+    assert e.return_rate_percent == Decimal("0.50")
+    assert e.purchase_to_first_redemption == Decimal("0.00")
+    assert ProgramEconomy(Decimal("0"), Decimal("1"), 0, Decimal("0")).return_rate_percent is None
+
+
 # ── migración 289 ────────────────────────────────────────────────────────────
 
 def _seed_base(conn, *, owner_id):

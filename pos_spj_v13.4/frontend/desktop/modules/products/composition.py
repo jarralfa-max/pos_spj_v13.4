@@ -87,6 +87,7 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
         SessionPermissionChecker,
         make_permission_checker,
     )
+    from backend.application.security.unwired_policy import unwired
     from backend.application.products.authorization.policy import (
         ProductsAuthorizationPolicy,
     )
@@ -216,15 +217,13 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
 
     conn = connection
 
-    # P0-02: en producción la política SIEMPRE lleva un checker real (fail-closed);
-    # sin sesión (tests de arranque) queda permisiva.
-    # §21.1 fail-closed: con sesión viva se cablea el checker real; sin sesión
-    # (arranque/tests o shell de sólo lectura) se usa la política permisiva
-    # EXPLÍCITA de pruebas — nunca el permisivo silencioso.
+    # P0-02: en producción la política SIEMPRE lleva un checker real. Sin sesión
+    # ya no queda permisiva (auditoría de permisos 968e0bc, PER-02): falla
+    # cerrada como cualquier caso de uso sin cablear.
     authorization = (ProductsAuthorizationPolicy(
         SessionPermissionChecker(live_session))
         if live_session is not None
-        else ProductsAuthorizationPolicy.permissive_for_tests())
+        else unwired(ProductsAuthorizationPolicy))
     # PROD-21: las imágenes se copian a la carpeta de la aplicación.
     image_storage = LocalProductImageStorage()
 

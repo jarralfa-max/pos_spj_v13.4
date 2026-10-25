@@ -12,6 +12,8 @@ es parte de cerrar la venta, no una capacidad aparte.
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from backend.application.sales.dto import SaleDTO
 from backend.application.sales.permissions import SalesPermissions
 from backend.application.sales.result import SaleResult, fail_from_domain_error
@@ -28,11 +30,26 @@ COUPON_REMOVED = SaleEvents.COUPON_REMOVED
 
 class ApplyCouponToSaleUseCase(_SalesBaseUseCase):
     def execute(self, connection, *, sale_id: str, code: str, actor_user_id: str,
-                operation_id: str) -> SaleResult:
+                operation_id: str, authorizer_user_id: str | None = None,
+                reason: str | None = None) -> SaleResult:
         try:
             self._auth.require(actor_user_id, SalesPermissions.SALE_COMPLETE)
         except SalesDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
+        autorizado = False
+        if authorizer_user_id is not None:
+            if not (reason or "").strip():
+                return SaleResult.fail("Autorizar un beneficio sobre el margen requiere motivo",
+                                       "MARGIN_PROTECTED", operation_id=operation_id)
+            try:
+                self._authorizer().authorize_exception(
+                    authorizer_user_id=authorizer_user_id, requested_by=actor_user_id,
+                    permission_code=SalesPermissions.DISCOUNT_OVERRIDE,
+                    operation_id=operation_id, reason=reason, amount=Decimal("0"),
+                    sale_id=sale_id)
+                autorizado = True
+            except SalesDomainError as exc:
+                return fail_from_domain_error(exc, operation_id=operation_id)
         with SalesUnitOfWork(connection) as uow:
             sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
             if denied is not None:
@@ -54,6 +71,18 @@ class ApplyCouponToSaleUseCase(_SalesBaseUseCase):
                 cliente.release_coupon(coupon_instance_id=respuesta["coupon_instance_id"],
                                        actor_user_id=actor_user_id)
                 return fail_from_domain_error(exc, operation_id=operation_id)
+            if not autorizado:
+                # FID-03: el cupón ya cuenta como comprometido en los totales.
+                from backend.application.sales.queries.benefit_budget_query import (
+                    SaleBenefitBudgetQuery,
+                )
+                presupuesto = SaleBenefitBudgetQuery(connection).for_sale(sale)
+                if presupuesto.lines_without_cost or presupuesto.committed > presupuesto.room:
+                    cliente.release_coupon(coupon_instance_id=respuesta["coupon_instance_id"],
+                                           actor_user_id=actor_user_id)
+                    return SaleResult.fail(
+                        presupuesto.explain() + " Pide autorización a quien pueda aprobarla.",
+                        "MARGIN_PROTECTED", operation_id=operation_id)
             uow.sales.save(sale)
             self._emit(uow, COUPON_APPLIED, entity_id=sale.id, operation_id=operation_id,
                        branch_id=sale.branch_id, actor_user_id=actor_user_id,

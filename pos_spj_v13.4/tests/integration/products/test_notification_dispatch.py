@@ -97,20 +97,17 @@ class TestInAppNotifierReal:
 
 
 class TestWhatsAppNotifierReal:
-    def test_enqueues_via_real_whatsapp_service(self, conn, monkeypatch):
-        # Neutraliza sólo el spawn del hilo worker en background (tocaría esta
-        # conexión :memory: desde otro hilo, insegura tras el teardown del
-        # fixture) — el encolado real (`MessageQueue.enqueue`) SÍ corre sin doble.
-        from core.services.whatsapp_service import WhatsAppService
-        monkeypatch.setattr(WhatsAppService, "_ensure_worker", lambda self: None)
-
+    def test_enqueues_in_the_product_whatsapp_outbox(self, conn):
+        # Desde PROD-22 el aviso se encola en `product_whatsapp_outbox` (lo
+        # despacha el microservicio); el `WhatsAppService` del paquete `core`
+        # que usaba antes esta prueba ya no existe.
         notifier = WhatsAppProductNotifier(conn)
         notifier.send(channel="WHATSAPP", recipient_ref="5215512345678",
                       message="Alerta crítica de producto", context={})
         row = conn.execute(
-            "SELECT COUNT(*) AS n FROM whatsapp_queue WHERE to_number='5215512345678'"
+            "SELECT COUNT(*) AS n FROM product_whatsapp_outbox WHERE phone='5215512345678'"
         ).fetchone()
-        assert row["n"] >= 1
+        assert row["n"] == 1
 
 
 class TestNotificationDispatchOnProductCreate:

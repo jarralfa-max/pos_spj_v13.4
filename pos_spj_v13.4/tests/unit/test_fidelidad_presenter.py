@@ -75,22 +75,11 @@ class TestCommandHandlersReceiveExpectedArgs:
         assert captured["actor_branch_id"] == "b1"
         assert "operation_id" in captured
 
-    def test_accrue_points_calls_handler_with_decimal_amount(self):
-        captured = {}
-
-        def fake_handler(**kwargs):
-            captured.update(kwargs)
-            return LoyaltyResult.ok("Puntos acreditados")
-
-        presenter = FidelidadPresenter(
-            session_context=_FakeSession(),
-            command_handlers={"accrue_points": fake_handler})
-        presenter.accrue_points(
-            loyalty_account_id="acc-1", points_amount=Decimal("100"), reason_code="Bono")
-
-        assert captured["loyalty_account_id"] == "acc-1"
-        assert captured["points_amount"] == Decimal("100")
-        assert captured["source_module"] == "fidelidad_ui"
+    def test_there_is_no_free_manual_credit_or_ticketless_redemption(self):
+        """Auditoría 968e0bc FID-05/09: dar puntos a mano es «Corrección manual»
+        (documento + autorizador); gastar puntos es en el POS o por recompensa."""
+        assert not hasattr(FidelidadPresenter, "accrue_points")
+        assert not hasattr(FidelidadPresenter, "redeem_points")
 
     def test_redeem_reward_requests_then_confirms(self):
         calls = []

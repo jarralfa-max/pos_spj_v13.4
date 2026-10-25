@@ -16,8 +16,10 @@ def test_full_sequence_succeeds_against_a_fresh_database(tmp_path):
 
     assert result.success is True
     assert result.final_state is BootstrapState.RUNNING
-    assert len(result.step_results) == 5  # + schema_compatibility (INST-0)
+    assert len(result.step_results) == 6  # + schema_compatibility (INST-0), + llaves foráneas (Slice 0)
     assert result.context.installation_status is ProvisioningStatus.UNINITIALIZED
+    # R-02: la conexión que usa la app queda con llaves foráneas activas.
+    assert result.context.conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
     result.context.conn.close()
 
 

@@ -25,6 +25,10 @@ COMMERCIAL_INSTRUMENTS_TABLES: tuple[str, ...] = (
     "voucher_transactions",
     "voucher_redemptions",
     "commercial_instruments_outbox",
+    "instrument_batches",
+    "instrument_batch_items",
+    "voucher_instance_rules",
+    "commercial_instrument_secrets",
 )
 
 _DDL = (
@@ -144,6 +148,89 @@ _DDL = (
     """,
 )
 
+#: Lotes físicos de cupones y vales (auditoría de Fidelidad 968e0bc, ampliación).
+#: El código impreso es un token de alta entropía derivado con HMAC del secreto
+#: de la instalación y del id de la PIEZA; sólo se guarda su huella (SHA-256) y
+#: un prefijo corto para soporte. El folio es el identificador legible, no
+#: canjeable.
+_BATCH_DDL = (
+    """
+    CREATE TABLE IF NOT EXISTS instrument_batches (
+        id TEXT NOT NULL PRIMARY KEY,
+        kind TEXT NOT NULL,
+        definition_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        unit_value TEXT NOT NULL,
+        funding_source TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'DRAFT',
+        valid_from TEXT,
+        valid_to TEXT,
+        branch_ids_json TEXT NOT NULL DEFAULT '[]',
+        redemption_mode TEXT NOT NULL,
+        max_redemptions INTEGER,
+        max_percent_per_sale TEXT,
+        percent_base TEXT NOT NULL,
+        leftover_policy TEXT NOT NULL,
+        created_by_user_id TEXT NOT NULL,
+        approved_by_user_id TEXT,
+        approved_at TEXT,
+        printed_count INTEGER NOT NULL DEFAULT 0,
+        activated_at TEXT,
+        cancelled_reason TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS instrument_batch_items (
+        id TEXT NOT NULL PRIMARY KEY,
+        batch_id TEXT NOT NULL REFERENCES instrument_batches(id),
+        sequence_no INTEGER NOT NULL,
+        folio TEXT NOT NULL UNIQUE,
+        instance_kind TEXT NOT NULL,
+        instance_id TEXT NOT NULL UNIQUE,
+        token_hash TEXT NOT NULL UNIQUE,
+        token_prefix TEXT NOT NULL,
+        token_version INTEGER NOT NULL DEFAULT 1,
+        status TEXT NOT NULL DEFAULT 'ISSUED',
+        print_count INTEGER NOT NULL DEFAULT 0,
+        revoked_reason TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE(batch_id, sequence_no)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS voucher_instance_rules (
+        voucher_instance_id TEXT NOT NULL PRIMARY KEY REFERENCES voucher_instances(id),
+        batch_id TEXT REFERENCES instrument_batches(id),
+        redemption_mode TEXT NOT NULL,
+        max_redemptions INTEGER,
+        max_percent_per_sale TEXT,
+        percent_base TEXT NOT NULL,
+        leftover_policy TEXT NOT NULL,
+        funding_source TEXT NOT NULL,
+        branch_ids_json TEXT NOT NULL DEFAULT '[]',
+        valid_from TEXT,
+        valid_to TEXT,
+        created_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS commercial_instrument_secrets (
+        id TEXT NOT NULL PRIMARY KEY,
+        value TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """,
+)
+
+_BATCH_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS idx_instrument_batches_status ON instrument_batches(status)",
+    "CREATE INDEX IF NOT EXISTS idx_instrument_batch_items_batch"
+    " ON instrument_batch_items(batch_id, status)",
+)
+
 _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_coupon_definitions_active"
     " ON coupon_definitions(active)",
@@ -175,6 +262,15 @@ def create_commercial_instruments_schema(conn) -> None:
     for statement in _DDL:
         conn.execute(statement)
     for index in _INDEXES:
+        conn.execute(index)
+    create_instrument_batch_schema(conn)
+
+
+def create_instrument_batch_schema(conn) -> None:
+    """Lotes físicos de cupones y vales (migración 349). Idempotente."""
+    for statement in _BATCH_DDL:
+        conn.execute(statement)
+    for index in _BATCH_INDEXES:
         conn.execute(index)
 
 

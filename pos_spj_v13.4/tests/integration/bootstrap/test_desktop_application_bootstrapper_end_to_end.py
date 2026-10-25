@@ -28,7 +28,7 @@ def test_full_bootstrap_against_a_fresh_database(tmp_path, monkeypatch):
     assert result.success is True
     assert result.final_state is BootstrapState.RUNNING
     assert result.exit_code == 0
-    assert len(result.step_results) == 7  # + schema_compatibility (INST-0)
+    assert len(result.step_results) == 8  # + schema_compatibility (INST-0), + llaves foráneas (Slice 0)
     assert all(r.success for r in result.step_results)
 
     assert context.app_paths is not None

@@ -21,6 +21,7 @@ from backend.application.products.commands.product_bundle_commands import (
     UpdateBundleVersionCommand,
 )
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.bundle_component import BundleComponent
 from backend.domain.products.entities.bundle_version import BundleVersion
 from backend.domain.products.entities.product_bundle import ProductBundle
@@ -59,7 +60,7 @@ class _BaseBundleUseCase:
                  authorization: ProductsAuthorizationPolicy | None = None) -> None:
         self._conn = connection
         self._repo = BundleRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
         self._validator = BundleExplosionService()
 
     def _require(self, user_id: str | None) -> None:

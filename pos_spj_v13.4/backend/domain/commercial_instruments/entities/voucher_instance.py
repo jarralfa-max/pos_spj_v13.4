@@ -95,6 +95,13 @@ class VoucherInstance:
         if customer_id and not self.customer_id:
             self.customer_id = customer_id
 
+    def activate(self) -> None:
+        """Pieza de un lote ya impreso: se vuelve utilizable al activar el lote."""
+        if self.status is not VoucherInstanceStatus.ISSUED:
+            raise InvalidVoucherInstanceStateError(
+                f"Sólo un vale emitido se activa (actual: {self.status.value})")
+        self.status = VoucherInstanceStatus.ACTIVE
+
     def restore_after_refund(self) -> None:
         """Una devolución regresó dinero al vale (2026-10-03): un vale agotado
         vuelve a tener saldo. Uno vigente no cambia de estado."""

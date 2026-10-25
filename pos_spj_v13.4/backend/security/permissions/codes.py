@@ -92,3 +92,24 @@ def split_permission(code: str) -> tuple[str, str]:
     if not sep:
         return "", code.strip()
     return module.upper(), action.lower()
+
+
+def is_granted(granted, code: str) -> bool:
+    """¿El conjunto `granted` (ya normalizado) concede `code`?
+
+    Es la ÚNICA regla de comodines del sistema (auditoría de permisos 968e0bc,
+    PER-07): comodín global `*`, código exacto y `MODULO.*`. Antes la repetían
+    por separado `PermissionEvaluator` (sesión) y `AuthorizerPermissionChecker`
+    (autorizador en caliente); y una tercera, `has_global_scope` de los
+    contextos de ejecución de Inventario, Mermas y Procesamiento, comparaba
+    `codigo in permisos` sin normalizar ni comodines: el alcance «todas las
+    sucursales» no se concedía NUNCA desde la sesión, ni a un administrador.
+
+    `granted` debería venir normalizado (`PermissionQueryService` lo entrega
+    así); se acepta también la forma de almacenamiento para el código exacto.
+    """
+    normalized = normalize_permission(code)
+    if WILDCARD in granted or normalized in granted or code.strip() in granted:
+        return True
+    module = normalized.split(SEPARATOR, 1)[0] if SEPARATOR in normalized else ""
+    return bool(module) and f"{module}{SEPARATOR}{WILDCARD}" in granted

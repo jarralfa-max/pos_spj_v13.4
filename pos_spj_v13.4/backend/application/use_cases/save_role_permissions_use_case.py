@@ -34,6 +34,9 @@ from backend.domain.settings.exceptions import (
     ConfigurationInvalidValueError,
     ConfigurationPermissionDeniedError,
 )
+from backend.infrastructure.db.repositories.security.grant_version_repository import (
+    SqliteGrantVersionRepository,
+)
 from backend.infrastructure.db.repositories.security.permission_repository import (
     SqlitePermissionRepository,
 )
@@ -63,6 +66,7 @@ class SaveRolePermissionsUseCase(BaseUseCase[SaveRolePermissionsCommand]):
         self._auth = authorization
         self._roles = SqliteRolePermissionRepository(connection)
         self._actor_permissions = PermissionQueryService(SqlitePermissionRepository(connection))
+        self._versions = SqliteGrantVersionRepository(connection)
         self._audit = ConfiguracionAuditLogRepository(connection)
 
     def execute(self, command: SaveRolePermissionsCommand) -> UseCaseResult:
@@ -77,7 +81,7 @@ class SaveRolePermissionsUseCase(BaseUseCase[SaveRolePermissionsCommand]):
         mode = role_mode(role_name)
         if mode == "FULL_ACCESS":
             raise ConfigurationInvalidValueError(
-                f"«{role_name}» es un rol administrador con acceso total; no se edita.")
+                f"«{role_name}» tiene acceso total por definición; no se edita.")
 
         wanted = self._requested(command)
         current = self._roles.granted(role_id)
@@ -88,9 +92,6 @@ class SaveRolePermissionsUseCase(BaseUseCase[SaveRolePermissionsCommand]):
                                  entity_id=role_id, message="Sin cambios.",
                                  data={"granted": (), "revoked": ()})
 
-        if revoke and mode == "GRANT_ONLY":
-            raise ConfigurationInvalidValueError(
-                "Al dueño de la instalación no se le pueden quitar permisos.")
         self._guard_escalation(actor, grant)
         self._guard_self_lockout(actor, role_name, revoke)
 
@@ -106,6 +107,8 @@ class SaveRolePermissionsUseCase(BaseUseCase[SaveRolePermissionsCommand]):
                 after_json=json.dumps({"rol": role_name, "otorgados": grant}, ensure_ascii=False),
                 reason=f"{len(grant)} otorgados, {len(revoke)} retirados",
                 branch_id=command.branch_id or None)
+            # Las sesiones abiertas del rol recargan sus permisos (PER-08).
+            self._versions.bump()
             self._conn.commit()
         except Exception:
             self._conn.rollback()
@@ -128,12 +131,8 @@ class SaveRolePermissionsUseCase(BaseUseCase[SaveRolePermissionsCommand]):
         return salida
 
     def _guard_escalation(self, actor: str, grant: list[str]) -> None:
-        # El dueño de la instalación es la autoridad máxima: sus permisos están
-        # sembrados uno a uno y a los módulos nuevos les faltan, así que sin esta
-        # excepción no podría otorgar (ni otorgarse) lo que aún no tiene.
-        rol_actor = SqlitePermissionRepository(self._conn).user_role_name(actor) or ""
-        if role_mode(rol_actor) == "GRANT_ONLY":
-            return
+        # El dueño y los administradores resuelven a `*` (principals.py): ya
+        # no hace falta una excepción por nombre de rol aquí (PER-07).
         mios = self._actor_permissions.permission_codes_for_user(actor)
         if GLOBAL_WILDCARD in mios:
             return

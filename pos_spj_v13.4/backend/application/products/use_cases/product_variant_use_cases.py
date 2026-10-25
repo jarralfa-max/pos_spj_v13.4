@@ -22,6 +22,7 @@ from backend.application.products.permissions import ProductPermissions
 from backend.application.products.queries.product_code_query_service import (
     reserve_next_code,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.product import Product  # noqa: F401 (doc ref)
 from backend.domain.products.events import ProductEvents
 from backend.domain.products.exceptions import ProductsDomainError
@@ -63,7 +64,7 @@ class GenerateProductVariantsUseCase:
         self._master = ProductMasterRepository(connection)
         self._attrs = ProductAttributeRepository(connection)
         self._variants = ProductVariantRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
 
     def execute(self, command: GenerateVariantsCommand) -> VariantResult:
         command.validate()

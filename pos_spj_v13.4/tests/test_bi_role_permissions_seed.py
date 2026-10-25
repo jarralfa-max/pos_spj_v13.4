@@ -1,19 +1,11 @@
-"""Los roles por defecto reciben los permisos del módulo BI (INTELIGENCIA_BI.*)."""
+"""Las secciones del tablero BI exigen códigos que el catálogo puede conceder.
+
+Las dos pruebas de los permisos «por defecto» por rol se retiraron con
+`security/rbac.py` (auditoría de permisos 968e0bc, PER-05): probaban la matriz
+hardcodeada de un RBAC paralelo que ningún código de producción usaba.
+"""
 from backend.application.analytics.services.bi_dashboard_service import SECTION_PERMISSION
 from backend.application.security.permission_catalog import CANONICAL_MODULE_PERMISSIONS
-from security.rbac import _get_default_permisos
-
-
-def test_gerente_recibe_bi_completo():
-    perms = _get_default_permisos("gerente")
-    esperado = {f"INTELIGENCIA_BI.{a}" for a in CANONICAL_MODULE_PERMISSIONS["INTELIGENCIA_BI"]}
-    assert esperado <= perms
-
-
-def test_cajero_bi_limitado():
-    perms = _get_default_permisos("cajero")
-    assert "INTELIGENCIA_BI.ver_ventas" in perms
-    assert "INTELIGENCIA_BI.ver_finanzas" not in perms
 
 
 def test_section_permissions_existen_en_catalogo():

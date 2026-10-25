@@ -119,21 +119,22 @@ POINT_ACCOUNTS = P(
     columns=(C("Cliente", "customer_name"), C("Número", "customer_number"),
              C("Saldo", "points", "numeric"), C("Reservado", "reserved", "numeric"),
              C("Estado", "status", "status"), C("Abierta", "created_at", "date")),
+    # Auditoría 968e0bc FID-05/09: dar o quitar puntos a mano es UNA sola
+    # acción, con documento, motivo, tope y otra persona que autoriza. Ya no hay
+    # «Acreditar» (eludía la segregación) ni «Canjear» sin ticket ni premio: los
+    # puntos se gastan en el POS o por una recompensa.
     actions=(
-        A("accrue_points", "Acreditar", LP.POINTS_CREDIT, selection_param="loyalty_account_id",
-          fields=(F("points_amount", "Puntos", K.DECIMAL),
-                  F("reason_code", "Motivo", helper="Queda en el movimiento y en la auditoría.")),
-          success="Puntos acreditados."),
-        A("redeem_points", "Canjear", LP.POINTS_REDEEM, selection_param="loyalty_account_id",
-          fields=(F("points_amount", "Puntos", K.DECIMAL), F("reason_code", "Motivo")),
-          success="Puntos canjeados."),
-        A("adjust_points", "Ajustar", LP.POINTS_VIEW, selection_param="loyalty_account_id",
+        A("adjust_points", "Corrección manual", LP.POINTS_VIEW,
+          selection_param="loyalty_account_id",
           fields=(F("points_amount", "Puntos (positivo suma, negativo resta)", K.DECIMAL),
                   F("reason_code", "Motivo"),
+                  F("source_document", "Documento que la respalda",
+                    helper="Folio de venta, número de queja o ticket. Obligatorio."),
+                  F("evidence", "Evidencia (opcional)", required=False),
                   F("authorizer_user_id", "Autoriza", K.AUTHORIZER,
                     helper="Otra persona con permiso de ajustar puntos; quien pide no se "
                            "autoriza a sí mismo.")),
-          success="Ajuste registrado con autorización."),
+          success="Corrección registrada con autorización."),
     ),
     empty_message="Ningún cliente tiene cuenta de puntos todavía; se abre con su primera compra.")
 

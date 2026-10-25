@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from backend.application.inventory.integration_grants import integration_use_case
 from backend.application.inventory.queries.availability_query_service import (
     InventoryAvailabilityQueryService,
 )
@@ -47,7 +48,10 @@ class OrdersDeliveryInventoryClient:
         (`ReserveOrderInventoryUseCase`) is responsible for compensating
         (releasing whatever already succeeded) if a later line fails —
         this client only ever reserves a single line per call."""
-        result = CreateReservationUseCase().execute(
+        # Concesión de Pedidos a Inventario (auditoría de permisos 968e0bc,
+        # PER-02): antes era el default permisivo, que no revisaba nada.
+        result = integration_use_case(
+            CreateReservationUseCase, "orders_delivery", actor_user_id).execute(
             self._connection, product_id=product_id, branch_id=self._branch_id,
             warehouse_id=self._branch_id, source=ReservationSource.CUSTOMER_ORDER,
             source_document_id=order_id, quantity=quantity, weight=weight,
@@ -58,7 +62,8 @@ class OrdersDeliveryInventoryClient:
 
     def release(self, reservation_id: str, *, operation_id: str, actor_user_id: str,
                 reason: str = "") -> None:
-        result = ReleaseReservationUseCase().execute(
+        result = integration_use_case(
+            ReleaseReservationUseCase, "orders_delivery", actor_user_id).execute(
             self._connection, reservation_id=reservation_id, operation_id=operation_id,
             actor_user_id=actor_user_id, reason=reason)
         if not result.success:

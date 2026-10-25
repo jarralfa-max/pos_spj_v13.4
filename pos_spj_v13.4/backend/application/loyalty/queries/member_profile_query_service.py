@@ -35,10 +35,23 @@ class LoyaltyMemberProfileView:
 
 
 class LoyaltyMemberProfileQueryService:
-    def __init__(self, connection) -> None:
-        self._connection = connection
+    """Auditoría 968e0bc FID-06: devolvía saldo y movimientos de cualquier
+    cliente sin saber quién preguntaba. Ahora exige actor y `puntos.ver`.
+    El programa es de TODA la empresa (decisión del usuario: los puntos y las
+    piezas valen en las cinco sucursales), así que no se filtra por sucursal."""
 
-    def get_profile(self, customer_id: str, *, recent_limit: int = 20) -> LoyaltyMemberProfileView:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._connection = connection
+        self._auth = authorization
+
+    def get_profile(self, customer_id: str, *, actor_user_id: str = "",
+                    recent_limit: int = 20) -> LoyaltyMemberProfileView:
+        from backend.application.loyalty.permissions import LoyaltyPermissions
+        from backend.domain.loyalty.exceptions import LoyaltyPermissionDeniedError
+
+        if self._auth is None:
+            raise LoyaltyPermissionDeniedError("Consulta de puntos sin autorización configurada")
+        self._auth.require(actor_user_id, LoyaltyPermissions.POINTS_VIEW)
         with LoyaltyUnitOfWork(self._connection, owns_transaction=False) as uow:
             account = uow.accounts.get_by_customer_id(customer_id)
             if account is None:

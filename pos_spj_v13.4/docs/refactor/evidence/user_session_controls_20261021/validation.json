@@ -1,0 +1,52 @@
+{
+  "date": "2026-10-21",
+  "scope": "Point 13: user menu, read-only profile, existing logout and connectivity presentation",
+  "results": [
+    {
+      "segment": "session-controls-after",
+      "tests": 49,
+      "passed": 49,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "failing_cases": []
+    },
+    {
+      "segment": "session-controls-integration",
+      "tests": 42,
+      "passed": 41,
+      "failed": 1,
+      "errors": 0,
+      "skipped": 0,
+      "failing_cases": [
+        "pos_spj_v13.4.tests.architecture.test_standard_dialog_ownership::test_native_input_dialogs_use_the_canonical_capture_components"
+      ]
+    }
+  ],
+  "source_sha256": {
+    "frontend/desktop/shell/application_shell/top_bar.py": "0017bc37634e42d5c3f16faedd66248329b011aba4ffc5af925d66ffc60ba051",
+    "frontend/desktop/shell/application_shell/application_window.py": "52f52349f413c8647d23a9f6fac3ffe9858a90567207968b2337ef81e4f722f3",
+    "frontend/desktop/shell/application_shell/user_profile_dialog.py": "03f9b4bd00e766ed138695928e2e755904562989c9613b8d652988890a4dc60f",
+    "frontend/desktop/design_system/migration_guide.md": "59ad601dbd580f5617e7288b8c86226664844935f8dad910e96fc43db296049d",
+    "tests/ui/shell/test_user_session_controls.py": "a665c1fe9c950b7f2e477be0fa29663712b43ffabad8083735ab7c79e560e4cf",
+    "docs/refactor/user_session_controls.md": "698b05914bb91d065336c655ffa02fe34492df01df33b4a322d1f359f3e2f4c7"
+  },
+  "captures_sha256": {
+    "profile-dark-comfortable.png": "89fd3820cac83207c78b85780e97e1490ebaa9b9cde6eed961d4d4454d1f94fa",
+    "profile-dark-compact.png": "38b412951c5284e82e53db4cc4b3a08b1c5a7185a2bc18974fb5204ae787535e",
+    "profile-dark-touch.png": "b86f2da7f531010e86fac7979d9b3570b8713dd5678edad4e16f77701187087e",
+    "profile-light-comfortable.png": "2974eb0014e5460e07edfe20442f4420d5bbab0f2d79e8a049075bc298141b49",
+    "profile-light-compact.png": "c9b717712c1e8ef5715e7f60e970b0bd37f4a8513c53142f8a9ecdc516823390",
+    "profile-light-touch.png": "764b5602f2456f2bbe676338a0a97f310314fc9d6bccf0ea926ccf0c0f435fab",
+    "shell-dark-comfortable.png": "fd9b3a9be4513eb0d99742dff63ff467c86b1949f665a5eb94cc765879cbc803",
+    "shell-dark-compact.png": "f291e87821f5cde0c941929d5c0883310db6461bfc85ed2a17bca6b91f5b546f",
+    "shell-dark-touch.png": "dbd9c3161ba9b9abc039ebab7ef24c05c9d3f9f76455e39799af744eebc3750a",
+    "shell-light-comfortable.png": "1accb27e8d03387adf5c8b07badf17ba633310ea590ab50b6137f1df84e2060a",
+    "shell-light-compact.png": "ddbf2396e09e6b15249f193d0ef943853b37ab4eb986c42cfa05c2bc7b8f0bc6",
+    "shell-light-touch.png": "579ac705a961e9884f3963620764b96b09ff905b43d4d0351d962c80ccb1629e"
+  },
+  "limitations": [
+    "Real session locking, branch switching and expiry lifecycle wiring remain pending.",
+    "Offscreen validation does not replace physical touch testing."
+  ]
+}

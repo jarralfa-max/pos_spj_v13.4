@@ -27,6 +27,7 @@ from backend.application.products.permissions import ProductPermissions
 from backend.application.products.queries.unit_catalog_query_service import (
     UnitCatalogQueryService,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.product import Product
 from backend.domain.products.enums import LifecycleStatus, ProductType
 from backend.domain.products.events import ProductEvents
@@ -106,7 +107,7 @@ class CreateProductMasterUseCase:
                  whatsapp_recipients: list[str] | None = None) -> None:
         self._conn = connection
         self._repo = ProductMasterRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
         # PROD-16: opcional, no-op salvo que el caller provea ambos — ver
         # notification_handlers/dispatch.py.
         self._notification_service = notification_service
@@ -121,11 +122,17 @@ class CreateProductMasterUseCase:
         code_overridden = not command.auto_generate_code
         if code_overridden:
             self._auth.require(command.user_id or "", ProductPermissions.OVERRIDE_CODE)
+        if (command.initial_barcode or "").strip():
+            self._auth.require(command.user_id or "", ProductPermissions.BARCODES_MANAGE)
         if not UnitCatalogQueryService(self._conn).unit_exists(command.base_unit_id):
             return ProductMasterResult(
                 False, None, "La unidad base debe ser una unidad válida del catálogo")
         from backend.shared.ids import new_uuid
         product_id = new_uuid()
+        try:
+            initial_barcode = _initial_barcode(command, product_id)
+        except ProductsDomainError as exc:
+            return ProductMasterResult(False, None, str(exc))
         try:
             # P0-04: código automático (reserva transaccional) o manual (ya autorizado).
             if command.auto_generate_code:
@@ -156,12 +163,22 @@ class CreateProductMasterUseCase:
                        "product_type": command.product_type})
             _enqueue_outbox(self._conn, ProductEvents.PRODUCT_CREATED, command,
                             product_id, code=code)
+            if initial_barcode is not None:
+                from backend.application.products.use_cases.product_barcode_use_cases import (  # noqa: E501
+                    stage_barcode_assignment,
+                )
+                stage_barcode_assignment(self._conn, initial_barcode,
+                                         user_id=command.user_id,
+                                         operation_id=command.operation_id)
             dispatch_product_alerts(
                 self._conn, product, notification_service=self._notification_service,
                 notify_recipients=self._notify_recipients,
                 whatsapp_recipients=self._whatsapp_recipients,
                 operation_id=command.operation_id)
             self._conn.commit()
+        except ProductsDomainError as exc:  # p. ej. el código de barras ya es de otro
+            _rollback(self._conn)
+            return ProductMasterResult(False, None, str(exc))
         except Exception:
             _rollback(self._conn)
             logger.exception("create product master failed op=%s", command.operation_id)
@@ -178,7 +195,7 @@ class UpdateProductMasterUseCase:
                  whatsapp_recipients: list[str] | None = None) -> None:
         self._conn = connection
         self._repo = ProductMasterRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
         self._notification_service = notification_service
         self._notify_recipients = notify_recipients
         self._whatsapp_recipients = whatsapp_recipients
@@ -227,6 +244,20 @@ class UpdateProductMasterUseCase:
 
 
 # ── helpers compartidos ──────────────────────────────────────────────────────
+def _initial_barcode(command, product_id: str):
+    """``ProductBarcode`` principal del alta, validado ANTES de tocar la base
+    (dígito verificador, tipo); ``None`` si no se capturó."""
+    value = (command.initial_barcode or "").strip()
+    if not value:
+        return None
+    from backend.domain.products.entities.product_barcode import ProductBarcode
+    from backend.domain.products.value_objects.barcode import Barcode
+    return ProductBarcode(
+        product_id=product_id,
+        barcode=Barcode(value=value, barcode_type=command.initial_barcode_type or "EAN"),
+        is_primary=True)
+
+
 def _rollback(conn) -> None:
     rb = getattr(conn, "rollback", None)
     if rb is not None:

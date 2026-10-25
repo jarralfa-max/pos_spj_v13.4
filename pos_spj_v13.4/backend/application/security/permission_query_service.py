@@ -19,20 +19,33 @@ haría que no coincidiera ni un solo permiso y el sistema denegara todo sin
 error visible. Ver `backend/security/permissions/codes.py` y
 `tests/architecture/test_permission_codes_contract.py`.
 
-ADMINISTRADORES — un rol administrador devuelve `{"*"}`, el comodín global que
-`PermissionEvaluator` reconoce. Es intencional que no se expanda al catálogo
-completo: si se expandiera, un permiso nuevo añadido después del login no lo
-tendría el admin hasta reiniciar sesión.
+ADMINISTRADORES — un rol de acceso total (administradores y el dueño de la
+instalación, `backend/security/permissions/principals.py`) devuelve `{"*"}`, el
+comodín global que `PermissionEvaluator` reconoce. Antes el dueño no estaba en
+esta lista aunque la sesión sí lo trataba como administrador (PER-07). Es
+intencional que no se expanda al catálogo completo: si se expandiera, un permiso
+nuevo añadido después del login no lo tendría el admin hasta reiniciar sesión.
+
+PRECEDENCIA (auditoría de permisos 968e0bc, PER-06) — contrato, no accidente:
+la capa más específica gana, también al CONCEDER. Una excepción de sucursal que
+concede RESTITUYE un permiso negado al usuario en general: es la forma de decir
+«sólo en esta sucursal». `explain()` lo marca (`restores_denial`) para que la
+pantalla lo muestre en vez de que parezca una revocación sin efecto.
 """
 
 from __future__ import annotations
 
-from backend.security.permissions.codes import normalize_permission
+from dataclasses import dataclass
 
-#: Nombres de rol con acceso total. Se comparan en minúsculas y sin espacios.
-#: Coincide con `ApplicationContext.is_admin()`, que decide lo mismo desde el
-#: otro lado (el contexto ya construido).
-ADMIN_ROLE_NAMES = frozenset({"admin", "superadmin", "administrador"})
+from backend.security.permissions.codes import is_granted, normalize_permission
+from backend.security.permissions.principals import (
+    ADMIN_ROLE_NAMES,
+    is_full_access_role,
+)
+
+__all__ = [
+    "ADMIN_ROLE_NAMES", "GLOBAL_WILDCARD", "GrantExplanation", "PermissionQueryService",
+]
 
 #: Comodín global que reconoce `PermissionEvaluator.has_permission()`.
 GLOBAL_WILDCARD = "*"
@@ -61,7 +74,7 @@ class PermissionQueryService:
         if role_name is None:
             return frozenset()
 
-        if role_name.strip().lower() in ADMIN_ROLE_NAMES:
+        if is_full_access_role(role_name):
             return frozenset({GLOBAL_WILDCARD})
 
         codes = set(self._role_codes(role_name))
@@ -94,3 +107,74 @@ class PermissionQueryService:
                 codes.add(code)
             else:
                 codes.discard(code)
+
+
+@dataclass(frozen=True)
+class GrantExplanation:
+    """Por qué un usuario tiene (o no) un permiso en una sucursal.
+
+    `user`/`branch` son `None` cuando esa capa no dice nada, `True` si concede
+    y `False` si niega. `origin` nombra la capa que decidió: `ACCESO_TOTAL`,
+    `SUCURSAL`, `USUARIO`, `ROL` o `NINGUNO`.
+    """
+
+    code: str
+    role: bool
+    user: bool | None
+    branch: bool | None
+    effective: bool
+    origin: str
+
+    @property
+    def restores_denial(self) -> bool:
+        """Una concesión de sucursal que deshace una negación del usuario."""
+        return self.branch is True and self.user is False
+
+
+def _explain_code(code: str, *, role_codes, user, branch, final) -> GrantExplanation:
+    key = normalize_permission(code)
+    del_rol = is_granted(role_codes, code)
+    u = user.get(key)
+    b = branch.get(key)
+    # El resultado es el de la sesión (`final`), no uno recalculado aquí; las
+    # capas sólo explican de dónde salió.
+    efectivo = is_granted(final, code)
+    if b is not None:
+        origen = "SUCURSAL"
+    elif u is not None:
+        origen = "USUARIO"
+    else:
+        origen = "ROL" if del_rol else "NINGUNO"
+    return GrantExplanation(code=code, role=del_rol, user=u, branch=b,
+                            effective=efectivo, origin=origen)
+
+
+def _last_wins(overrides) -> dict[str, bool]:
+    """Mismo orden que `_apply_overrides`: la última fila de un código gana."""
+    resultado: dict[str, bool] = {}
+    for code, granted in overrides:
+        resultado[normalize_permission(code)] = bool(granted)
+    return resultado
+
+
+def explain_permissions(service: PermissionQueryService, user_id: str, codes,
+                        branch_id: str | None = None) -> dict[str, GrantExplanation]:
+    """Explicación de cada código de `codes` para el usuario en la sucursal.
+
+    Sale de las MISMAS capas y del mismo orden que `permission_codes_for_user`
+    (la prueba de esta auditoría comprueba que ambos coinciden código a código):
+    la pantalla no puede decir una cosa y la sesión hacer otra.
+    """
+    repo = service._repository
+    user_id = str(user_id or "").strip()
+    role_name = repo.user_role_name(user_id) if user_id else None
+    if role_name is None:
+        return {c: GrantExplanation(c, False, None, None, False, "NINGUNO") for c in codes}
+    if is_full_access_role(role_name):
+        return {c: GrantExplanation(c, True, None, None, True, "ACCESO_TOTAL") for c in codes}
+    role_codes = frozenset(normalize_permission(c) for c in service._role_codes(role_name))
+    user = _last_wins(repo.user_overrides(user_id))
+    branch = _last_wins(repo.branch_overrides(user_id, str(branch_id).strip())) if branch_id else {}
+    final = service.permission_codes_for_user(user_id, branch_id)
+    return {c: _explain_code(c, role_codes=role_codes, user=user, branch=branch, final=final)
+            for c in codes}

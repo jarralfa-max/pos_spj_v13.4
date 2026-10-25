@@ -34,11 +34,11 @@ class FidelidadRoute:
 
 GROUP_ICONS: dict[str, str] = {
     "Resumen": Icons.DASHBOARD,
-    "Programas": Icons.LOYALTY,
+    "Programa vigente": Icons.LOYALTY,
     "Miembros": Icons.CUSTOMERS,
     "Beneficios": Icons.GRADE,
     "Campañas": Icons.RECOVERY,
-    "Instrumentos comerciales": Icons.PRICE,
+    "Cupones y vales": Icons.PRICE,
     "Sorteos": Icons.FLAG,
     "Tarjetas de fidelidad": Icons.LOYALTY_CARDS,
     "Control": Icons.AUDIT,
@@ -51,51 +51,77 @@ def _r(route_id, label, group, tooltip, permission, capability, icon) -> Fidelid
 
 
 FIDELIDAD_ROUTES: tuple[FidelidadRoute, ...] = (
+    # ── Resumen ───────────────────────────────────────────────────────────────
     _r("fidelidad.overview", "Resumen", "Resumen", "Indicadores del programa de lealtad.",
        LP.VIEW, "module_view", Icons.DASHBOARD),
-    _r("fidelidad.alerts", "Alertas", "Resumen", "Lo que espera aprobación o atención.",
-       LP.DASHBOARD_VIEW, "alerts", Icons.WARNING),
 
-    _r("loyalty.programs", "Programas", "Programas", "Programas de lealtad y su aprobación.",
+    # ── Programa vigente ──────────────────────────────────────────────────────
+    _r("loyalty.programs", "Programas", "Programa vigente", "Programas de lealtad y su aprobación.",
        LP.PROGRAM_VIEW, "programs", Icons.LOYALTY),
-    _r("loyalty.tiers", "Niveles", "Programas", "Niveles y umbrales de cada programa.",
-       LP.TIER_VIEW, "members", Icons.GRADE),
-    _r("loyalty.rules", "Reglas de acumulación", "Programas",
+    _r("loyalty.rules", "Reglas de acumulación", "Programa vigente",
        "Cuántos puntos da cada compra; el POS las aplica al cobrar.", LP.PROGRAM_VIEW,
        "programs", Icons.CHECKLIST),
+    _r("loyalty.tiers", "Niveles", "Programa vigente", "Niveles y umbrales de cada programa.",
+       LP.TIER_VIEW, "members", Icons.GRADE),
+    _r("fidelidad.settings", "Economía del punto", "Programa vigente",
+       "Cuánto se gana, cuánto vale un punto y cuándo caduca.", LP.CONFIG_VIEW, "settings",
+       Icons.SETTINGS),
 
-    _r("loyalty.memberships", "Membresías", "Miembros", "Clientes inscritos en cada programa.",
-       LP.MEMBERSHIP_VIEW, "members", Icons.CHECKLIST),
+    # ── Miembros ──────────────────────────────────────────────────────────────
     _r("loyalty.member_profile", "Perfil de miembro", "Miembros",
        "Cuenta, saldo y movimientos de un cliente.", LP.MEMBERSHIP_VIEW, "members", Icons.USER),
+    _r("loyalty.memberships", "Membresías", "Miembros", "Clientes inscritos en cada programa.",
+       LP.MEMBERSHIP_VIEW, "members", Icons.CHECKLIST),
     _r("loyalty.points", "Puntos", "Miembros", "Saldos y libro de movimientos de puntos.",
        LP.POINTS_VIEW, "points", Icons.PRICE),
 
+    # ── Beneficios ────────────────────────────────────────────────────────────
     _r("loyalty.rewards", "Recompensas", "Beneficios", "Catálogo, canje y entregas.",
        LP.REWARD_VIEW, "rewards", Icons.PACKAGE),
-    _r("loyalty.challenges", "Retos y misiones", "Beneficios", "Metas que otorgan puntos.",
-       LP.CHALLENGE_VIEW, "challenges", Icons.FLAG),
-    _r("loyalty.referrals", "Referidos", "Beneficios", "Programa de referidos.",
-       LP.REFERRAL_VIEW, "referrals", Icons.SCENARIO),
-    _r("loyalty.birthdays", "Cumpleaños", "Beneficios", "Beneficio de cumpleaños.",
-       LP.BIRTHDAY_VIEW, "birthdays", Icons.CALENDAR),
+    _r("fidelidad.stacking", "Combinación de beneficios", "Beneficios",
+       "Puntos, cupones, vales y promociones en la misma venta.", LP.CONFIG_VIEW, "settings",
+       Icons.LIST),
 
+    # ── Campañas ──────────────────────────────────────────────────────────────
     _r("loyalty.campaigns", "Campañas", "Campañas", "Campañas con presupuesto y aprobación.",
        LP.CAMPAIGN_VIEW, "campaigns", Icons.RECOVERY),
     _r("loyalty.retention", "Retención", "Campañas", "Retención y recuperación de clientes.",
        LP.RETENTION_VIEW, "retention", Icons.RETURN),
+    _r("loyalty.challenges", "Retos y misiones", "Campañas", "Metas que otorgan puntos.",
+       LP.CHALLENGE_VIEW, "challenges", Icons.FLAG),
+    _r("loyalty.referrals", "Referidos", "Campañas", "Programa de referidos.",
+       LP.REFERRAL_VIEW, "referrals", Icons.SCENARIO),
+    _r("loyalty.birthdays", "Cumpleaños", "Campañas", "Beneficio de cumpleaños.",
+       LP.BIRTHDAY_VIEW, "birthdays", Icons.CALENDAR),
 
-    _r("instruments.coupons", "Cupones", "Instrumentos comerciales", "Definición y emisión de cupones.",
+    # ── Control ───────────────────────────────────────────────────────────────
+    _r("fidelidad.alerts", "Alertas", "Control", "Lo que espera aprobación o atención.",
+       LP.DASHBOARD_VIEW, "alerts", Icons.WARNING),
+    _r("fidelidad.fraud", "Antifraude", "Control", "Casos de fraude y revisión.",
+       LP.FRAUD_VIEW, "fraud", Icons.INVESTIGATION),
+    _r("fidelidad.audit", "Auditoría", "Control", "Rastro de auditoría de Fidelidad.",
+       LP.AUDIT_VIEW, "audit", Icons.AUDIT),
+    _r("fidelidad.accounting", "Contabilidad", "Control",
+       "Asientos de puntos, vales, cupones y premios; lo que falló y por qué.",
+       LP.AUDIT_VIEW, "audit", Icons.FINANCE),
+
+    # ── Cupones y vales ───────────────────────────────────────────────────────
+    _r("instruments.coupons", "Cupones", "Cupones y vales", "Definición y emisión de cupones.",
        LP.COUPON_VIEW, "coupons", Icons.PRICE),
-    _r("instruments.vouchers", "Vales", "Instrumentos comerciales", "Vales con saldo y canje parcial.",
+    _r("instruments.vouchers", "Vales", "Cupones y vales", "Vales con saldo y canje parcial.",
        LP.VOUCHER_VIEW, "vouchers", Icons.DOCUMENT),
+    _r("instruments.batches", "Lotes de vales y cupones", "Cupones y vales",
+       "Diseñar, aprobar, imprimir y activar lotes físicos.", LP.BATCH_VIEW, "vouchers",
+       Icons.LOTS),
 
+    # ── Sorteos ───────────────────────────────────────────────────────────────
     _r("sweepstakes.campaigns", "Campañas de sorteo", "Sorteos",
        "Campañas, participaciones, boletos y premios.", LP.SWEEPSTAKES_VIEW, "sweepstakes",
        Icons.SCHEDULE),
     _r("sweepstakes.draws", "Sorteo y ganadores", "Sorteos", "Sorteo auditable y ganadores.",
        LP.SWEEPSTAKES_VIEW, "sweepstakes", Icons.SUCCESS),
 
+    # ── Tarjetas de fidelidad ─────────────────────────────────────────────────
     _r("cards.overview", "Resumen de tarjetas", "Tarjetas de fidelidad",
        "Tarjetas emitidas, activas, bloqueadas y producción.", CP.VIEW, "cards", Icons.DASHBOARD),
     _r("cards.cards", "Tarjetas", "Tarjetas de fidelidad",
@@ -129,19 +155,6 @@ FIDELIDAD_ROUTES: tuple[FidelidadRoute, ...] = (
        Icons.AUDIT),
     _r("cards.settings", "Configuración de tarjetas", "Tarjetas de fidelidad",
        "Privacidad de lo impreso: nombre y puntos.", CP.CONFIG_VIEW, "cards", Icons.SETTINGS),
-
-    _r("fidelidad.fraud", "Antifraude", "Control", "Casos de fraude y revisión.",
-       LP.FRAUD_VIEW, "fraud", Icons.INVESTIGATION),
-    _r("fidelidad.audit", "Auditoría", "Control", "Rastro de auditoría de Fidelidad.",
-       LP.AUDIT_VIEW, "audit", Icons.AUDIT),
-    _r("fidelidad.accounting", "Contabilidad", "Control",
-       "Asientos de puntos, vales, cupones y premios; lo que falló y por qué.",
-       LP.AUDIT_VIEW, "audit", Icons.FINANCE),
-    _r("fidelidad.stacking", "Combinación de beneficios", "Control",
-       "Puntos, cupones, vales y promociones en la misma venta.", LP.CONFIG_VIEW, "settings",
-       Icons.LIST),
-    _r("fidelidad.settings", "Configuración", "Control",
-       "Reglas de acumulación, canje y caducidad.", LP.CONFIG_VIEW, "settings", Icons.SETTINGS),
 )
 
 

@@ -37,9 +37,7 @@ from backend.application.security.permission_query_service import PermissionQuer
 from backend.infrastructure.db.repositories.security.permission_repository import (
     SqlitePermissionRepository,
 )
-from backend.security.permissions.codes import normalize_permission
-
-_GLOBAL_WILDCARD = "*"
+from backend.security.permissions.codes import is_granted
 
 
 class AuthorizerPermissionChecker:
@@ -60,14 +58,5 @@ class AuthorizerPermissionChecker:
         codes = PermissionQueryService(
             SqlitePermissionRepository(self._conn)
         ).permission_codes_for_user(user_id, self._branch_id)
-        if not codes:
-            return False
-        if _GLOBAL_WILDCARD in codes:
-            return True
-        normalized = normalize_permission(permission_code)
-        if normalized in codes:
-            return True
-        # `MODULO.*` — mismas reglas que `PermissionEvaluator`. Sólo aplica a
-        # códigos punteados; los planos no tienen módulo del que colgar.
-        module = normalized.split(".", 1)[0] if "." in normalized else ""
-        return bool(module) and f"{module}.{_GLOBAL_WILDCARD}" in codes
+        # La MISMA regla que `PermissionEvaluator` (PER-07): no una copia.
+        return bool(codes) and is_granted(codes, permission_code)

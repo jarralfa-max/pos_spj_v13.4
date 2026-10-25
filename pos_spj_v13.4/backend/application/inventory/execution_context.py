@@ -18,6 +18,7 @@ from backend.domain.inventory.exceptions import (
     WarehouseConfigurationRequiredError,
 )
 from backend.domain.inventory.policies.scope_policy import InventoryScopePolicy
+from backend.security.permissions.codes import is_granted
 
 _SCOPE = InventoryScopePolicy()
 
@@ -36,7 +37,7 @@ class InventoryExecutionContext:
     @property
     def has_global_scope(self) -> bool:
         """A VIEW_ALL_BRANCHES operator reaches every branch and warehouse."""
-        return InventoryPermissions.VIEW_ALL_BRANCHES in self.permissions
+        return is_granted(self.permissions, InventoryPermissions.VIEW_ALL_BRANCHES)
 
     def enforce_branch(self, target_branch_id: str) -> None:
         """Raise BranchScopeError if the actor may not operate on that branch."""

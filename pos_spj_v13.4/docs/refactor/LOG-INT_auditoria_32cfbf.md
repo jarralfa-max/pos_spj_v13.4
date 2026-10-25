@@ -89,5 +89,46 @@ Decisiones del usuario: producto base por **composición virtual**; API/PWA como
 - La PWA cubre la carga en origen; **llegada/conteo desde el teléfono no existe** (se hace en escritorio).
 - Devoluciones de transferencia sin cablear (`TransferReturnNotWired`).
 - «Transformar» contextual desde la recepción no se agregó (la transformación directa se abre desde Producción).
-- Fuera de loopback, la API debe configurarse con TLS (`SPJ_API_SSL_CERTFILE`); el host lo advierte en el log.
+- Fuera de loopback la API atiende por HTTPS con un certificado autofirmado si no se configura uno (ver §8); el teléfono debe aceptarlo una vez y el modo sin conexión de la PWA exige un certificado de confianza.
 - `tests/integration/test_phase0_phase1_scaffolding.py` falla desde INST-0 (3983fe70): exige `backend/infrastructure/updater/version_checker.py` y `update_installer.py`, retirados en ese commit.
+
+## 8. Contenedores: códigos, selección, etiqueta QR y cámara (2026-10-17, sin commitear)
+
+Reporte del usuario: códigos tecleados, contenedores imposibles de elegir, sin arquitectura de etiqueta QR, y la etiqueta debe escanearse con la cámara del teléfono.
+
+**Códigos automáticos.** `backend/domain/logistics/container_codes.py`: `<prefijo de la categoría>-<6 dígitos>`. Prefijos: CJ caja plástica, CC cartón, TR tarima, JA jaula, RJ huacal, CA apilable, HI hielera, CH charola, BO bolsa, GR granel, CM maestro, CT tráiler u otro. El número se asigna DENTRO de la transacción del alta y, si choca con otra estación (UNIQUE), se reintenta. Se pueden dar de alta hasta 500 iguales de una vez. Los códigos capturados antes (p. ej. «CAJ-0001») se conservan. El número de serie del fabricante es un campo aparte.
+
+**Selección.** «Compra en origen» busca en el catálogo (código o tipo, con el motivo si no se puede cargar) en vez de pedir que se teclee el código. Intro sin coincidencia toma lo que manda un lector de QR. En Logística → Contenedores se pueden elegir varios (Ctrl/Mayús) para sacar sus etiquetas, y la búsqueda ya no queda aplastada por los botones.
+
+**Etiqueta.**
+- `ContainerLabelService` (aplicación) es la única puerta: contenido (`ContainerLabelContent`), PDF y térmica.
+- La primera impresión no pide motivo; cada reimpresión sí, y todas quedan en `logistics_container_labels`/`logistics_print_jobs`.
+- `ReportlabContainerLabelRenderer` (infraestructura) dibuja un solo diseño en cuatro salidas:
+  - PDF 100 × 50 mm, una por página, para impresoras de etiquetas;
+  - PDF 50 × 30 mm;
+  - hoja carta 2 × 5 de 101.6 × 50.8 mm;
+  - ESC/POS térmica.
+- La pantalla muestra una vista previa real.
+- El QR va en vectores, con corrección de errores M y zona de silencio de 4 módulos.
+
+**El QR se valida contra la firma GUARDADA**, ya no recalculando el HMAC.
+- Por qué: el secreto vive en el Administrador de credenciales de Windows, que es por usuario, y el servicio de la API (otra cuenta) u otro usuario del equipo rechazaba etiquetas legítimas.
+- Contenido compacto y alfanumérico: `SPJC/<ID>.<versión>.<firma base32 de 128 bits>`, QR versión 4 (41 módulos con la zona de silencio).
+- Un contenedor con la firma larga anterior y sin etiqueta impresa recibe la compacta.
+- Las etiquetas viejas (`https://app.spj.mx/c/…`, un dominio que no existe) siguen leyéndose.
+
+**Cámara del teléfono.**
+- La PWA usa `BarcodeDetector` si el navegador lo trae; si no (Safari/iPhone, Firefox), usa jsQR 1.4.0 servido localmente (`frontend/web/logistics/vendor/jsQR.js`, Apache-2.0, también disponible sin conexión).
+- Tiene modo de escaneo continuo, vibración, mensajes claros (permiso de cámara, falta de HTTPS) y captura manual por el **código impreso** (antes pedía el «token»).
+- La API responde 400 con el motivo en lugar de 500.
+- El navegador sólo abre la cámara por HTTPS: fuera de loopback, `spj_api.exe` genera un certificado autofirmado con la IP configurada (`<datos>/mobile_api/tls/`) si no hay uno propio.
+
+**Verificación.**
+- `tests/integration/logistics/test_container_labels_qr_20261017.py` (18 pruebas).
+- Incluye decodificar la vista previa con el mismo jsQR dentro de QtWebEngine (100 × 50 a 4 px/mm, 50 × 30 a 3 y 8 px/mm) y cargar la PWA en Chromium 83 sin errores de consola.
+- Esa carga encontró dos errores, ya corregidos: `||=` que rompía la app entera en navegadores viejos, y `replaceChildren` (preexistente).
+
+**Pendiente.**
+- No se probó con un teléfono físico ni con una impresora de etiquetas real.
+- El certificado autofirmado requiere aceptarlo en cada teléfono.
+- Para el modo sin conexión hace falta un certificado de una CA que el teléfono confíe.

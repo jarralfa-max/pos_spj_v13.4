@@ -17,6 +17,9 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
+from backend.application.commercial_instruments.queries.piece_resolver import (
+    resolve_instrument,
+)
 from backend.application.loyalty.authorization import LoyaltyAuthorizationPolicy
 from backend.application.loyalty.queries.customer_benefits_query import (
     CustomerBenefitsRequest,
@@ -68,9 +71,14 @@ class SalesInstrumentsClient:
         if not code:
             return _rejected("Captura el código del cupón")
         uow = CommercialInstrumentsUnitOfWork(self._conn)
-        instancia = uow.coupon_instances.get_by_code(code)
-        if instancia is None:
-            return _rejected(f"No existe un cupón con el código {code}")
+        # Código de pieza de lote (por su huella), o código de un cupón suelto. Un
+        # folio no sirve para canjear (auditoría de Fidelidad 968e0bc).
+        resuelto, motivo = resolve_instrument(uow, code, kind="COUPON",
+                                              branch_id=sale.branch_id)
+        if resuelto is None:
+            return _rejected(motivo)
+        instancia = resuelto.instance
+        code = instancia.code   # el resto del flujo busca la pieza por su código interno
         base = sale.totals.gross_subtotal - sale.totals.discount_total
         evaluacion = EvaluateCustomerBenefitsQuery(self._conn).execute(CustomerBenefitsRequest(
             customer_id=sale.customer_id, branch_id=sale.branch_id, subtotal=base,
@@ -115,12 +123,16 @@ class SalesInstrumentsClient:
         )
 
         uow = CommercialInstrumentsUnitOfWork(self._conn)
-        instancia = uow.voucher_instances.get_by_code(str(code or "").strip())
-        if instancia is None:
-            return {"found": False, "balance": _ZERO, "status": ""}
+        resuelto, motivo = resolve_instrument(uow, code, kind="VOUCHER",
+                                              branch_id=self._branch or None)
+        if resuelto is None:
+            return {"found": False, "balance": _ZERO, "status": "", "reason": motivo}
+        instancia = resuelto.instance
         saldo = VoucherBalancePolicy.balance(uow.voucher_transactions.list_for_instance(instancia.id))
+        reglas = uow.voucher_rules.get(instancia.id)
         return {"found": True, "balance": saldo,
-                "status": getattr(instancia.status, "value", instancia.status)}
+                "status": getattr(instancia.status, "value", instancia.status),
+                "folio": instancia.code, "rules": reglas["rules"] if reglas else None}
 
     def reserve_voucher(self, *, sale, code: str, amount: Decimal,
                         actor_user_id: str) -> dict[str, Any]:
@@ -128,11 +140,22 @@ class SalesInstrumentsClient:
         if not code:
             return _rejected("Captura el código del vale")
         uow = CommercialInstrumentsUnitOfWork(self._conn)
-        instancia = uow.voucher_instances.get_by_code(code)
-        if instancia is None:
-            return _rejected(f"No existe un vale con el código {code}")
-        if instancia.customer_id and sale.customer_id and instancia.customer_id != sale.customer_id:
-            return _rejected("El vale es de otro cliente")
+        resuelto, motivo = resolve_instrument(uow, code, kind="VOUCHER",
+                                              branch_id=sale.branch_id)
+        if resuelto is None:
+            return _rejected(motivo)
+        instancia = resuelto.instance
+        code = instancia.code
+        # Un vale personal exige al cliente identificado. Antes sólo se comparaba
+        # si la venta TENÍA cliente: sin cliente, cualquiera lo cobraba
+        # (auditoría de Fidelidad 968e0bc).
+        if instancia.customer_id and instancia.customer_id != sale.customer_id:
+            return _rejected("El vale es personal: asigna a su titular a la venta"
+                             if not sale.customer_id else "El vale es de otro cliente")
+        if (instancia.status.value == "RESERVED"
+                and getattr(instancia, "sale_id", None) == sale.id):
+            # Escanear dos veces en la misma venta no es un segundo canje.
+            return _rejected("Ese vale ya está aplicado en esta venta")
         evaluacion = EvaluateCustomerBenefitsQuery(self._conn).execute(CustomerBenefitsRequest(
             customer_id=sale.customer_id, branch_id=sale.branch_id,
             subtotal=sale.totals.gross_subtotal, channel=sale.channel, voucher_codes=(code,),
@@ -146,6 +169,12 @@ class SalesInstrumentsClient:
         importe = min(Decimal(str(amount)), Decimal(str(aceptado["amount"])))
         if importe <= 0:
             return _rejected("El vale no tiene saldo")
+        reglas = uow.voucher_rules.get(instancia.id)
+        if reglas is not None:
+            importe, motivo = self._apply_batch_rules(uow, sale, instancia, reglas["rules"],
+                                                      requested=importe)
+            if importe is None:
+                return _rejected(motivo)
 
         from backend.application.commercial_instruments.use_cases.voucher_use_cases import (
             ReserveVoucherAmountUseCase,
@@ -164,6 +193,38 @@ class SalesInstrumentsClient:
                 "amount": importe, "reservation_id": reserva.entity_id,
                 "instrument_type": instrumento.value if instrumento else "REFUND_VOUCHER"}
 
+
+    def _apply_batch_rules(self, uow, sale, instancia, reglas, *, requested: Decimal):
+        """Reglas de la pieza (fotografía del lote): un evento / varios, tope % por
+        venta y margen protegido si lo financia el negocio. `(importe, "")` o
+        `(None, motivo)`."""
+        from backend.domain.commercial_instruments.policies.voucher_balance_policy import (
+            VoucherBalancePolicy,
+        )
+        from backend.domain.commercial_instruments.value_objects.redemption_rules import (
+            RedemptionRulesError,
+        )
+
+        saldo = VoucherBalancePolicy.balance(uow.voucher_transactions.list_for_instance(instancia.id))
+        previos = len(uow.voucher_redemptions.list_for_instance(instancia.id))
+        bruto = sale.totals.gross_subtotal
+        neto = bruto - sale.totals.discount_total
+        margen = None
+        if reglas.funding_source.consumes_margin:
+            # FID-03: un vale que regala el negocio no se come el margen protegido.
+            from backend.application.sales.queries.benefit_budget_query import (
+                SaleBenefitBudgetQuery,
+            )
+            presupuesto = SaleBenefitBudgetQuery(self._conn).for_sale(sale)
+            if presupuesto.lines_without_cost:
+                return None, presupuesto.explain()
+            margen = presupuesto.available
+        try:
+            return reglas.applicable_amount(
+                balance=saldo, requested=requested, gross_base=bruto, net_base=neto,
+                prior_redemptions=previos, margin_budget=margen), ""
+        except RedemptionRulesError as exc:
+            return None, str(exc)
 
     # ── vales prepagados vendidos en caja ────────────────────────────────
     def prepaid_definitions(self) -> list[dict]:

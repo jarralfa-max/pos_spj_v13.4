@@ -124,23 +124,17 @@ class SupplierCreditService:
 
     # ── exposición ──────────────────────────────────────────────────────────
     def _payables(self):
-        from backend.application.queries.finance.finance_read_services import (
+        from backend.application.queries.finance.payable_query_service import (
             PayableQueryService,
         )
         return PayableQueryService(self._conn)
 
     def _recognized(self, source_ids) -> Decimal:
-        try:
-            return self._payables().recognized_for_sources("procurement", source_ids)
-        except sqlite3.OperationalError:
-            return Decimal("0")
+        return self._payables().recognized_for_sources("procurement", source_ids)
 
     def exposure(self, supplier_id: str, *, currency_code: str = "MXN",
                  exclude_direct_purchase_id: str | None = None) -> Decimal:
-        try:
-            open_payables = self._payables().open_payables(supplier_id=supplier_id)
-        except sqlite3.OperationalError:
-            open_payables = []
+        open_payables = self._payables().open_payables(supplier_id=supplier_id)
         total = sum((_decimal(p["outstanding_amount"]) for p in open_payables), Decimal("0"))
 
         marks = ",".join("?" for _ in COMMITTED_DIRECT_STATUSES)

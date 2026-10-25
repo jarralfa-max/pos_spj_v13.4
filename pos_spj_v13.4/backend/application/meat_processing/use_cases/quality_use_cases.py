@@ -24,6 +24,7 @@ from backend.application.meat_processing.result import MeatProcessingResult
 from backend.application.meat_processing.use_cases._shared import BLOCKED_QUALITY_STATUSES
 from backend.application.meat_processing.use_cases._shared import fail as _fail
 from backend.application.meat_processing.use_cases._shared import scope_fail as _scope_fail
+from backend.application.security.unwired_policy import unwired
 from backend.domain.meat_processing.enums import OutputQualityStatus, ProcessingOrderStatus
 from backend.domain.meat_processing.events import MeatProcessingEvents, build_meat_processing_event
 from backend.domain.meat_processing.exceptions import (
@@ -43,7 +44,7 @@ class RequestQualityInspectionUseCase:
         authorization: MeatProcessingAuthorizationPolicy | None = None,
         quality_port: QualityInspectionPort | None = None,
     ) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
         self._quality = quality_port or NullQualityInspectionPort()
 
     def execute(
@@ -123,7 +124,7 @@ class RecordQualityDecisionUseCase:
 
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None,
                  quality_decisions: QualityDecisionReadPort | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
         self._decisions = quality_decisions or NullQualityDecisionReadPort()
 
     def execute(

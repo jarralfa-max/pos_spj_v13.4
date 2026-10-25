@@ -4,6 +4,12 @@ import { SyncEngine } from "./sync.js";
 import { uuidv7 } from "./uuidv7.js";
 import { bottomUp, canDispatch, nodeDepth, validateAssignment } from "./workflow_rules.js";
 
+// Teléfonos con navegador anterior a 2020 (Safari < 14, Chromium < 86) no
+// traen `replaceChildren`: sin esto la lista de embarques no se dibuja.
+if (!Element.prototype.replaceChildren) {
+  Element.prototype.replaceChildren = function (...nodes) { this.textContent = ""; this.append(...nodes); };
+}
+
 const $ = (id) => document.getElementById(id);
 const token = () => sessionStorage.getItem("spj-mobile-token");
 const api = new LogisticsApi(token);
@@ -301,7 +307,8 @@ function renderSyncIssues(conflicts) {
 let jsQRLoading = null;
 function loadJsQR() {
   if (window.jsQR) return Promise.resolve(window.jsQR);
-  jsQRLoading ||= new Promise((resolve, reject) => {
+  // Sin `||=`: Safari < 14 y WebViews viejos no lo entienden y la app no cargaría.
+  if (!jsQRLoading) jsQRLoading = new Promise((resolve, reject) => {
     const script = document.createElement("script"); script.src = "vendor/jsQR.js";
     script.onload = () => resolve(window.jsQR);
     script.onerror = () => { jsQRLoading = null; reject(new Error("No se pudo cargar el lector de QR")); };

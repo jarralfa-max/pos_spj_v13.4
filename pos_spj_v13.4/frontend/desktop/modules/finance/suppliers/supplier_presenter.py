@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 
+from backend.application.suppliers.permissions import SupplierPermissions
 from backend.shared.ids import new_uuid
 from frontend.desktop.modules.finance.suppliers.supplier_view_models import (
     KpiVM,
@@ -26,11 +27,14 @@ _PAGE_SIZE = 50
 
 class SupplierPresenter:
     def __init__(self, *, connection_provider, query_services: dict, use_cases: dict,
-                 session_context=None) -> None:
+                 session_context=None, permission_checker=None) -> None:
         self._conn = connection_provider
         self._queries = query_services
         self._use_cases = use_cases
         self._session = session_context
+        # El MISMO verificador que usan los casos de uso (sesión + respaldo
+        # grueso). Sin él, nada sensible se muestra.
+        self._permissions = permission_checker
 
     # helpers -----------------------------------------------------------------
     def _actor(self) -> str:
@@ -49,8 +53,13 @@ class SupplierPresenter:
         return user_id
 
     def _can(self, permission_code: str) -> bool:
-        perms = getattr(self._session, "permissions", None)
-        return True if perms is None else permission_code in perms
+        """Sondeo para decidir qué mostrar. Antes leía `session.permissions`,
+        un atributo que la sesión viva no tiene (expone `permisos`), y con
+        `None` concedía TODO (auditoría de permisos 968e0bc)."""
+        user_id = str(getattr(self._session, "user_id", "") or "").strip()
+        if self._permissions is None or not user_id:
+            return False
+        return bool(self._permissions.has_permission(user_id, permission_code))
 
     def _run(self, use_case_key: str, **kwargs) -> tuple[bool, str, dict]:
         try:
@@ -155,10 +164,8 @@ class SupplierPresenter:
 
     def bank_accounts(self, supplier_id: str) -> TableViewModel:
         # Bank data is sensitive: masked by default, unmasked ONLY when the
-        # session explicitly grants VIEW_BANK (dev's permissive default never
-        # exposes account numbers).
-        perms = getattr(self._session, "permissions", None)
-        can_full = bool(perms) and "SUPPLIERS_VIEW_BANK" in perms
+        # user holds `PROVEEDORES.banco.ver` (no coarse fallback for it).
+        can_full = self._can(SupplierPermissions.VIEW_BANK)
         rows, ids = [], []
         for b in self._queries["detail"].bank_accounts(supplier_id, can_view_full=can_full):
             rows.append([b["bank_name"], b["account_holder"], b["clabe"] or "—",

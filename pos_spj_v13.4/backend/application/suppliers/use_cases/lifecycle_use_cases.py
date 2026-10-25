@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 
+from backend.application.security.unwired_policy import unwired
 from backend.application.suppliers.authorization import SupplierAuthorizationPolicy
 from backend.application.suppliers.permissions import SupplierPermissions
 from backend.application.suppliers.result import SupplierResult
@@ -33,7 +34,7 @@ from backend.shared.ids import new_uuid
 
 class _BaseUseCase:
     def __init__(self, authorization: SupplierAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or SupplierAuthorizationPolicy()
+        self._auth = authorization or unwired(SupplierAuthorizationPolicy)
 
     def _emit(self, uow, event_name: str, supplier_id: str, operation_id: str,
               actor_user_id: str, **extra) -> None:

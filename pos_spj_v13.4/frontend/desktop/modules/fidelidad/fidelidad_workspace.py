@@ -126,6 +126,11 @@ class FidelidadWorkspace(QWidget):
                 ProgramSettingsPage,
             )
             return ProgramSettingsPage(self._presenter, self)
+        if route_id == "instruments.batches":
+            from frontend.desktop.modules.fidelidad.pages.instrument_batches_page import (
+                InstrumentBatchesPage,
+            )
+            return InstrumentBatchesPage(self._presenter, self)
         if route_id == "loyalty.member_profile":
             return MemberProfilePage(self._presenter, self)
         if route_id == "loyalty.rewards":

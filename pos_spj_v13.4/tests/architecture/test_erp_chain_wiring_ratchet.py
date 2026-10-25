@@ -107,7 +107,6 @@ DARK_HANDLERS = frozenset({
     # Finanzas — operación
     "InventoryAdjustmentHandler",
     "PurchaseReceivedHandler",
-    "WasteRegisteredHandler",
 })
 
 #: Funciones de cableado que existen y que nadie llama. Mismo trinquete: llamar

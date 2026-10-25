@@ -9,6 +9,7 @@ from backend.domain.meat_processing.exceptions import (
     MeatProcessingConfigurationError,
     MeatProcessingScopeError,
 )
+from backend.security.permissions.codes import is_granted
 
 
 @dataclass(frozen=True)
@@ -30,7 +31,7 @@ class MeatProcessingExecutionContext:
 
     @property
     def has_global_scope(self) -> bool:
-        return MeatProcessingPermissions.VIEW_ALL_BRANCHES in self.permissions
+        return is_granted(self.permissions, MeatProcessingPermissions.VIEW_ALL_BRANCHES)
 
     def enforce_branch(self, target_branch_id: str) -> None:
         target = str(target_branch_id or "").strip()

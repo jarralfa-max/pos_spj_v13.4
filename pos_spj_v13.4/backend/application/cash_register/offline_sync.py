@@ -1,17 +1,39 @@
-"""CASH-19 ordered offline-first synchronization over the canonical outbox."""
+"""Sincronización de Caja con el servidor central — fachada de Caja sobre el
+motor de replicación ÚNICO (arquitectura híbrida, Slice 2).
+
+CASH-19 tenía su propio motor (`cash_sync_devices`/`cash_sync_envelopes`) que,
+al reintentar o resolver un conflicto, escribía `cash_outbox.status`. Esa
+columna es del despachador en proceso que lleva la Caja a Finanzas, que sólo
+toma filas PENDING: un clic en «Sincronizar» sin servidor configurado dejaba
+los movimientos en FAILED y **nunca se asentaban**. Ahora Caja usa
+`ReplicationOutboxService`, que lleva su propio estado y no toca el outbox.
+
+Esta fachada conserva lo que la pantalla de Caja ya usaba (mismas clases,
+permisos `CAJA.sincronizacion.*` y alcance por sucursal). El «dispositivo» de
+Caja es la estación de replicación; el ciclo envía todos los hechos de la
+estación, y las vistas de Caja muestran los de Caja.
+"""
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Protocol, Sequence
+from datetime import datetime, timezone
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.permissions import CashPermissions
 from backend.application.cash_register.shift_use_cases import _record
+from backend.application.sync.replication_outbox import (
+    ReplicationOutboxService,
+    ReplicationTransport,
+)
 from backend.domain.cash_register.events import CashEvents
 from backend.infrastructure.db.repositories.cash_register.unit_of_work import CashRegisterUnitOfWork
-from backend.shared.ids import new_uuid, validate_uuidv7
+from backend.infrastructure.db.repositories.replication.unit_of_work import (
+    ReplicationUnitOfWork,
+)
+from backend.shared.ids import validate_uuidv7
+
+#: Fuente de los hechos de Caja en el motor de replicación.
+CASH_SOURCE = "cash_register"
 
 
 def _now() -> datetime:
@@ -22,30 +44,8 @@ def _iso(value: datetime) -> str:
     return value.isoformat(timespec="seconds")
 
 
-def retry_at(now: datetime, attempt_count: int) -> datetime:
-    """Exponential retry capped at fifteen minutes; deterministic and testable."""
-    seconds = min(15 * 60, 2 ** max(0, min(attempt_count, 10)))
-    return now + timedelta(seconds=seconds)
-
-
-@dataclass(frozen=True, slots=True)
-class SyncEnvelope:
-    envelope_id: str
-    sequence_no: int
-    aggregate_version: int
-    event_name: str
-    operation_id: str
-    entity_id: str
-    payload: dict
-
-
-@dataclass(frozen=True, slots=True)
-class SyncAcknowledgement:
-    envelope_id: str
-    outcome: str
-    remote_revision: str = ""
-    error_code: str = ""
-    conflict: dict | None = None
+#: Puerto de transporte de Caja = el del motor único.
+CashSyncTransport = ReplicationTransport
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,111 +58,84 @@ class SyncCycleResult:
     conflicts: int
 
 
-class CashSyncTransport(Protocol):
-    def push(self, *, device_id: str, branch_id: str,
-             envelopes: Sequence[SyncEnvelope]) -> Sequence[SyncAcknowledgement]: ...
+def ensure_cash_sync_device(connection, *, device_id: str | None,
+                            branch_id: str | None) -> str | None:
+    """Registra la terminal activa como estación de replicación si aún no lo es."""
+    if not device_id or not branch_id:
+        return None
+    ReplicationOutboxService.register_station(connection, station_id=str(device_id),
+                                              branch_id=str(branch_id))
+    return str(device_id)
+
+
+def _station_in_branch(uow, device_id: str, branch_id: str) -> dict:
+    estacion = uow.replication.get_station(device_id)
+    if estacion is None or estacion["branch_id"] != branch_id:
+        raise LookupError("Sync device outside branch scope")
+    return estacion
 
 
 class CashOfflineSyncService:
     def __init__(self, transport: CashSyncTransport, *, batch_size: int = 50) -> None:
-        if not 1 <= batch_size <= 500:
-            raise ValueError("Sync batch size must be between 1 and 500")
-        self._transport, self._batch_size = transport, batch_size
+        self._engine = ReplicationOutboxService(transport, batch_size=batch_size)
 
     def synchronize(self, connection, *, device_id: str, branch_id: str,
                     now: datetime | None = None) -> SyncCycleResult:
         validate_uuidv7(device_id); validate_uuidv7(branch_id)
-        instant = now or _now()
-        timestamp = _iso(instant)
-        with CashRegisterUnitOfWork(connection) as uow:
-            device = uow.sync.get_device(device_id)
-            if device is None or device["branch_id"] != branch_id:
-                raise LookupError("Sync device outside branch scope")
-            if device["connectivity"] == "OFFLINE":
-                state = uow.sync.state(device_id)
-                return SyncCycleResult("OFFLINE", 0, 0, 0, 0, state["conflict_count"])
-            staged = uow.sync.stage_pending(device_id=device_id, branch_id=branch_id,
-                                            now=timestamp, limit=self._batch_size)
-            ready = uow.sync.list_ready(device_id=device_id, now=timestamp,
-                                        limit=self._batch_size)
-            if not ready:
-                state = uow.sync.state(device_id)
-                final = "CONFLICT" if state["conflict_count"] else "IDLE"
-                uow.sync.finish_cycle(device_id=device_id, status=final, now=timestamp)
-                return SyncCycleResult(final, staged, 0, 0, 0, state["conflict_count"])
-            uow.sync.mark_in_flight([row["id"] for row in ready])
-        envelopes = [SyncEnvelope(
-            row["id"], row["sequence_no"], row["aggregate_version"],
-            row["event_name"], row["operation_id"], row["entity_id"],
-            json.loads(row["payload_json"]),
-        ) for row in ready]
-        try:
-            responses = {ack.envelope_id: ack for ack in self._transport.push(
-                device_id=device_id, branch_id=branch_id, envelopes=envelopes)}
-        except Exception:
-            responses = {}
-        synced = retries = conflicts = 0
-        with CashRegisterUnitOfWork(connection) as uow:
-            for row in ready:
-                ack = responses.get(row["id"])
-                if ack is not None and ack.outcome == "ACCEPTED":
-                    uow.sync.mark_synced(envelope_id=row["id"], device_id=device_id,
-                                         sequence_no=row["sequence_no"],
-                                         remote_revision=ack.remote_revision, now=timestamp)
-                    synced += 1
-                elif ack is not None and ack.outcome == "CONFLICT":
-                    uow.sync.mark_conflict(envelope_id=row["id"],
-                                           remote_revision=ack.remote_revision,
-                                           conflict=ack.conflict or {})
-                    conflicts += 1
-                else:
-                    error = ack.error_code if ack and ack.error_code else "TRANSPORT_UNAVAILABLE"
-                    uow.sync.mark_retry(envelope_id=row["id"],
-                                        next_attempt_at=_iso(retry_at(instant, row["attempt_count"] + 1)),
-                                        error=error)
-                    retries += 1
-            final = "CONFLICT" if conflicts else ("RETRYING" if retries else "IDLE")
-            uow.sync.finish_cycle(device_id=device_id, status=final, now=timestamp,
-                                  error="SYNC_RETRY_PENDING" if retries else None)
-        return SyncCycleResult(final, staged, len(ready), synced, retries, conflicts)
+        with ReplicationUnitOfWork(connection) as uow:
+            _station_in_branch(uow, device_id, branch_id)
+        r = self._engine.synchronize(connection, station_id=device_id, now=now)
+        return SyncCycleResult(r.status, r.staged, r.sent, r.synced, r.retries, r.conflicts)
+
+
+def _cash_row(fila: dict) -> dict:
+    """Forma que ya mostraba la pantalla de Caja."""
+    return {"id": fila["id"], "sequence_no": fila["sequence_no"],
+            "aggregate_version": fila["aggregate_version"], "state": fila["state"],
+            "attempt_count": fila["attempt_count"], "next_attempt_at": fila["next_attempt_at"],
+            "remote_revision": fila["remote_revision"], "conflict_json": fila["conflict_json"],
+            "created_at": fila["created_at"], "synced_at": fila["synced_at"],
+            "event_name": fila["event_type"], "operation_id": fila["operation_id"],
+            "entity_id": fila["aggregate_id"], "last_error": fila["last_error"]}
 
 
 class CashSyncStateQueryService:
     def __init__(self, authorization: CashAuthorizationPolicy) -> None:
         self._authorization = authorization
 
-    def get(self, connection, *, device_id: str, branch_id: str,
-            actor_user_id: str) -> dict:
+    def _require(self, actor_user_id: str, branch_id: str) -> None:
         self._authorization.require(user_id=actor_user_id,
                                     permission_code=CashPermissions.SYNC_VIEW,
                                     branch_id=branch_id)
-        with CashRegisterUnitOfWork(connection) as uow:
-            state = uow.sync.state(device_id)
-        if state["branch_id"] != branch_id:
-            raise LookupError("Sync device outside branch scope")
-        return state
+
+    def get(self, connection, *, device_id: str, branch_id: str,
+            actor_user_id: str) -> dict:
+        self._require(actor_user_id, branch_id)
+        with ReplicationUnitOfWork(connection) as uow:
+            estacion = _station_in_branch(uow, device_id, branch_id)
+            conteo = uow.replication.counts(device_id, source=CASH_SOURCE)
+        return {**estacion,
+                "pending_count": conteo["PENDING"] + conteo["RETRY"] + conteo["IN_FLIGHT"],
+                "conflict_count": conteo["CONFLICT"], "dead_count": conteo["DEAD"],
+                "synced_count": conteo["SYNCED"]}
 
     def list_envelopes(self, connection, *, device_id: str, branch_id: str,
                        actor_user_id: str, limit: int = 100) -> list[dict]:
-        self._authorization.require(user_id=actor_user_id,
-                                    permission_code=CashPermissions.SYNC_VIEW,
-                                    branch_id=branch_id)
-        with CashRegisterUnitOfWork(connection) as uow:
-            state = uow.sync.state(device_id)
-            if state["branch_id"] != branch_id:
-                raise LookupError("Sync device outside branch scope")
-            return uow.sync.list_recent(device_id=device_id, limit=limit)
+        self._require(actor_user_id, branch_id)
+        with ReplicationUnitOfWork(connection) as uow:
+            _station_in_branch(uow, device_id, branch_id)
+            return [_cash_row(f) for f in uow.replication.list_recent(
+                device_id, source=CASH_SOURCE, limit=limit)]
 
     def list_conflicts(self, connection, *, device_id: str, branch_id: str,
                        actor_user_id: str) -> list[dict]:
-        self._authorization.require(user_id=actor_user_id,
-                                    permission_code=CashPermissions.SYNC_VIEW,
-                                    branch_id=branch_id)
-        with CashRegisterUnitOfWork(connection) as uow:
-            state = uow.sync.state(device_id)
-            if state["branch_id"] != branch_id:
-                raise LookupError("Sync device outside branch scope")
-            return uow.sync.list_conflicts(device_id=device_id)
+        """Conflictos y envíos MUERTOS de Caja: los dos requieren una decisión."""
+        self._require(actor_user_id, branch_id)
+        with ReplicationUnitOfWork(connection) as uow:
+            _station_in_branch(uow, device_id, branch_id)
+            filas = uow.replication.list_recent(device_id, source=CASH_SOURCE,
+                                                states=("CONFLICT", "DEAD"), limit=500)
+        return [_cash_row(f) for f in sorted(filas, key=lambda f: f["sequence_no"])]
 
 
 class RegisterCashSyncDeviceUseCase:
@@ -174,10 +147,8 @@ class RegisterCashSyncDeviceUseCase:
         self._authorization.require(user_id=actor_user_id,
                                     permission_code=CashPermissions.SYNC_MANAGE,
                                     branch_id=branch_id)
-        validate_uuidv7(device_id); validate_uuidv7(branch_id)
-        with CashRegisterUnitOfWork(connection) as uow:
-            uow.sync.register_device(device_id=device_id, branch_id=branch_id,
-                                     now=_iso(_now()), online=online)
+        ReplicationOutboxService.register_station(connection, station_id=device_id,
+                                                  branch_id=branch_id, online=online)
 
 
 class SetCashSyncConnectivityUseCase:
@@ -189,14 +160,20 @@ class SetCashSyncConnectivityUseCase:
         self._authorization.require(user_id=actor_user_id,
                                     permission_code=CashPermissions.SYNC_MANAGE,
                                     branch_id=branch_id)
-        with CashRegisterUnitOfWork(connection) as uow:
-            device = uow.sync.get_device(device_id)
-            if device is None or device["branch_id"] != branch_id:
-                raise LookupError("Sync device outside branch scope")
-            uow.sync.set_connectivity(device_id=device_id, online=online, now=_iso(_now()))
+        with ReplicationUnitOfWork(connection) as uow:
+            _station_in_branch(uow, device_id, branch_id)
+            uow.replication.set_connectivity(station_id=device_id, online=online,
+                                             now=_iso(_now()))
 
 
 class ResolveCashSyncConflictUseCase:
+    """`RETRY_LOCAL`: reenvía el MISMO hecho, idéntico, para que el servidor lo
+    reevalúe una vez corregido su lado (también sirve para un envío MUERTO).
+    CASH-19 le subía la versión, pero la versión es parte de la huella: el
+    servidor habría visto el mismo event_id con otro contenido. `ACCEPT_REMOTE`: prevalece el
+    servidor y el sobre deja de enviarse. Las dos exigen motivo y dejan rastro
+    (`CASH_SYNC_CONFLICT_RESOLVED`): ninguna corrección es silenciosa."""
+
     def __init__(self, authorization: CashAuthorizationPolicy) -> None:
         self._authorization = authorization
 
@@ -208,19 +185,25 @@ class ResolveCashSyncConflictUseCase:
                                     branch_id=branch_id)
         if not reason.strip():
             raise ValueError("Conflict resolution requires a reason")
+        if strategy not in ("RETRY_LOCAL", "ACCEPT_REMOTE"):
+            raise ValueError("Unknown conflict strategy")
         for value in (envelope_id, branch_id, actor_user_id, operation_id):
             validate_uuidv7(value)
         timestamp = _iso(_now())
-        with CashRegisterUnitOfWork(connection) as uow:
-            envelope = uow.sync.get_envelope(envelope_id)
-            if envelope is None:
-                raise LookupError("Sync conflict not found")
-            device = uow.sync.get_device(envelope["device_id"])
-            if device is None or device["branch_id"] != branch_id:
-                raise LookupError("Sync conflict outside branch scope")
-            uow.sync.resolve_conflict(envelope_id=envelope_id, strategy=strategy, now=timestamp)
-            _record(uow, CashEvents.SYNC_CONFLICT_RESOLVED,
+        with CashRegisterUnitOfWork(connection) as cash:
+            with ReplicationUnitOfWork(connection) as uow:
+                sobre = uow.replication.get(envelope_id)
+                if sobre is None or sobre["source"] != CASH_SOURCE:
+                    raise LookupError("Sync conflict not found")
+                _station_in_branch(uow, sobre["station_id"], branch_id)
+                hecho = (uow.replication.requeue(envelope_id=envelope_id, now=timestamp)
+                         if strategy == "RETRY_LOCAL"
+                         else uow.replication.settle_remote(envelope_id=envelope_id,
+                                                            now=timestamp))
+                if not hecho:
+                    raise RuntimeError("Conflict is no longer pending")
+            _record(cash, CashEvents.SYNC_CONFLICT_RESOLVED,
                     operation_id=operation_id, entity_id=envelope_id,
                     branch_id=branch_id, actor_user_id=actor_user_id,
                     reason=reason, strategy=strategy,
-                    remote_revision=envelope["remote_revision"])
+                    remote_revision=sobre["remote_revision"])

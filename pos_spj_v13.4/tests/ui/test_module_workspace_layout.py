@@ -20,6 +20,7 @@ MODULES = {
     "configuracion": ("ConfiguracionView", "Configuración"),
     "orders_delivery": ("OrdersDeliveryView", "Pedidos y Reparto"),
     "business_intelligence": ("BusinessIntelligenceView", "Inteligencia de Negocios"),
+    "logistics": ("LogisticsView", "Logística"),
 }
 
 
@@ -142,3 +143,23 @@ def test_workspace_matches_pricing_and_preserves_navigation_on_resize(
         sip.delete(view)
         app.sendPostedEvents(None, QEvent.DeferredDelete)
         _settle(app)
+
+
+def test_logistics_without_visible_sections_keeps_layout_and_permission_message(qt_font_resources):
+    from frontend.desktop.modules.logistics.logistics_view import LogisticsView
+    from frontend.desktop.components.view_states import ViewState
+
+    built = []
+    view = LogisticsView(has_permission=lambda _permission: False,
+                         page_builder=lambda route: built.append(route))
+    try:
+        view.resize(1280, 720)
+        view.show()
+        _settle(qt_font_resources)
+        assert view.module_layout.header.isVisible()
+        assert view.sidebar.isVisible()
+        assert view.stack.count() == 1
+        assert view.stack.currentWidget().property("state") == ViewState.NO_PERMISSION
+        assert built == []
+    finally:
+        sip.delete(view)

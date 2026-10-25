@@ -13,8 +13,8 @@ from PyQt5.QtWidgets import QDialog, QDialogButtonBox, QLineEdit, QMessageBox, Q
 
 from frontend.desktop.components.dialogs import StandardDialog
 from frontend.desktop.components.tables import StandardTable
-from frontend.desktop.modules.finance.dialogs.commercial_posting_profile_dialog import CommercialPostingProfileDialog
-from frontend.desktop.modules.finance.dialogs.journal_entry_dialog import JournalEntryDialog
+from frontend.desktop.components.tables import ColumnSpec
+from frontend.desktop.modules.finance.dialogs.table_dialog import TableDialog
 from frontend.desktop.modules.finance.suppliers.dialogs import supplier_dialogs as forms
 from frontend.desktop.modules.finance.suppliers.pages.supplier_detail_dialog import SupplierDetailDialog
 from frontend.desktop.themes.theme_manager import ThemeManager
@@ -69,9 +69,14 @@ def _build(kind):
     if kind in classes:
         return classes[kind]()
     if kind == "profile":
-        return CommercialPostingProfileDialog(None, [["Ingreso", "401-01"]])
+        return TableDialog(None, "Perfil contable", [ColumnSpec("Rol"), ColumnSpec("Cuenta")],
+                           SimpleNamespace(rows=[["Ingreso", "401-01"]], row_ids=[]))
     if kind == "journal":
-        return JournalEntryDialog(None, SimpleNamespace(rows=[["101-01", "Caja", "Venta", "125.50", "0.00"]]))
+        return TableDialog(None, "Detalle del asiento",
+                           [ColumnSpec("Cuenta"), ColumnSpec("Nombre"), ColumnSpec("Concepto"),
+                            ColumnSpec("Debe", "numeric"), ColumnSpec("Haber", "numeric")],
+                           SimpleNamespace(rows=[["101-01", "Caja", "Venta", "125.50", "0.00"]],
+                                           row_ids=[]))
     return SupplierDetailDialog(_presenter(), SUPPLIER_ID)
 
 
@@ -173,7 +178,8 @@ def test_read_only_close_keeps_existing_result(desktop, kind):
         QTest.mouseClick(_close_button(dialog, kind), Qt.LeftButton)
         _settle(app)
         assert not dialog.isVisible()
-        assert dialog.result() == (QDialog.Rejected if kind == "journal" else QDialog.Accepted)
+        # Los diálogos de sólo lectura de Finanzas cierran con «Cerrar» (rechazo).
+        assert dialog.result() == (QDialog.Accepted if kind == "detail" else QDialog.Rejected)
         if kind != "detail":
             table = dialog.findChild(StandardTable)
             assert table.rowCount() == 1

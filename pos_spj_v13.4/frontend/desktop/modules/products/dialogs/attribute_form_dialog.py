@@ -1,12 +1,16 @@
 """AttributeFormDialog + AttributeOptionsDialog — atributos y opciones (P1-03).
 
-UI-only: captura atributo (código/nombre/tipo) y gestiona sus opciones enumeradas.
+UI-only: captura atributo (nombre/código automático reescribible/tipo) y gestiona sus opciones enumeradas.
 El tipo de dato sólo se elige al crear (inmutable después). Delega en el presenter.
 """
 
 from __future__ import annotations
 
 from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.modules.products.dialogs.auto_code import (
+    AutoCodeBinder,
+    catalog_suggester,
+)
 
 from PyQt5.QtWidgets import (
     QComboBox,
@@ -52,9 +56,13 @@ class AttributeFormDialog(StandardDialog):
             # El tipo es inmutable tras el alta.
             self._select(self.data_type, self._attribute.get("data_type"))
             self.data_type.setEnabled(False)
-        form.addRow("Código *", self.code)
         form.addRow("Nombre *", self.name)
+        form.addRow("Código" if self._attribute_id is None else "Código *", self.code)
         form.addRow("Tipo *", self.data_type)
+        # PROD-23: en el alta el código se genera del nombre (reescribible).
+        self._auto = (AutoCodeBinder(self.name, self.code, catalog_suggester(
+            self._presenter, "ATTRIBUTE"))
+            if self._attribute_id is None else None)
         layout.addLayout(form)
 
         self._error = QLabel()
@@ -77,10 +85,12 @@ class AttributeFormDialog(StandardDialog):
 
     def _on_save(self) -> None:
         self._error.setText("")
-        code = self.code.text().strip().upper()
+        code = (self._auto.code_for_save() if self._auto is not None
+                else self.code.text().strip().upper())
         name = self.name.text().strip()
-        if not code or not name:
-            self._error.setText("Código y Nombre son obligatorios.")
+        if not name or (self._auto is None and not code):
+            self._error.setText("Nombre es obligatorio." if self._auto is not None
+                                else "Código y Nombre son obligatorios.")
             return
         ok, message, _aid = self._presenter.save_attribute(
             attribute_id=self._attribute_id, code=code, name=name,
@@ -109,9 +119,13 @@ class _OptionEditor(StandardDialog):
         self.sort_order = QSpinBox()
         self.sort_order.setRange(0, 9999)
         self.sort_order.setValue(int(self._option.get("sort_order") or 0))
-        form.addRow("Código *", self.code)
         form.addRow("Etiqueta *", self.label)
+        form.addRow("Código" if self._option_id is None else "Código *", self.code)
         form.addRow("Orden", self.sort_order)
+        # PROD-23: código de la opción desde la etiqueta (único en el atributo).
+        self._auto = (AutoCodeBinder(self.label, self.code, catalog_suggester(
+            self._presenter, "ATTRIBUTE_OPTION", scope_id=self._attribute_id))
+            if self._option_id is None else None)
         layout.addLayout(form)
 
         self._error = QLabel()
@@ -128,10 +142,12 @@ class _OptionEditor(StandardDialog):
 
     def _on_save(self) -> None:
         self._error.setText("")
-        code = self.code.text().strip().upper()
+        code = (self._auto.code_for_save() if self._auto is not None
+                else self.code.text().strip().upper())
         label = self.label.text().strip()
-        if not code or not label:
-            self._error.setText("Código y Etiqueta son obligatorios.")
+        if not label or (self._auto is None and not code):
+            self._error.setText("Etiqueta es obligatoria." if self._auto is not None
+                                else "Código y Etiqueta son obligatorios.")
             return
         ok, message, _oid = self._presenter.save_attribute_option(
             option_id=self._option_id, attribute_id=self._attribute_id, code=code,

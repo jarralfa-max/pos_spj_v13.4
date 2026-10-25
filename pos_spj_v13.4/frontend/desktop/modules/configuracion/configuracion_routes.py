@@ -138,6 +138,9 @@ def build_configuracion_view(*, connection, session_context, parent=None):
     from backend.infrastructure.db.repositories.settings.audit_log_repository import (
         SqliteAuditLogRepository,
     )
+    from backend.infrastructure.db.repositories.security.grant_version_repository import (
+        SqliteGrantVersionRepository,
+    )
     from backend.infrastructure.db.repositories.settings.installation_branch_repository import (
         SqliteInstallationBranchRepository,
     )
@@ -192,7 +195,8 @@ def build_configuracion_view(*, connection, session_context, parent=None):
     authorization = ConfiguracionAuthorizationPolicy(SessionPermissionChecker(session))
     user_directory = SqliteUserDirectoryRepository(connection)
     audit_log = SqliteAuditLogRepository(connection)
-    user_management_service = UserManagementService(user_directory, audit_log)
+    user_management_service = UserManagementService(
+        user_directory, audit_log, grant_versions=SqliteGrantVersionRepository(connection))
     role_management_service = RoleManagementService(user_directory, audit_log)
     company_profile_service = CompanyProfileService(
         SqliteInstallationBranchRepository(connection))
@@ -279,9 +283,9 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         user_management_service=user_management_service,
         role_management_service=role_management_service,
         user_security_service=user_security_service,
-        save_user_uc=SaveUserUseCase(user_management_service),
-        set_user_active_uc=SetUserActiveUseCase(user_management_service),
-        save_role_uc=SaveRoleUseCase(role_management_service),
+        save_user_uc=SaveUserUseCase(user_management_service, authorization),
+        set_user_active_uc=SetUserActiveUseCase(user_management_service, authorization),
+        save_role_uc=SaveRoleUseCase(role_management_service, authorization),
         company_profile_service=company_profile_service,
         set_installation_branch_uc=SetInstallationBranchUseCase(company_profile_service),
         role_permission_matrix_query=RolePermissionMatrixQuery(connection),

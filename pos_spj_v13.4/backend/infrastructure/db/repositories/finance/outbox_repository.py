@@ -29,3 +29,19 @@ class OutboxRepository(FinanceRepositoryBase):
             "UPDATE finance_outbox SET status='DISPATCHED', dispatched_at=? WHERE id=?",
             (datetime.now(timezone.utc).isoformat(timespec="seconds"), outbox_id),
         )
+
+    def list_deliverable(self, *, max_attempts: int, limit: int = 500) -> list[dict]:
+        return self._query(
+            "SELECT id, event_id, event_name, payload_json, operation_id, attempts"
+            " FROM finance_outbox WHERE status='PENDING' AND attempts < ?"
+            " ORDER BY created_at LIMIT ?", (max_attempts, limit))
+
+    def mark_failed(self, outbox_id: str, error: str) -> None:
+        self._execute(
+            "UPDATE finance_outbox SET attempts = attempts + 1, last_error=? WHERE id=?",
+            (error[:500], outbox_id))
+
+    def count_failing(self) -> int:
+        row = self._query_one(
+            "SELECT COUNT(*) AS n FROM finance_outbox WHERE status='PENDING' AND attempts > 0")
+        return int(row["n"] or 0) if row else 0

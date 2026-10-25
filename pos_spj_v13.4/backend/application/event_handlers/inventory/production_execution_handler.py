@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 
+from backend.application.inventory.integration_grants import integration_use_case
 from backend.application.event_handlers.inventory._ingress import resolve_ingress
 from backend.application.inventory.use_cases.lot_use_cases import (
     RegisterInventoryLotUseCase,
@@ -57,9 +58,14 @@ class ProductionExecutionHandler:
                  lot_use_case: RegisterInventoryLotUseCase | None = None,
                  link_use_case: RegisterTraceabilityLinkUseCase | None = None) -> None:
         self._conn = connection
-        self._post = post_use_case or PostInventoryMovementUseCase()
-        self._lot = lot_use_case or RegisterInventoryLotUseCase()
-        self._link = link_use_case or RegisterTraceabilityLinkUseCase()
+        # Sin caso de uso inyectado: concesión del módulo origen (PER-02).
+        self._post = post_use_case
+        self._lot = lot_use_case
+        self._link = link_use_case
+
+    @staticmethod
+    def _granted(injected, use_case_cls, user: str):
+        return injected or integration_use_case(use_case_cls, "meat_processing", user)
 
     def handle(self, payload: dict) -> None:
         ingress, reason = resolve_ingress(payload)
@@ -146,7 +152,7 @@ class ProductionExecutionHandler:
 
     def _ensure_lot(self, *, product_id, lot_code, ln, operation_id, branch_id,
                     document_id, user) -> str | None:
-        res = self._lot.execute(
+        res = self._granted(self._lot, RegisterInventoryLotUseCase, user).execute(
             self._conn, product_id=product_id, lot_code=lot_code,
             origin_type=LotOrigin.PRODUCTION,
             operation_id=f"{operation_id}:lot:{product_id}:{lot_code}", actor_user_id=user,
@@ -162,7 +168,7 @@ class ProductionExecutionHandler:
             for child in output_lot_ids:
                 if parent == child:
                     continue
-                self._link.execute(
+                self._granted(self._link, RegisterTraceabilityLinkUseCase, user).execute(
                     self._conn, parent_lot_id=parent, child_lot_id=child,
                     link_type=TraceabilityLinkType.PRODUCTION,
                     operation_id=f"{operation_id}:link:{parent}:{child}",
@@ -176,7 +182,10 @@ class ProductionExecutionHandler:
             source_module="production", source_document_type="PRODUCTION_ORDER",
             source_document_id=document_id, operation_id=operation_id,
             created_by_user_id=user, lines=lines)
-        result = self._post.execute(self._conn, movement, actor_user_id=user)
-        if not result.success and result.error_code != "PERMISSION_DENIED":
+        result = self._granted(self._post, PostInventoryMovementUseCase, user).execute(
+            self._conn, movement, actor_user_id=user)
+        if not result.success and result.error_code == "PERMISSION_DENIED":
+            logger.error("production %s DENEGADA: %s", operation_id, result.message)
+        elif not result.success:
             logger.error("production %s falló: %s", operation_id, result.message)
             raise RuntimeError(result.message)

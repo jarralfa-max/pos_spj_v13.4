@@ -44,6 +44,7 @@ from backend.application.pricing.use_cases.list_guards import (
 from backend.application.products.queries.product_selection_query_service import (
     ProductSearchQuery,
 )
+from backend.application.security.unwired_policy import unwired
 from backend.domain.pricing.entities.product_price import (
     ProductPrice,
     VolumePrice,
@@ -72,7 +73,7 @@ def _money(amount, currency: str) -> Money:
 class _BasePriceUseCase:
     def __init__(self, authorization: PricingAuthorizationPolicy | None = None,
                  authorizer_authorization: PricingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or PricingAuthorizationPolicy()
+        self._auth = authorization or unwired(PricingAuthorizationPolicy)
         #: Sólo para `authorize_exception`. Ver la nota de
         #: `SetProductPriceUseCase`: el autorizador no es el usuario de la
         #: sesión, así que no puede validarse con el mismo verificador.

@@ -8,13 +8,13 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class CreateBrandCommand:
     operation_id: str
-    code: str
+    code: str  # vacío → se genera del nombre (PROD-23)
     name: str
     user_id: str | None = None
     description: str | None = None
 
     def validate(self) -> None:
-        missing = [f for f in ("operation_id", "code", "name")
+        missing = [f for f in ("operation_id", "name")
                    if not getattr(self, f)]
         if missing:
             raise ValueError(f"Faltan campos requeridos: {', '.join(missing)}")

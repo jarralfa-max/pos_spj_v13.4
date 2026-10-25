@@ -69,9 +69,7 @@ def _rebuild_obligations(conn, sql: str) -> None:
 
 
 def run(conn) -> None:
-    from backend.application.services.finance.finance_bootstrap import (
-        ensure_finance_catalog_additions,
-    )
+    from backend.application.services.finance.finance_bootstrap import finance_catalog_ready
     from backend.infrastructure.db.schema.loyalty_finance_schema import (
         create_loyalty_finance_tables,
     )
@@ -83,10 +81,10 @@ def run(conn) -> None:
         reconstruida = True
     create_loyalty_finance_tables(conn)
     conn.commit()
-    catalogo = ensure_finance_catalog_additions(conn) if sql is not None else False
+    catalogo = finance_catalog_ready(conn) if sql is not None else False
     logger.info("294: puente Fidelidad→Finanzas listo (obligaciones %s; catálogo %s).",
                 "reconstruidas" if reconstruida else "sin cambios",
-                "completado" if catalogo else "aún sin sembrar")
+                "sembrado" if catalogo else "aún sin sembrar")
 
 
 up = run

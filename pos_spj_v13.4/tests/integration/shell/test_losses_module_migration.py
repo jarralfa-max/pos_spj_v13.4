@@ -40,6 +40,7 @@ from backend.infrastructure.desktop.losses_factory import (  # noqa: E402
     build_losses_wiring,
     create_losses_view,
 )
+from backend.security.permissions.codes import normalize_permission  # noqa: E402
 from frontend.desktop.modules.losses.losses_view import LossesView  # noqa: E402
 from frontend.desktop.modules.losses.navigation.losses_sidebar import LOSSES_NAV  # noqa: E402
 from frontend.desktop.modules.losses.pages import (  # noqa: E402
@@ -172,14 +173,14 @@ def _wire(conn, *, permissions, session_context):
 def _navigate(conn, *, session=None):
     session = session or _FakeSession()
     router, loader, _ = _wire(
-        conn, permissions={LossPermissions.VIEW}, session_context=session)
+        conn, permissions={normalize_permission(LossPermissions.VIEW)}, session_context=session)
     assert loader.ensure_loaded(LOSSES_MODULE_ID).state is ModuleLoadState.LOADED
     return router.navigate(LOSSES_ROUTE_ID).view
 
 
 def test_ensure_loaded_registers_the_view_factory(app, conn):
     _, loader, view_factories = _wire(
-        conn, permissions={LossPermissions.VIEW}, session_context=_FakeSession())
+        conn, permissions={normalize_permission(LossPermissions.VIEW)}, session_context=_FakeSession())
     assert view_factories.is_registered("losses.workspace_view") is False
     assert loader.ensure_loaded(LOSSES_MODULE_ID).state is ModuleLoadState.LOADED
     assert view_factories.is_registered("losses.workspace_view") is True

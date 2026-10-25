@@ -96,8 +96,13 @@ class TestFinanzasCrmReceivableSummary:
             " saldo_pendiente, estado, fecha) VALUES (?,?,?,?,?,datetime('now'))",
             (new_uuid(), "legacy-fin-1", 1000.0, 400.0, "pendiente"))
         conn.commit()
+        from backend.application.customer_credit.queries.customer_accounts_receivable_summary_query import (
+            CustomerAccountsReceivableSummaryQuery,
+        )
+        # FIN-ERP: el presenter recibe el puerto de resumen ya compuesto (no la conexión).
         presenter = FinancePresenter(
-            connection_provider=lambda: conn, query_services={}, use_cases={})
+            query_services={},
+            crm_summary=lambda cid: CustomerAccountsReceivableSummaryQuery(conn).get_summary(cid))
         summary = presenter.crm_receivable_summary("legacy-fin-1")
         assert summary is not None
         assert summary["customer_id"] == "legacy-fin-1"
@@ -106,9 +111,8 @@ class TestFinanzasCrmReceivableSummary:
     def test_none_when_lookup_fails(self, conn):
         from frontend.desktop.modules.finance.finance_presenter import FinancePresenter
 
-        def _broken_conn():
+        def _broken_summary(_customer_id):
             raise RuntimeError("no connection available")
 
-        presenter = FinancePresenter(
-            connection_provider=_broken_conn, query_services={}, use_cases={})
+        presenter = FinancePresenter(query_services={}, crm_summary=_broken_summary)
         assert presenter.crm_receivable_summary("whatever") is None

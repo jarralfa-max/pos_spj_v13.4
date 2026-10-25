@@ -26,8 +26,11 @@ def test_loss15_schema_has_findings_evidence_and_independent_conclusion():
 def test_loss15_uses_granular_permissions_and_events():
     permissions = (ROOT / "backend/application/losses/permissions.py").read_text(encoding="utf-8")
     events = (ROOT / "backend/domain/losses/events.py").read_text(encoding="utf-8")
-    for permission in ("LOSSES_OPEN_INVESTIGATION", "LOSSES_INVESTIGATE",
-                       "LOSSES_CONCLUDE_INVESTIGATION"):
+    # Auditoría de permisos 968e0bc (PER-04): el vocabulario es `MERMA.<accion>`;
+    # se comprueba por la constante, que es lo que usan los casos de uso.
+    for permission in ('OPEN_INVESTIGATION = "MERMA.investigacion.abrir"',
+                       'INVESTIGATE = "MERMA.investigacion.investigar"',
+                       'CONCLUDE_INVESTIGATION = "MERMA.investigacion.concluir"'):
         assert permission in permissions
     for event in ("LOSS_INVESTIGATION_OPENED", "LOSS_INVESTIGATION_EVIDENCE_ADDED",
                   "LOSS_INVESTIGATION_FINDING_ADDED", "LOSS_INVESTIGATION_CONCLUDED"):

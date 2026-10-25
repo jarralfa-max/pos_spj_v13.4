@@ -45,7 +45,7 @@ from backend.application.customer_credit.use_cases.check_credit_sale_eligibility
     CheckCreditSaleEligibilityUseCase,
 )
 from backend.application.customers.authorization import CustomerAuthorizationPolicy
-from backend.application.use_cases.finance.receivable_use_cases import (
+from backend.application.use_cases.finance.register_sale_credit_charge_use_case import (
     RegisterSaleCreditChargeUseCase,
     VoidSaleCreditChargeUseCase,
 )

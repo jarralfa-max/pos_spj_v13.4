@@ -56,9 +56,10 @@ def test_changes_survive_switching_modules_and_check_all(app):
     assert "1 por otorgar, 1 por retirar" in dlg.summary.text()
 
 
-def test_the_owner_role_cannot_uncheck_what_it_has(app):
-    dlg = RolePermissionsDialog(matrix=_matrix(mode="GRANT_ONLY"))
-    assert not dlg._boxes["POS.ver"].isEnabled()
-    assert dlg._boxes["POS.cobrar"].isEnabled()
+def test_every_action_of_an_editable_role_can_be_unchecked(app):
+    # Auditoría de permisos 968e0bc (PER-07): el dueño es ACCESO TOTAL (como en
+    # la sesión) y no abre este diálogo; antes era «sólo agregar».
+    dlg = RolePermissionsDialog(matrix=_matrix(mode="EDITABLE"))
+    assert dlg._boxes["POS.ver"].isEnabled() and dlg._boxes["POS.cobrar"].isEnabled()
     dlg.uncheck_all_button.click()
-    assert dlg.changes() == {}
+    assert dlg.changes() == {"POS.ver": False}

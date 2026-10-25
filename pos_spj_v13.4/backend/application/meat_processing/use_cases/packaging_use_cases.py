@@ -15,6 +15,7 @@ from backend.application.meat_processing.permissions import MeatProcessingPermis
 from backend.application.meat_processing.result import MeatProcessingResult
 from backend.application.meat_processing.use_cases._shared import fail as _fail
 from backend.application.meat_processing.use_cases._shared import scope_fail as _scope_fail
+from backend.application.security.unwired_policy import unwired
 from backend.domain.meat_processing.entities.packaging_execution import PackagingExecution
 from backend.domain.meat_processing.entities.production_label import ProductionLabel
 from backend.domain.meat_processing.events import MeatProcessingEvents, build_meat_processing_event
@@ -30,7 +31,7 @@ from backend.shared.ids import new_uuid
 
 class ExecutePackagingUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, order_id: str, operation_id: str, product_id: str,
@@ -78,7 +79,7 @@ class ExecutePackagingUseCase:
 
 class PrintProductionLabelUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, packaging_execution_id: str, operation_id: str,
@@ -128,7 +129,7 @@ class PrintProductionLabelUseCase:
 
 class ReprintProductionLabelUseCase:
     def __init__(self, authorization: MeatProcessingAuthorizationPolicy | None = None) -> None:
-        self._auth = authorization or MeatProcessingAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(MeatProcessingAuthorizationPolicy)
 
     def execute(
         self, connection, *, label_id: str, operation_id: str, actor_user_id: str,

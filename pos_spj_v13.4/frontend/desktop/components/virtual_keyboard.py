@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import string
 import sys
 
 from PyQt5.QtCore import QEvent, QMargins, QObject, QPoint, QSettings, Qt
@@ -14,7 +15,7 @@ from frontend.desktop.components.icons import IconProvider, Icons
 from frontend.desktop.themes.theme_manager import ThemeManager
 from frontend.desktop.themes.tokens import Borders, density_metrics
 
-INPUT_MODES = ("text", "integer", "decimal", "money", "weight", "phone", "email")
+INPUT_MODES = ("text", "integer", "decimal", "money", "weight", "phone", "email", "password")
 KEYBOARD_MODES = ("auto_open", "icon_only", "disabled")
 _NUMERIC_MODES = ("integer", "decimal", "money", "weight")
 
@@ -31,6 +32,7 @@ class VirtualKeyboard(StandardDialog):
         self.target = target
         self.input_mode = input_mode
         self._uppercase = False
+        self._symbols = False
         target.destroyed.connect(self.close)
         if input_mode in _NUMERIC_MODES or input_mode == "phone":
             rows = [list("123"), list("456"), list("789"), ["0"]]
@@ -42,6 +44,8 @@ class VirtualKeyboard(StandardDialog):
             rows = [list("1234567890"), list("qwertyuiop"), list("asdfghjklñ"), list("zxcvbnm")]
             rows[3].append("Mayús")
             rows.append(["@", ".", "-", "_"] if input_mode == "email" else ["Espacio", ".", ",", "-"])
+            if input_mode == "password":
+                rows[-1].append("Símbolos")
         grid = QGridLayout()
         self._root.addLayout(grid)
         self.keys = {}
@@ -52,11 +56,19 @@ class VirtualKeyboard(StandardDialog):
                 button.setFocusPolicy(Qt.NoFocus)
                 button.setMinimumSize(density_metrics("touch").icon_button_size,
                                       density_metrics("touch").button_height)
-                button.clicked.connect(lambda _checked=False, value=label: self.press_key(value))
-                span = 3 if label == "Espacio" else 2 if label == "Mayús" else 1
+                if input_mode == "password" and len(label) == 1 and label.isalnum():
+                    button.setProperty("keyboardCharacter", label)
+                    button.clicked.connect(lambda _checked=False, key=button: self.press_key(key.property("keyboardCharacter")))
+                else:
+                    button.clicked.connect(lambda _checked=False, value=label: self.press_key(value))
+                span = 3 if label == "Espacio" else 2 if label in ("Mayús", "Símbolos") else 1
                 grid.addWidget(button, row, column, 1, span)
                 column += span
                 self.keys[label] = button
+        self._character_keys = {label: button for label, button in self.keys.items()
+                                if len(label) == 1 and label.isalnum()}
+        self._static_keys = {label: button for label, button in self.keys.items()
+                            if label not in self._character_keys}
         erase = create_secondary_button(self, "Borrar")
         erase.setFocusPolicy(Qt.NoFocus)
         erase.setMinimumHeight(density_metrics("touch").button_height)
@@ -89,14 +101,40 @@ class VirtualKeyboard(StandardDialog):
             self.target.insert(text)
 
     def press_key(self, value: str):
-        if value == "Mayús":
+        if value == "Símbolos":
+            self._toggle_symbols()
+        elif value == "Mayús":
             self._uppercase = not self._uppercase
             for label, button in self.keys.items():
                 if len(label) == 1 and label.isalpha():
                     button.setText(label.upper() if self._uppercase else label)
+                    button.setAccessibleName(button.text())
             self.keys["Mayús"].setText("Minús" if self._uppercase else "Mayús")
+            self.keys["Mayús"].setAccessibleName(self.keys["Mayús"].text())
         else:
             self.insert_text(" " if value == "Espacio" else value.upper() if self._uppercase else value)
+
+    def _toggle_symbols(self):
+        if self.input_mode != "password":
+            return
+        self._symbols = not self._symbols
+        self.keys = dict(self._static_keys)
+        for index, (letter, button) in enumerate(self._character_keys.items()):
+            character = (string.punctuation[index:index + 1] if self._symbols
+                         else letter)
+            button.setProperty("keyboardCharacter", character)
+            display = character.upper() if self._uppercase else character
+            # Qt interprets '&' as a mnemonic; display it literally while the
+            # inserted value remains exactly one character.
+            button.setText(display.replace("&", "&&"))
+            button.setAccessibleName(display)
+            button.setVisible(bool(character))
+            if character:
+                self.keys[character] = button
+        switch = self.keys["Símbolos"]
+        switch.setText("Letras" if self._symbols else "Símbolos")
+        switch.setAccessibleName(switch.text())
+        self.keys["Mayús"].setEnabled(not self._symbols)
 
     def backspace(self):
         if self.target.isEnabled() and not self.target.isReadOnly():

@@ -356,6 +356,14 @@ class SalesPosWorkspace(QWidget):
             return
         result = self._presenter.scan_code(sale_id=self._sale_id, code=code, context="AUTO")
         self.catalog.clear_search()
+        if result.error_code == "INSTRUMENT_SCANNED":
+            # Cupón → carrito (descuento antes de cobrar); vale → cobro (forma de pago).
+            self.catalog.set_scanner_status(f"Escáner: {result.message.lower()}", "success")
+            if result.data.get("instrument_kind") == "COUPON":
+                self._on_coupon_requested(prefill=result.data.get("code"))
+            else:
+                self._on_checkout_requested(prefill_voucher=result.data.get("code"))
+            return
         if result.error_code == "WEIGHT_REQUIRED":
             result = self._add_weighed(result.data["product"])
             if result is None:
@@ -453,12 +461,16 @@ class SalesPosWorkspace(QWidget):
         if dialog.exec_():
             self._refresh()
 
-    def _on_coupon_requested(self) -> None:
-        """Cupones del ticket (2026-10-03): Fidelidad decide si aplican."""
+    def _on_coupon_requested(self, prefill=None) -> None:
+        """Cupones del ticket (2026-10-03): Fidelidad decide si aplican. `prefill`:
+        el código que escaneó el cajero (se aplica al abrir)."""
         if self._sale is None or not self._has_lines():
             self._info("Cupón", "Agrega productos antes de aplicar un cupón.")
             return
         dialog = self.dialogs["coupon"](self._presenter, sale=self._sale, parent=self)
+        if isinstance(prefill, str) and prefill and hasattr(dialog, "apply_now"):
+            dialog.set_code(prefill)
+            dialog.apply_now()
         dialog.exec_()
         if dialog.changed:
             self._refresh()
@@ -507,7 +519,7 @@ class SalesPosWorkspace(QWidget):
             self._refresh()
 
     # ── cobro (§30-38) ───────────────────────────────────────────────────
-    def _on_checkout_requested(self) -> None:
+    def _on_checkout_requested(self, prefill_voucher=None) -> None:
         if not self._sale_id or not self._has_lines():
             return
         # Fase 6: sin turno de caja no se cobra; se avisa ANTES de abrir el
@@ -520,6 +532,9 @@ class SalesPosWorkspace(QWidget):
         dialog = self.dialogs["payment"](
             self._presenter, sale_id=self._sale_id, total_due=self._sale.total,
             has_customer=bool(self._sale.customer_id), parent=self)
+        if isinstance(prefill_voucher, str) and prefill_voucher and hasattr(
+                dialog, "prefill_voucher"):
+            dialog.prefill_voucher(prefill_voucher)
         self._on_public_payment("PENDING")
         if hasattr(dialog, "public_state_changed"):
             dialog.public_state_changed.connect(self._on_public_payment)

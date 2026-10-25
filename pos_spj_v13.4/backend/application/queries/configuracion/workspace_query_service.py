@@ -1078,6 +1078,10 @@ class ConfiguracionWorkspaceQueryService:
             ))
         return tuple(rows)
 
+    def display_advertising_diagnostics(self):
+        from backend.application.customer_display.queries.advertising_query_service import AdvertisingQueryService
+        return AdvertisingQueryService(self._conn).diagnose_display_ads("CART")
+
     def list_advertising_slots(self) -> tuple[AdvertisingSlotRowViewModel, ...]:
         slots = SqliteAdvertisingSlotRepository(self._conn).list_all()
         return tuple(

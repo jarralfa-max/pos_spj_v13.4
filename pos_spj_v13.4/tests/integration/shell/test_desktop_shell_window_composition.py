@@ -117,7 +117,7 @@ def test_no_module_is_constructed_until_navigated_to(app, conn):
 
 def test_navigating_to_transfers_builds_the_real_transfers_view(app, conn):
     # "TRANSFERENCIAS.VER" is the route-level gate DesktopRouter._authorize()
-    # checks before navigation even succeeds; "TRANSFERS_DASHBOARD_VIEW" is a
+    # checks before navigation even succeeds; "TRANSFERENCIAS.tablero.ver" is a
     # separate, module-internal sidebar permission (see
     # backend.application.transfers.permissions.TransferPermissions) that
     # this test doesn't need since it only asserts on the outer view type.

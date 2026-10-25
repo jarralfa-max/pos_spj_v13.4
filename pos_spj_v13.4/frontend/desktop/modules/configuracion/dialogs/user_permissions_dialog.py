@@ -1,8 +1,13 @@
 """Permisos de UN usuario: excepciones sobre lo que le da su rol.
 
 Por acción, tres estados: «Como su rol» (sin excepción), «Conceder» y «Negar».
-La matriz llega resuelta (lo del rol y las excepciones guardadas); el diálogo
-sólo junta lo que cambió. Quién puede conceder qué lo revalida el caso de uso.
+La matriz llega resuelta (lo del rol, las excepciones guardadas y el permiso
+efectivo con su origen); el diálogo sólo junta lo que cambió. Quién puede
+conceder qué lo revalida el caso de uso.
+
+Auditoría de permisos 968e0bc (PER-08): el ÁMBITO elige si la excepción rige en
+todas las sucursales o sólo en una, y la columna «Efectivo» dice qué resulta y
+qué capa lo decidió — así se explica por qué alguien sigue pudiendo operar.
 """
 
 from __future__ import annotations
@@ -18,20 +23,28 @@ from frontend.desktop.components import (
 from frontend.desktop.themes.tokens import DialogMetrics, Spacing
 
 INHERIT, GRANT, DENY = "INHERIT", "GRANT", "DENY"
+_ALL_BRANCHES = ""
 
 
 class UserPermissionsDialog(FormDialog):
-    def __init__(self, parent=None, *, matrix) -> None:
+    def __init__(self, parent=None, *, matrix, load_matrix=None) -> None:
         super().__init__(parent, title=f"Permisos de {matrix.user_name}", width=DialogMetrics.WIDTH_LG)
-        self._matrix = matrix
-        self._initial = {o.code: matrix.state(o.code) for m in matrix.modules for o in m.actions}
-        self._state = dict(self._initial)
+        self._load_matrix = load_matrix
         self._combos: dict[str, StandardComboBox] = {}
+        self._set_matrix(matrix)
 
-        nota = QLabel(f"Rol: {matrix.role_name or 'sin rol'}. {matrix.note}", self)
-        nota.setWordWrap(True)
-        nota.setProperty("role", "muted")
-        self.form.addRow(nota)
+        self.note = QLabel(self)
+        self.note.setWordWrap(True)
+        self.note.setProperty("role", "muted")
+        self.form.addRow(self.note)
+
+        self.scope = SearchableComboBox(self, placeholder="Selecciona el ámbito…")
+        self.scope.setAccessibleName("Ámbito de las excepciones")
+        self.scope.set_options([(_ALL_BRANCHES, "Todas las sucursales")]
+                               + [(bid, f"Sólo en {nombre}") for bid, nombre in matrix.branches])
+        self.scope.set_current_id(matrix.scope_branch_id or _ALL_BRANCHES)
+        self.scope.setEnabled(load_matrix is not None and bool(matrix.branches))
+        self.form.addRow("Ámbito:", self.scope)
 
         self.module = SearchableComboBox(self, placeholder="Selecciona un módulo…")
         self.module.setAccessibleName("Módulo")
@@ -56,13 +69,43 @@ class UserPermissionsDialog(FormDialog):
             (m.key, m.label) for m in matrix.modules])
         self.module.currentIndexChanged.connect(lambda _i: self._render())
         self.search.textChanged.connect(lambda _t: self._render())
+        self.scope.currentIndexChanged.connect(lambda _i: self._change_scope())
         if matrix.modules:
             self.module.set_current_id(matrix.modules[0].key)
+        self._update_note()
         self._render()
 
     def changes(self) -> dict[str, str]:
         """Sólo lo que cambió: `código → INHERIT | GRANT | DENY`."""
         return {c: s for c, s in self._state.items() if s != self._initial[c]}
+
+    def scope_branch_id(self) -> str:
+        """"" = todas las sucursales; un id = sólo esa sucursal."""
+        return self._matrix.scope_branch_id or _ALL_BRANCHES
+
+    def _set_matrix(self, matrix) -> None:
+        self._matrix = matrix
+        self._initial = {o.code: matrix.state(o.code) for m in matrix.modules for o in m.actions}
+        self._state = dict(self._initial)
+
+    def _change_scope(self) -> None:
+        nuevo = self.scope.current_id() or _ALL_BRANCHES
+        if self._load_matrix is None or nuevo == self.scope_branch_id():
+            return
+        matrix = self._load_matrix(nuevo)
+        if matrix is None:
+            return
+        # Las excepciones son por ámbito: cambiarlo descarta lo no guardado.
+        self._set_matrix(matrix)
+        self._update_note()
+        self._render()
+
+    def _update_note(self) -> None:
+        ambito = ("en todas las sucursales" if not self._matrix.scope_branch_id
+                  else "sólo en la sucursal elegida; una excepción aquí gana a la general")
+        self.note.setText(f"Rol: {self._matrix.role_name or 'sin rol'}. {self._matrix.note} "
+                          f"Las excepciones que edites rigen {ambito}. Cambiar el ámbito "
+                          "descarta los cambios sin guardar.")
 
     def _render(self) -> None:
         while self._grid.count():
@@ -73,8 +116,12 @@ class UserPermissionsDialog(FormDialog):
         modulo = next((m for m in self._matrix.modules if m.key == self.module.current_id()), None)
         if modulo is None:
             return
+        for col, titulo in enumerate(("Acción", "Excepción", "Efectivo")):
+            cabecera = QLabel(titulo, self._grid_host)
+            cabecera.setProperty("role", "muted")
+            self._grid.addWidget(cabecera, 0, col)
         termino = self.search.text().strip().lower()
-        fila = 0
+        fila = 1
         for opcion in modulo.actions:
             if termino and termino not in f"{opcion.label} {opcion.code}".lower():
                 continue
@@ -84,13 +131,16 @@ class UserPermissionsDialog(FormDialog):
             del_rol = "sí" if opcion.code in self._matrix.role_granted else "no"
             combo.addItem(f"Como su rol ({del_rol})", INHERIT)
             combo.addItem("Conceder", GRANT)
-            if self._matrix.mode != "GRANT_ONLY" or self._initial[opcion.code] == DENY:
-                combo.addItem("Negar", DENY)
+            combo.addItem("Negar", DENY)
             combo.setCurrentIndex(max(combo.findData(self._state[opcion.code]), 0))
             combo.currentIndexChanged.connect(
                 lambda _i, code=opcion.code, c=combo: self._set(code, c.currentData()))
+            efectivo = QLabel(self._matrix.effective_label(opcion.code), self._grid_host)
+            efectivo.setProperty("role", "muted")
+            efectivo.setToolTip("Lo que rige hoy, antes de guardar los cambios de esta ventana.")
             self._grid.addWidget(etiqueta, fila, 0)
             self._grid.addWidget(combo, fila, 1)
+            self._grid.addWidget(efectivo, fila, 2)
             self._combos[opcion.code] = combo
             fila += 1
         self._update_summary()

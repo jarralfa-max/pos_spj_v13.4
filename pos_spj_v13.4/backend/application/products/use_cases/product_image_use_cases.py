@@ -30,6 +30,7 @@ from backend.application.products.commands.product_image_commands import (
 )
 from backend.application.products.media.ports import BackgroundRemover, ProductImageStorage
 from backend.application.products.permissions import ProductPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.products.entities.product_image import ProductImage
 from backend.domain.products.events import ProductEvents
 from backend.domain.products.exceptions import (
@@ -56,7 +57,7 @@ class _BaseImageUseCase:
                  storage: ProductImageStorage | None = None) -> None:
         self._conn = connection
         self._repo = ProductImageRepository(connection)
-        self._auth = authorization or ProductsAuthorizationPolicy.permissive_for_tests()
+        self._auth = authorization or unwired(ProductsAuthorizationPolicy)
         self._storage = storage
 
     def _require(self, user_id: str | None) -> None:
