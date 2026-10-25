@@ -9,9 +9,10 @@ Rules:
 - Sin autoincrementos ni identidades de cursor; sin compatibilidad legacy ni rescate de datos.
 
 Ronda 2 FIN-ERP (2026-10-21): ésta es la ÚNICA definición. No hay capa de
-"upgrade" que convierta tablas anteriores: una base de desarrollo cuyo esquema
-financiero no coincide con este contrato se rechaza al arrancar
-(``assert_finance_schema_contract``) y se regenera.
+"upgrade" que convierta tablas anteriores. La migración 345 aplica el contrato:
+crea las tablas ausentes y vuelve a crear las de un contrato anterior que estén
+VACÍAS; si alguna tiene datos se detiene sin tocar nada (convertir es una
+decisión explícita). Nunca se pide borrar la base (auditoría enterprise N05).
 
 The only entry point that may execute this DDL is a migration in ``migrations/``.
 """
@@ -20,7 +21,6 @@ from __future__ import annotations
 
 import sqlite3
 
-from backend.domain.finance.exceptions import FinanceSchemaContractError
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS accounts (
@@ -993,19 +993,3 @@ def finance_schema_differences(conn) -> dict[str, list[str]]:
         if missing:
             differences[table] = missing
     return differences
-
-
-def assert_finance_schema_contract(conn) -> None:
-    """Rechaza una base cuyo esquema financiero no es el contrato born-clean.
-
-    Nunca adapta ni convierte: la base de desarrollo se respalda y se regenera.
-    """
-    differences = finance_schema_differences(conn)
-    if not differences:
-        return
-    detail = "; ".join(f"{table}: {', '.join(cols[:6])}"
-                       for table, cols in sorted(differences.items())[:8])
-    raise FinanceSchemaContractError(
-        "La base de datos tiene un esquema financiero anterior al contrato vigente "
-        f"({len(differences)} tablas difieren — {detail}). No se convierte: respalde y "
-        "elimine data/spj_pos_database.db y vuelva a iniciar para regenerarla limpia.")

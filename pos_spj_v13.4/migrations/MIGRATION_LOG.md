@@ -5341,3 +5341,16 @@ Primera migración del carril `pg` (`migrations/engine.py::up_postgresql`).
     vacío y el mayor no podía desglosar las cuentas por cobrar por cliente.
 - Detalle: `docs/architecture/hybrid_postgresql/15_slice6_cash_finance_credit_loyalty.md`.
 
+### 345 corregida — contrato born-clean de Finanzas sin borrar la base (2026-10-25, auditoría enterprise N05)
+
+Se conserva la regla del usuario: el esquema financiero no se convierte ni se rescatan datos.
+
+- Las tablas ausentes se crean.
+- Las de un contrato anterior que estén vacías se recrean con el DDL canónico.
+- Si alguna tiene datos, la migración se detiene sin tocar nada y nombra las tablas.
+
+Antes, cualquier diferencia detenía el arranque con la orden de eliminar `spj_pos_database.db` (la base
+completa). En la copia de la base real el motor se detenía aquí: la siguiente actualización no habría
+abierto la base. Ahora migra 332 → 350 y el arranque completo pasa. Se retiró
+`assert_finance_schema_contract`.
+

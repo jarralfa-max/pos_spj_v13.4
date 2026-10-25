@@ -148,3 +148,23 @@ pruebas ejecutadas, documento y commit.
 | D2 | ¿Un RFC o varios? | Una entidad legal, o varias con relaciones intercompañía | Si hoy es **un solo RFC**, `legal_entities` no se crea todavía (el modelo queda listo para agregarla) |
 | D3 | Identidad del equipo | (a) llave Ed25519 generada en el equipo y protegida con DPAPI de Windows, con firma en cada solicitud; (b) el secreto por estación del Slice 4 | **(a)**: la llave privada nunca sale del equipo. El secreto del Slice 4 queda como respaldo durante la transición |
 | D4 | Varios roles por usuario | Sí (`user_role_assignments` con ámbito) / no | **Sí**: lo exigen los ejemplos del prompt, como el comprador corporativo |
+
+## 7. Avance: P0 N05 resuelto (2026-10-25)
+
+La 345 aplica el contrato sin convertir y **sin pedir nunca borrar la base**:
+
+- crea las tablas ausentes;
+- vuelve a crear las de un contrato anterior que estén vacías;
+- si alguna tiene datos, se detiene sin tocar nada y nombra las tablas.
+
+Se retiró `assert_finance_schema_contract`, cuyo mensaje mandaba borrar la base.
+
+**Evidencia:**
+
+- `tests/integration/finance/test_finance_born_clean_345.py`: 4 pasan.
+- `test_installer_updater_guardrails` **pasa**. Fallaba desde antes justo por ese mensaje
+  (`finance_schema.py:1010`).
+- Sobre una copia de la base real:
+  - el motor migra completo, 332 → 350 (recrea 16 tablas vacías y crea 23; ningún dato tocado);
+  - el **arranque completo de la app** pasa sus seis etapas, con llaves foráneas activas.
+
