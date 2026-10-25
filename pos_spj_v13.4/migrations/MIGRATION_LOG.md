@@ -5317,3 +5317,13 @@ Primera migración del carril `pg` (`migrations/engine.py::up_postgresql`).
     contracción.
 - Detalle: `docs/architecture/hybrid_postgresql/13_slice4_central_inbox_and_sync_api.md`.
 
+### p003 — proyecciones centrales de Ventas e Inventario, PostgreSQL (2026-10-25, arquitectura híbrida Slice 5)
+
+- Tablas `central_sales` (+ renglones, pagos, devoluciones), `central_stock_movements`,
+  `central_stock_effects` y `central_projection_log`; vista `central_stock_on_hand`.
+- Dinero y cantidades en `NUMERIC` sin escala fija, sin redondeo silencioso.
+- En la estación, `INVENTORY_MOVEMENT_POSTED` y `INVENTORY_MOVEMENT_REVERSED` ahora llevan `effects`: los
+  deltas exactos que `InventoryProjectionService` aplicó a los saldos. Antes no traían cantidades.
+- El cambio es aditivo: los consumidores en proceso no se tocan.
+- Detalle: `docs/architecture/hybrid_postgresql/14_slice5_sales_inventory_end_to_end.md`.
+

@@ -24,6 +24,11 @@ from typing import Any
 from backend.shared.ids import derived_uuidv7, is_uuidv7
 
 
+#: Campos que son identidad del sobre, no datos del hecho.
+_ENVELOPE_KEYS = frozenset({"event_id", "event_name", "operation_id", "entity_id", "branch_id",
+                            "user_id", "timestamp", "correlation_id", "causation_id"})
+
+
 @dataclass(frozen=True)
 class ReplicationSource:
     #: Nombre estable del contexto (forma parte de `aggregate_type`).
@@ -60,7 +65,10 @@ class ReplicationSource:
         if not isinstance(cuerpo, dict):
             cuerpo = {"value": cuerpo}
         canonico = all(k in cuerpo for k in ("event_id", "payload")) and "timestamp" in cuerpo
-        datos = cuerpo.get("payload", {}) if canonico else cuerpo
+        # Evento «plano» (Inventario: sus datos al mismo nivel que el sobre): el
+        # payload que viaja es lo que NO es identidad del sobre.
+        datos = cuerpo.get("payload", {}) if canonico else {
+            k: v for k, v in cuerpo.items() if k not in _ENVELOPE_KEYS}
         fila_id = str(row["id"])
 
         def primero(*valores):

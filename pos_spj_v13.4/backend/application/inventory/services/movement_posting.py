@@ -34,7 +34,8 @@ def post_movement(uow, movement: InventoryMovement, *, actor_user_id: str,
 
     _VALIDATION.enforce_valid(movement)
     movement.post()
-    InventoryProjectionService(uow).project_movement(
+    proyeccion = InventoryProjectionService(uow)
+    proyeccion.project_movement(
         movement, negative_allowed=negative_allowed, authorized=authorized)
     uow.ledger.save(movement)
     uow.audit.record(
@@ -49,7 +50,13 @@ def post_movement(uow, movement: InventoryMovement, *, actor_user_id: str,
             entity_id=movement.id,
             product_id=movement.lines[0].product_id if movement.lines else None,
             branch_id=movement.branch_id, warehouse_id=movement.warehouse_id,
-            user_id=actor_user_id, movement_type=movement.movement_type.value)
+            user_id=actor_user_id, movement_type=movement.movement_type.value,
+            # Slice 5 (híbrido): el documento de origen y los efectos exactos sobre
+            # saldos, para que el servidor central concilie por movimiento.
+            document_module=movement.source_module,
+            source_document_type=movement.source_document_type,
+            source_document_id=movement.source_document_id,
+            occurred_at=movement.occurred_at, effects=proyeccion.effects)
         uow.outbox.enqueue(
             event_id=payload["event_id"],
             event_name=InventoryEvents.INVENTORY_MOVEMENT_POSTED,

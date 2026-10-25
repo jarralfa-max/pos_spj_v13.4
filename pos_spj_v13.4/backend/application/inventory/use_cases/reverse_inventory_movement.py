@@ -76,7 +76,8 @@ class ReverseInventoryMovementUseCase:
                 line_rows = uow.ledger.get_lines(movement_id)
 
                 # 1) project the inverse effect onto balances
-                InventoryProjectionService(uow).project_reversal(
+                proyeccion = InventoryProjectionService(uow)
+                proyeccion.project_reversal(
                     branch_id=original["branch_id"],
                     warehouse_id=original["warehouse_id"],
                     original_movement_type=original_type, original_line_rows=line_rows)
@@ -100,7 +101,7 @@ class ReverseInventoryMovementUseCase:
                     InventoryEvents.INVENTORY_MOVEMENT_REVERSED, operation_id=operation_id,
                     entity_id=reversal.id, branch_id=original["branch_id"],
                     warehouse_id=original["warehouse_id"], user_id=actor_user_id,
-                    reversal_of_id=movement_id)
+                    reversal_of_id=movement_id, effects=proyeccion.effects)
                 uow.outbox.enqueue(
                     event_id=payload["event_id"],
                     event_name=InventoryEvents.INVENTORY_MOVEMENT_REVERSED,

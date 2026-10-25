@@ -42,6 +42,10 @@ class InventoryProjectionService:
     def __init__(self, uow) -> None:
         self._uow = uow
         self._negative = NegativeInventoryPolicy()
+        #: Efectos EXACTOS aplicados a los saldos (arquitectura híbrida, Slice 5):
+        #: viajan en el evento para que el servidor central sume lo mismo que la
+        #: estación, sin volver a implementar las reglas de inventario.
+        self.effects: list[dict] = []
 
     # ── public API ─────────────────────────────────────────────────────────
     def project_movement(self, movement: InventoryMovement, *,
@@ -119,6 +123,11 @@ class InventoryProjectionService:
                 allowed=negative_allowed, authorized=authorized)
         balance.apply_delta(quantity=dq, weight=dw)
         self._uow.balances.upsert(balance)
+        self.effects.append({
+            "product_id": line.product_id, "lot_id": line.lot_id, "serial_id": line.serial_id,
+            "warehouse_id": movement.warehouse_id, "location_id": location_id,
+            "inventory_status": status.value, "quantity_delta": str(dq),
+            "weight_delta": str(dw)})
 
 
 class _FakeMovement:

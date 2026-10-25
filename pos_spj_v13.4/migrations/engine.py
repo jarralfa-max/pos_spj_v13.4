@@ -455,6 +455,7 @@ aplicar_migraciones = up
 PG_MIGRATIONS = [
     _Migration("p001", "migrations.pg.p001_central_replication"),
     _Migration("p002", "migrations.pg.p002_aggregate_head_station"),
+    _Migration("p003", "migrations.pg.p003_central_sales_inventory"),
 ]
 
 #: Clave del bloqueo consultivo (constante arbitraria, estable entre versiones).

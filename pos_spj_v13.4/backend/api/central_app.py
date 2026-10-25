@@ -27,9 +27,11 @@ API_VERSION = "0.1.0"
 class CentralSyncWorkflow:
     """Une la ingesta con una conexión por solicitud."""
 
-    def __init__(self, connection_factory: Callable, repository_factory: Callable) -> None:
+    def __init__(self, connection_factory: Callable, repository_factory: Callable,
+                 projection_factory: Callable | None = None) -> None:
         self._connect = connection_factory
         self._repository = repository_factory
+        self._projection = projection_factory
 
     def handle(self, *, station_id, secret, envelopes) -> list[dict]:
         from backend.application.sync.central_ingestion import CentralIngestionService
@@ -38,7 +40,9 @@ class CentralSyncWorkflow:
         try:
             servicio = CentralIngestionService(self._repository(conexion))
             estacion = servicio.authenticate(station_id, secret)
-            return [acuse.to_dict() for acuse in servicio.ingest(estacion, envelopes).acks]
+            acuses = [acuse.to_dict() for acuse in servicio.ingest(estacion, envelopes).acks]
+            self._project(conexion)
+            return acuses
         except Exception:
             try:
                 conexion.rollback()
@@ -47,6 +51,24 @@ class CentralSyncWorkflow:
             raise
         finally:
             conexion.close()
+
+    def _project(self, conexion) -> None:
+        """Proyecta lo recién aceptado (Slice 5). Mejor esfuerzo: los hechos ya
+        están confirmados; si la proyección falla se reintenta en la siguiente
+        solicitud o con `scripts/central_stations.py project`."""
+        if self._projection is None:
+            return
+        from backend.application.sync.central_projection import CentralProjector
+
+        try:
+            CentralProjector(self._projection(conexion)).run_once()
+        except Exception:
+            import logging
+            logging.getLogger("spj.sync.projection").exception("proyección diferida")
+            try:
+                conexion.rollback()
+            except Exception:
+                pass
 
 
 def create_central_app(workflow: CentralSyncWorkflow | None = None, *,
@@ -70,13 +92,17 @@ def _from_environment() -> FastAPI:
 
     if not os.environ.get(POSTGRES_DSN_ENV):
         return create_central_app(None)
+    from backend.infrastructure.central.projection_repository import (
+        PostgresCentralProjectionRepository,
+    )
     from backend.infrastructure.central.sync_inbox_repository import (
         PostgresCentralInboxRepository,
     )
     from backend.infrastructure.db.database import DatabaseSettings, create_connection_factory
 
     fabrica = create_connection_factory(DatabaseSettings.postgresql_from_env())
-    return create_central_app(CentralSyncWorkflow(fabrica, PostgresCentralInboxRepository))
+    return create_central_app(CentralSyncWorkflow(fabrica, PostgresCentralInboxRepository,
+                                                  PostgresCentralProjectionRepository))
 
 
 app = _from_environment()
