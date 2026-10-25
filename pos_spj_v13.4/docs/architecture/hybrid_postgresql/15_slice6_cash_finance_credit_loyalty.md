@@ -86,7 +86,8 @@ recorre caja SQLite → API real → PostgreSQL → proyecciones. Verifica:
 - cero proyecciones en `ERROR`;
 - la base misma rechaza un asiento descuadrado.
 
-**Resultado en el CI:** _(pendiente del push)_.
+**Resultado en el CI:** el trabajo `central-postgres` de la ejecución 40222035890 (commit `3219ad86`,
+2026-10-25) pasó **en verde** contra PostgreSQL 16.
 
 **Regresión local:** Fidelidad, Finanzas, Caja, Crédito, Ventas, sincronización e ingesta: **1 142 pasan**.
 
