@@ -104,5 +104,107 @@ class PostgresCentralProjectionRepository:
                  e["warehouse_id"], e["location_id"], e["inventory_status"],
                  e["quantity_delta"], e["weight_delta"]))
 
+    # ── Caja (Slice 6) ──────────────────────────────────────────────────
+    def open_cash_shift(self, row: dict) -> None:
+        self._exec(
+            """INSERT INTO central_cash_shifts (shift_id, event_id, branch_id, station_id,
+               register_id, cashier_user_id, opening_amount, opened_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (shift_id) DO NOTHING""",
+            (row["shift_id"], row["event_id"], row["branch_id"], row["station_id"],
+             row["register_id"], row["cashier_user_id"], row["opening_amount"],
+             row["opened_at"]))
+
+    def close_cash_shift(self, *, shift_id: str, closed_at, z_cut_id) -> None:
+        self._exec("UPDATE central_cash_shifts SET status = 'CLOSED', closed_at = %s,"
+                   " z_cut_id = COALESCE(%s, z_cut_id) WHERE shift_id = %s",
+                   (closed_at, z_cut_id, shift_id))
+
+    def add_cash_movement(self, row: dict) -> None:
+        self._exec(
+            """INSERT INTO central_cash_movements (movement_id, event_id, branch_id, shift_id,
+               movement_kind, signed_amount, reversal_of_id, sale_id, occurred_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (movement_id) DO NOTHING""",
+            (row["movement_id"], row["event_id"], row["branch_id"], row["shift_id"],
+             row["movement_kind"], row["signed_amount"], row["reversal_of_id"], row["sale_id"],
+             row["occurred_at"]))
+
+    def cash_movement_signed(self, movement_id: str):
+        with self._conn.cursor() as cur:
+            cur.execute("SELECT signed_amount FROM central_cash_movements WHERE movement_id = %s",
+                        (movement_id,))
+            fila = cur.fetchone()
+        return None if fila is None else fila[0]
+
+    def add_cash_cut(self, row: dict) -> None:
+        self._exec(
+            """INSERT INTO central_cash_cuts (cut_id, event_id, branch_id, shift_id,
+               document_number, expected_cash, counted_cash, difference, business_date,
+               occurred_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (cut_id) DO NOTHING""",
+            (row["cut_id"], row["event_id"], row["branch_id"], row["shift_id"],
+             row["document_number"], row["expected_cash"], row["counted_cash"],
+             row["difference"], row["business_date"], row["occurred_at"]))
+
+    # ── Finanzas (Slice 6) ──────────────────────────────────────────────
+    def add_journal_entry(self, rows: dict) -> None:
+        a = rows["entry"]
+        insertado = self._exec(
+            """INSERT INTO central_journal_entries (entry_id, event_id, branch_id, entry_number,
+               entry_date, posting_date, source_module, source_document_ref, posting_purpose,
+               currency_code, base_currency_code, total_debits, total_credits,
+               reversal_of_entry_id, occurred_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (entry_id) DO NOTHING""",
+            (a["entry_id"], a["event_id"], a["branch_id"], a["entry_number"], a["entry_date"],
+             a["posting_date"], a["source_module"], a["source_document_ref"],
+             a["posting_purpose"], a["currency_code"], a["base_currency_code"],
+             a["total_debits"], a["total_credits"], a["reversal_of_entry_id"],
+             a["occurred_at"]))
+        if not insertado:
+            return
+        for l in rows["lines"]:
+            self._exec(
+                """INSERT INTO central_journal_lines (entry_id, line_index, account_code,
+                   account_type, is_receivable, debit, credit, line_role, line_branch_id,
+                   cost_center_id, customer_id, supplier_id, product_id)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                (a["entry_id"], l["line_index"], l["account_code"], l["account_type"],
+                 l["is_receivable"], l["debit"], l["credit"], l["line_role"],
+                 l["line_branch_id"], l["cost_center_id"], l["customer_id"], l["supplier_id"],
+                 l["product_id"]))
+
+    # ── Crédito (Slice 6) ───────────────────────────────────────────────
+    def upsert_credit_account(self, row: dict) -> None:
+        self._exec(
+            """INSERT INTO central_credit_accounts (profile_id, customer_id, branch_id,
+               credit_limit, status, last_event_id, updated_at)
+               VALUES (%s,%s,%s,COALESCE(%s, 0),COALESCE(%s, 'ACTIVE'),%s,%s)
+               ON CONFLICT (profile_id) DO UPDATE SET
+                 credit_limit = COALESCE(%s, central_credit_accounts.credit_limit),
+                 status = COALESCE(%s, central_credit_accounts.status),
+                 last_event_id = EXCLUDED.last_event_id, updated_at = EXCLUDED.updated_at""",
+            (row["profile_id"], row["customer_id"], row["branch_id"], row["credit_limit"],
+             row["status"], row["event_id"], row["occurred_at"], row["credit_limit"],
+             row["status"]))
+
+    # ── Fidelidad (Slice 6) ─────────────────────────────────────────────
+    def upsert_loyalty_transaction(self, row: dict) -> None:
+        """Una fila por TRANSACCIÓN: un evento posterior de la misma transacción
+        (p. ej. confirmar la reserva) actualiza su estado, no suma otra vez."""
+        self._exec(
+            """INSERT INTO central_loyalty_transactions (transaction_id, first_event_id,
+               last_event_id, loyalty_account_id, customer_id, membership_id, branch_id,
+               transaction_type, status, points_amount, counts_toward_balance, sale_id,
+               updated_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (transaction_id) DO UPDATE SET
+                 last_event_id = EXCLUDED.last_event_id, status = EXCLUDED.status,
+                 points_amount = EXCLUDED.points_amount,
+                 counts_toward_balance = EXCLUDED.counts_toward_balance,
+                 updated_at = EXCLUDED.updated_at""",
+            (row["transaction_id"], row["event_id"], row["event_id"],
+             row["loyalty_account_id"], row["customer_id"], row["membership_id"],
+             row["branch_id"], row["transaction_type"], row["status"], row["points_amount"],
+             row["counts_toward_balance"], row["sale_id"], row["occurred_at"]))
+
 
 __all__ = ["PostgresCentralProjectionRepository"]

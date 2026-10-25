@@ -5327,3 +5327,17 @@ Primera migración del carril `pg` (`migrations/engine.py::up_postgresql`).
 - El cambio es aditivo: los consumidores en proceso no se tocan.
 - Detalle: `docs/architecture/hybrid_postgresql/14_slice5_sales_inventory_end_to_end.md`.
 
+### p004 — proyecciones centrales de Caja, Finanzas, Crédito y Fidelidad, PostgreSQL (2026-10-25, arquitectura híbrida Slice 6)
+
+- Turnos, movimientos firmados y cortes de caja.
+- Asientos con renglones (`CHECK` debe = haber) y vistas de balanza y cuentas por cobrar.
+- Cuentas de crédito y vista de exposición consolidada.
+- Transacciones de puntos (una fila por transacción) y vista de saldo.
+- En la estación:
+  - `JOURNAL_ENTRY_POSTED/REVERSED` llevan sus renglones (código, tipo y `is_receivable` desde los
+    perfiles de contabilización);
+  - los eventos del libro de puntos llevan los datos de la transacción;
+  - **corrección local**: el renglón por cobrar de la venta a crédito ahora lleva `customer_id`. Antes iba
+    vacío y el mayor no podía desglosar las cuentas por cobrar por cliente.
+- Detalle: `docs/architecture/hybrid_postgresql/15_slice6_cash_finance_credit_loyalty.md`.
+

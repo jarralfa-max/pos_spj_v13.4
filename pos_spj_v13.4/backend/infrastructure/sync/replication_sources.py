@@ -92,8 +92,8 @@ class ReplicationSource:
             "branch_id": primero(cuerpo.get("branch_id"), datos.get("branch_id")
                                  if isinstance(datos, dict) else None, station_branch_id),
             "user_id": primero(cuerpo.get("user_id"), cuerpo.get("actor_user_id")),
-            "timestamp": _instante(primero(cuerpo.get("timestamp"), row.get("occurred_at"),
-                                           row.get("created_at"))),
+            "timestamp": _instante(primero(cuerpo.get("timestamp"), cuerpo.get("occurred_at"),
+                                           row.get("occurred_at"), row.get("created_at"))),
             "payload": datos,
             "correlation_id": primero(cuerpo.get("correlation_id"), row.get("correlation_id")),
             "causation_id": primero(cuerpo.get("causation_id"), row.get("causation_id")),

@@ -98,8 +98,11 @@ class SaleCompletedHandler(FinanceEventHandler):
                 continue
             if settlement_type is SettlementType.ON_CREDIT:
                 credit_amount = credit_amount.add(amount)
+                # El renglón por cobrar lleva al cliente (auxiliar de clientes y
+                # exposición de crédito consolidada; arquitectura híbrida, Slice 6).
                 lines.append(LineSpec(profile.account_for("receivable_account_id"),
-                                      debit=amount, description=f"Venta a crédito {folio}"))
+                                      debit=amount, description=f"Venta a crédito {folio}",
+                                      customer_id=payload.get("customer_id") or None))
             elif settlement_type is SettlementType.CASH:
                 lines.append(LineSpec(profile.account_for("cash_account_id"),
                                       debit=amount, description=f"Efectivo venta {folio}"))

@@ -310,6 +310,11 @@ class PostingEngine:
             "currency_code": entry.currency_code,
             "base_currency_code": entry.base_currency_code,
             "branch_id": entry.branch_id,
+            # Arquitectura híbrida, Slice 6: los renglones, para que el servidor
+            # central arme balanza y saldos por cuenta y verifique debe = haber.
+            # La cuenta viaja también por CÓDIGO y TIPO: el id es de cada instalación.
+            "reversal_of_entry_id": getattr(entry, "reversal_of_entry_id", None),
+            "lines": _event_lines(uow, entry),
         }, operation_id=entry.posting_reference.operation_id, entity_id=entry.id,
             branch_id=entry.branch_id)
 
@@ -319,6 +324,45 @@ class PostingEngine:
                      branch_id: str | None = None) -> None:
         publish_finance_event(uow, event_name, payload, operation_id=operation_id,
                               entity_id=entity_id, branch_id=branch_id)
+
+
+#: Roles de perfil de contabilización que son cuentas POR COBRAR (exposición de
+#: crédito): clientes, terceros y empleados.
+_RECEIVABLE_ROLES = frozenset({"receivable_account_id", "third_party_receivable_account_id",
+                               "employee_receivable_account_id"})
+
+
+def _receivable_accounts(uow: FinanceUnitOfWork) -> frozenset[str]:
+    try:
+        perfiles = uow.posting_profiles.list_all()
+    except Exception:   # sin perfiles legibles no se marca nada (no se adivina)
+        return frozenset()
+    return frozenset(cuenta for perfil in perfiles
+                     for rol, cuenta in (perfil.accounts or {}).items()
+                     if rol in _RECEIVABLE_ROLES and cuenta)
+
+
+def _event_lines(uow: FinanceUnitOfWork, entry: JournalEntry) -> list[dict]:
+    cuentas: dict[str, object] = {}
+    por_cobrar = _receivable_accounts(uow)
+    renglones = []
+    for linea in entry.lines:
+        if linea.account_id not in cuentas:
+            cuentas[linea.account_id] = uow.accounts.get(linea.account_id)
+        cuenta = cuentas[linea.account_id]
+        cargo = linea.base_debit if linea.base_debit is not None else linea.debit
+        abono = linea.base_credit if linea.base_credit is not None else linea.credit
+        renglones.append({
+            "line_index": linea.line_index, "account_id": linea.account_id,
+            "account_code": str(getattr(cuenta, "code", "") or ""),
+            "account_type": getattr(getattr(cuenta, "account_type", None), "value", None),
+            "is_receivable": linea.account_id in por_cobrar,
+            "debit": cargo.to_string(), "credit": abono.to_string(),
+            "line_role": getattr(linea.line_role, "value", str(linea.line_role)),
+            "branch_id": linea.branch_id, "cost_center_id": linea.cost_center_id,
+            "customer_id": linea.customer_id, "supplier_id": linea.supplier_id,
+            "product_id": linea.product_id})
+    return renglones
 
 
 def publish_finance_event(uow: FinanceUnitOfWork, event_name: EventName, payload: dict, *,

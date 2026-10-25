@@ -118,6 +118,158 @@ def stock_rows(fact: Mapping[str, Any]) -> dict:
     return {"movement": movimiento, "effects": efectos}
 
 
+# ── Caja (Slice 6) ───────────────────────────────────────────────────────────
+_INFLOW = {"INFLOW", "IN", "ENTRADA"}
+_OUTFLOW = {"OUTFLOW", "OUT", "SALIDA"}
+
+
+def cash_shift_row(fact: Mapping[str, Any]) -> dict:
+    p = fact["payload"]
+    if "opening_amount" not in p:
+        raise ProjectionError("CASH_SHIFT_OPENED sin monto de apertura")
+    return {"shift_id": fact["aggregate_id"], "event_id": fact["event_id"],
+            "branch_id": fact["branch_id"], "station_id": fact["station_id"],
+            "register_id": p.get("register_id"), "cashier_user_id": p.get("cashier_user_id"),
+            "opening_amount": _dec(p["opening_amount"], "opening_amount"),
+            "opened_at": fact["occurred_at"]}
+
+
+def cash_movement_row(fact: Mapping[str, Any]) -> dict:
+    """Movimiento de caja con importe FIRMADO desde el cajón: entrada +, salida −.
+    Un retiro a caja fuerte sale del cajón."""
+    p = fact["payload"]
+    importe = _dec(p.get("amount"), "amount")
+    if fact["event_type"] == "CASH_SAFE_DROP_RECORDED":
+        tipo, signo = "SAFE_DROP", Decimal("-1")
+    else:
+        direccion = str(p.get("direction") or "").upper()
+        if direccion in _INFLOW:
+            signo = Decimal("1")
+        elif direccion in _OUTFLOW:
+            signo = Decimal("-1")
+        else:
+            raise ProjectionError(f"Movimiento de caja sin dirección: {direccion!r}")
+        tipo = str(p.get("movement_type") or "MOVEMENT")
+    return {"movement_id": fact["aggregate_id"], "event_id": fact["event_id"],
+            "branch_id": fact["branch_id"], "shift_id": p.get("shift_id"),
+            "movement_kind": tipo, "signed_amount": signo * abs(importe),
+            "reversal_of_id": None, "sale_id": p.get("sale_id"),
+            "occurred_at": fact["occurred_at"]}
+
+
+def cash_reversal_row(fact: Mapping[str, Any], original_signed: Decimal | None) -> dict:
+    p = fact["payload"]
+    if original_signed is None:
+        raise ProjectionError("La reversa llegó antes que su movimiento original")
+    importe = abs(_dec(p.get("amount"), "amount"))
+    signo = Decimal("-1") if original_signed > 0 else Decimal("1")
+    return {"movement_id": fact["aggregate_id"], "event_id": fact["event_id"],
+            "branch_id": fact["branch_id"], "shift_id": p.get("shift_id"),
+            "movement_kind": "REVERSAL", "signed_amount": signo * importe,
+            "reversal_of_id": p.get("reversal_of_id"), "sale_id": p.get("sale_id"),
+            "occurred_at": fact["occurred_at"]}
+
+
+def cash_cut_row(fact: Mapping[str, Any]) -> dict:
+    p = fact["payload"]
+    try:
+        return {"cut_id": fact["aggregate_id"], "event_id": fact["event_id"],
+                "branch_id": fact["branch_id"], "shift_id": p["shift_id"],
+                "document_number": str(p.get("document_number") or ""),
+                "expected_cash": _dec(p["expected_cash"], "expected_cash"),
+                "counted_cash": _dec(p["counted_cash"], "counted_cash"),
+                "difference": _dec(p["difference"], "difference"),
+                "business_date": p.get("business_date") or None,
+                "occurred_at": fact["occurred_at"]}
+    except KeyError as exc:
+        raise ProjectionError(f"Corte Z sin {exc}") from exc
+
+
+# ── Finanzas (Slice 6) ───────────────────────────────────────────────────────
+def journal_rows(fact: Mapping[str, Any]) -> dict:
+    """Asiento con renglones. Si no cuadra (debe ≠ haber) o no coincide con sus
+    totales, NO se proyecta: nunca se corrige un asiento en silencio."""
+    p = fact["payload"]
+    if not p.get("lines"):
+        raise ProjectionError("Asiento sin renglones (anterior al Slice 6)")
+    renglones = [{"line_index": int(l.get("line_index", i)),
+                  "account_code": str(l.get("account_code") or ""),
+                  "account_type": l.get("account_type"),
+                  "is_receivable": bool(l.get("is_receivable")),
+                  "debit": _dec(l.get("debit", "0"), "debit"),
+                  "credit": _dec(l.get("credit", "0"), "credit"),
+                  "line_role": l.get("line_role"), "line_branch_id": l.get("branch_id"),
+                  "cost_center_id": l.get("cost_center_id"), "customer_id": l.get("customer_id"),
+                  "supplier_id": l.get("supplier_id"), "product_id": l.get("product_id")}
+                 for i, l in enumerate(p["lines"])]
+    if any(not r["account_code"] for r in renglones):
+        raise ProjectionError("Renglón sin código de cuenta")
+    cargos = sum((r["debit"] for r in renglones), Decimal("0"))
+    abonos = sum((r["credit"] for r in renglones), Decimal("0"))
+    if cargos != abonos:
+        raise ProjectionError(f"ASIENTO_DESCUADRADO: cargos {cargos} ≠ abonos {abonos}")
+    total_d = _dec(p.get("total_debits", cargos), "total_debits")
+    total_c = _dec(p.get("total_credits", abonos), "total_credits")
+    if (total_d, total_c) != (cargos, abonos):
+        raise ProjectionError("Los renglones no suman los totales del asiento")
+    asiento = {"entry_id": p.get("journal_entry_id") or fact["aggregate_id"],
+               "event_id": fact["event_id"], "branch_id": p.get("branch_id") or fact["branch_id"],
+               "entry_number": str(p.get("entry_number") or ""),
+               "entry_date": p.get("entry_date"), "posting_date": p.get("posting_date"),
+               "source_module": p.get("source_module"),
+               "source_document_ref": p.get("source_document_id"),
+               "posting_purpose": p.get("posting_purpose"),
+               "currency_code": str(p.get("currency_code") or "MXN"),
+               "base_currency_code": str(p.get("base_currency_code") or "MXN"),
+               "total_debits": total_d, "total_credits": total_c,
+               "reversal_of_entry_id": p.get("reversal_of_entry_id"),
+               "occurred_at": fact["occurred_at"]}
+    if not asiento["entry_date"] or not asiento["posting_date"]:
+        raise ProjectionError("Asiento sin fechas")
+    return {"entry": asiento, "lines": renglones}
+
+
+# ── Crédito (Slice 6) ────────────────────────────────────────────────────────
+_CREDIT_STATUS = {
+    "CUSTOMER_CREDIT_APPROVED": "ACTIVE", "CUSTOMER_CREDIT_REOPENED": "ACTIVE",
+    "CUSTOMER_CREDIT_SUSPENDED": "SUSPENDED", "CUSTOMER_CREDIT_BLOCKED": "BLOCKED",
+    "CUSTOMER_CREDIT_CLOSED": "CLOSED", "CUSTOMER_CREDIT_REJECTED": "REJECTED",
+    "CUSTOMER_CREDIT_LIMIT_UPDATED": None, "CUSTOMER_CREDIT_LIMIT_OVERRIDDEN": None,
+}
+
+
+def credit_account_row(fact: Mapping[str, Any]) -> dict:
+    p = fact["payload"]
+    if not p.get("profile_id") or not p.get("customer_id"):
+        raise ProjectionError("Evento de crédito sin cliente o sin perfil")
+    limite = p.get("credit_limit", p.get("new_limit"))
+    return {"profile_id": p["profile_id"], "customer_id": p["customer_id"],
+            "branch_id": fact["branch_id"], "status": _CREDIT_STATUS[fact["event_type"]],
+            "credit_limit": _opt_dec(limite, "credit_limit"),
+            "event_id": fact["event_id"], "occurred_at": fact["occurred_at"]}
+
+
+# ── Fidelidad (Slice 6) ──────────────────────────────────────────────────────
+def loyalty_transaction_row(fact: Mapping[str, Any]) -> dict:
+    libro = fact["payload"].get("ledger")
+    if not libro or not libro.get("transaction_id"):
+        raise ProjectionError("Evento de puntos sin datos del libro (anterior al Slice 6)")
+    return {"transaction_id": libro["transaction_id"], "event_id": fact["event_id"],
+            "loyalty_account_id": libro["loyalty_account_id"],
+            "customer_id": libro.get("customer_id"), "membership_id": libro.get("membership_id"),
+            "branch_id": fact["branch_id"],
+            "transaction_type": str(libro.get("transaction_type") or ""),
+            "status": str(libro.get("status") or ""),
+            "points_amount": _dec(libro.get("points_amount"), "points_amount"),
+            "counts_toward_balance": bool(libro.get("counts_toward_balance")),
+            "sale_id": libro.get("sale_id"), "occurred_at": fact["occurred_at"]}
+
+
+_LOYALTY_LEDGER = ("LOYALTY_POINTS_ISSUED", "LOYALTY_POINTS_RESERVED", "LOYALTY_POINTS_REDEEMED",
+                   "LOYALTY_POINTS_RELEASED", "LOYALTY_POINTS_EXPIRED", "LOYALTY_POINTS_ADJUSTED",
+                   "LOYALTY_TRANSACTION_REVERSED")
+
+
 # ── ciclo de proyección ──────────────────────────────────────────────────────
 class CentralProjectionRepository(Protocol):
     def pending_facts(self, *, projector: str, limit: int) -> list[Mapping[str, Any]]: ...
@@ -127,6 +279,14 @@ class CentralProjectionRepository(Protocol):
     def set_sale_status(self, *, sale_id: str, status: str, event_id: str) -> None: ...
     def add_sale_return(self, row: dict) -> None: ...
     def add_stock_movement(self, rows: dict) -> None: ...
+    def open_cash_shift(self, row: dict) -> None: ...
+    def close_cash_shift(self, *, shift_id: str, closed_at: Any, z_cut_id: str | None) -> None: ...
+    def add_cash_movement(self, row: dict) -> None: ...
+    def cash_movement_signed(self, movement_id: str) -> Decimal | None: ...
+    def add_cash_cut(self, row: dict) -> None: ...
+    def add_journal_entry(self, rows: dict) -> None: ...
+    def upsert_credit_account(self, row: dict) -> None: ...
+    def upsert_loyalty_transaction(self, row: dict) -> None: ...
     def commit(self) -> None: ...
 
 
@@ -149,7 +309,28 @@ class CentralProjector:
             "SALE_RETURNED": lambda f: self._repo.add_sale_return(sale_return_row(f)),
             "INVENTORY_MOVEMENT_POSTED": lambda f: self._repo.add_stock_movement(stock_rows(f)),
             "INVENTORY_MOVEMENT_REVERSED": lambda f: self._repo.add_stock_movement(stock_rows(f)),
+            # Slice 6
+            "CASH_SHIFT_OPENED": lambda f: self._repo.open_cash_shift(cash_shift_row(f)),
+            "CASH_SHIFT_CLOSED": self._close_shift,
+            "CASH_SHIFT_FORCE_CLOSED": self._close_shift,
+            "CASH_MOVEMENT_RECORDED": lambda f: self._repo.add_cash_movement(cash_movement_row(f)),
+            "CASH_SAFE_DROP_RECORDED": lambda f: self._repo.add_cash_movement(cash_movement_row(f)),
+            "CASH_MOVEMENT_REVERSED": lambda f: self._repo.add_cash_movement(cash_reversal_row(
+                f, self._repo.cash_movement_signed(str(f["payload"].get("reversal_of_id"))))),
+            "CASH_Z_CUT_GENERATED": lambda f: self._repo.add_cash_cut(cash_cut_row(f)),
+            "JOURNAL_ENTRY_POSTED": lambda f: self._repo.add_journal_entry(journal_rows(f)),
+            "JOURNAL_ENTRY_REVERSED": lambda f: self._repo.add_journal_entry(journal_rows(f)),
+            **{evento: (lambda f: self._repo.upsert_credit_account(credit_account_row(f)))
+               for evento in _CREDIT_STATUS},
+            **{evento: (lambda f: self._repo.upsert_loyalty_transaction(
+                loyalty_transaction_row(f))) for evento in _LOYALTY_LEDGER},
         }
+
+    def _close_shift(self, fact) -> None:
+        p = fact["payload"]
+        self._repo.close_cash_shift(shift_id=p.get("shift_id") or fact["aggregate_id"],
+                                    closed_at=p.get("closed_at") or fact["occurred_at"],
+                                    z_cut_id=p.get("z_cut_id"))
 
     def run_once(self, *, limit: int = 500) -> ProjectionRun:
         hechos = proyectados = saltados = errores = 0
@@ -178,4 +359,6 @@ class CentralProjector:
 
 
 __all__ = ["CentralProjectionRepository", "CentralProjector", "PROJECTOR", "ProjectionError",
-           "ProjectionRun", "sale_return_row", "sale_rows", "stock_rows"]
+           "ProjectionRun", "cash_cut_row", "cash_movement_row", "cash_reversal_row",
+           "cash_shift_row", "credit_account_row", "journal_rows", "loyalty_transaction_row",
+           "sale_return_row", "sale_rows", "stock_rows"]
