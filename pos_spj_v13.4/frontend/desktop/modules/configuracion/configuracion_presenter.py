@@ -203,8 +203,12 @@ class ConfiguracionPresenter:
         import_display_media_uc=None, set_device_windows_printer_uc=None,
         authorization=None, audit_log_repository=None,
         address_search_factory=None, software_updates=None, ticket_designer=None,
+        org_structure=None,
     ) -> None:
         self._query_service = query_service
+        #: Estructura organizacional (auditoría enterprise, Fase 1): servicio de
+        #: aplicación que autoriza, abre la transacción y audita por su cuenta.
+        self._org_structure = org_structure
         #: Diseñador de tickets y logos (comparativa de tickets, 2026-10-16).
         self._ticket_designer = ticket_designer
         #: «Acerca de y actualizaciones» tiene su propio presentador
@@ -453,6 +457,70 @@ class ConfiguracionPresenter:
 
     def list_unregistered_branches(self):
         return self._query_service.list_unregistered_branches()
+
+    # ── estructura organizacional (auditoría enterprise, Fase 1) ──────────
+    def org_structure_visible(self) -> bool:
+        return (self._org_structure is not None
+                and self.can(ConfiguracionPermissions.ORGANIZACION_VIEW))
+
+    @staticmethod
+    def org_unit_type_options() -> list[tuple[str, str]]:
+        from backend.domain.organization.org_unit import OrgUnitType
+        return [(t.value, t.label) for t in OrgUnitType]
+
+    @staticmethod
+    def org_suggested_capabilities() -> dict[str, list[str]]:
+        from backend.domain.organization.org_unit import SUGGESTED_CAPABILITIES
+        return {t.value: sorted(c.value for c in caps)
+                for t, caps in SUGGESTED_CAPABILITIES.items()}
+
+    def org_tree(self):
+        """Nodos del árbol; vacío si no hay servicio o el actor no puede verlo."""
+        if not self.org_structure_visible():
+            return []
+        try:
+            return self._org_structure.tree()
+        except ConfigurationDomainError:
+            return []
+
+    def _org_command(self, accion, mensaje) -> tuple[bool, str]:
+        if self._org_structure is None:
+            return False, "Estructura organizacional no disponible."
+        from backend.domain.organization.org_unit import OrgUnitError
+        try:
+            resultado = accion(self._org_structure)
+            return True, mensaje(resultado) if callable(mensaje) else mensaje
+        except (OrgUnitError, ConfigurationDomainError) as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter: comando de estructura organizacional")
+            return False, "Error inesperado; revise el log."
+
+    def create_org_unit(self, **values) -> tuple[bool, str]:
+        return self._org_command(lambda s: s.create_unit(**values),
+                                 lambda u: f"Unidad «{u.name}» creada.")
+
+    def update_org_unit(self, unit_id: str, **values) -> tuple[bool, str]:
+        return self._org_command(lambda s: s.update_unit(unit_id, **values),
+                                 lambda u: f"Unidad «{u.name}» actualizada.")
+
+    def move_org_unit(self, unit_id: str, parent_id: str | None) -> tuple[bool, str]:
+        return self._org_command(lambda s: s.move_unit(unit_id, parent_id),
+                                 lambda u: f"Unidad «{u.name}» reubicada.")
+
+    def change_org_unit_status(self, unit_id: str, action: str, reason: str) -> tuple[bool, str]:
+        acciones = {"deactivate": ("deactivate", "desactivada"),
+                    "reactivate": ("reactivate", "reactivada"), "close": ("close", "cerrada")}
+        if action not in acciones:
+            return False, f"Acción desconocida: {action}"
+        metodo, texto = acciones[action]
+        return self._org_command(lambda s: getattr(s, metodo)(unit_id, reason=reason),
+                                 lambda u: f"Unidad «{u.name}» {texto}.")
+
+    def set_org_unit_capabilities(self, unit_id: str, changes, reason: str) -> tuple[bool, str]:
+        return self._org_command(
+            lambda s: s.apply_capability_changes(unit_id, list(changes), reason=reason),
+            "Capacidades actualizadas.")
 
     def get_installation_branch(self):
         return self._query_service.get_installation_branch()

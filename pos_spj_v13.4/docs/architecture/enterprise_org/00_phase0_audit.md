@@ -140,14 +140,14 @@ que deban colgar de ellas lo harán mediante `org_unit_id`.
 Regla de toda la implementación: cambios incrementales, sin migraciones destructivas, cada fase con
 pruebas ejecutadas, documento y commit.
 
-## 6. Decisiones que necesito del usuario
+## 6. Decisiones del usuario (respondidas el 2026-10-25)
 
-| # | Decisión | Opciones | Recomendación |
-|---|---|---|---|
-| D1 | Varias cajas en una sucursal (N07) | (a) cada caja autónoma con su SQLite y conciliación central; (b) un equipo de la sucursal como servidor local en la red y las demás cajas como clientes; (c) configurable por sucursal | **(a)** hoy, con alertas de sobreventa entre cajas. (b) crea un punto único de falla dentro de la sucursal y rompe «sin Internet sí vende» si ese equipo se apaga |
-| D2 | ¿Un RFC o varios? | Una entidad legal, o varias con relaciones intercompañía | Si hoy es **un solo RFC**, `legal_entities` no se crea todavía (el modelo queda listo para agregarla) |
-| D3 | Identidad del equipo | (a) llave Ed25519 generada en el equipo y protegida con DPAPI de Windows, con firma en cada solicitud; (b) el secreto por estación del Slice 4 | **(a)**: la llave privada nunca sale del equipo. El secreto del Slice 4 queda como respaldo durante la transición |
-| D4 | Varios roles por usuario | Sí (`user_role_assignments` con ámbito) / no | **Sí**: lo exigen los ejemplos del prompt, como el comprador corporativo |
+| # | Decisión | Opciones | Recomendación | **Decidido** |
+|---|---|---|---|---|
+| D1 | Varias cajas en una sucursal (N07) | (a) cada caja autónoma con su SQLite y conciliación central; (b) un equipo de la sucursal como servidor local en la red y las demás cajas como clientes; (c) configurable por sucursal | **(a)** hoy, con alertas de sobreventa entre cajas. (b) crea un punto único de falla dentro de la sucursal y rompe «sin Internet sí vende» si ese equipo se apaga | **(a) cajas autónomas** |
+| D2 | ¿Un RFC o varios? | Una entidad legal, o varias con relaciones intercompañía | Si hoy es **un solo RFC**, `legal_entities` no se crea todavía (el modelo queda listo para agregarla) | **Un solo RFC** |
+| D3 | Identidad del equipo | (a) llave Ed25519 generada en el equipo y protegida con DPAPI de Windows, con firma en cada solicitud; (b) el secreto por estación del Slice 4 | **(a)**: la llave privada nunca sale del equipo. El secreto del Slice 4 queda como respaldo durante la transición | **(a) llave en el equipo** |
+| D4 | Varios roles por usuario | Sí (`user_role_assignments` con ámbito) / no | **Sí**: lo exigen los ejemplos del prompt, como el comprador corporativo | **Sí, varios roles** |
 
 ## 7. Avance: P0 N05 resuelto (2026-10-25)
 
@@ -168,3 +168,10 @@ Se retiró `assert_finance_schema_contract`, cuyo mensaje mandaba borrar la base
   - el motor migra completo, 332 → 350 (recrea 16 tablas vacías y crea 23; ningún dato tocado);
   - el **arranque completo de la app** pasa sus seis etapas, con llaves foráneas activas.
 
+
+## 8. Avance: Fase 1, modelo organizacional (2026-10-25)
+
+Hecho; el detalle está en [`01_phase1_org_model.md`](01_phase1_org_model.md).
+
+- **N06**: hay unidades organizacionales con tipo, jerarquía y capacidades (migración 351).
+- **N12**: la app ya puede dar de alta una sucursal, planta o centro de distribución nueva.

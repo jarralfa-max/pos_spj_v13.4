@@ -172,6 +172,13 @@ class ProvisionInstallationUseCase:
             default_locale=default_locale,
         )
         SqliteCompanyProfileRepository(self._conn).save(company)
+        # Estructura organizacional (auditoría enterprise, Fase 1): la sucursal
+        # inicial es también su unidad organizacional, con el mismo id.
+        from backend.infrastructure.db.repositories.organization.org_unit_repository import (
+            register_initial_site,
+        )
+        register_initial_site(self._conn, company_id=company.id, branch_id=branch_id,
+                              name=branch_name.strip())
 
         workstation = Workstation.create(
             branch_id=branch_id, code=_workstation_code(workstation_name),

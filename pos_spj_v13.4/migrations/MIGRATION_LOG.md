@@ -5354,3 +5354,24 @@ completa). En la copia de la base real el motor se detenía aquí: la siguiente 
 abierto la base. Ahora migra 332 → 350 y el arranque completo pasa. Se retiró
 `assert_finance_schema_contract`.
 
+
+### 351 — estructura organizacional (2026-10-25, auditoría enterprise Fase 1; N06/N12)
+
+La organización es el perfil de empresa que ya existía (`company_profiles`, `installation.company_id`).
+Solo agrega; no renombra ni borra nada, y es idempotente.
+
+- `org_units`:
+  - tipos: sucursal, planta, centro de distribución, almacén, oficina corporativa, operación logística y
+    región;
+  - jerarquía por `parent_id`, ciclo ACTIVE/INACTIVE/CLOSED y código único por empresa.
+- `org_unit_capabilities`: capacidades explícitas por unidad, con autor y motivo.
+- `org_unit_id` en `cost_centers`, `profit_centers` y `hr_departments`. Va solo por `ALTER`: el contrato
+  born-clean de Finanzas no cambia.
+- Respaldo: cada fila de `sucursales` pasa a ser una unidad RETAIL_BRANCH **con el mismo id**, con todas
+  las capacidades (hoy toda sucursal puede hacer todo). Su código sale del perfil de la sucursal; si no
+  tiene, del nombre. Si la base no tiene empresa, no se respalda nada: el aprovisionamiento crea la
+  unidad.
+- Siembra `CONFIGURACION.organizacion.*`: `system_owner` y `admin` todo; `gerente` solo ver.
+- Copia de la base real: migra 332 → 351. Respalda 2 sucursales (`PRI`, `CORREGIDORA`) con 11 capacidades
+  cada una, `foreign_key_check` queda vacío y el arranque completo de la app pasa.
+- Detalle: `docs/architecture/enterprise_org/01_phase1_org_model.md`.

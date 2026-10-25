@@ -130,6 +130,7 @@ def build_configuracion_view(*, connection, session_context, parent=None):
     from backend.application.use_cases.set_installation_branch_use_case import (
         SetInstallationBranchUseCase,
     )
+    from backend.application.organization.org_structure_service import OrgStructureService
     from backend.application.configuracion.settings_services import (
         CompanyProfileService,
         RoleManagementService,
@@ -297,6 +298,9 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         import_display_media_uc=ImportDisplayMediaUseCase(connection),
         set_device_windows_printer_uc=SetDeviceWindowsPrinterUseCase(connection),
         ticket_designer=_ticket_designer(connection),
+        org_structure=OrgStructureService(
+            connection, authorization=authorization,
+            actor=lambda: getattr(session, "user_id", "") or "", audit_log=audit_log),
         software_updates=SoftwareUpdatesPresenter(
             build_software_update_dependencies(connection, session_context=session),
             copy_file=copy_package_file, request_handoff=request_update_handoff),

@@ -354,6 +354,7 @@ MIGRATIONS = [
     _Migration("348",  "migrations.standalone.348_retire_legacy_rbac_tables"),
     _Migration("349",  "migrations.standalone.349_instrument_batches"),
     _Migration("350",  "migrations.standalone.350_replication_engine"),
+    _Migration("351",  "migrations.standalone.351_organizational_structure"),
 ]
 
 def _ensure_tracking_table(conn):

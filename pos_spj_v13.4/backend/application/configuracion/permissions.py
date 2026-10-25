@@ -27,6 +27,13 @@ class ConfiguracionPermissions:
     SUCURSAL_VIEW = permission_code("CONFIGURACION", "sucursal.ver")
     SUCURSAL_CREAR = permission_code("CONFIGURACION", "sucursal.crear")
     SUCURSAL_EDITAR = permission_code("CONFIGURACION", "sucursal.editar")
+    # Estructura organizacional (auditoría enterprise, Fase 1): unidades —sucursal,
+    # planta, centro de distribución, oficina…—, su jerarquía y sus capacidades.
+    ORGANIZACION_VIEW = permission_code("CONFIGURACION", "organizacion.ver")
+    ORGANIZACION_CREAR = permission_code("CONFIGURACION", "organizacion.crear")
+    ORGANIZACION_EDITAR = permission_code("CONFIGURACION", "organizacion.editar")
+    ORGANIZACION_CERRAR = permission_code("CONFIGURACION", "organizacion.cerrar")
+    ORGANIZACION_CAPACIDADES = permission_code("CONFIGURACION", "organizacion.capacidades")
     DISPOSITIVOS_VIEW = permission_code("DISPOSITIVOS", "ver")
     DISPOSITIVOS_CREAR = permission_code("DISPOSITIVOS", "crear")
     DISPOSITIVOS_EDITAR = permission_code("DISPOSITIVOS", "editar")
