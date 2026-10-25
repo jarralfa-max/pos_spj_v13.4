@@ -127,6 +127,9 @@ prueba:
 - **dos entregas concurrentes del mismo hecho → una ACCEPTED y una DUPLICATE, un solo renglón**;
 - caja SQLite → API real → PostgreSQL.
 
+**Resultado en el CI:** el trabajo `central-postgres` de la ejecución 40201737153 (commit `719f71a5`,
+2026-10-25) pasó **en verde** contra PostgreSQL 16, incluida la carrera de dos entregas simultáneas.
+
 **Defecto encontrado al escribir la prueba concurrente:** si dos entregas del mismo hecho llegaban a la
 vez, la que perdía la carrera respondía ACCEPTED, porque el servicio ignoraba que su inserción no había
 ocurrido. Ahora vuelve a comparar la huella y responde DUPLICATE o CONFLICT.

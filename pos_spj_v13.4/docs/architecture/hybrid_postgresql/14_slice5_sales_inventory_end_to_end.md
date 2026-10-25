@@ -88,7 +88,8 @@ prueba:
 3. **`central_stock_on_hand` es igual a los saldos locales** (18.750, 2 movimientos).
 4. Reproyectar no duplica.
 
-**Resultado en el CI:** _(pendiente del push)_.
+**Resultado en el CI:** el trabajo `central-postgres` de la ejecución 40219039879 (commit `40eb947a`,
+2026-10-25) pasó **en verde** contra PostgreSQL 16, incluida la conciliación de existencias por la API real.
 
 ## Resultados
 
