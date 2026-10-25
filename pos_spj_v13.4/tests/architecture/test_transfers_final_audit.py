@@ -46,8 +46,12 @@ def test_transfer_events_permissions_offline_inventory_and_legacy_are_canonical(
     # Auditoría de permisos 968e0bc (PER-04): `TRANSFERENCIAS.<accion>`, otorgable.
     assert all(code.startswith("TRANSFERENCIAS.") for code in ALL_TRANSFER_PERMISSIONS)
     inventory = (ROOT / "backend/application/transfers/integrations/inventory_gateway.py").read_text()
-    offline = (ROOT / "backend/application/transfers/offline_sync.py").read_text()
     assert "InventoryEngine" not in inventory and "sqlite3" not in inventory
-    assert "OfflineTransferPolicy" in offline and "local_sequence" in offline
+    # Slice 4 híbrido: la política de operaciones fuera de línea sigue en el dominio;
+    # su motor receptor propio se consolidó en la ingesta central única.
+    assert (ROOT / "backend/domain/transfers/policies/offline_transfer_policy.py").exists()
+    assert not (ROOT / "backend/application/transfers/offline_sync.py").exists()
+    assert "SEQUENCE_REUSED" in (
+        ROOT / "backend/application/sync/central_ingestion.py").read_text(encoding="utf-8")
     assert not (ROOT / "modulos/transferencias.py").exists()
     assert not (ROOT / "repositories/transferencias.py").exists()

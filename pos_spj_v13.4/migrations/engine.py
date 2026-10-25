@@ -441,9 +441,9 @@ crear_tablas = up
 aplicar_migraciones = up
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ==============================================================================
 # Carril PostgreSQL — servidor central (arquitectura híbrida, Slice 3; ADR-005)
-# ══════════════════════════════════════════════════════════════════════════════
+# ==============================================================================
 # Mismo contrato que el carril SQLite (lista explícita, `run(conn)`, idempotente,
 # registro en `schema_migrations`), con dos garantías que PostgreSQL sí da:
 #   * cada migración corre en SU transacción: si falla, su DDL se revierte
@@ -454,6 +454,7 @@ aplicar_migraciones = up
 
 PG_MIGRATIONS = [
     _Migration("p001", "migrations.pg.p001_central_replication"),
+    _Migration("p002", "migrations.pg.p002_aggregate_head_station"),
 ]
 
 #: Clave del bloqueo consultivo (constante arbitraria, estable entre versiones).

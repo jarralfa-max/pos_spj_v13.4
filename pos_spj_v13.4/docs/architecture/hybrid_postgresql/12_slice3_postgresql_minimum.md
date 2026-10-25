@@ -86,7 +86,9 @@ prueba:
 - baja de estación sin fecha, rechazada;
 - un segundo proceso no obtiene el bloqueo de migraciones.
 
-**Resultado en el CI:** _(pendiente de la primera ejecución tras el push)_.
+**Resultado en el CI:** el trabajo `central-postgres` de la ejecución 40199145410 (commit `85446537`,
+2026-10-25) pasó **en verde** contra PostgreSQL 16. El paso que falla si alguna prueba se salta también
+pasó, así que las pruebas de PostgreSQL real **sí corrieron**.
 
 ## Pendiente
 

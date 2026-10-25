@@ -5304,3 +5304,16 @@ Primera migración del carril `pg` (`migrations/engine.py::up_postgresql`).
 - Probada contra PostgreSQL 16 real en el CI (`central-postgres`); aquí no hay PostgreSQL.
 - Detalle: `docs/architecture/hybrid_postgresql/12_slice3_postgresql_minimum.md`.
 
+### p002 — cabeza de agregado por estación, PostgreSQL (2026-10-25, arquitectura híbrida Slice 4)
+
+- `sync_aggregate_heads.last_station_id`. La regresión de versión se compara sólo contra la última versión
+  escrita por la misma estación, porque cada estación lleva su propia cuenta.
+- En la misma ronda:
+  - ingesta central (`central_ingestion.py`);
+  - API `POST /api/v1/sync/events` con credencial por estación;
+  - transporte HTTPS de la estación;
+  - retiro de los receptores parciales: `transfers/offline_sync.py`, el ingestor de INV-22 y los
+    repositorios de despacho de INV-22. Las tablas `inventory_sync_*` se conservan hasta una migración de
+    contracción.
+- Detalle: `docs/architecture/hybrid_postgresql/13_slice4_central_inbox_and_sync_api.md`.
+

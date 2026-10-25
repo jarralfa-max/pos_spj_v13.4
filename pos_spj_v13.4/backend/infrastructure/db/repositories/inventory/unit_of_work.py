@@ -55,10 +55,6 @@ from backend.infrastructure.db.repositories.inventory.notification_repositories 
     NotificationLogRepository,
     NotificationRuleRepository,
 )
-from backend.infrastructure.db.repositories.inventory.sync_repositories import (
-    SyncCursorRepository,
-    SyncDispatchRepository,
-)
 from backend.infrastructure.db.repositories.inventory.support_repositories import (
     InventoryAuditRepository,
     InventoryAuthorizationLogRepository,
@@ -94,8 +90,6 @@ class InventoryUnitOfWork(TransactionalUnitOfWork):
         self.audit = InventoryAuditRepository(connection)
         self.outbox = InventoryOutboxRepository(connection)
         self.processed_events = InventoryProcessedEventRepository(connection)
-        self.sync_dispatch = SyncDispatchRepository(connection)
-        self.sync_cursor = SyncCursorRepository(connection)
         self.notification_rules = NotificationRuleRepository(connection)
         self.notification_log = NotificationLogRepository(connection)
         self._completed = False

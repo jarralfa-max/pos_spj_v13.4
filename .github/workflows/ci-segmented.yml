@@ -92,11 +92,11 @@ jobs:
       - name: Install central server dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-server.txt pytest
+          pip install -r requirements-server.txt pytest httpx
       - name: Central PostgreSQL schema and lane
         run: |
           cd pos_spj_v13.4
-          python -m pytest tests/unit/central_pg tests/integration/central_pg -v -rs
+          python -m pytest tests/unit/central_pg tests/unit/central_sync tests/integration/central_pg -v -rs
       - name: Fail if the real-PostgreSQL tests were skipped
         run: |
           cd pos_spj_v13.4
