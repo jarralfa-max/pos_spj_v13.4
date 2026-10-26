@@ -226,6 +226,8 @@ def test_product_long_form_scroll_keeps_footer_and_capture(dialogs, presenter, q
     _settle(qt_font_resources)
     footer = dialog.findChild(QDialogButtonBox)
     original = footer.mapTo(dialog, QPoint())
+    dialog.tabs.setCurrentIndex(1)  # Operación: las capacidades ahora están en su propia pestaña.
+    _settle(qt_font_resources)
     scroll = dialog.viewport.verticalScrollBar()
     assert scroll.maximum() > 0
     scroll.setValue(scroll.maximum())

@@ -45,7 +45,7 @@ class ProductSettingsPage(QWidget):
         layout.setSpacing(Spacing.MD)
         layout.addWidget(PageHeader(
             title="Configuración de Productos",
-            subtitle="Valores por omisión de la ficha y alertas de datos faltantes.",
+            subtitle="Valores por omisión, avisos de producto y mínimos de stock.",
             icon=getattr(Icons, "SETTINGS", None), compact=True))
 
         # ── valores por omisión ──────────────────────────────────────────
@@ -92,17 +92,17 @@ class ProductSettingsPage(QWidget):
         layout.addWidget(requirements)
 
         # ── alertas a la campana ─────────────────────────────────────────
-        alerts = SectionCard(self, title="Alertas de datos faltantes (campana)")
+        alerts = SectionCard(self, title="Alertas a la campana")
         hint = QLabel("Al guardar un producto incompleto (sin categoría, cárnico sin especie, "
-                      "perecedero sin vida útil, peso variable sin rango…) se avisa a la "
-                      "campana de los usuarios con estos roles.")
+                      "perecedero sin vida útil…) o al alcanzar el mínimo de stock, se avisa "
+                      "a los usuarios activos con estos roles en la sucursal correspondiente.")
         hint.setProperty("role", "muted")
         hint.setWordWrap(True)
         alerts.add(hint)
-        self.alerts_enabled = QCheckBox("Avisar al guardar un producto con datos faltantes")
+        self.alerts_enabled = QCheckBox("Avisar por datos faltantes y stock bajo")
         alerts.add(self.alerts_enabled)
         roles_form = QFormLayout()
-        self.alert_roles = StandardLineEdit(placeholder="system_owner,admin,gerente")
+        self.alert_roles = StandardLineEdit(placeholder="almacenista,gerente")
         roles_form.addRow("Roles (separados por coma)", self.alert_roles)
         alerts.body().addLayout(roles_form)
         self.btn_alerts = create_primary_button(self, "Guardar alertas")
@@ -111,10 +111,10 @@ class ProductSettingsPage(QWidget):
         layout.addWidget(alerts)
 
         # ── WhatsApp ─────────────────────────────────────────────────────
-        whatsapp = SectionCard(self, title="Alertas críticas por WhatsApp")
-        hint2 = QLabel("Sólo las de alto impacto (producto bloqueado por calidad, cárnico sin "
-                       "perfil sanitario, descontinuado aún habilitado…). Sin conexión, el "
-                       "mensaje no se reintenta.")
+        whatsapp = SectionCard(self, title="Alertas de impacto y stock por WhatsApp")
+        hint2 = QLabel("Los mínimos de stock y las alertas de alto impacto se encolan "
+                       "para los teléfonos configurados. La cola reintenta cuando "
+                       "el servicio está disponible; revisa los fallos en Notificaciones.")
         hint2.setProperty("role", "muted")
         hint2.setWordWrap(True)
         whatsapp.add(hint2)

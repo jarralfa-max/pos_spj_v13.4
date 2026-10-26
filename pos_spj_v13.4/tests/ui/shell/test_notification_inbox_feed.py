@@ -11,6 +11,9 @@ from PyQt5.QtWidgets import QApplication
 from backend.application.notifications.user_inbox_service import UserInboxService
 from backend.infrastructure.notifications.in_app_inbox_repository import InAppInboxRepository
 from frontend.desktop.shell.application_shell.notification_drawer import NotificationDrawer
+from frontend.desktop.shell.application_shell.notification_center_dialog import (
+    NotificationCenterDialog,
+)
 from frontend.desktop.shell.application_shell.notification_inbox_feed import (
     NotificationInboxFeed,
 )
@@ -72,6 +75,23 @@ def test_dedupe_key_makes_delivery_idempotent():
     _deliver(conn, "ana", "Recordatorio", key="crm-reminder:1")
     _deliver(conn, "ana", "Recordatorio", key="crm-reminder:1")
     assert len(UserInboxService(conn).recent("ana")) == 1
+
+
+def test_notification_center_filters_and_marks_only_own_alerts_read():
+    conn = _conn()
+    _deliver(conn, "ana", "Stock bajo")
+    _deliver(conn, "ana", "Recordatorio")
+    _deliver(conn, "beto", "Ajeno")
+    center = NotificationCenterDialog(UserInboxService(conn), "ana")
+    assert len(center._rows) == 2
+    center.search.setText("Stock bajo")
+    center.refresh()
+    assert len(center._rows) == 1
+    center.table.selectRow(0)
+    center._mark_selected()
+    assert UserInboxService(conn).unread_count("ana") == 1
+    assert UserInboxService(conn).unread_count("beto") == 1
+    center.close()
 
 
 def test_periodic_service_runs_on_start_and_survives_a_failing_pass():

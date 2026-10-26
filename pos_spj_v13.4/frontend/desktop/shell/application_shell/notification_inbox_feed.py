@@ -35,6 +35,18 @@ class NotificationInboxFeed:
     def attach(self, drawer: NotificationDrawer) -> None:
         self._drawer = drawer
         drawer.notification_activated.connect(self.mark_read)
+        drawer.center_requested.connect(self.open_center)
+
+    def open_center(self) -> None:
+        if self._drawer is None:
+            return
+        from frontend.desktop.shell.application_shell.notification_center_dialog import (
+            NotificationCenterDialog,
+        )
+        dialog = NotificationCenterDialog(self._inbox, self._user_id,
+                                          parent=self._drawer.window())
+        dialog.exec_()
+        self.refresh()
 
     def refresh(self) -> None:
         if self._drawer is None:

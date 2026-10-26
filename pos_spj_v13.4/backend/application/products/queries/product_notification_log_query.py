@@ -22,11 +22,17 @@ class ProductNotificationLogQuery:
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='usuarios'").fetchone()
         user_col = "COALESCE(u.nombre, u.usuario)" if has_users else "NULL"
         user_join = "LEFT JOIN usuarios u ON u.id = l.recipient_ref " if has_users else ""
+        has_rules = self._conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='inventory_replenishment_rule'").fetchone()
+        rule_join = ("LEFT JOIN inventory_replenishment_rule rr ON rr.id=l.entity_id "
+                     if has_rules else "")
+        product_ref = "COALESCE(rr.product_id, l.entity_id)" if has_rules else "l.entity_id"
         rows = self._conn.execute(
             f"SELECT l.id, l.created_at, l.alert_type, l.severity, l.channel, "
             f"l.recipient_ref, {user_col}, l.message, l.status, p.code, p.name "
-            f"FROM product_notification_log l {user_join}"
-            f"LEFT JOIN products p ON p.id = l.entity_id "
+            f"FROM product_notification_log l {user_join}{rule_join}"
+            f"LEFT JOIN products p ON p.id = {product_ref} "
             f"ORDER BY l.created_at DESC, l.rowid DESC LIMIT ?", (int(limit),)).fetchall()
         out = []
         for r in rows:

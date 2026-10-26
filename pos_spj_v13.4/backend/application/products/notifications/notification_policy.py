@@ -16,6 +16,8 @@ from backend.domain.products.notification_enums import (
 )
 
 _SEVERITY: dict[ProductAlertType, NotificationSeverity] = {
+    ProductAlertType.STOCK_LOW: NotificationSeverity.WARNING,
+    ProductAlertType.STOCK_OUT: NotificationSeverity.CRITICAL,
     ProductAlertType.PRODUCT_INCOMPLETE: NotificationSeverity.WARNING,
     ProductAlertType.PENDING_APPROVAL: NotificationSeverity.INFO,
     ProductAlertType.BARCODE_DUPLICATE: NotificationSeverity.DANGER,
@@ -37,6 +39,8 @@ _SEVERITY: dict[ProductAlertType, NotificationSeverity] = {
 
 # Alertas de alto impacto que además salen por WhatsApp (§36).
 _WHATSAPP_ALERTS = frozenset({
+    ProductAlertType.STOCK_LOW,
+    ProductAlertType.STOCK_OUT,
     ProductAlertType.QUALITY_BLOCKED,
     ProductAlertType.RECIPE_CIRCULAR,
     ProductAlertType.YIELD_OUT_OF_TOLERANCE,

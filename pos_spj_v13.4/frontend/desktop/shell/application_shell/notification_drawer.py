@@ -23,7 +23,7 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
-from frontend.desktop.components.buttons import create_icon_button
+from frontend.desktop.components.buttons import create_icon_button, create_secondary_button
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.themes.tokens import Spacing
 
@@ -45,6 +45,7 @@ class NotificationItem:
 
 class NotificationDrawer(QWidget):
     notification_activated = pyqtSignal(str)
+    center_requested = pyqtSignal()
     unread_count_changed = pyqtSignal(int)
     closed = pyqtSignal()
 
@@ -72,6 +73,9 @@ class NotificationDrawer(QWidget):
         layout.setSpacing(Spacing.SM)
         layout.addLayout(header)
         layout.addWidget(self._list)
+        center_button = create_secondary_button(self, "Ver centro de notificaciones")
+        center_button.clicked.connect(self.center_requested.emit)
+        layout.addWidget(center_button)
 
         self.setVisible(False)
 

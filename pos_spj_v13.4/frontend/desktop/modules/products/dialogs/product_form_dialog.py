@@ -1,13 +1,15 @@
 """ProductFormDialog — alta/edición del maestro de productos (PROD-19 paso 7b).
 
-UI-only: captura los datos MAESTRO (identidad, tipo, unidad base, estado, flags de
-capacidad) y delega el guardado en ``ProductsPresenter.save_product`` (use cases
-canónicos). PROD-23: en el alta puede capturarse el código de barras principal
-(escaneado, tecleado o interno generado); se asigna en la misma transacción. Sin SQL ni lógica de negocio. El precio se gestiona en el módulo de
-Precios; la existencia en Inventario — este formulario NO los captura.
+UI-only: agrupa datos maestros, código de barras, imagen y regla de reposición.
+La existencia y la regla permanecen bajo Inventario; la imagen usa el caso de
+uso canónico de Productos. El precio permanece bajo Precios.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
+
+from PyQt5.QtCore import Qt
 
 from frontend.desktop.components.dialogs import StandardDialog
 
@@ -15,6 +17,7 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QGridLayout,
     QGroupBox,
@@ -22,6 +25,8 @@ from PyQt5.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QTabWidget,
+    QVBoxLayout,
     QWidget,
 )
 
@@ -31,6 +36,8 @@ from frontend.desktop.components import (
     create_secondary_button,
 )
 from frontend.desktop.components.barcode_input import BarcodeInput
+from frontend.desktop.components.decimal_input import DecimalInput
+from frontend.desktop.components.image_thumbnail import ImageThumbnail
 from frontend.desktop.modules.products.product_codes_profiles_presenter import (
     BARCODE_TYPE_ES,
 )
@@ -60,13 +67,15 @@ _FLAGS = (
 
 class ProductFormDialog(StandardDialog):
     def __init__(self, presenter, product_id: str | None = None, parent=None) -> None:
-        super().__init__(parent, width=460)
+        super().__init__(parent, width=720)
         self._presenter = presenter
         self._product_id = product_id
         self.setObjectName("productFormDialog")
         self.setWindowTitle("Editar producto" if product_id else "Nuevo producto")
-        self.setMinimumWidth(460)
+        self.setMinimumWidth(640)
         self._flag_boxes: dict[str, QCheckBox] = {}
+        self._pending_image: str | None = None
+        self._master_saved = False
 
         # P0-04: en alta el código se genera automáticamente; sólo con permiso
         # PRODUCTS_OVERRIDE_CODE puede editarse manualmente.
@@ -75,6 +84,20 @@ class ProductFormDialog(StandardDialog):
         self._manual_code = not self._is_new  # en edición el código ya es explícito
 
         layout = self.content_layout()
+        self.tabs = QTabWidget(self)
+        general_page = QWidget(self)
+        general_layout = QVBoxLayout(general_page)
+        operation_page = QWidget(self)
+        operation_layout = QVBoxLayout(operation_page)
+        stock_page = QWidget(self)
+        stock_layout = QVBoxLayout(stock_page)
+        images_page = QWidget(self)
+        images_layout = QVBoxLayout(images_page)
+        self.tabs.addTab(general_page, "General")
+        self.tabs.addTab(operation_page, "Operación")
+        self.tabs.addTab(stock_page, "Inventario")
+        self.tabs.addTab(images_page, "Imágenes")
+        layout.addWidget(self.tabs)
         form = QFormLayout()
         self.code = QLineEdit()
         self.name = QLineEdit()
@@ -127,20 +150,21 @@ class ProductFormDialog(StandardDialog):
         form.addRow("Marca", self.brand)
         form.addRow("Unidad base *", self.base_unit)
         form.addRow("Estado", self._state_badge)
-        layout.addLayout(form)
+        general_layout.addLayout(form)
 
         # §5.1/§5.2: clasificación cárnica — visible sólo para tipos cárnicos.
         self._meat_box = QGroupBox("Clasificación cárnica")
         meat_form = QFormLayout(self._meat_box)
         meat_form.addRow("Especie *", self.species)
-        layout.addWidget(self._meat_box)
+        operation_layout.addWidget(self._meat_box)
 
         # El tipo determina el prefijo del código y si aplica la sección cárnica.
         self.product_type.currentIndexChanged.connect(self._on_type_changed)
         self._apply_code_mode()
         self._apply_meat_visibility()
 
-        self._build_barcode_box(layout)
+        self._build_barcode_box(general_layout)
+        general_layout.addStretch(1)
 
         flags_box = QGroupBox("Capacidades")
         grid = QGridLayout(flags_box)
@@ -150,7 +174,56 @@ class ProductFormDialog(StandardDialog):
                 cb.setChecked(True)
             self._flag_boxes[key] = cb
             grid.addWidget(cb, i // 2, i % 2)
-        layout.addWidget(flags_box)
+        operation_layout.addWidget(flags_box)
+        operation_layout.addStretch(1)
+
+        stock_hint = QLabel(
+            "Mínimo de stock por almacén de esta sucursal. Al llegar al mínimo, "
+            "Inventario puede generar una sugerencia de reposición. "
+            "Las existencias se reciben o ajustan en Inventario.")
+        stock_hint.setProperty("role", "muted")
+        stock_hint.setWordWrap(True)
+        stock_layout.addWidget(stock_hint)
+        stock_form = QFormLayout()
+        self.stock_warehouse = SearchableComboBox(placeholder="Selecciona almacén…")
+        stock_lookup = getattr(self._presenter, "stock_warehouses", None)
+        stock_options = stock_lookup() if callable(stock_lookup) else []
+        self.stock_warehouse.set_options(stock_options if isinstance(stock_options, list) else [])
+        self.stock_warehouse.selection_changed.connect(self._load_stock_rule)
+        self.stock_minimum = DecimalInput(precision=3, minimum="0")
+        self.stock_target = DecimalInput(precision=3, minimum="0")
+        self.stock_target.setToolTip("Cantidad objetivo tras reponer; debe ser igual o mayor al mínimo.")
+        stock_form.addRow("Almacén *", self.stock_warehouse)
+        stock_form.addRow("Mínimo *", self.stock_minimum)
+        stock_form.addRow("Objetivo de reposición *", self.stock_target)
+        stock_layout.addLayout(stock_form)
+        self.stock_hint = QLabel("Selecciona un almacén para configurar su mínimo.")
+        self.stock_hint.setWordWrap(True)
+        stock_hint.setProperty("role", "muted")
+        stock_layout.addWidget(self.stock_hint)
+        stock_layout.addStretch(1)
+        can_stock = bool(getattr(self._presenter, "can_manage_stock_minimum", False))
+        for widget in (self.stock_warehouse, self.stock_minimum, self.stock_target):
+            widget.setEnabled(can_stock)
+        if not can_stock:
+            self.stock_hint.setText("Requiere el permiso de Inventario para configurar reposición.")
+
+        image_hint = QLabel("La imagen principal aparece en las tarjetas del POS. "
+                            "Puedes elegirla ahora y se guardará al crear el producto.")
+        image_hint.setProperty("role", "muted")
+        image_hint.setWordWrap(True)
+        images_layout.addWidget(image_hint)
+        self.image_preview = ImageThumbnail(self, width=220, height=220)
+        images_layout.addWidget(self.image_preview)
+        self.image_button = create_secondary_button(self, "Seleccionar imagen…")
+        self.image_button.clicked.connect(self._choose_image)
+        images_layout.addWidget(self.image_button)
+        self.image_button.setEnabled(bool(getattr(self._presenter, "can_manage_images", False)))
+        if not self._is_new and self.image_button.isEnabled():
+            gallery_button = create_secondary_button(self, "Administrar galería y fondo…")
+            gallery_button.clicked.connect(self._open_gallery)
+            images_layout.addWidget(gallery_button)
+        images_layout.addStretch(1)
 
         self._error = QLabel()
         self._error.setObjectName("textDanger")
@@ -159,6 +232,8 @@ class ProductFormDialog(StandardDialog):
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         buttons.button(QDialogButtonBox.Save).setText("Guardar")
+        buttons.button(QDialogButtonBox.Save).setDefault(False)
+        buttons.button(QDialogButtonBox.Save).setAutoDefault(False)
         buttons.button(QDialogButtonBox.Cancel).setText("Cancelar")
         # P1: galería de imágenes (sólo en edición: requiere product_id existente).
         if not self._is_new and getattr(self._presenter, "can_manage_images", False):
@@ -178,6 +253,31 @@ class ProductFormDialog(StandardDialog):
             self._load(product_id)
         else:
             self._apply_defaults()
+
+    def keyPressEvent(self, event) -> None:
+        """El Enter de un escáner HID no confirma accidentalmente el alta."""
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def _choose_image(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Seleccionar imagen del producto", "",
+            "Imágenes (*.png *.jpg *.jpeg *.webp *.gif *.bmp)")
+        if path:
+            self._pending_image = path
+            self.image_preview.set_image(path, placeholder=self.name.text() or "Producto")
+
+    def _load_stock_rule(self, warehouse_id) -> None:
+        self.stock_minimum.set_decimal(None)
+        self.stock_target.set_decimal(None)
+        if not warehouse_id or not self._product_id:
+            return
+        rule = self._presenter.stock_minimum(self._product_id, warehouse_id)
+        if rule is not None:
+            self.stock_minimum.set_decimal(rule["minimum"])
+            self.stock_target.set_decimal(rule["target"])
 
     def _apply_defaults(self) -> None:
         """PROD-22: tipo y unidad por omisión de Productos → Configuración."""
@@ -274,6 +374,14 @@ class ProductFormDialog(StandardDialog):
         for key, cb in self._flag_boxes.items():
             cb.setChecked(bool(row.get(key)))
         self._apply_meat_visibility()
+        image_lookup = getattr(self._presenter, "list_images", None)
+        images = image_lookup(product_id) if callable(image_lookup) else []
+        if not isinstance(images, list):
+            images = []
+        primary = next((item for item in images if item.get("is_primary")), None)
+        if primary is not None:
+            self.image_preview.set_image(primary.get("uri"),
+                                         placeholder=self.name.text() or "Producto")
 
     @staticmethod
     def _select(combo: QComboBox, value) -> None:
@@ -376,9 +484,50 @@ class ProductFormDialog(StandardDialog):
             self._error.setText("Escanea o escribe el código de barras (o genera uno "
                                 "interno), o desmarca «Lleva código de barras».")
             return
-        ok, message, _pid = self._presenter.save_product(
-            product_id=self._product_id, fields=fields)
+        warehouse = self._combo_value(self.stock_warehouse)
+        wants_rule = (self.stock_minimum.text().strip() or self.stock_target.text().strip())
+        if wants_rule:
+            if not warehouse or not self._presenter.can_manage_stock_minimum:
+                self.tabs.setCurrentIndex(2)
+                self._error.setText("Selecciona un almacén y verifica el permiso de reposición.")
+                return
+            if not (self.stock_minimum.is_valid() and self.stock_target.is_valid()):
+                self.tabs.setCurrentIndex(2)
+                self._error.setText("Revisa el mínimo y el objetivo de reposición.")
+                return
+            if self.stock_target.decimal_value() < self.stock_minimum.decimal_value():
+                self.tabs.setCurrentIndex(2)
+                self._error.setText("El objetivo debe ser mayor o igual que el mínimo.")
+                return
+        if self._master_saved:
+            ok, message, _pid = True, "Producto guardado", self._product_id
+        else:
+            ok, message, _pid = self._presenter.save_product(
+                product_id=self._product_id, fields=fields)
         if ok:
+            self._product_id = _pid or self._product_id
+            self._master_saved = True
+            if wants_rule:
+                saved, reason = self._presenter.save_stock_minimum(
+                    self._product_id, warehouse, minimum=self.stock_minimum.decimal_value(),
+                    target=self.stock_target.decimal_value())
+                if not saved:
+                    self.tabs.setCurrentIndex(2)
+                    self._error.setText(
+                        f"Producto guardado, pero el mínimo quedó pendiente: {reason} "
+                        "Corrige el dato y vuelve a guardar.")
+                    return
+            if self._pending_image:
+                saved, reason = self._presenter.add_image(
+                    product_id=self._product_id, uri=self._pending_image,
+                    alt_text=Path(self._pending_image).name, make_primary=True)
+                if not saved:
+                    self.tabs.setCurrentIndex(3)
+                    self._error.setText(
+                        f"Producto guardado, pero la imagen quedó pendiente: {reason} "
+                        "Vuelve a guardar para reintentar.")
+                    return
+                self._pending_image = None
             self.accept()
         else:
             self._error.setText(message)

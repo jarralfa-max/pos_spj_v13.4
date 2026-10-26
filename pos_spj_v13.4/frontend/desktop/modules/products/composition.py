@@ -60,6 +60,57 @@ class _Session:
         return str(value) if value else self._branch_fallback
 
 
+class _ProductStockPolicy:
+    """Composition adapter: Productos displays the rule owned by Inventario."""
+
+    def __init__(self, connection, live_session, session_context) -> None:
+        from backend.application.inventory.queries.replenishment_rule_query_service import (
+            ReplenishmentRuleQueryService,
+        )
+        self._conn = connection
+        self._live = live_session
+        self._session = session_context
+        self._read = ReplenishmentRuleQueryService(connection)
+
+    def _branch(self) -> str:
+        return str(getattr(self._live, "active_branch_id", "") or "")
+
+    def warehouses(self) -> list[tuple[str, str]]:
+        return self._read.warehouses(self._branch())
+
+    def rule(self, product_id: str, warehouse_id: str) -> dict | None:
+        return self._read.rule(product_id, self._branch(), warehouse_id)
+
+    def save(self, product_id: str, warehouse_id: str, *, minimum, target):
+        from backend.application.inventory.authorization import InventoryAuthorizationPolicy
+        from backend.application.inventory.session_authorization import (
+            InventorySessionPermissionChecker,
+        )
+        from backend.application.inventory.use_cases.replenishment_use_cases import (
+            SetReplenishmentRuleUseCase,
+        )
+        from decimal import Decimal, InvalidOperation
+
+        branch_id = self._branch()
+        user_id = str(getattr(self._session, "user_id", "") or "")
+        if not branch_id or not user_id or warehouse_id not in dict(self.warehouses()):
+            return False, "Selecciona un almacén activo de tu sucursal e inicia sesión."
+        try:
+            threshold, target_qty = Decimal(str(minimum)), Decimal(str(target))
+            if (not threshold.is_finite() or not target_qty.is_finite()
+                    or threshold < 0 or target_qty < threshold):
+                return False, "El objetivo debe ser mayor o igual que el mínimo; ambos no negativos."
+        except InvalidOperation:
+            return False, "El mínimo y el objetivo deben ser números válidos."
+        result = SetReplenishmentRuleUseCase(InventoryAuthorizationPolicy(
+            InventorySessionPermissionChecker(self._live))).execute(
+                self._conn, product_id=product_id, branch_id=branch_id,
+                warehouse_id=warehouse_id, reorder_point=threshold,
+                min_quantity=threshold, target_quantity=target_qty,
+                actor_user_id=user_id, active=threshold > 0)
+        return result.success, result.message
+
+
 def build_products_presenter(connection, session_context=None, *, live_session=None,
                              external_registry=None):
     from backend.application.products.queries.integration_query_services import (
@@ -282,6 +333,7 @@ def build_products_presenter(connection, session_context=None, *, live_session=N
                 conn, authorization),
         },
         purchase_config_factory=lambda: PurchaseProductConfigQueryService(conn),
+        stock_policy_service=_ProductStockPolicy(conn, live_session, session_context),
         lifecycle_service_factory=lifecycle_factory,
         code_service_factory=lambda: PreviewProductCodeQueryService(conn),
         categories_read_factory=lambda: ProductCategoryQueryService(conn),

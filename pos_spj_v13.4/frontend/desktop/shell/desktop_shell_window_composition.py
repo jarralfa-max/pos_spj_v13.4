@@ -183,6 +183,8 @@ CRM_CYCLE_INTERVAL_MS = 5 * 60 * 1000
 INBOX_REFRESH_INTERVAL_MS = 60 * 1000
 #: Cada cuánto se entrega la cola de alertas de Productos por WhatsApp (PROD-22).
 PRODUCTS_WHATSAPP_OUTBOX_INTERVAL_MS = 60 * 1000
+# Revisión periódica de reglas de reposición; el notifier limita repeticiones.
+STOCK_MINIMUM_INTERVAL_MS = 5 * 60 * 1000
 #: Cada cuánto se revisa si una actualización programada ya puede instalarse
 #: (dentro de la ventana de mantenimiento y sin operaciones en curso).
 SCHEDULED_UPDATE_INTERVAL_MS = 60 * 1000
@@ -223,6 +225,8 @@ def _build_background_services(*, context: ApplicationContext, connection):
     registry.register(BackgroundServiceDescriptor("notifications.inbox", "Bandeja de avisos"))
     registry.register(BackgroundServiceDescriptor(
         "products.whatsapp_outbox", "Alertas de Productos por WhatsApp", module_id="products"))
+    registry.register(BackgroundServiceDescriptor(
+        "inventory.stock_minimum", "Mínimos de stock por almacén", module_id="inventory"))
     supervisor = BackgroundServiceSupervisor(registry=registry)
     supervisor.bind("crm.background_cycle", PeriodicTaskService(
         lambda: run_crm_background_cycle(connection), interval_ms=CRM_CYCLE_INTERVAL_MS,
@@ -233,6 +237,12 @@ def _build_background_services(*, context: ApplicationContext, connection):
     supervisor.bind("products.whatsapp_outbox", PeriodicTaskService(
         lambda: drain_product_whatsapp_outbox(connection),
         interval_ms=PRODUCTS_WHATSAPP_OUTBOX_INTERVAL_MS, name="cola WhatsApp de Productos"))
+    from backend.application.inventory.notifications.stock_minimum_monitor import (
+        StockMinimumMonitor,
+    )
+    supervisor.bind("inventory.stock_minimum", PeriodicTaskService(
+        StockMinimumMonitor(connection).run_once,
+        interval_ms=STOCK_MINIMUM_INTERVAL_MS, name="mínimos de stock"))
     registry.register(BackgroundServiceDescriptor(
         "cash_register.outbox", "Entrega de Caja a Finanzas", module_id="cash_register"))
     supervisor.bind("cash_register.outbox", PeriodicTaskService(

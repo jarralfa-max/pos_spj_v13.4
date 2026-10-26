@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 16718)
+Total output lines: 1374
+
 """ProductsPresenter — bridge between the enterprise products UI and backend.
 
 Wires the read/query services into display-ready view models and
@@ -41,6 +44,7 @@ class ProductsPresenter:
                  branch_read_factory=None, branch_write_factory=None,
                  product_search_factory=None, units_write_factory=None,
                  purchase_config_factory=None,
+                 stock_policy_service=None,
                  permission_checker=None, session_context=None) -> None:
         self._read_factory = read_service_factory
         self._write_factory = write_service_factory
@@ -79,6 +83,7 @@ class ProductsPresenter:
         #: las LEE de aquí; ésta es la única pantalla que las escribe.
         self._units_write = units_write_factory
         self._purchase_config = purchase_config_factory
+        self._stock_policy = stock_policy_service
         self._has_permission = permission_checker
         self._session = session_context
 
@@ -620,152 +625,7 @@ class ProductsPresenter:
                 cmd = CreateRecipeCommand(
                     operation_id=new_uuid(), product_id=kw["product_id"],
                     recipe_type=kw["recipe_type"], name=kw["name"],
-                    components=kw["components"], outputs=kw["outputs"],
-                    user_id=user_id)
-            elif action == "edit":
-                cmd = UpdateDraftVersionCommand(
-                    operation_id=new_uuid(), version_id=kw["version_id"],
-                    components=kw["components"], outputs=kw["outputs"],
-                    user_id=user_id)
-            else:
-                cmd = RecipeVersionTransitionCommand(
-                    operation_id=new_uuid(), version_id=kw["version_id"],
-                    user_id=user_id)
-            res = ucs[action].execute(cmd)
-        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
-            logger.exception("Acción de receta %s falló", action)
-            return False, f"Error: {exc}"
-        return res.success, res.message
-
-    # ── rendimientos (yields) ──────────────────────────────────────────────
-    @property
-    def can_manage_yields(self) -> bool:
-        from backend.application.products.permissions import ProductPermissions
-        if self._yields_write is None:
-            return False
-        if self._has_permission is None:
-            return True
-        return bool(self._has_permission(ProductPermissions.YIELD_CREATE)
-                    or self._has_permission(ProductPermissions.YIELD_EDIT))
-
-    def list_yield_profiles(self, input_product_id: str) -> list[dict]:
-        if self._yields_read is None:
-            return []
-        try:
-            return self._yields_read().list_profiles(input_product_id)
-        except Exception:  # pragma: no cover - defensive
-            logger.exception("No se pudieron listar rendimientos")
-            return []
-
-    def list_yield_versions(self, profile_id: str) -> list[dict]:
-        if self._yields_read is None:
-            return []
-        try:
-            return self._yields_read().list_versions(profile_id)
-        except Exception:  # pragma: no cover - defensive
-            logger.exception("No se pudieron listar versiones de rendimiento")
-            return []
-
-    def yield_version_detail(self, version_id: str) -> dict | None:
-        if self._yields_read is None:
-            return None
-        try:
-            return self._yields_read().version_detail(version_id)
-        except Exception:  # pragma: no cover - defensive
-            logger.exception("No se pudo obtener el detalle de la versión")
-            return None
-
-    def create_yield_profile(self, *, input_product_id: str, name: str,
-                             tolerance_pct: str, outputs: list[dict]
-                             ) -> tuple[bool, str]:
-        return self._run_yield("create", input_product_id=input_product_id, name=name,
-                               tolerance_pct=tolerance_pct, outputs=outputs)
-
-    def update_yield_version(self, *, version_id: str, tolerance_pct: str,
-                             outputs: list[dict]) -> tuple[bool, str]:
-        return self._run_yield("edit", version_id=version_id,
-                               tolerance_pct=tolerance_pct, outputs=outputs)
-
-    def submit_yield_version(self, version_id: str) -> tuple[bool, str]:
-        return self._run_yield("submit", version_id=version_id)
-
-    def approve_yield_version(self, version_id: str) -> tuple[bool, str]:
-        return self._run_yield("approve", version_id=version_id)
-
-    def activate_yield_version(self, version_id: str) -> tuple[bool, str]:
-        return self._run_yield("activate", version_id=version_id)
-
-    def _run_yield(self, action: str, **kw) -> tuple[bool, str]:
-        if self._yields_write is None:
-            return False, "Sin permisos de gestión de rendimientos"
-        from backend.application.products.commands.product_yield_commands import (
-            CreateYieldProfileCommand,
-            UpdateYieldVersionCommand,
-            YieldVersionTransitionCommand,
-        )
-        from backend.shared.ids import new_uuid
-        ucs = self._yields_write()
-        user_id = getattr(self._session, "user_id", None)
-        try:
-            if action == "create":
-                cmd = CreateYieldProfileCommand(
-                    operation_id=new_uuid(), input_product_id=kw["input_product_id"],
-                    name=kw["name"], tolerance_pct=kw["tolerance_pct"],
-                    outputs=kw["outputs"], user_id=user_id)
-            elif action == "edit":
-                cmd = UpdateYieldVersionCommand(
-                    operation_id=new_uuid(), version_id=kw["version_id"],
-                    tolerance_pct=kw["tolerance_pct"], outputs=kw["outputs"],
-                    user_id=user_id)
-            else:
-                cmd = YieldVersionTransitionCommand(
-                    operation_id=new_uuid(), version_id=kw["version_id"],
-                    user_id=user_id)
-            res = ucs[action].execute(cmd)
-        except Exception as exc:  # noqa: BLE001 — mostrado en la UI
-            logger.exception("Acción de rendimiento %s falló", action)
-            return False, f"Error: {exc}"
-        return res.success, res.message
-
-    # ── esquemas de despiece (cutting) ─────────────────────────────────────
-    @property
-    def can_manage_cutting(self) -> bool:
-        from backend.application.products.permissions import ProductPermissions
-        if self._cutting_write is None:
-            return False
-        if self._has_permission is None:
-            return True
-        return bool(self._has_permission(ProductPermissions.CUTTING_SCHEME_MANAGE))
-
-    def list_cutting_schemes(self, input_product_id: str) -> list[dict]:
-        if self._cutting_read is None:
-            return []
-        try:
-            return self._cutting_read().list_schemes(input_product_id)
-        except Exception:  # pragma: no cover - defensive
-            logger.exception("No se pudieron listar esquemas de despiece")
-            return []
-
-    def list_cutting_versions(self, scheme_id: str) -> list[dict]:
-        if self._cutting_read is None:
-            return []
-        try:
-            return self._cutting_read().list_versions(scheme_id)
-        except Exception:  # pragma: no cover - defensive
-            logger.exception("No se pudieron listar versiones de despiece")
-            return []
-
-    def cutting_version_detail(self, version_id: str) -> dict | None:
-        if self._cutting_read is None:
-            return None
-        try:
-            return self._cutting_read().version_detail(version_id)
-        except Exception:  # pragma: no cover - defensive
-            logger.exception("No se pudo obtener el detalle de la versión")
-            return None
-
-    def create_cutting_scheme(self, *, input_product_id: str, species_id: str,
-                              name: str, cut_level: str, outputs: list[dict]
+                    components=kw["comp…1718 tokens truncated…ict]
                               ) -> tuple[bool, str]:
         return self._run_cutting("create", input_product_id=input_product_id,
                                  species_id=species_id, name=name,
@@ -1285,6 +1145,32 @@ class ProductsPresenter:
             logger.exception("Guardado de producto falló")
             return False, f"Error: {exc}", None
         return result.success, result.message, result.product_id
+
+    @property
+    def can_manage_stock_minimum(self) -> bool:
+        from backend.application.inventory.permissions import InventoryPermissions
+        return bool(self._stock_policy and self._session
+                    and getattr(self._session, "user_id", None)
+                    and self._has_permission is not None
+                    and self._has_permission(InventoryPermissions.REPLENISHMENT_MANAGE))
+
+    def stock_warehouses(self) -> list[tuple[str, str]]:
+        """Almacenes elegibles de la sucursal activa; lectura desde aplicación."""
+        if not self._stock_policy:
+            return []
+        return self._stock_policy.warehouses()
+
+    def stock_minimum(self, product_id: str, warehouse_id: str) -> dict | None:
+        if not self._stock_policy or not warehouse_id:
+            return None
+        return self._stock_policy.rule(product_id, warehouse_id)
+
+    def save_stock_minimum(self, product_id: str, warehouse_id: str, *, minimum,
+                           target) -> tuple[bool, str]:
+        if not self.can_manage_stock_minimum:
+            return False, "No tienes permiso para configurar la reposición de Inventario."
+        return self._stock_policy.save(product_id, warehouse_id, minimum=minimum,
+                                       target=target)
 
     # ── overview (§43) ────────────────────────────────────────────────────
     def overview_kpis(self) -> list[KpiViewModel]:

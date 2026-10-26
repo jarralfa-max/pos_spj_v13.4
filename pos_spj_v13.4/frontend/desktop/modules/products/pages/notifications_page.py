@@ -38,7 +38,7 @@ class ProductNotificationsPage(QWidget):
         layout.setSpacing(Spacing.MD)
         layout.addWidget(PageHeader(
             title="Notificaciones",
-            subtitle="Alertas de datos de productos enviadas a la campana y por WhatsApp.",
+            subtitle="Datos de producto y stock bajo enviados a la campana y por WhatsApp.",
             icon=getattr(Icons, "BELL", None), compact=True))
         self.state = QLabel("")
         self.state.setProperty("role", "muted")

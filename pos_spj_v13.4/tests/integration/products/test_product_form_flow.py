@@ -173,3 +173,48 @@ def test_edit_dialog_builds_images_button():
     dlg = ProductFormDialog(_ImagesPresenter(), product_id="prod-1")
     assert dlg._btn_images.text() == "Imágenes…"
     assert dlg.base_unit.current_id() == _UNIT_ID  # catálogo precargado correctamente
+
+
+def test_product_dialog_saves_scoped_minimum_without_recreating_master(monkeypatch):
+    from PyQt5.QtWidgets import QApplication
+    from frontend.desktop.modules.products.dialogs.product_form_dialog import ProductFormDialog
+
+    app = QApplication.instance() or QApplication([])
+
+    class Presenter(_ImagesPresenter):
+        can_manage_images = False
+        can_manage_stock_minimum = True
+
+        def __init__(self):
+            self.master_calls = 0
+            self.rule_calls = 0
+
+        def stock_warehouses(self):
+            return [("warehouse-1", "Sucursal · Almacén")]
+
+        def preview_code(self, *, product_type):
+            return "P-001"
+
+        def save_product(self, *, product_id, fields):
+            self.master_calls += 1
+            return True, "Guardado", "product-1"
+
+        def save_stock_minimum(self, product_id, warehouse_id, *, minimum, target):
+            self.rule_calls += 1
+            assert (product_id, warehouse_id, str(minimum), str(target)) == (
+                "product-1", "warehouse-1", "5.000", "12.000")
+            return (self.rule_calls > 1, "Reintenta")
+
+    presenter = Presenter()
+    dlg = ProductFormDialog(presenter)
+    dlg.name.setText("Producto")
+    dlg._select(dlg.product_type, "RESALE_PRODUCT")
+    dlg.base_unit.set_current_id(_UNIT_ID)
+    dlg.stock_warehouse.set_current_id("warehouse-1")
+    dlg.stock_minimum.set_decimal("5")
+    dlg.stock_target.set_decimal("12")
+    dlg._on_save()
+    assert presenter.master_calls == 1 and presenter.rule_calls == 1
+    assert "quedó pendiente" in dlg._error.text()
+    dlg._on_save()
+    assert presenter.master_calls == 1 and presenter.rule_calls == 2

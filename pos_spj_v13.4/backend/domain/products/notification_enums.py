@@ -24,6 +24,8 @@ class NotificationChannel(str, Enum):
 
 
 class ProductAlertType(str, Enum):
+    STOCK_LOW = "STOCK_LOW"
+    STOCK_OUT = "STOCK_OUT"
     PRODUCT_INCOMPLETE = "PRODUCT_INCOMPLETE"
     PENDING_APPROVAL = "PENDING_APPROVAL"
     BARCODE_DUPLICATE = "BARCODE_DUPLICATE"

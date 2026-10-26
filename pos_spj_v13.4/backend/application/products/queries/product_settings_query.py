@@ -62,17 +62,21 @@ class ProductSettingsQuery:
             require_catch_weight_range=bool(reader.get(REQUIRE_CATCH_WEIGHT_RANGE_KEY)),
             default_yield_tolerance_pct=str(reader.get(DEFAULT_YIELD_TOLERANCE_KEY) or "0"))
 
-    def alert_user_ids(self, settings: ProductSettings | None = None) -> list[str]:
-        """Usuarios activos con alguno de los roles configurados."""
+    def alert_user_ids(self, settings: ProductSettings | None = None,
+                       *, branch_id: str | None = None) -> list[str]:
+        """Usuarios activos con rol configurado, filtrados por sucursal si aplica."""
         settings = settings or self.current()
         roles = [r.lower() for r in settings.alert_roles]
         if not roles:
             return []
         try:
-            rows = self._conn.execute(
-                f"SELECT id FROM usuarios WHERE lower(trim(rol)) IN "
-                f"({','.join('?' for _ in roles)}) AND COALESCE(activo, 1) = 1",
-                roles).fetchall()
+            sql = (f"SELECT id FROM usuarios WHERE lower(trim(rol)) IN "
+                   f"({','.join('?' for _ in roles)}) AND COALESCE(activo, 1) = 1")
+            params = list(roles)
+            if branch_id:
+                sql += " AND (sucursal_id=? OR sucursal_id IS NULL OR sucursal_id='')"
+                params.append(branch_id)
+            rows = self._conn.execute(sql, params).fetchall()
         except Exception:  # base sin tabla de usuarios: nadie a quien avisar
             return []
         return [r[0] for r in rows]

@@ -26,6 +26,13 @@ class UserInboxService:
             return []
         return self._inbox.list_for_user(user_id, limit=INBOX_PAGE_SIZE)
 
+    def history(self, user_id: str, *, unread_only: bool = False,
+                limit: int = 200) -> list[InboxRow]:
+        if not user_id:
+            return []
+        return self._inbox.list_for_user(user_id, limit=min(max(1, limit), 500),
+                                        unread_only=unread_only)
+
     def unread_count(self, user_id: str) -> int:
         return self._inbox.unread_count(user_id) if user_id else 0
 
