@@ -442,6 +442,23 @@ crear_tablas = up
 aplicar_migraciones = up
 
 
+def target_schema_version() -> int:
+    """Esquema en que `up()` deja la base de una ESTACIÓN con este código.
+
+    Sólo el carril SQLite (`MIGRATIONS`) cuenta; el carril PostgreSQL (`p001`…)
+    migra el servidor central. Es la cifra del manifiesto de la versión
+    (`database_schema.migrates_to`) y la regla es la MISMA con la que
+    `sqlite_backup.database_schema_version()` lee la base de una estación
+    (`backend/shared/schema_versions.py`).
+    """
+    from backend.shared.schema_versions import station_schema_version
+
+    version = station_schema_version(m.version for m in MIGRATIONS)
+    if version is None:
+        raise RuntimeError("El carril SQLite no tiene migraciones numéricas.")
+    return version
+
+
 # ==============================================================================
 # Carril PostgreSQL — servidor central (arquitectura híbrida, Slice 3; ADR-005)
 # ==============================================================================

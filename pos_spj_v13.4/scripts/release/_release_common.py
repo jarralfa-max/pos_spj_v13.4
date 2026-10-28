@@ -30,14 +30,16 @@ def read_version() -> str:
 
 
 def schema_target() -> int:
-    """Highest migration the build carries (from migrations/engine.py)."""
-    source = (PACKAGE_ROOT / "migrations" / "engine.py").read_text(encoding="utf-8")
-    versions = []
-    for node in ast.walk(ast.parse(source)):
-        if (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "_Migration"
-                and node.args and isinstance(node.args[0], ast.Constant)):
-            versions.append(int(node.args[0].value))
-    return max(versions)
+    """Station schema the build migrates to — asked to the migration engine.
+
+    Until 2026-10-25 this parsed every `_Migration(...)` in engine.py and did
+    `int()` on each id; the PostgreSQL lane (`p001`…, central server only) made
+    it crash. The engine owns the rule (`target_schema_version()`), so the
+    manifest and the stations can never use different scales.
+    """
+    from migrations.engine import target_schema_version
+
+    return target_schema_version()
 
 
 def git_commit() -> str:

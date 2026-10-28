@@ -62,9 +62,10 @@ def database_schema_version(connection: sqlite3.Connection) -> int | None:
     ).fetchone()
     if exists is None:
         return None
-    versions = [row[0] for row in connection.execute("SELECT version FROM schema_migrations")]
-    numeric = [int(v) for v in versions if str(v).isdigit()]
-    return max(numeric) if numeric else None
+    from backend.shared.schema_versions import station_schema_version
+
+    return station_schema_version(
+        row[0] for row in connection.execute("SELECT version FROM schema_migrations"))
 
 
 def table_row_counts(connection: sqlite3.Connection) -> dict[str, int]:

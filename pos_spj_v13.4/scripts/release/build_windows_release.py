@@ -163,6 +163,9 @@ def main(argv=None) -> int:
     from backend.domain.software_distribution.semantic_version import SemanticVersion
 
     version = read_version()
+    # Before the long PyInstaller run: a migration list the release tooling
+    # cannot read must fail in seconds, not after compiling for minutes.
+    target_schema = schema_target()
     semver = SemanticVersion.parse(version)
     file_version = semver.windows_file_version()
     # absolute(), not resolve(): resolve() expands an 8.3 short path back to the
@@ -205,7 +208,7 @@ def main(argv=None) -> int:
     if args.sign:
         sign([bundle / "SPJ.exe", bundle / "spj_whatsapp.exe", updater])
 
-    result = {**build_info, "schema_target": schema_target(), "bundle": str(bundle),
+    result = {**build_info, "schema_target": target_schema, "bundle": str(bundle),
               "longest_bundle_path": longest}
     if args.skip_installer:
         write_json(release_dir / "release.json", {**result, "publishable": False,
@@ -241,7 +244,7 @@ def main(argv=None) -> int:
             "platform": {"os": "windows", "arch": "x64"},
             "minimum_installed_version": args.minimum_installed_version or None,
             "database_schema": {"requires_at_least": args.schema_requires_at_least,
-                                "migrates_to": schema_target()},
+                                "migrates_to": target_schema},
             "artifact": {"kind": "inno-setup", "file_name": installer.name,
                          "url": f"{args.artifact_base_url.rstrip('/')}/{installer.name}",
                          "size": installer.stat().st_size, "sha256": digest},
