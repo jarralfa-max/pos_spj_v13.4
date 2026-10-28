@@ -178,3 +178,34 @@ def test_cancelled_provisioning_gate_blocks_startup(app):
         setup_wizard_factory=lambda: FakeDialog(result=QDialog.Rejected),
     )
     assert coordinator.ensure_provisioned() is False
+
+
+def test_a_user_without_access_to_the_station_site_is_sent_back_to_login(app):
+    """Auditoría enterprise, Fase 2 (N01): credenciales correctas pero ningún rol
+    en el sitio de la estación → se revoca la sesión, se avisa y se vuelve a
+    pedir inicio de sesión."""
+    from types import SimpleNamespace
+
+    from backend.bootstrap.application_context_errors import SiteAccessDeniedError
+
+    intentos = [SimpleNamespace(session=SimpleNamespace(session_id="s-1"), ok=False),
+                SimpleNamespace(session=SimpleNamespace(session_id="s-2"), ok=True)]
+    ventanas, revocadas, avisos, captado = [], [], [], {}
+
+    def ventana():
+        ventanas.append(1)
+        return FakeLoginWindow(auth_result=intentos[len(ventanas) - 1])
+
+    def construir(auth):
+        if not auth.ok:
+            raise SiteAccessDeniedError("Chihuahua")
+        return "CTX"
+
+    coordinator = _coordinator(
+        app, status=ProvisioningStatus.PROVISIONED, login_window_factory=ventana,
+        build_application_context=construir, revoke_session=revocadas.append,
+        notify_access_denied=avisos.append,
+        on_authenticated=lambda ctx: captado.setdefault("ctx", ctx))
+    assert coordinator.run() is True
+    assert (len(ventanas), revocadas, captado["ctx"]) == (2, ["s-1"], "CTX")
+    assert "Chihuahua" in avisos[0]

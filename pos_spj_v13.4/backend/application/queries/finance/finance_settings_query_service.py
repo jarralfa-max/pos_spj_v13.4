@@ -62,15 +62,34 @@ class FinanceSettingsQueryService(FinanceQueryServiceBase):
 
     def dimensions(self) -> dict[str, list[dict]]:
         return {
-            "cost_centers": self._query("SELECT id, code, name, branch_id FROM cost_centers"
-                                        " WHERE active=1 ORDER BY code"),
-            "profit_centers": self._query("SELECT id, code, name, branch_id FROM profit_centers"
-                                          " WHERE active=1 ORDER BY code"),
+            "cost_centers": self._query(
+                "SELECT c.id, c.code, c.name, c.branch_id, c.org_unit_id, u.name AS unit_name"
+                " FROM cost_centers c LEFT JOIN org_units u ON u.id = c.org_unit_id"
+                " WHERE c.active=1 ORDER BY c.code") if self._has_org_units() else self._query(
+                "SELECT id, code, name, branch_id FROM cost_centers WHERE active=1 ORDER BY code"),
+            "profit_centers": self._query(
+                "SELECT c.id, c.code, c.name, c.branch_id, c.org_unit_id, u.name AS unit_name"
+                " FROM profit_centers c LEFT JOIN org_units u ON u.id = c.org_unit_id"
+                " WHERE c.active=1 ORDER BY c.code") if self._has_org_units() else self._query(
+                "SELECT id, code, name, branch_id FROM profit_centers WHERE active=1"
+                " ORDER BY code"),
             "projects": self._query("SELECT id, code, name, branch_id, is_capex FROM projects"
                                     " WHERE active=1 ORDER BY code"),
             "departments": self._query("SELECT id, code, name FROM departments WHERE active=1"
                                        " ORDER BY code"),
         }
+
+    def org_units(self) -> list[dict]:
+        if not self._has_org_units():
+            return []
+        return self._query("SELECT id, code, name, unit_type FROM org_units"
+                           " WHERE status='ACTIVE' ORDER BY name")
+
+    def _has_org_units(self) -> bool:
+        """La estructura organizacional (migración 351) puede no existir en una
+        base de Finanzas armada sola (pruebas, bootstrap aislado)."""
+        return bool(self._query("SELECT 1 AS x FROM sqlite_master WHERE type='table'"
+                                " AND name='org_units'"))
 
     def treasury_accounts(self) -> list[dict]:
         return self._query("SELECT ta.id, ta.name, ta.account_type, ta.currency_code,"

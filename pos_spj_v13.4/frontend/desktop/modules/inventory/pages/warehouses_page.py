@@ -14,7 +14,7 @@ autorizados reales; esta página no tiene SQL ni lógica de negocio.
 from __future__ import annotations
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -24,7 +24,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import ConfirmationDialog
+from frontend.desktop.components.dialogs import ConfirmationDialog, MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.dialogs import (
     BlockReasonDialog,
@@ -100,7 +100,7 @@ class WarehousesPage(QWidget):
     def _selected_warehouse_id(self) -> str | None:
         wid = self._table.selected_row_id()
         if not wid:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Almacenes", "Selecciona un almacén de la lista.")
             return None
         return wid
@@ -125,7 +125,7 @@ class WarehousesPage(QWidget):
             return
         code, name = dlg.code(), dlg.name()
         if not code or not name:
-            QMessageBox.warning(self, "Almacenes", "Captura código y nombre.")
+            MessageDialog.warning(self, "Almacenes", "Captura código y nombre.")
             return
         self.create_button.setEnabled(False)
         try:
@@ -135,7 +135,7 @@ class WarehousesPage(QWidget):
                 capacity_uom=dlg.capacity_uom(), purposes=dlg.purposes())
         finally:
             self.create_button.setEnabled(True)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Almacenes", message)
         if ok:
             self.refresh()
@@ -146,20 +146,20 @@ class WarehousesPage(QWidget):
             return
         row = self._presenter.warehouse_detail(warehouse_id=wid)
         if row is None:
-            QMessageBox.warning(self, "Almacenes", "Almacén no encontrado.")
+            MessageDialog.warning(self, "Almacenes", "Almacén no encontrado.")
             return
         dlg = EditWarehouseDialog(self, warehouse=row)
         if dlg.exec_() != QDialog.Accepted:
             return
         name = dlg.name()
         if not name:
-            QMessageBox.warning(self, "Almacenes", "Captura un nombre.")
+            MessageDialog.warning(self, "Almacenes", "Captura un nombre.")
             return
         ok, message, _ = self._presenter.update_warehouse(
             warehouse_id=wid, name=name, warehouse_type=dlg.warehouse_type(),
             temperature_profile=dlg.temperature_profile(), capacity=dlg.capacity(),
             capacity_uom=dlg.capacity_uom(), purposes=dlg.purposes())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Almacenes", message)
         if ok:
             self.refresh()
@@ -176,7 +176,7 @@ class WarehousesPage(QWidget):
             if ok:
                 dlg.set_rows(self._presenter.zones(warehouse_id=wid))
             else:
-                QMessageBox.warning(self, "Zonas", message)
+                MessageDialog.warning(self, "Zonas", message)
 
         dlg = ManageZonesDialog(
             self, warehouse_label=label, table=self._presenter.zones(warehouse_id=wid),
@@ -213,7 +213,7 @@ class WarehousesPage(QWidget):
             return
         ok, message, _ = self._presenter.deactivate_warehouse(
             warehouse_id=wid, reason=dlg.reason())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Almacenes", message)
         if ok:
             self.refresh()
@@ -227,7 +227,7 @@ class WarehousesPage(QWidget):
         finally:
             self.activate_button.setEnabled(True)
             self.block_button.setEnabled(True)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Almacenes", message)
         if ok:
             self.refresh()

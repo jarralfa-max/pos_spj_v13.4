@@ -369,8 +369,8 @@ class OrdersPage(_ListPageBase):
         order_id = self._selected()
         if not order_id:
             return
-        from PyQt5.QtWidgets import QInputDialog
-        reason, accepted = QInputDialog.getText(
+        from frontend.desktop.components.dialogs import FormDialog
+        reason, accepted = FormDialog.get_text(
             self, "Cerrar faltante", "El proveedor no repondrá lo faltante. Motivo:")
         if accepted and reason.strip():
             ok, msg, _ = self._presenter.close_order_remainder(order_id, reason.strip())

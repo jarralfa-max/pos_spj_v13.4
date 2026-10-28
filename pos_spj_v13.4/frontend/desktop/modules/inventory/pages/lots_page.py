@@ -12,7 +12,7 @@ independently. All values come from the presenter; no SQL, no business logic.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -21,6 +21,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.entity_search_input import EntitySearchInput
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.dialogs import (
@@ -86,20 +87,20 @@ class LotsPage(QWidget):
     def _selected_lot_id(self) -> str | None:
         lid = self._table.selected_row_id()
         if not lid:
-            QMessageBox.information(self, "Lotes", "Selecciona un lote de la lista.")
+            MessageDialog.information(self, "Lotes", "Selecciona un lote de la lista.")
             return None
         return lid
 
     def _on_create(self) -> None:
         if not self._product_id:
-            QMessageBox.information(self, "Lotes", "Selecciona un producto primero.")
+            MessageDialog.information(self, "Lotes", "Selecciona un producto primero.")
             return
         dlg = CreateLotDialog(self)
         if dlg.exec_() != QDialog.Accepted:
             return
         code = dlg.lot_code()
         if not code:
-            QMessageBox.warning(self, "Lotes", "Captura el código de lote.")
+            MessageDialog.warning(self, "Lotes", "Captura el código de lote.")
             return
         ok, message, _ = self._presenter.register_lot(
             product_id=self._product_id, lot_code=code, origin_type=dlg.origin_type(),
@@ -107,7 +108,7 @@ class LotsPage(QWidget):
             production_lot_code=dlg.production_lot_code(),
             origin_document_id=dlg.origin_document_id(),
             production_date=dlg.production_date(), expiration_date=dlg.expiration_date())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Lotes", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Lotes", message)
         if ok:
             self.refresh()
 
@@ -117,7 +118,7 @@ class LotsPage(QWidget):
             return
         header = self._presenter.lot_detail(lot_id=lid)
         if header is None:
-            QMessageBox.warning(self, "Lotes", "Lote no encontrado.")
+            MessageDialog.warning(self, "Lotes", "Lote no encontrado.")
             return
         caps = self._presenter.capabilities()
 
@@ -130,7 +131,7 @@ class LotsPage(QWidget):
                 production_lot_code=edit_dlg.production_lot_code(),
                 origin_document_id=edit_dlg.origin_document_id(),
                 expiration_date=edit_dlg.expiration_date() or None)
-            (QMessageBox.information if ok else QMessageBox.warning)(self, "Lotes", message)
+            (MessageDialog.information if ok else MessageDialog.warning)(self, "Lotes", message)
             if ok:
                 dlg.accept()
                 self.refresh()
@@ -138,7 +139,7 @@ class LotsPage(QWidget):
         def change_status(new_status: str, reason: str) -> None:
             ok, message, _ = self._presenter.set_lot_quality_status(
                 lot_id=lid, new_status=new_status, reason=reason)
-            (QMessageBox.information if ok else QMessageBox.warning)(self, "Lotes", message)
+            (MessageDialog.information if ok else MessageDialog.warning)(self, "Lotes", message)
             if ok:
                 dlg.accept()
                 self.refresh()
@@ -146,7 +147,7 @@ class LotsPage(QWidget):
         def print_label(is_reprint: bool) -> None:
             ok, message, _ = self._presenter.print_lot_label(
                 lot_id=lid, is_reprint=is_reprint)
-            (QMessageBox.information if ok else QMessageBox.warning)(self, "Lotes", message)
+            (MessageDialog.information if ok else MessageDialog.warning)(self, "Lotes", message)
 
         dlg = LotDetailDialog(
             self, header=header, stock=self._presenter.lot_stock(lot_id=lid),

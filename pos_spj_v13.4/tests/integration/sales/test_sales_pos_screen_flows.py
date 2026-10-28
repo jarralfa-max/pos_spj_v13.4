@@ -29,7 +29,7 @@ import pytest  # noqa: E402
 
 pytest.importorskip("PyQt5")
 
-from PyQt5.QtWidgets import QApplication, QMessageBox  # noqa: E402
+from PyQt5.QtWidgets import QApplication
 
 from backend.application.sales.permissions import SalesPermissions  # noqa: E402
 from backend.infrastructure.db.schema.customers_crm_schema import (  # noqa: E402
@@ -43,6 +43,7 @@ from backend.infrastructure.db.schema.pricing_schema import create_pricing_schem
 from backend.infrastructure.db.schema.products_schema import create_products_schema  # noqa: E402
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema  # noqa: E402
 from backend.shared.ids import new_uuid  # noqa: E402
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.sales_pos.composition import create_sales_pos_view  # noqa: E402
 from tests.integration._pos_ready import open_cash_shift, stock_product  # noqa: E402
 
@@ -121,9 +122,9 @@ def pos(app, conn, monkeypatch):
     _product(conn, name="Cabeza", code="CAB", unit_id=kg, price=None)
 
     mensajes = []
-    monkeypatch.setattr(QMessageBox, "information",
+    monkeypatch.setattr(MessageDialog, "information",
                         staticmethod(lambda _p, title, text: mensajes.append(("info", title, text))))
-    monkeypatch.setattr(QMessageBox, "warning",
+    monkeypatch.setattr(MessageDialog, "warning",
                         staticmethod(lambda _p, title, text: mensajes.append(("warn", title, text))))
 
     workspace = create_sales_pos_view(conn, session)

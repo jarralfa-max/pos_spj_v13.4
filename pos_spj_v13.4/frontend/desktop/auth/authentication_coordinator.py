@@ -29,6 +29,7 @@ from typing import Callable, Optional
 from PyQt5.QtWidgets import QDialog
 
 from backend.bootstrap.application_context import ApplicationContext
+from backend.bootstrap.application_context_errors import SiteAccessDeniedError
 from backend.security.provisioning.installation import ProvisioningStatus
 from backend.security.provisioning.installation_status_query import InstallationStatusQuery
 from frontend.desktop.auth.login_window import LoginWindow
@@ -46,6 +47,7 @@ class AuthenticationCoordinator:
         recovery_required_dialog_factory: Optional[Callable[[], QDialog]] = None,
         locked_dialog_factory: Optional[Callable[[], QDialog]] = None,
         revoke_session: Optional[Callable[[str], object]] = None,
+        notify_access_denied: Optional[Callable[[str], object]] = None,
     ) -> None:
         self._installation_status_query = installation_status_query
         self._setup_wizard_factory = setup_wizard_factory
@@ -55,6 +57,9 @@ class AuthenticationCoordinator:
         self._recovery_required_dialog_factory = recovery_required_dialog_factory
         self._locked_dialog_factory = locked_dialog_factory
         self._revoke_session = revoke_session
+        #: Cómo se avisa que el usuario no tiene acceso al sitio de la estación
+        #: (auditoría enterprise, Fase 2). Inyectable para las pruebas.
+        self._notify_access_denied = notify_access_denied or _warn_access_denied
 
     def logout(self, session_id: str) -> None:
         """Use the existing session service before reopening authentication."""
@@ -70,17 +75,29 @@ class AuthenticationCoordinator:
         if not self.ensure_provisioned():
             return False
 
-        login_window = self._login_window_factory()
-        if login_window.exec_() != QDialog.Accepted:
-            return False
+        while True:
+            login_window = self._login_window_factory()
+            if login_window.exec_() != QDialog.Accepted:
+                return False
 
-        auth_result = login_window.authentication_result
-        if auth_result is None:
-            return False
+            auth_result = login_window.authentication_result
+            if auth_result is None:
+                return False
 
-        context = self._build_application_context(auth_result)
-        self._on_authenticated(context)
-        return True
+            try:
+                context = self._build_application_context(auth_result)
+            except SiteAccessDeniedError as exc:
+                # Credenciales correctas, pero ningún rol suyo vale en el sitio de
+                # esta estación: la sesión recién abierta se revoca y se vuelve
+                # al inicio de sesión con el motivo.
+                session = getattr(auth_result, "session", None)
+                session_id = getattr(session, "session_id", "")
+                if session_id and self._revoke_session is not None:
+                    self._revoke_session(session_id)
+                self._notify_access_denied(str(exc))
+                continue
+            self._on_authenticated(context)
+            return True
 
     def ensure_provisioned(self) -> bool:
         """Resolve first-run/locked states before any operational UI is built."""
@@ -103,3 +120,9 @@ class AuthenticationCoordinator:
             return False
 
         return status is ProvisioningStatus.PROVISIONED
+
+
+def _warn_access_denied(message: str) -> None:
+    from frontend.desktop.components.dialogs import MessageDialog
+
+    MessageDialog.warning(None, "Acceso a la sucursal", message)

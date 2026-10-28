@@ -19,7 +19,6 @@ from decimal import Decimal, InvalidOperation
 from PyQt5.QtWidgets import (
     QComboBox,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QVBoxLayout,
     QWidget,
@@ -148,7 +147,7 @@ class ReturnsPage(WorklistPage):
         self._returns.load_rows(model.rows, row_ids=model.row_ids)
 
     def _ask_reason(self, title: str) -> str | None:
-        reason, accepted = QInputDialog.getText(self, title, "Motivo:")
+        reason, accepted = FormDialog.get_text(self, title, "Motivo:")
         return reason.strip() if accepted and reason.strip() else None
 
     def _reverse(self) -> None:

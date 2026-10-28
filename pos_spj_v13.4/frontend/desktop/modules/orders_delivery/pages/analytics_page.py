@@ -5,9 +5,10 @@ Mirrors `frontend/desktop/modules/losses/pages/analytics_page.py`'s shape.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import HtmlChartView, KPIBar, PageHeader, create_secondary_button
+from frontend.desktop.components.dialogs import MessageDialog
 
 
 class OrdersAnalyticsPage(QWidget):
@@ -43,7 +44,7 @@ class OrdersAnalyticsPage(QWidget):
             cards = self._presenter.kpi_cards()
             charts = self._presenter.charts()
         except Exception as exc:  # noqa: BLE001 - surface, never crash the page
-            QMessageBox.warning(self, "Análisis", str(exc))
+            MessageDialog.warning(self, "Análisis", str(exc))
             return
         self.kpis.set_cards(cards)
         for view, dto in zip(self.charts, charts):

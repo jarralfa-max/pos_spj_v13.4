@@ -11,9 +11,10 @@ Sólo presentación: guarda por el presenter → caso de uso (permiso
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QFormLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFormLayout, QLabel, QVBoxLayout, QWidget
 
 from frontend.desktop.components import DecimalInput, PageHeader, create_primary_button
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.themes.tokens import Spacing
 
 
@@ -65,6 +66,6 @@ class MeatProcessingSettingsPage(QWidget):
             warning_pct=self.warning.decimal_value(),
             tolerance_pct=self.tolerance.decimal_value(),
             critical_pct=self.critical.decimal_value())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Configuración", mensaje)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Configuración", mensaje)
         if ok:
             self.refresh()

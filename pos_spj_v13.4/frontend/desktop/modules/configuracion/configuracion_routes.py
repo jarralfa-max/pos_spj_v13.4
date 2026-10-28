@@ -131,6 +131,7 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         SetInstallationBranchUseCase,
     )
     from backend.application.organization.org_structure_service import OrgStructureService
+    from backend.application.security.role_assignment_service import RoleAssignmentService
     from backend.application.configuracion.settings_services import (
         CompanyProfileService,
         RoleManagementService,
@@ -301,6 +302,10 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         org_structure=OrgStructureService(
             connection, authorization=authorization,
             actor=lambda: getattr(session, "user_id", "") or "", audit_log=audit_log),
+        role_assignments=RoleAssignmentService(
+            connection, authorization=authorization,
+            actor=lambda: getattr(session, "user_id", "") or "", audit_log=audit_log,
+            grant_versions=SqliteGrantVersionRepository(connection)),
         software_updates=SoftwareUpdatesPresenter(
             build_software_update_dependencies(connection, session_context=session),
             copy_file=copy_package_file, request_handoff=request_update_handoff),

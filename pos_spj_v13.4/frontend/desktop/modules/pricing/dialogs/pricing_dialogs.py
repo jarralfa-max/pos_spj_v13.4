@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from PyQt5.QtWidgets import QCheckBox, QLabel, QMessageBox
+from PyQt5.QtWidgets import QCheckBox, QLabel
 
 from backend.domain.pricing.enums import SALE_CHANNELS
 
@@ -26,6 +26,7 @@ from frontend.desktop.components import (
     StandardLineEdit,
 )
 from frontend.desktop.components.decimal_input import DecimalInput
+from frontend.desktop.components.dialogs import MessageDialog
 
 _KINDS = [("BASE", "Base"), ("CHANNEL", "Canal"), ("CUSTOMER", "Cliente"),
           ("PROMOTIONAL", "Promoción")]
@@ -77,7 +78,7 @@ class _PricingDialog(FormDialog):
     def _accept_if_valid(self) -> None:
         error = self._error()
         if error:
-            QMessageBox.warning(self, self.windowTitle(), error)
+            MessageDialog.warning(self, self.windowTitle(), error)
             return
         self.accept()
 

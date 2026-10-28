@@ -3,8 +3,8 @@ explícita, disputa, promesa de pago, castigo y vencimientos."""
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QMessageBox
 
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.tables import ColumnSpec
 from frontend.desktop.modules.finance.dialogs.collection_dialog import CollectionDialog
 from frontend.desktop.modules.finance.dialogs.fields_dialog import (
@@ -59,7 +59,7 @@ class AccountsReceivablePage(FinancePage):
         if summary is None:
             self.notify(False, "No se encontró exposición de crédito para ese cliente.")
             return
-        QMessageBox.information(
+        MessageDialog.information(
             self, "Resumen de crédito",
             f"Exposición actual: {summary['current_exposure']}\n"
             f"Vencido: {summary['overdue_amount']}\n"

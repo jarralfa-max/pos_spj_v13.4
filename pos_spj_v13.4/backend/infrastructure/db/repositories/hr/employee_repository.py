@@ -184,26 +184,26 @@ class SalaryHistoryRepository(HRRepositoryBase):
 class DepartmentRepository(HRRepositoryBase):
     def save(self, department: Department) -> None:
         self._execute(
-            "INSERT INTO hr_departments (id, code, name, branch_id, active, created_at)"
-            " VALUES (?,?,?,?,?,?)",
+            "INSERT INTO hr_departments (id, code, name, branch_id, active, created_at,"
+            " org_unit_id) VALUES (?,?,?,?,?,?,?)",
             (department.id, department.code, department.name, department.branch_id,
-             int(department.active), department.created_at))
+             int(department.active), department.created_at, department.org_unit_id))
 
     def get(self, department_id: str) -> Department | None:
         row = self._query_one(
-            "SELECT id, code, name, branch_id, active, created_at"
-            " FROM hr_departments WHERE id=?", (department_id,))
+            "SELECT * FROM hr_departments WHERE id=?", (department_id,))
         return Department(id=row["id"], code=row["code"], name=row["name"],
                           branch_id=row["branch_id"], active=bool(row["active"]),
-                          created_at=row["created_at"]) if row else None
+                          created_at=row["created_at"],
+                          org_unit_id=dict(row).get("org_unit_id")) if row else None
 
     def list_active(self) -> list[Department]:
         rows = self._query(
-            "SELECT id, code, name, branch_id, active, created_at"
-            " FROM hr_departments WHERE active=1 ORDER BY name")
+            "SELECT * FROM hr_departments WHERE active=1 ORDER BY name")
         return [Department(id=r["id"], code=r["code"], name=r["name"],
                            branch_id=r["branch_id"], active=bool(r["active"]),
-                           created_at=r["created_at"]) for r in rows]
+                           created_at=r["created_at"], org_unit_id=dict(r).get("org_unit_id"))
+                for r in rows]
 
 
 def update_catalog(repo: HRRepositoryBase, table: str, item_id: str, *, name: str,

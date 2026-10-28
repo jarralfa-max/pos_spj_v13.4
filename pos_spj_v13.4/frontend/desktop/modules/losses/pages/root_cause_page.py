@@ -1,8 +1,9 @@
 """Spanish desktop form for LOSS-16; all data access stays behind its presenter."""
 
 from PyQt5.QtWidgets import (QComboBox,QFormLayout,QHBoxLayout,QLabel,QListWidget,
-                             QMessageBox,QPlainTextEdit,QPushButton,QVBoxLayout,QWidget)
+QPlainTextEdit,QPushButton,QVBoxLayout,QWidget)
 from frontend.desktop.components.buttons import create_primary_button
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.search_selector import SearchSelector
 
@@ -44,21 +45,21 @@ class RootCausePage(QWidget):
     def _add_contributor(self):
         reason=self.contributor_reason.toPlainText().strip()
         if self._contributor is None or not reason:
-            QMessageBox.warning(self,"Datos incompletos","Selecciona y justifica la causa contribuyente."); return
+            MessageDialog.warning(self,"Datos incompletos","Selecciona y justifica la causa contribuyente."); return
         if self._primary and self._contributor.id==self._primary.id or any(item[0]==self._contributor.id for item in self._contributors):
-            QMessageBox.warning(self,"Causa duplicada","Cada causa debe ser distinta."); return
+            MessageDialog.warning(self,"Causa duplicada","Cada causa debe ser distinta."); return
         self._contributors.append((self._contributor.id,reason))
         self.contributor_list.addItem(f"{self._contributor.label} — {reason}")
         self._contributor=None; self.contributor.clear(); self.contributor_reason.clear()
     def _save(self):
         primary_reason=self.primary_reason.toPlainText().strip()
         if not self._investigation_id or self._primary is None or not primary_reason or not self.summary.toPlainText().strip():
-            QMessageBox.warning(self,"Datos incompletos","Selecciona investigación, causa primaria y completa el análisis."); return
+            MessageDialog.warning(self,"Datos incompletos","Selecciona investigación, causa primaria y completa el análisis."); return
         try:
             result=self._presenter.record(investigation_id=self._investigation_id,
                 method=self.method.currentData(),summary=self.summary.toPlainText(),
                 primary=(self._primary.id,primary_reason),contributors=tuple(self._contributors))
         except Exception as exc:
-            QMessageBox.critical(self,"No fue posible registrar",str(exc)); return
+            MessageDialog.critical(self,"No fue posible registrar",str(exc)); return
         self.status.setText(f"Análisis {result.entity_id} · registrado")
-        QMessageBox.information(self,"Causa raíz registrada","El análisis quedó vinculado a la investigación.")
+        MessageDialog.information(self,"Causa raíz registrada","El análisis quedó vinculado a la investigación.")

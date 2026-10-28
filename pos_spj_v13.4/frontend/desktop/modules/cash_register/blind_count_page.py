@@ -1,9 +1,10 @@
 """CASH-12 blind count UI; expected cash is absent until authorized reveal."""
 
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from backend.domain.cash_register.exceptions import CashRegisterError
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
@@ -144,7 +145,7 @@ class BlindCountPage(QWidget):
             self._show_error(user_facing_error(exc))
 
     def _show_result(self, message: str) -> None:
-        QMessageBox.information(self, "Caja", message)
+        MessageDialog.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", user_facing_error(message or "No fue posible completar el conteo."))
+        MessageDialog.warning(self, "Caja", user_facing_error(message or "No fue posible completar el conteo."))

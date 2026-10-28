@@ -29,8 +29,9 @@ from decimal import Decimal
 
 from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QKeySequence
-from PyQt5.QtWidgets import QMessageBox, QShortcut, QSplitter, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QShortcut, QSplitter, QVBoxLayout, QWidget
 
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.module_layout import ModuleLayout
 from frontend.desktop.modules.sales_pos.components.cashier_bar import CashierBar
@@ -279,10 +280,10 @@ class SalesPosWorkspace(QWidget):
         return bool(self._sale is not None and self._sale.lines)
 
     def _warn(self, title: str, message: str) -> None:
-        QMessageBox.warning(self, title, message)
+        MessageDialog.warning(self, title, message)
 
     def _info(self, title: str, message: str) -> None:
-        QMessageBox.information(self, title, message)
+        MessageDialog.information(self, title, message)
 
     # ── catálogo, escáner y peso (§15-19) ────────────────────────────────
     def _on_product_selected(self, product) -> None:

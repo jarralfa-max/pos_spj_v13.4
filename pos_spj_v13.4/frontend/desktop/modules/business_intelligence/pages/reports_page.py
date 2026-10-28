@@ -6,9 +6,10 @@ export, not a placeholder.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QComboBox, QFileDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QComboBox, QFileDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import PageHeader, create_primary_button
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.business_intelligence.presenters.reports_presenter import (
     ReportUnavailableError,
 )
@@ -65,6 +66,6 @@ class ReportsPage(QWidget):
         try:
             written = self._presenter.generate(report_key=report_key, fmt=fmt, filepath=filepath)
         except ReportUnavailableError as exc:
-            QMessageBox.warning(self, "Reportes", str(exc))
+            MessageDialog.warning(self, "Reportes", str(exc))
             return
-        QMessageBox.information(self, "Reportes", f"Archivo guardado en:\n{written}")
+        MessageDialog.information(self, "Reportes", f"Archivo guardado en:\n{written}")

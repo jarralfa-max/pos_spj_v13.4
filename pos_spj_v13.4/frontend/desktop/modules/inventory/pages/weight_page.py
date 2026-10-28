@@ -11,7 +11,7 @@ shows. All values come from the presenter; no SQL, no business logic.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -20,6 +20,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.dialogs import (
     CaptureWeightDialog,
@@ -81,14 +82,14 @@ class WeightPage(QWidget):
             return
         product_id = dlg.product_id()
         if not product_id:
-            QMessageBox.warning(self, "Peso variable", "Selecciona un producto de la lista.")
+            MessageDialog.warning(self, "Peso variable", "Selecciona un producto de la lista.")
             return
         ok, message, _ = self._presenter.record_catch_weight(
             product_id=product_id, use_scale=dlg.use_scale(),
             pieces_delta=dlg.pieces_delta(), gross=dlg.gross(), tare=dlg.tare(),
             unit=dlg.unit(), authorizer_user_id=dlg.authorizer_user_id(),
             reason_note=dlg.note(), location_id=dlg.location_id())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Peso variable", message)
         if ok:
             self.refresh()

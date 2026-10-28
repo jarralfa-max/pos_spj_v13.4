@@ -2,8 +2,9 @@
 transfer request. Every other page in this module stays the generic
 read-only shell (``workspace_pages.py``) until later INV-12.x phases wire
 their own actions the same way."""
-from PyQt5.QtWidgets import QDialog, QMessageBox
+from PyQt5.QtWidgets import QDialog
 
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.transfers.dialogs import TransferRequestDialog
 
 from .base_page import TransferWorkspacePage
@@ -28,13 +29,13 @@ class TransferRequestsPage(TransferWorkspacePage):
             return
         quantity = dlg.quantity_value()
         if not quantity:
-            QMessageBox.warning(self, "Solicitudes", "Captura una cantidad mayor a cero.")
+            MessageDialog.warning(self, "Solicitudes", "Captura una cantidad mayor a cero.")
             return
         ok, message, _ = self._presenter.create_transfer_request(
             origin_branch_id=dlg.origin_branch_id(),
             destination_branch_id=dlg.destination_branch_id(),
             product_id=dlg.product_id(), quantity=quantity, weight=dlg.weight_value())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Solicitudes", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Solicitudes", message)
         if ok:
             self.reload()
 

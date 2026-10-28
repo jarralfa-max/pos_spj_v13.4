@@ -11,11 +11,10 @@ from decimal import Decimal
 
 from PyQt5.QtWidgets import (
     QCheckBox,
-    QMessageBox,
 )
 
 from frontend.desktop.components.address_input import AddressInput
-from frontend.desktop.components.dialogs import FormDialog
+from frontend.desktop.components.dialogs import FormDialog, MessageDialog
 from frontend.desktop.components import (
     EmailInput,
     IntegerInput,
@@ -89,7 +88,7 @@ class _SupplierDialog(FormDialog):
     def _accept_if_valid(self) -> None:
         error = self._error()
         if error:
-            QMessageBox.warning(self, self.dialog_title, error)
+            MessageDialog.warning(self, self.dialog_title, error)
             return
         self.accept()
 

@@ -178,6 +178,11 @@ class FinancePresenter:
     def journal_type_options(self) -> list[Option]:
         return [(r["journal_type"], r["name"]) for r in self._q["journal"].journals()]
 
+    def org_unit_options(self) -> list[Option]:
+        """Unidades organizacionales activas para asignar centros de costo/utilidad."""
+        return [(r["id"], f"{r['code']} — {r['name']}")
+                for r in self._q["settings"].org_units()]
+
     def dimension_options(self, kind: str) -> list[Option]:
         return [(r["id"], f"{r['code']} — {r['name']}")
                 for r in self._q["settings"].dimensions().get(kind, [])]
@@ -1159,7 +1164,7 @@ class FinancePresenter:
         rows, ids = [], []
         for kind, items in self._q["settings"].dimensions().items():
             for item in items:
-                extra = "CAPEX" if item.get("is_capex") else ""
+                extra = "CAPEX" if item.get("is_capex") else (item.get("unit_name") or "")
                 rows.append([labels.get(kind, kind), item["code"], item["name"], extra])
                 ids.append(item["id"])
         return TableViewModel(rows, ids)

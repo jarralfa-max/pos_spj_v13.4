@@ -206,5 +206,24 @@ class PostgresCentralProjectionRepository:
              row["branch_id"], row["transaction_type"], row["status"], row["points_amount"],
              row["counts_toward_balance"], row["sale_id"], row["occurred_at"]))
 
+    # ── Estructura organizacional (auditoría enterprise) ────────────────
+    def upsert_org_unit(self, row: dict) -> None:
+        """Foto completa; sólo reemplaza si es más reciente (un evento atrasado
+        no deshace un cambio posterior)."""
+        self._exec(
+            """INSERT INTO central_org_units (unit_id, company_id, parent_id, unit_type, code,
+               name, status, closed_at, capabilities, source_branch_id, last_event_id,
+               updated_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+               ON CONFLICT (unit_id) DO UPDATE SET
+                 parent_id = EXCLUDED.parent_id, unit_type = EXCLUDED.unit_type,
+                 code = EXCLUDED.code, name = EXCLUDED.name, status = EXCLUDED.status,
+                 closed_at = EXCLUDED.closed_at, capabilities = EXCLUDED.capabilities,
+                 source_branch_id = EXCLUDED.source_branch_id,
+                 last_event_id = EXCLUDED.last_event_id, updated_at = EXCLUDED.updated_at
+               WHERE central_org_units.updated_at <= EXCLUDED.updated_at""",
+            (row["unit_id"], row["company_id"], row["parent_id"], row["unit_type"],
+             row["code"], row["name"], row["status"], row["closed_at"], row["capabilities"],
+             row["source_branch_id"], row["event_id"], row["updated_at"]))
+
 
 __all__ = ["PostgresCentralProjectionRepository"]

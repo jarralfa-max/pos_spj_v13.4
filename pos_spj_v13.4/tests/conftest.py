@@ -311,3 +311,26 @@ def _unwired_policies_are_explicitly_permissive_in_tests(request, monkeypatch):
     from backend.application.security import unwired_policy
     monkeypatch.setattr(unwired_policy, "_resolver",
                         lambda policy_cls: policy_cls.permissive_for_tests())
+
+
+# Un `MessageDialog` modal sin interceptar esperaría para siempre a una persona
+# (el `QMessageBox` nativo, en cambio, reventaba el proceso bajo offscreen). No
+# se muestra: se responde como Escape y la prueba falla con su título y texto.
+# Sólo cubre el módulo ya importado; las pruebas que lo interceptan (parcheando
+# los estáticos, `exec_` o el nombre del módulo) no pasan por aquí.
+@pytest.fixture(autouse=True)
+def _unintercepted_message_dialogs_fail_instead_of_hanging(monkeypatch):
+    dialogs = sys.modules.get("frontend.desktop.components.dialogs")
+    if dialogs is None:
+        yield
+        return
+    shown = []
+
+    def _exec(self):
+        shown.append(f"«{self.windowTitle()}» {self.text()}")
+        self.reject()
+        return 0
+
+    monkeypatch.setattr(dialogs.MessageDialog, "exec_", _exec)
+    yield
+    assert not shown, "MessageDialog modal sin interceptar en la prueba: " + "; ".join(shown)

@@ -10,7 +10,6 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QMenu,
-    QMessageBox,
     QVBoxLayout,
     QWidget,
 )
@@ -25,6 +24,7 @@ from frontend.desktop.components.buttons import (
     create_primary_button,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.themes.tokens import Spacing
 
@@ -153,7 +153,7 @@ class ProductCatalogPage(QWidget):
         pulsarla sin selección es feedback invisible (re-auditoría POS)."""
         product_id = self.table.selected_row_id()
         if not product_id:
-            QMessageBox.information(self, title, "Selecciona un producto del catálogo.")
+            MessageDialog.information(self, title, "Selecciona un producto del catálogo.")
         return product_id
 
     def _edit_selected(self) -> None:
@@ -180,7 +180,7 @@ class ProductCatalogPage(QWidget):
         readiness = self._presenter.activation_readiness(product_id)
         if readiness is not None and not readiness.ready:
             faltantes = "\n".join(f"• {m}" for m in readiness.missing)
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Preparación para activación",
                 "No se puede activar todavía. Faltan datos:\n\n" + faltantes)
             return
@@ -192,9 +192,9 @@ class ProductCatalogPage(QWidget):
 
     def _notify(self, ok: bool, message: str, title: str) -> None:
         if ok:
-            QMessageBox.information(self, title, message or "Operación realizada.")
+            MessageDialog.information(self, title, message or "Operación realizada.")
         else:
-            QMessageBox.warning(self, title, message or "No se pudo completar.")
+            MessageDialog.warning(self, title, message or "No se pudo completar.")
 
     def _open_variants(self) -> None:
         product_id = self._selected("Variantes")

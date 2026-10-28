@@ -1780,7 +1780,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.quarantine_page"
                    ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
              patch("frontend.desktop.modules.inventory.pages.quarantine_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_release()
 
         assert page._table.rowCount() == 0
@@ -1801,7 +1801,7 @@ class TestPagesSmoke:
         page.refresh()
 
         with patch("frontend.desktop.modules.inventory.pages.quarantine_page"
-                   ".QMessageBox.information") as info, \
+                   ".MessageDialog.information") as info, \
              patch.object(pres, "release_quarantine") as release:
             page._on_release()
         info.assert_called_once()
@@ -1836,7 +1836,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.adjustments_page"
                    ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
              patch("frontend.desktop.modules.inventory.pages.adjustments_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_approve()
 
         rows = AdjustmentQueryService(conn).list_recent(branch_id="b1")
@@ -1857,7 +1857,7 @@ class TestPagesSmoke:
         page.refresh()
 
         with patch("frontend.desktop.modules.inventory.pages.adjustments_page"
-                   ".QMessageBox.information") as info, \
+                   ".MessageDialog.information") as info, \
              patch.object(pres, "approve_adjustment") as approve:
             page._on_approve()
         info.assert_called_once()
@@ -1889,7 +1889,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.adjustments_page"
                    ".CreateAdjustmentDialog", return_value=dlg), \
              patch("frontend.desktop.modules.inventory.pages.adjustments_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_create()
 
         assert page._table.rowCount() == 1
@@ -1927,7 +1927,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.adjustments_page"
                    ".ReverseAdjustmentDialog", return_value=dlg), \
              patch("frontend.desktop.modules.inventory.pages.adjustments_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_reverse()
 
         dto = InventoryAvailabilityQueryService(conn).get_availability(
@@ -1960,7 +1960,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.counts_page"
                    ".CreateCountDialog", return_value=dlg), \
              patch("frontend.desktop.modules.inventory.pages.counts_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_create()
 
         assert page._table.rowCount() == 1
@@ -1995,7 +1995,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.counts_page"
                    ".RecordCountDialog", return_value=record_dlg), \
              patch("frontend.desktop.modules.inventory.pages.counts_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_record()
 
         lines = CountQueryService(conn).list_lines(count_id=result.entity_id)
@@ -2036,7 +2036,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.counts_page"
                    ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
              patch("frontend.desktop.modules.inventory.pages.counts_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_confirm()
             page._table.selectRow(0)
             page._on_approve()
@@ -2063,7 +2063,7 @@ class TestPagesSmoke:
         page.refresh()
 
         with patch("frontend.desktop.modules.inventory.pages.counts_page"
-                   ".QMessageBox.information") as info, \
+                   ".MessageDialog.information") as info, \
              patch.object(pres, "confirm_count") as confirm:
             page._on_confirm()
         info.assert_called_once()
@@ -2095,7 +2095,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.warehouses_page"
                    ".CreateWarehouseDialog", return_value=dlg), \
              patch("frontend.desktop.modules.inventory.pages.warehouses_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_create()
 
         assert page._table.rowCount() == 1
@@ -2125,7 +2125,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.warehouses_page"
                    ".BlockReasonDialog", return_value=block_dlg), \
              patch("frontend.desktop.modules.inventory.pages.warehouses_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_block()
         rows = WarehouseQueryService(conn).list_warehouses(branch_id="b1")
         assert rows[0]["status"] == "BLOCKED"
@@ -2135,7 +2135,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.warehouses_page"
                    ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
              patch("frontend.desktop.modules.inventory.pages.warehouses_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_activate()
         rows = WarehouseQueryService(conn).list_warehouses(branch_id="b1")
         assert rows[0]["status"] == "ACTIVE"
@@ -2162,7 +2162,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.warehouses_page"
                    ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
              patch("frontend.desktop.modules.inventory.pages.warehouses_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_double_click(0, 0)  # activo → bloquea con confirmación
 
         rows = WarehouseQueryService(conn).list_warehouses(branch_id="b1")
@@ -2183,7 +2183,7 @@ class TestPagesSmoke:
         page.refresh()
 
         with patch("frontend.desktop.modules.inventory.pages.warehouses_page"
-                   ".QMessageBox.information") as info, \
+                   ".MessageDialog.information") as info, \
              patch.object(pres, "set_warehouse_status") as set_status:
             page._on_block()
         info.assert_called_once()
@@ -2218,7 +2218,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.locations_page"
                    ".CreateLocationDialog", return_value=dlg), \
              patch("frontend.desktop.modules.inventory.pages.locations_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_create()
 
         # §20: + las ubicaciones técnicas auto-aprovisionadas al crear el almacén.
@@ -2259,7 +2259,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.locations_page"
                    ".CreateLocationDialog", return_value=dlg), \
              patch("frontend.desktop.modules.inventory.pages.locations_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_create(parent_location_id=parent_id, parent_label="A1")
 
         assert page._table.rowCount() == 2 + len(TechnicalLocationType)
@@ -2294,7 +2294,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.locations_page"
                    ".BlockReasonDialog", return_value=block_dlg), \
              patch("frontend.desktop.modules.inventory.pages.locations_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_block()
         # §20: el almacén también trae ubicaciones técnicas (siempre activas) —
         # se filtra a la manual "A1" para no confundirlas.
@@ -2307,7 +2307,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.locations_page"
                    ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
              patch("frontend.desktop.modules.inventory.pages.locations_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_activate()
         manual = [o for o in pres.location_options(warehouse_id=wid)
                   if not o.label.startswith("TECH:")]
@@ -2336,7 +2336,7 @@ class TestPagesSmoke:
         with patch("frontend.desktop.modules.inventory.pages.locations_page"
                    ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
              patch("frontend.desktop.modules.inventory.pages.locations_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_double_click(0, 0)
 
         # §20: el almacén también trae ubicaciones técnicas (siempre activas) —
@@ -2364,7 +2364,7 @@ class TestPagesSmoke:
         page.refresh()
 
         with patch("frontend.desktop.modules.inventory.pages.locations_page"
-                   ".QMessageBox.information") as info, \
+                   ".MessageDialog.information") as info, \
              patch.object(pres, "set_location_status") as set_status:
             page._on_block()
         info.assert_called_once()

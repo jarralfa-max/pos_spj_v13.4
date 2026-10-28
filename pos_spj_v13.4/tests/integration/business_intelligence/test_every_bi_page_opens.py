@@ -42,10 +42,11 @@ import logging
 import sqlite3
 
 import pytest
-from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtWidgets import QApplication
 
 from backend.application.analytics.permissions import AnalyticsPermissions
 from backend.shared.ids import new_uuid
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.business_intelligence.business_intelligence_routes import (
     _REAL_ROUTE_BUILDERS,
 )
@@ -148,11 +149,11 @@ def dialogos(monkeypatch):
     def _registrar(nivel):
         def _fn(_parent, titulo, texto, *a, **kw):
             capturados.append((nivel, titulo, texto))
-            return QMessageBox.Ok
+            return MessageDialog.Ok
         return _fn
 
     for nivel in ("warning", "critical", "information", "question"):
-        monkeypatch.setattr(QMessageBox, nivel, staticmethod(_registrar(nivel)))
+        monkeypatch.setattr(MessageDialog, nivel, staticmethod(_registrar(nivel)))
     return capturados
 
 

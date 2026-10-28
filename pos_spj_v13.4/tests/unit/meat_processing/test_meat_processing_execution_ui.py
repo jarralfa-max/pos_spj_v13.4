@@ -196,9 +196,9 @@ class TestReintentoConAutorizacion:
             return QtWidgets.QDialog.Accepted
 
         monkeypatch.setattr(ProductionAuthorizationDialog, "exec_", _autoriza)
-        monkeypatch.setattr(pag.QMessageBox, "warning",
+        monkeypatch.setattr(pag.MessageDialog, "warning",
                             lambda *a, **k: self.avisos.append(a[2]))
-        monkeypatch.setattr(pag.QMessageBox, "information", lambda *a, **k: None)
+        monkeypatch.setattr(pag.MessageDialog, "information", lambda *a, **k: None)
         pagina = pag.ProcessingOrdersPage(presentador)
         monkeypatch.setattr(pagina, "_selected_order_id", lambda: "o1")
         return pagina

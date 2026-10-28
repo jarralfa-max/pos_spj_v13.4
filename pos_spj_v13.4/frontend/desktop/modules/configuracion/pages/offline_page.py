@@ -11,12 +11,13 @@ one via a form would not reflect any real workflow, so none was built —
 see `offline_management_use_cases.py`'s module docstring for the same
 reasoning on the application side.
 """
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_primary_button, create_secondary_button,
     create_state_widget, create_warning_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs import (
     CacheExpirationPolicyCreateDialog,
     CacheExpirationPolicyEditDialog,
@@ -81,7 +82,7 @@ class OfflinePage(ConfiguracionWorkspacePage):
     def _selected_policy_id(self) -> str | None:
         row_id = self.table.selected_row_id() if self.table is not None else None
         if not row_id:
-            QMessageBox.warning(self, "Offline", "Selecciona una política primero.")
+            MessageDialog.warning(self, "Offline", "Selecciona una política primero.")
         return row_id
 
     def _on_new_policy(self) -> None:
@@ -90,10 +91,10 @@ class OfflinePage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["entity_type"]:
-            QMessageBox.warning(self, "Offline", "El tipo de entidad es obligatorio.")
+            MessageDialog.warning(self, "Offline", "El tipo de entidad es obligatorio.")
             return
         ok, message = self._presenter.create_cache_expiration_policy(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Offline", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Offline", message)
         if ok:
             self.reload(self.search.text())
 
@@ -103,13 +104,13 @@ class OfflinePage(ConfiguracionWorkspacePage):
             return
         policy = self._policies_by_id.get(policy_id)
         if policy is None:
-            QMessageBox.warning(self, "Offline", "La política ya no existe.")
+            MessageDialog.warning(self, "Offline", "La política ya no existe.")
             return
         dlg = CacheExpirationPolicyEditDialog(self, ttl_seconds=policy.ttl_seconds)
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message = self._presenter.update_cache_expiration_policy(policy_id=policy_id, **dlg.values())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Offline", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Offline", message)
         if ok:
             self.reload(self.search.text())
 
@@ -118,7 +119,7 @@ class OfflinePage(ConfiguracionWorkspacePage):
         if not policy_id:
             return
         ok, message = self._presenter.change_cache_expiration_policy_status(policy_id=policy_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Offline", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Offline", message)
         if ok:
             self.reload(self.search.text())
 

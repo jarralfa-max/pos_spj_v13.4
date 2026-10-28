@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
 from backend.domain.cash_register.exceptions import CashRegisterError
 from frontend.desktop.components.buttons import create_secondary_button
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
@@ -91,14 +92,14 @@ class CashZCutsPage(QWidget):
         return self._table.selected_row_id()
 
     def _generate(self) -> None:
-        answer = QMessageBox.question(
+        answer = MessageDialog.question(
             self,
             "Cerrar turno",
             "Se generara el Corte Z final y el turno quedara cerrado. Verifica que el conteo este confirmado.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
+            MessageDialog.Yes | MessageDialog.No,
+            MessageDialog.No,
         )
-        if answer != QMessageBox.Yes:
+        if answer != MessageDialog.Yes:
             return
         try:
             result = self._presenter.generate_z_cut()
@@ -157,7 +158,7 @@ class CashZCutsPage(QWidget):
         )
 
     def _show_result(self, message: str) -> None:
-        QMessageBox.information(self, "Caja", message)
+        MessageDialog.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", user_facing_error(message or "No fue posible completar Corte Z."))
+        MessageDialog.warning(self, "Caja", user_facing_error(message or "No fue posible completar Corte Z."))

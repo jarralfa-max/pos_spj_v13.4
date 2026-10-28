@@ -9,7 +9,7 @@ presenter's own docstring for why there is no persistence yet).
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     BranchSearchBox,
@@ -25,6 +25,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_success_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.business_intelligence.presenters.price_recommendation_presenter import (
     RecommendationTransitionError,
     RecommendationUnavailableError,
@@ -117,10 +118,10 @@ class PriceRecommendationPage(QWidget):
                 margin_review_threshold_pct=self.margin_threshold.value(),
                 valid_for_days=self.valid_for_days.value())
         except RecommendationUnavailableError as exc:
-            QMessageBox.information(self, "Decision Intelligence", str(exc))
+            MessageDialog.information(self, "Decision Intelligence", str(exc))
             return
         except Exception as exc:  # noqa: BLE001 - surface, never crash the page
-            QMessageBox.warning(self, "Decision Intelligence", str(exc))
+            MessageDialog.warning(self, "Decision Intelligence", str(exc))
             return
 
         self._recommendation = recommendation
@@ -138,12 +139,12 @@ class PriceRecommendationPage(QWidget):
 
     def _apply_transition(self, action: str) -> None:
         if self._recommendation is None:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Decision Intelligence", "Genera una recomendación primero.")
             return
         try:
             self._recommendation = self._presenter.apply_transition(self._recommendation, action)
         except RecommendationTransitionError as exc:
-            QMessageBox.warning(self, "Decision Intelligence", str(exc))
+            MessageDialog.warning(self, "Decision Intelligence", str(exc))
             return
         self.kpis.set_cards(map_recommendation_kpis(self._recommendation))

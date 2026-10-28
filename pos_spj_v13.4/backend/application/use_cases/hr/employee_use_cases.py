@@ -244,10 +244,30 @@ class ManageCatalogUseCase:
         self._auth = authorization or AuthorizationPolicy()
 
     def create_department(self, connection, *, actor_user_id: str, code: str, name: str,
-                          branch_id: str | None = None) -> HRResult:
+                          branch_id: str | None = None,
+                          org_unit_id: str | None = None) -> HRResult:
+        """Un departamento pertenece a una unidad organizacional (sucursal,
+        planta, oficina corporativa…). Sin unidad explícita, la de la sucursal
+        de la sesión; si la unidad es un sitio, `branch_id` es esa misma unidad."""
         self._auth.require(actor_user_id, HRPermission.SETTINGS_MANAGE)
+        from backend.application.organization.org_structure_service import (
+            OrgStructureQueryService,
+        )
+        from backend.domain.organization.org_unit import OrgUnitStatus
+        consulta = OrgStructureQueryService(connection) if connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='org_units'"
+        ).fetchone() else None
+        if org_unit_id:
+            unidad = consulta.get(org_unit_id) if consulta else None
+            if unidad is None or unidad.status is not OrgUnitStatus.ACTIVE:
+                return HRResult.fail("La unidad organizacional no existe o no está activa",
+                                     "VALIDATION")
+            branch_id = unidad.id if unidad.unit_type.is_operating_site else None
+        elif branch_id and consulta is not None and consulta.get(branch_id) is not None:
+            org_unit_id = branch_id
         try:
-            department = Department.create(code, name, branch_id=branch_id)
+            department = Department.create(code, name, branch_id=branch_id,
+                                           org_unit_id=org_unit_id)
         except HRDomainError as exc:
             return HRResult.fail(str(exc), "VALIDATION")
         with HRUnitOfWork(connection) as uow:

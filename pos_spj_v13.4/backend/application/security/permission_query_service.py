@@ -26,6 +26,15 @@ esta lista aunque la sesión sí lo trataba como administrador (PER-07). Es
 intencional que no se expanda al catálogo completo: si se expandiera, un permiso
 nuevo añadido después del login no lo tendría el admin hasta reiniciar sesión.
 
+ÁMBITO (auditoría enterprise, Fase 2) — un usuario puede tener varios roles,
+cada uno válido en un ámbito (`access_scope.AccessScopeResolver`). Con sucursal,
+sólo cuentan los roles cuyo ámbito la cubre: el principal en la sucursal propia y
+las asignadas (toda la empresa si es de acceso total) y los adicionales de
+`user_role_assignments` según su unidad (con herencia por jerarquía). Los
+permisos son la UNIÓN de esos roles y sobre ella se aplican las excepciones,
+igual que antes. Sin sucursal se conserva el comportamiento anterior: el rol
+principal más los roles de toda la empresa.
+
 PRECEDENCIA (auditoría de permisos 968e0bc, PER-06) — contrato, no accidente:
 la capa más específica gana, también al CONCEDER. Una excepción de sucursal que
 concede RESTITUYE un permiso negado al usuario en general: es la forma de decir
@@ -37,6 +46,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from backend.application.security.access_scope import AccessScopeResolver
 from backend.security.permissions.codes import is_granted, normalize_permission
 from backend.security.permissions.principals import (
     ADMIN_ROLE_NAMES,
@@ -74,16 +84,34 @@ class PermissionQueryService:
         if role_name is None:
             return frozenset()
 
-        if is_full_access_role(role_name):
+        roles = self.roles_for(user_id, branch_id, primary=role_name)
+        if any(is_full_access_role(r) for r in roles):
             return frozenset({GLOBAL_WILDCARD})
 
-        codes = set(self._role_codes(role_name))
+        codes: set[str] = set()
+        for rol in roles:
+            codes |= self._role_codes(rol)
         self._apply_overrides(codes, self._repository.user_overrides(user_id))
         if branch_id:
             self._apply_overrides(
                 codes, self._repository.branch_overrides(user_id, str(branch_id).strip()))
 
         return frozenset(normalize_permission(code) for code in codes)
+
+    def roles_for(self, user_id: str, branch_id: str | None = None, *,
+                  primary: str | None = None) -> tuple[str, ...]:
+        """Roles que valen para el usuario en la sucursal (ver ÁMBITO arriba)."""
+        if primary is None:
+            primary = self._repository.user_role_name(str(user_id or "").strip())
+            if primary is None:
+                return ()
+        resolver = AccessScopeResolver(self._repository)
+        if not resolver.supports_scopes:
+            return (primary,) if primary else ()
+        if branch_id and str(branch_id).strip():
+            return resolver.roles_at(user_id, str(branch_id).strip())
+        return tuple(dict.fromkeys(
+            r for r in ((primary,) + resolver.company_wide_roles(user_id)) if r))
 
     def _role_codes(self, role_name: str) -> frozenset[str]:
         role_id = self._repository.role_id_for_name(role_name)
@@ -170,9 +198,11 @@ def explain_permissions(service: PermissionQueryService, user_id: str, codes,
     role_name = repo.user_role_name(user_id) if user_id else None
     if role_name is None:
         return {c: GrantExplanation(c, False, None, None, False, "NINGUNO") for c in codes}
-    if is_full_access_role(role_name):
+    roles = service.roles_for(user_id, branch_id, primary=role_name)
+    if any(is_full_access_role(r) for r in roles):
         return {c: GrantExplanation(c, True, None, None, True, "ACCESO_TOTAL") for c in codes}
-    role_codes = frozenset(normalize_permission(c) for c in service._role_codes(role_name))
+    role_codes = frozenset(normalize_permission(c) for r in roles
+                           for c in service._role_codes(r))
     user = _last_wins(repo.user_overrides(user_id))
     branch = _last_wins(repo.branch_overrides(user_id, str(branch_id).strip())) if branch_id else {}
     final = service.permission_codes_for_user(user_id, branch_id)

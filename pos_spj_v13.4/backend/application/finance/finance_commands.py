@@ -637,11 +637,31 @@ class FinanceCommandService:
 
     @_dispatches
     def create_dimension(self, *, kind: str, code: str, name: str,
-                         branch_id: str | None = None, is_capex: bool = False):
+                         branch_id: str | None = None, is_capex: bool = False,
+                         org_unit_id: str | None = None):
         actor = self._actor(P.SETTINGS_MANAGE)
+        conn = self._conn()
+        if org_unit_id:
+            # Centro de costo/utilidad de una unidad organizacional (sucursal,
+            # planta, región, oficina…). Si la unidad es un sitio, su id ES el
+            # `branch_id` que ya usan los asientos.
+            from backend.application.organization.org_structure_service import (
+                OrgStructureQueryService,
+            )
+            from backend.domain.finance.exceptions import FinanceDomainError
+            from backend.domain.organization.org_unit import OrgUnitStatus
+            unidad = OrgStructureQueryService(conn).get(org_unit_id)
+            if unidad is None or unidad.status is not OrgUnitStatus.ACTIVE:
+                raise FinanceDomainError("La unidad organizacional no existe o no está activa")
+            if kind not in ("COST_CENTER", "PROFIT_CENTER"):
+                raise FinanceDomainError("Sólo los centros de costo y de utilidad se asignan a "
+                                         "una unidad organizacional")
+            if unidad.unit_type.is_operating_site:
+                branch_id = branch_id or unidad.id
         return self._uc["dimensions"].create(
-            self._conn(), kind=kind, code=code, name=name, branch_id=branch_id,
-            is_capex=is_capex, operation_id=new_uuid(), created_by=actor)
+            conn, kind=kind, code=code, name=name, branch_id=branch_id,
+            is_capex=is_capex, operation_id=new_uuid(), created_by=actor,
+            org_unit_id=org_unit_id or None)
 
     @_dispatches
     def create_tax_code(self, *, code: str, name: str, kind: TaxKind, direction: TaxDirection,

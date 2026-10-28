@@ -14,7 +14,6 @@ from PyQt5.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
 )
 
 from frontend.desktop.components import ColumnSpec, StandardTable
@@ -24,7 +23,7 @@ from frontend.desktop.components.buttons import (
     create_secondary_button,
 )
 from frontend.desktop.components.cards import SectionCard
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 from frontend.desktop.components.text_inputs import StandardLineEdit
 from frontend.desktop.modules.products.product_codes_profiles_presenter import (
     BARCODE_TYPE_ES,
@@ -165,7 +164,7 @@ class BarcodesDialog(StandardDialog):
     def _toggle(self) -> None:
         barcode_id = self.barcodes_table.selected_row_id()
         if not barcode_id:
-            QMessageBox.information(self, "Códigos", "Selecciona un código.")
+            MessageDialog.information(self, "Códigos", "Selecciona un código.")
             return
         row = next((b for b in self._barcodes if b["id"] == barcode_id), {})
         ok, message = self._p.set_barcode_active(barcode_id, not row.get("active"))

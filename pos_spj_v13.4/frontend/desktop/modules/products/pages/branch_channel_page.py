@@ -10,7 +10,6 @@ from __future__ import annotations
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -22,7 +21,7 @@ from frontend.desktop.components import (
     SearchInput,
     StandardTable,
 )
-from frontend.desktop.components.dialogs import FormDialog
+from frontend.desktop.components.dialogs import FormDialog, MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.themes.tokens import Spacing
 
@@ -123,7 +122,7 @@ class BranchChannelPage(QWidget):
     def _load_selected_product(self) -> None:
         pid = self.products.selected_row_id()
         if not pid:
-            QMessageBox.information(self, "Selecciona un producto",
+            MessageDialog.information(self, "Selecciona un producto",
                                    "Elige un producto de la lista primero.")
             return
         self._product_id = pid
@@ -160,7 +159,7 @@ class BranchChannelPage(QWidget):
         ok, msg = self._presenter.set_branch_enabled(
             product_id=self._product_id, branch_id=branch_id, enabled=enabled)
         if not ok:
-            QMessageBox.warning(self, "Sucursal", msg)
+            MessageDialog.warning(self, "Sucursal", msg)
         self._refresh_assignments()
 
     def _toggle_assortment(self) -> None:
@@ -173,7 +172,7 @@ class BranchChannelPage(QWidget):
         ok, msg = self._presenter.set_assortment_product(
             assortment_id=assortment_id, product_id=self._product_id, enabled=enabled)
         if not ok:
-            QMessageBox.warning(self, "Surtido", msg)
+            MessageDialog.warning(self, "Surtido", msg)
         self._refresh_assignments()
 
     def _new_assortment(self) -> None:
@@ -190,12 +189,12 @@ class BranchChannelPage(QWidget):
         channel = next(c["value"] for c in channels if c["label"] == label)
         ok2, msg = self._presenter.create_assortment(name=name.strip(), channel=channel)
         if not ok2:
-            QMessageBox.warning(self, "Surtido", msg)
+            MessageDialog.warning(self, "Surtido", msg)
         self._refresh_assignments()
 
     def _require_product(self) -> bool:
         if not self._product_id:
-            QMessageBox.information(self, "Selecciona un producto",
+            MessageDialog.information(self, "Selecciona un producto",
                                    "Carga primero las asignaciones de un producto.")
             return False
         return True

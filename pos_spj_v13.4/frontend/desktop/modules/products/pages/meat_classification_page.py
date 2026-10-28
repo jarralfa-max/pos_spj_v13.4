@@ -14,7 +14,6 @@ from PyQt5.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QVBoxLayout,
     QWidget,
 )
@@ -25,7 +24,7 @@ from frontend.desktop.components.buttons import (
     create_secondary_button,
 )
 from frontend.desktop.components.cards import SectionCard
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.page_viewport import PageViewport
 from frontend.desktop.components.tabs import Tabs
@@ -200,7 +199,7 @@ class MeatClassificationPage(QWidget):
     def _need_species(self) -> str | None:
         species_id = self._species_id()
         if not species_id:
-            QMessageBox.information(self, "Clasificación cárnica", "Elige una especie.")
+            MessageDialog.information(self, "Clasificación cárnica", "Elige una especie.")
         return species_id
 
     # ── especies ─────────────────────────────────────────────────────────
@@ -234,7 +233,7 @@ class MeatClassificationPage(QWidget):
     def _toggle_region(self) -> None:
         region_id = self.regions_table.selected_row_id()
         if not region_id:
-            QMessageBox.information(self, "Regiones anatómicas", "Selecciona una región.")
+            MessageDialog.information(self, "Regiones anatómicas", "Selecciona una región.")
             return
         row = next((r for r in self._regions if r["id"] == region_id), {})
         self._apply(self._meat.set_region_active(region_id, not row.get("active")),
@@ -247,7 +246,7 @@ class MeatClassificationPage(QWidget):
             return
         active_regions = [r for r in self._regions if r.get("active")]
         if not active_regions:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Nuevo corte",
                 "Esta especie no tiene regiones anatómicas activas. Crea primero la "
                 "región (pestaña «Regiones anatómicas»).")
@@ -264,7 +263,7 @@ class MeatClassificationPage(QWidget):
     def _toggle_cut(self) -> None:
         cut_id = self.cuts_table.selected_row_id()
         if not cut_id:
-            QMessageBox.information(self, "Cortes", "Selecciona un corte.")
+            MessageDialog.information(self, "Cortes", "Selecciona un corte.")
             return
         row = next((c for c in self._cuts if c["id"] == cut_id), {})
         self._apply(self._meat.set_cut_active(cut_id, row.get("status") != "ACTIVE"),

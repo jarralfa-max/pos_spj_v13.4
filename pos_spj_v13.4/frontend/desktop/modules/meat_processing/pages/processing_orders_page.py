@@ -14,7 +14,7 @@ resultado. Mirrors frontend/desktop/modules/inventory/pages/adjustments_page.py.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -24,7 +24,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import ConfirmationDialog
+from frontend.desktop.components.dialogs import ConfirmationDialog, MessageDialog
 from frontend.desktop.modules.meat_processing.dialogs import CreateProcessingOrderDialog
 from frontend.desktop.themes.tokens import Spacing
 
@@ -90,7 +90,7 @@ class ProcessingOrdersPage(QWidget):
     def _selected_order_id(self) -> str | None:
         oid = self._table.selected_row_id()
         if not oid:
-            QMessageBox.information(self, "Órdenes", "Selecciona una orden de la lista.")
+            MessageDialog.information(self, "Órdenes", "Selecciona una orden de la lista.")
             return None
         return oid
 
@@ -107,7 +107,7 @@ class ProcessingOrdersPage(QWidget):
         ok, message, _ = self._presenter.create_order(
             process_type=dlg.process_type(), target_product_id=product_id,
             planned_quantity=dlg.planned_quantity(), planned_weight=dlg.planned_weight())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Órdenes", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Órdenes", message)
         if ok:
             self.refresh()
 
@@ -122,7 +122,7 @@ class ProcessingOrdersPage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message, _ = self._presenter.approve_order(order_id=oid)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Órdenes", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Órdenes", message)
         if ok:
             self.refresh()
 
@@ -131,7 +131,7 @@ class ProcessingOrdersPage(QWidget):
         if oid is None:
             return
         ok, message, datos = self._presenter.prepare_order(order_id=oid)
-        aviso = QMessageBox.information if ok and datos.get("ready", True) else QMessageBox.warning
+        aviso = MessageDialog.information if ok and datos.get("ready", True) else MessageDialog.warning
         aviso(self, "Órdenes", message)
         self.refresh()
 
@@ -145,7 +145,7 @@ class ProcessingOrdersPage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message, _ = self._presenter.release_order(order_id=oid)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Órdenes", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Órdenes", message)
         if ok:
             self.refresh()
 
@@ -164,15 +164,15 @@ class ProcessingOrdersPage(QWidget):
             return
         plan = self._presenter.execution_plan(oid)
         if plan is None:
-            QMessageBox.warning(self, "Órdenes", "No se pudo leer la orden.")
+            MessageDialog.warning(self, "Órdenes", "No se pudo leer la orden.")
             return
         if not plan.get("has_definition"):
-            QMessageBox.warning(
+            MessageDialog.warning(
                 self, "Órdenes",
                 "La orden no tiene su definición congelada: prepárala primero.")
             return
         if not any(e.get("reserved_weight") for e in plan.get("inputs") or []):
-            QMessageBox.warning(
+            MessageDialog.warning(
                 self, "Órdenes",
                 "La orden no tiene insumos reservados en Inventario: prepárala primero.")
             return
@@ -191,7 +191,7 @@ class ProcessingOrdersPage(QWidget):
                 self.refresh()
                 return
             if resultado.get("error_code") != "YIELD_AUTHORIZATION_REQUIRED":
-                QMessageBox.warning(self, "Órdenes", message)
+                MessageDialog.warning(self, "Órdenes", message)
                 self.refresh()
                 return
             auth = ProductionAuthorizationDialog(self, message=message,
@@ -201,7 +201,7 @@ class ProcessingOrdersPage(QWidget):
                 return
             datos["variance_authorizer_user_id"] = auth.authorizer_user_id
             datos["variance_reason"] = auth.reason
-        QMessageBox.warning(self, "Órdenes", "No se pudo ejecutar la orden.")
+        MessageDialog.warning(self, "Órdenes", "No se pudo ejecutar la orden.")
 
     def _on_close(self) -> None:
         oid = self._selected_order_id()
@@ -214,6 +214,6 @@ class ProcessingOrdersPage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message, _ = self._presenter.close_order(order_id=oid)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Órdenes", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Órdenes", message)
         if ok:
             self.refresh()

@@ -26,6 +26,10 @@ class PermissionEvaluator:
         # "oculto y bloqueado"; la otra mitad es el menú y el router.
         if self._context.capabilities.permission_blocked(normalized):
             return False
+        # Igual por SITIO: la familia de un módulo que este sitio no tiene
+        # (auditoría enterprise, Fase 2) no se concede a nadie.
+        if self._context.site_blocks_permission(normalized):
+            return False
         if self._context.is_admin():
             return True
         return is_granted(self._context.permissions, normalized)

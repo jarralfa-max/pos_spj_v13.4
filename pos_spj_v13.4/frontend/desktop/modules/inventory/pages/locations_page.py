@@ -19,7 +19,6 @@ from PyQt5.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QMenu,
-    QMessageBox,
     QVBoxLayout,
     QWidget,
 )
@@ -32,7 +31,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import ConfirmationDialog
+from frontend.desktop.components.dialogs import ConfirmationDialog, MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.searchable_combo import SearchableComboBox
 from frontend.desktop.modules.inventory.dialogs import (
@@ -133,7 +132,7 @@ class LocationsPage(QWidget):
     def _selected_location_id(self) -> str | None:
         lid = self._table.selected_row_id()
         if not lid:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Ubicaciones", "Selecciona una ubicación de la lista.")
             return None
         return lid
@@ -145,14 +144,14 @@ class LocationsPage(QWidget):
     def _on_create(self, *, parent_location_id: str | None = None,
                    parent_label: str | None = None) -> None:
         if not self._warehouse_id:
-            QMessageBox.information(self, "Ubicaciones", "Selecciona un almacén primero.")
+            MessageDialog.information(self, "Ubicaciones", "Selecciona un almacén primero.")
             return
         dlg = CreateLocationDialog(self, parent_label=parent_label)
         if dlg.exec_() != QDialog.Accepted:
             return
         code, name = dlg.code(), dlg.name()
         if not code or not name:
-            QMessageBox.warning(self, "Ubicaciones", "Captura código y nombre.")
+            MessageDialog.warning(self, "Ubicaciones", "Captura código y nombre.")
             return
         self.create_button.setEnabled(False)
         try:
@@ -162,7 +161,7 @@ class LocationsPage(QWidget):
                 capacity=dlg.capacity())
         finally:
             self.create_button.setEnabled(True)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Ubicaciones", message)
         if ok:
             self.refresh()
@@ -173,18 +172,18 @@ class LocationsPage(QWidget):
             return
         row = self._presenter.location_detail(location_id=lid)
         if row is None:
-            QMessageBox.warning(self, "Ubicaciones", "Ubicación no encontrada.")
+            MessageDialog.warning(self, "Ubicaciones", "Ubicación no encontrada.")
             return
         dlg = EditLocationDialog(self, location=row)
         if dlg.exec_() != QDialog.Accepted:
             return
         name = dlg.name()
         if not name:
-            QMessageBox.warning(self, "Ubicaciones", "Captura un nombre.")
+            MessageDialog.warning(self, "Ubicaciones", "Captura un nombre.")
             return
         ok, message, _ = self._presenter.update_location(
             location_id=lid, name=name, capacity=dlg.capacity())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Ubicaciones", message)
         if ok:
             self.refresh()
@@ -219,7 +218,7 @@ class LocationsPage(QWidget):
             return
         ok, message, _ = self._presenter.deactivate_location(
             location_id=lid, reason=dlg.reason())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Ubicaciones", message)
         if ok:
             self.refresh()
@@ -233,7 +232,7 @@ class LocationsPage(QWidget):
         finally:
             self.activate_button.setEnabled(True)
             self.block_button.setEnabled(True)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Ubicaciones", message)
         if ok:
             self.refresh()

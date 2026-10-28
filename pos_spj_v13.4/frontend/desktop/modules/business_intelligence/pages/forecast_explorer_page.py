@@ -9,7 +9,7 @@ needs that the read-only dashboard pages don't.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QFormLayout, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFormLayout, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     BranchSearchBox,
@@ -20,6 +20,7 @@ from frontend.desktop.components import (
     ProductSearchBox,
     create_primary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.business_intelligence.presenters.forecast_explorer_presenter import (
     ForecastUnavailableError,
 )
@@ -86,10 +87,10 @@ class ForecastExplorerPage(QWidget):
                 product_id=self._product_id, branch_id=self._branch_id,
                 horizon_days=self.horizon.value())
         except ForecastUnavailableError as exc:
-            QMessageBox.information(self, "Forecast", str(exc))
+            MessageDialog.information(self, "Forecast", str(exc))
             return
         except Exception as exc:  # noqa: BLE001 - surface, never crash the page
-            QMessageBox.warning(self, "Forecast", str(exc))
+            MessageDialog.warning(self, "Forecast", str(exc))
             return
         self.kpis.set_cards(cards)
         self.chart.set_chart(chart)

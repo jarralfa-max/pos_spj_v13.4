@@ -90,10 +90,10 @@ def _events(conn, name):
 
 def _warnings(monkeypatch):
     """Lo que el cobro le dijo al cajero (el POS rechaza el pago con un aviso)."""
-    from PyQt5.QtWidgets import QMessageBox
+    from frontend.desktop.components.dialogs import MessageDialog
 
     avisos = []
-    monkeypatch.setattr(QMessageBox, "warning",
+    monkeypatch.setattr(MessageDialog, "warning",
                         staticmethod(lambda _p, _t, texto, *_a: avisos.append(texto)))
     return avisos
 

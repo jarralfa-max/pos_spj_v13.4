@@ -22,6 +22,9 @@ from backend.application.queries.configuracion.workspace_query_service import (
 )
 from frontend.desktop.modules.configuracion.configuracion_presenter import ConfiguracionPresenter
 from frontend.desktop.modules.configuracion.configuracion_view import ConfiguracionView
+from backend.application.configuracion.authorization import (  # noqa: E402
+    ConfiguracionAuthorizationPolicy,
+)
 from frontend.desktop.modules.configuracion.dialogs import (
     AssignDeviceDialog,
     BlockDeviceDialog,
@@ -256,9 +259,23 @@ class Queries:
         return self._audit_logs
 
 
+class _TestSession:
+    user_id = "01a00000-0000-7000-8000-0000000000aa"
+    is_active = True
+
+
+def _presenter(queries, **kwargs):
+    """Estas pruebas son de la VISTA. Desde la auditoría de permisos (PER-02) un
+    presentador sin sesión ni política falla cerrado —correcto en producción—,
+    así que aquí se pasa una sesión y la política permisiva EXPLÍCITA de pruebas."""
+    return ConfiguracionPresenter(
+        queries, session_context=_TestSession(),
+        authorization=ConfiguracionAuthorizationPolicy.permissive_for_tests(), **kwargs)
+
+
 class TestConfiguracionView:
     def test_workspace_builds_all_permitted_routes_lazily_and_supports_target_sizes(self, app):
-        presenter = ConfiguracionPresenter(Queries())
+        presenter = _presenter(Queries())
         view = ConfiguracionView(presenter, has_permission=lambda _permission: True)
         assert view.sidebar.count() == len(CONFIGURACION_NAV)
         for entry in CONFIGURACION_NAV:
@@ -271,13 +288,13 @@ class TestConfiguracionView:
 
     def test_sidebar_filters_by_permission(self, app):
         view = ConfiguracionView(
-            ConfiguracionPresenter(Queries()),
+            _presenter(Queries()),
             has_permission=lambda permission: permission == CONFIGURACION_NAV[0].permission,
         )
         assert view.sidebar.count() == 1
 
     def test_empty_page_shows_empty_state_not_a_blank_table(self, app):
-        presenter = ConfiguracionPresenter(Queries(rows=()))
+        presenter = _presenter(Queries(rows=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         page = view._pages[CONFIGURACION_NAV[0].page_id]
         # isVisible() needs a shown top-level window (not done in this offscreen
@@ -287,7 +304,7 @@ class TestConfiguracionView:
 
     def test_page_with_rows_shows_table_not_empty_state(self, app):
         rows = (ConfigRowViewModel("id1", ("A", "B")),)
-        presenter = ConfiguracionPresenter(Queries(rows=rows))
+        presenter = _presenter(Queries(rows=rows))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         page = view._pages[CONFIGURACION_NAV[0].page_id]
         assert page.table.isHidden() is False
@@ -296,7 +313,7 @@ class TestConfiguracionView:
 
 class TestGeneralPage:
     def test_action_buttons_present_and_wired(self, app):
-        presenter = ConfiguracionPresenter(Queries(rows=()))
+        presenter = _presenter(Queries(rows=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_general")
         page = view._pages["config_general"]
@@ -313,7 +330,7 @@ class TestGeneralPage:
         assert page.unassign_button.text() == "Desasignar"
 
     def test_actions_without_selection_warn_instead_of_crashing(self, app, monkeypatch):
-        presenter = ConfiguracionPresenter(Queries(rows=()))
+        presenter = _presenter(Queries(rows=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_general")
         page = view._pages["config_general"]
@@ -321,7 +338,7 @@ class TestGeneralPage:
         warnings = []
         import frontend.desktop.modules.configuracion.pages.estaciones_page as page_module
         monkeypatch.setattr(
-            page_module.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)),
+            page_module.MessageDialog, "warning", staticmethod(lambda *a: warnings.append(a)),
         )
         page._on_edit()
         page._on_block()
@@ -335,7 +352,7 @@ class TestGeneralPage:
         assignments = (
             AssignmentRowViewModel("a1", "PRIMARY_RECEIPT_PRINTER", "d1", "PRN-01", "Impresora 1"),
         )
-        presenter = ConfiguracionPresenter(Queries(rows=rows, assignments=assignments))
+        presenter = _presenter(Queries(rows=rows, assignments=assignments))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_general")
         page = view._pages["config_general"]
@@ -345,7 +362,7 @@ class TestGeneralPage:
     def test_assign_requires_role_and_device(self, app, monkeypatch):
         rows = (ConfigRowViewModel("w1", ("POS-01", "Caja 1")),)
         devices = (DeviceOptionViewModel("d1", "PRN-01", "Impresora 1", "THERMAL_PRINTER"),)
-        presenter = ConfiguracionPresenter(Queries(rows=rows, devices=devices))
+        presenter = _presenter(Queries(rows=rows, devices=devices))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_general")
         page = view._pages["config_general"]
@@ -354,7 +371,7 @@ class TestGeneralPage:
         warnings = []
         import frontend.desktop.modules.configuracion.pages.estaciones_page as page_module
         monkeypatch.setattr(
-            page_module.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)),
+            page_module.MessageDialog, "warning", staticmethod(lambda *a: warnings.append(a)),
         )
         monkeypatch.setattr(
             page_module.AssignDeviceDialog, "exec_", lambda self: page_module.QDialog.Accepted,
@@ -367,7 +384,7 @@ class TestGeneralPage:
 
     def test_assign_warns_when_no_devices_exist(self, app, monkeypatch):
         rows = (ConfigRowViewModel("w1", ("POS-01", "Caja 1")),)
-        presenter = ConfiguracionPresenter(Queries(rows=rows, devices=()))
+        presenter = _presenter(Queries(rows=rows, devices=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_general")
         page = view._pages["config_general"]
@@ -376,13 +393,13 @@ class TestGeneralPage:
         warnings = []
         import frontend.desktop.modules.configuracion.pages.estaciones_page as page_module
         monkeypatch.setattr(
-            page_module.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)),
+            page_module.MessageDialog, "warning", staticmethod(lambda *a: warnings.append(a)),
         )
         page._on_assign()
         assert len(warnings) == 1
 
     def test_new_requires_branch_type_code_and_name(self, app, monkeypatch):
-        presenter = ConfiguracionPresenter(Queries(rows=()))
+        presenter = _presenter(Queries(rows=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_general")
         page = view._pages["config_general"]
@@ -390,7 +407,7 @@ class TestGeneralPage:
         warnings = []
         import frontend.desktop.modules.configuracion.pages.estaciones_page as page_module
         monkeypatch.setattr(
-            page_module.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)),
+            page_module.MessageDialog, "warning", staticmethod(lambda *a: warnings.append(a)),
         )
         monkeypatch.setattr(
             page_module.WorkstationCreateDialog, "exec_", lambda self: page_module.QDialog.Accepted,
@@ -456,7 +473,7 @@ class TestDeviceAssignmentDialogs:
 class TestFeatureFlagsPage:
     def test_pending_requests_render_and_action_buttons_exist(self, app):
         pending = (ChangeRequestRowViewModel("req1", "delivery_auto", "GLOBAL", "Sí", "admin-1"),)
-        presenter = ConfiguracionPresenter(Queries(pending=pending))
+        presenter = _presenter(Queries(pending=pending))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_feature_flags")
         page = view._pages["config_feature_flags"]
@@ -468,7 +485,7 @@ class TestFeatureFlagsPage:
         assert page.apply_button.text() == "Aplicar"
 
     def test_actions_without_selection_warn_instead_of_crashing(self, app, monkeypatch):
-        presenter = ConfiguracionPresenter(Queries(pending=()))
+        presenter = _presenter(Queries(pending=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_feature_flags")
         page = view._pages["config_feature_flags"]
@@ -476,7 +493,7 @@ class TestFeatureFlagsPage:
         warnings = []
         import frontend.desktop.modules.configuracion.pages.feature_flags_page as page_module
         monkeypatch.setattr(
-            page_module.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)),
+            page_module.MessageDialog, "warning", staticmethod(lambda *a: warnings.append(a)),
         )
         page._on_approve()
         assert len(warnings) == 1
@@ -485,7 +502,7 @@ class TestFeatureFlagsPage:
 class TestAparienciaPage:
     def test_set_default_button_present_and_wired(self, app):
         themes = (ThemeRowViewModel("t1", "claro", "Claro", "LIGHT", True),)
-        presenter = ConfiguracionPresenter(Queries(themes=themes))
+        presenter = _presenter(Queries(themes=themes))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_apariencia")
         page = view._pages["config_apariencia"]
@@ -495,7 +512,7 @@ class TestAparienciaPage:
 
 class TestDispositivosPage:
     def test_action_buttons_present_and_wired(self, app):
-        presenter = ConfiguracionPresenter(Queries(rows=()))
+        presenter = _presenter(Queries(rows=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_dispositivos")
         page = view._pages["config_dispositivos"]
@@ -513,7 +530,7 @@ class TestDispositivosPage:
         assert page.deactivate_route_button.text() == "Desactivar ruta"
 
     def test_actions_without_selection_warn_instead_of_crashing(self, app, monkeypatch):
-        presenter = ConfiguracionPresenter(Queries(rows=()))
+        presenter = _presenter(Queries(rows=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_dispositivos")
         page = view._pages["config_dispositivos"]
@@ -521,7 +538,7 @@ class TestDispositivosPage:
         warnings = []
         import frontend.desktop.modules.configuracion.pages.dispositivos_page as page_module
         monkeypatch.setattr(
-            page_module.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)),
+            page_module.MessageDialog, "warning", staticmethod(lambda *a: warnings.append(a)),
         )
         page._on_edit()
         page._on_block()
@@ -531,7 +548,7 @@ class TestDispositivosPage:
         assert len(warnings) == 5
 
     def test_new_device_warns_when_no_profiles_exist(self, app, monkeypatch):
-        presenter = ConfiguracionPresenter(Queries(rows=(), device_profiles=()))
+        presenter = _presenter(Queries(rows=(), device_profiles=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_dispositivos")
         page = view._pages["config_dispositivos"]
@@ -539,7 +556,7 @@ class TestDispositivosPage:
         warnings = []
         import frontend.desktop.modules.configuracion.pages.dispositivos_page as page_module
         monkeypatch.setattr(
-            page_module.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)),
+            page_module.MessageDialog, "warning", staticmethod(lambda *a: warnings.append(a)),
         )
         page._on_new_device()
         assert len(warnings) == 1
@@ -548,14 +565,14 @@ class TestDispositivosPage:
         routes = (
             PrintRouteRowViewModel("r1", "SALE_TICKET", "d1", "PRN-01", (), None, None, None, True),
         )
-        presenter = ConfiguracionPresenter(Queries(rows=(), print_routes=routes))
+        presenter = _presenter(Queries(rows=(), print_routes=routes))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_dispositivos")
         page = view._pages["config_dispositivos"]
         assert page.routes_table.rowCount() == 1
 
     def test_new_route_warns_when_no_devices_exist(self, app, monkeypatch):
-        presenter = ConfiguracionPresenter(Queries(rows=(), devices=()))
+        presenter = _presenter(Queries(rows=(), devices=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_dispositivos")
         page = view._pages["config_dispositivos"]
@@ -563,7 +580,7 @@ class TestDispositivosPage:
         warnings = []
         import frontend.desktop.modules.configuracion.pages.dispositivos_page as page_module
         monkeypatch.setattr(
-            page_module.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)),
+            page_module.MessageDialog, "warning", staticmethod(lambda *a: warnings.append(a)),
         )
         page._on_new_route()
         assert len(warnings) == 1
@@ -686,7 +703,7 @@ class TestPrintRouteDialogs:
 
 class TestDocumentosPage:
     def test_new_template_button_present_and_wired(self, app):
-        presenter = ConfiguracionPresenter(Queries(rows=()))
+        presenter = _presenter(Queries(rows=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_documentos")
         page = view._pages["config_documentos"]
@@ -711,7 +728,7 @@ class TestDocumentosPage:
         campaigns = (
             MarketingCampaignRowViewModel("c1", "goal_near", "FOMO", "Te faltan {n} compras.", 90, False, (), True),
         )
-        presenter = ConfiguracionPresenter(Queries(rows=(), marketing_campaigns=campaigns))
+        presenter = _presenter(Queries(rows=(), marketing_campaigns=campaigns))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_documentos")
         page = view._pages["config_documentos"]
@@ -722,7 +739,7 @@ class TestDocumentosPage:
         versions = (
             TemplateVersionRowViewModel("v1", "tpl1", 1, "ACTIVE", "{{items}}", None, "admin-1"),
         )
-        presenter = ConfiguracionPresenter(Queries(rows=rows, template_versions=versions))
+        presenter = _presenter(Queries(rows=rows, template_versions=versions))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_documentos")
         page = view._pages["config_documentos"]
@@ -731,7 +748,7 @@ class TestDocumentosPage:
         assert page.versions_table.rowCount() == 1
 
     def test_actions_without_selection_warn_instead_of_crashing(self, app, monkeypatch):
-        presenter = ConfiguracionPresenter(Queries(rows=()))
+        presenter = _presenter(Queries(rows=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_documentos")
         page = view._pages["config_documentos"]
@@ -739,7 +756,7 @@ class TestDocumentosPage:
         warnings = []
         import frontend.desktop.modules.configuracion.pages.documentos_page as page_module
         monkeypatch.setattr(
-            page_module.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)),
+            page_module.MessageDialog, "warning", staticmethod(lambda *a: warnings.append(a)),
         )
         page._on_reject()
         page._on_change_status("APPROVE")
@@ -752,7 +769,7 @@ class TestDocumentosPage:
     def test_edit_template_prefills_from_get_template(self, app, monkeypatch):
         rows = (ConfigRowViewModel("tpl1", ("SALE_TICKET", "Ticket de venta")),)
         template = TemplateDetailViewModel("tpl1", "SALE_TICKET", "Ticket de venta", "ventas", "desc")
-        presenter = ConfiguracionPresenter(Queries(rows=rows, template=template))
+        presenter = _presenter(Queries(rows=rows, template=template))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_documentos")
         page = view._pages["config_documentos"]
@@ -776,7 +793,7 @@ class TestDocumentosPage:
                 "c1", "goal_near", "FOMO", "Te faltan {n} compras.", 90, True, (), True,
             ),
         )
-        presenter = ConfiguracionPresenter(Queries(rows=(), marketing_campaigns=campaigns))
+        presenter = _presenter(Queries(rows=(), marketing_campaigns=campaigns))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_documentos")
         page = view._pages["config_documentos"]
@@ -882,7 +899,7 @@ class TestMarketingCampaignDialogs:
 
 class TestEmpresaPage:
     def test_shows_unconfigured_message_when_no_company_exists(self, app):
-        presenter = ConfiguracionPresenter(Queries(rows=(), company=None))
+        presenter = _presenter(Queries(rows=(), company=None))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_empresa")
         page = view._pages["config_empresa"]
@@ -895,7 +912,7 @@ class TestEmpresaPage:
             default_locale="es-MX", fiscal_regime_reference=None, address="", phone=None, email=None,
             website=None, logo_asset_id=None,
         )
-        presenter = ConfiguracionPresenter(Queries(rows=(), company=company))
+        presenter = _presenter(Queries(rows=(), company=company))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_empresa")
         page = view._pages["config_empresa"]
@@ -903,7 +920,7 @@ class TestEmpresaPage:
         assert "SJC" in page.company_summary_label.text()
 
     def test_action_buttons_present_and_wired(self, app):
-        presenter = ConfiguracionPresenter(Queries(rows=()))
+        presenter = _presenter(Queries(rows=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_empresa")
         page = view._pages["config_empresa"]
@@ -911,22 +928,24 @@ class TestEmpresaPage:
         assert page.new_branch_button.text() == "Nueva sucursal"
         assert page.edit_branch_button.text() == "Editar sucursal"
 
-    def test_new_branch_warns_when_no_unregistered_branches_exist(self, app, monkeypatch):
-        presenter = ConfiguracionPresenter(Queries(rows=(), unregistered_branches=()))
+    def test_new_branch_creates_a_branch_when_every_branch_has_a_profile(self, app, monkeypatch):
+        """Antes «Nueva sucursal» sólo registraba el perfil de una fila de
+        `sucursales` ya existente y, si no quedaba ninguna, avisaba. Ahora crea
+        la sucursal (auditoría enterprise, N12): abre el alta."""
+        presenter = _presenter(Queries(rows=(), unregistered_branches=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_empresa")
         page = view._pages["config_empresa"]
 
-        warnings = []
         import frontend.desktop.modules.configuracion.pages.empresa_page as page_module
-        monkeypatch.setattr(
-            page_module.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)),
-        )
+        abiertos = []
+        monkeypatch.setattr(page_module.NewBranchDialog, "exec_",
+                            lambda self: abiertos.append(self) or 0)
         page._on_new_branch()
-        assert len(warnings) == 1
+        assert len(abiertos) == 1
 
     def test_edit_branch_without_selection_warns_instead_of_crashing(self, app, monkeypatch):
-        presenter = ConfiguracionPresenter(Queries(rows=()))
+        presenter = _presenter(Queries(rows=()))
         view = ConfiguracionView(presenter, has_permission=lambda _p: True)
         view.show_route("config_empresa")
         page = view._pages["config_empresa"]
@@ -934,7 +953,7 @@ class TestEmpresaPage:
         warnings = []
         import frontend.desktop.modules.configuracion.pages.empresa_page as page_module
         monkeypatch.setattr(
-            page_module.QMessageBox, "warning", staticmethod(lambda *a: warnings.append(a)),
+            page_module.MessageDialog, "warning", staticmethod(lambda *a: warnings.append(a)),
         )
         page._on_edit_branch()
         assert len(warnings) == 1

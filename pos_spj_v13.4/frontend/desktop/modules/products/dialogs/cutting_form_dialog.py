@@ -8,7 +8,7 @@ auto-contención). En edición sólo cambia los outputs de la versión.
 
 from __future__ import annotations
 
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 
 from PyQt5.QtWidgets import (
     QComboBox,
@@ -17,7 +17,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPushButton,
 )
 
@@ -157,7 +156,7 @@ class CuttingSchemeFormDialog(StandardDialog):
             self.accept()
         else:
             self._error.setText(message)
-            QMessageBox.warning(self, "No se pudo guardar", message)
+            MessageDialog.warning(self, "No se pudo guardar", message)
 
 
 class _OutputEditor(StandardDialog):

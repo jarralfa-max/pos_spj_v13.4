@@ -17,8 +17,9 @@ import sqlite3
 import pytest
 from PyQt5.QtCore import Qt
 from PyQt5.QtTest import QTest
-from PyQt5.QtWidgets import QApplication, QMessageBox, QPushButton
+from PyQt5.QtWidgets import QApplication, QPushButton
 
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.search_selector import SearchOption
 from frontend.desktop.modules.purchasing.dialogs.enterprise_dialogs import (
     OrderFormDialog,
@@ -33,9 +34,9 @@ def app():
 
 @pytest.fixture
 def avisos(monkeypatch):
-    """`QMessageBox.warning` es modal: bloquearía la prueba."""
+    """`MessageDialog.warning` es modal: bloquearía la prueba."""
     capturados = []
-    monkeypatch.setattr(QMessageBox, "warning",
+    monkeypatch.setattr(MessageDialog, "warning",
                         staticmethod(lambda *a, **k: capturados.append(a[2])))
     return capturados
 

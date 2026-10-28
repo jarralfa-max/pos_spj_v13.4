@@ -8,7 +8,7 @@ Sin SQL ni reglas: todo pasa por el presentador.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QMessageBox
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -17,7 +17,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import ConfirmationDialog
+from frontend.desktop.components.dialogs import ConfirmationDialog, MessageDialog
 
 
 class DirectTransformationPage(StandardPage):
@@ -69,11 +69,11 @@ class DirectTransformationPage(StandardPage):
         lot_id = self.table.selected_row_id()
         lote = next((x for x in self._lots if x.lot_id == lot_id), None)
         if lote is None:
-            QMessageBox.information(self, "Transformación directa",
-                                    "Selecciona un lote de la lista.")
+            MessageDialog.information(self, "Transformación directa",
+                                      "Selecciona un lote de la lista.")
             return None
         if not lote.eligible:
-            QMessageBox.warning(self, "Transformación directa", lote.blocked_reason)
+            MessageDialog.warning(self, "Transformación directa", lote.blocked_reason)
             return None
         return lote
 
@@ -115,7 +115,7 @@ class DirectTransformationPage(StandardPage):
                 folio = resultado.get("folio")
                 extra = (f"\n\nLa orden {folio} quedó en Órdenes; al repetir, la transformación "
                          "continúa desde donde quedó.") if folio else ""
-                QMessageBox.warning(self, "Transformación directa", mensaje + extra)
+                MessageDialog.warning(self, "Transformación directa", mensaje + extra)
                 self.refresh()
                 return
             auth = ProductionAuthorizationDialog(self, message=mensaje,
@@ -125,4 +125,4 @@ class DirectTransformationPage(StandardPage):
                 return
             datos["variance_authorizer_user_id"] = auth.authorizer_user_id
             datos["variance_reason"] = auth.reason
-        QMessageBox.warning(self, "Transformación directa", "No se pudo registrar.")
+        MessageDialog.warning(self, "Transformación directa", "No se pudo registrar.")

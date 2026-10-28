@@ -5,8 +5,8 @@
 
 «Estructura organizacional» (auditoría enterprise, Fase 1): unidades —sucursal,
 planta, centro de distribución, almacén, oficina, operación logística, región—,
-su jerarquía y sus capacidades. Crear un sitio aquí crea la sucursal operable;
-su perfil se registra después con «Nueva sucursal», como hasta ahora.
+su jerarquía y sus capacidades. Crear un sitio (aquí o con «Nueva sucursal»)
+crea la sucursal operable y su perfil, con el mismo código y nombre.
 
 The main table (from `base_page.py`) lists `BranchProfile` rows; the
 company profile is a single summary panel above it, since there's only
@@ -15,12 +15,13 @@ singleton, see `SaveCompanyProfileUseCase`'s own docstring).
 """
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QMessageBox, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, FormDialog, SectionCard, StandardTable, create_primary_button,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs import (
     BranchProfileCreateDialog,
     BranchProfileEditDialog,
@@ -30,6 +31,7 @@ from frontend.desktop.modules.configuracion.dialogs import (
 from frontend.desktop.modules.configuracion.dialogs.org_structure_dialogs import (
     CAPABILITY_LABELS,
     MoveOrgUnitDialog,
+    NewBranchDialog,
     OrgUnitCapabilitiesDialog,
     OrgUnitDialog,
 )
@@ -129,8 +131,8 @@ class EmpresaPage(ConfiguracionWorkspacePage):
 
         self.org_card = SectionCard(self, title="Estructura organizacional")
         nota = QLabel("Sucursales, plantas, centros de distribución, almacenes y regiones. "
-                      "Cada sitio es también una sucursal operable con el mismo identificador; "
-                      "una región sólo agrupa.", self.org_card)
+                      "Cada sitio es también una sucursal operable con el mismo identificador y "
+                      "el mismo código; una región sólo agrupa.", self.org_card)
         nota.setWordWrap(True)
         self.org_card.add(nota)
         self.org_table = StandardTable([
@@ -185,8 +187,8 @@ class EmpresaPage(ConfiguracionWorkspacePage):
         uid = self.org_table.selected_row_id()
         nodo = self._org_nodes.get(uid) if uid else None
         if nodo is None:
-            QMessageBox.warning(self, "Estructura organizacional",
-                                "Selecciona una unidad primero.")
+            MessageDialog.warning(self, "Estructura organizacional",
+                                  "Selecciona una unidad primero.")
         return nodo
 
     def _parent_options(self, exclude=frozenset()) -> list[tuple[str, str]]:
@@ -195,7 +197,7 @@ class EmpresaPage(ConfiguracionWorkspacePage):
                 if n.unit.status.value == "ACTIVE" and n.unit.id not in exclude]
 
     def _org_result(self, ok: bool, message: str) -> None:
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Estructura organizacional", message)
         if ok:
             self.reload(self.search.text())
@@ -208,12 +210,12 @@ class EmpresaPage(ConfiguracionWorkspacePage):
             return
         valores = dlg.values()
         if not valores["unit_type"] or not valores["code"] or not valores["name"]:
-            QMessageBox.warning(self, "Estructura organizacional",
-                                "Tipo, código y nombre son obligatorios.")
+            MessageDialog.warning(self, "Estructura organizacional",
+                                  "Tipo, código y nombre son obligatorios.")
             return
         ok, message = self._presenter.create_org_unit(**valores)
         if ok and valores["unit_type"] == "RETAIL_BRANCH":
-            message += " Registra su perfil (horario, tickets) con «Nueva sucursal»."
+            message += " Completa su horario y tickets con «Editar sucursal»."
         self._org_result(ok, message)
 
     def _on_edit_unit(self) -> None:
@@ -272,12 +274,12 @@ class EmpresaPage(ConfiguracionWorkspacePage):
         nodo = self._selected_org_node()
         if nodo is None:
             return
-        confirmar = QMessageBox.question(
+        confirmar = MessageDialog.question(
             self, "Cerrar unidad",
             f"¿Cerrar «{nodo.unit.name}» de forma definitiva?\n\nUna unidad cerrada no se "
-            "reabre; su historial se conserva.", QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No)
-        if confirmar != QMessageBox.Yes:
+            "reabre; su historial se conserva.", MessageDialog.Yes | MessageDialog.No,
+            MessageDialog.No)
+        if confirmar != MessageDialog.Yes:
             return
         motivo = self._ask_reason("Cerrar unidad")
         if motivo is None:
@@ -313,12 +315,12 @@ class EmpresaPage(ConfiguracionWorkspacePage):
         ok, message = self._presenter.assign_logo(
             source_path=dialog.source_path, remove_background=dialog.remove_background,
             tolerance=dialog.tolerance)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Logo", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Logo", message)
         self._reload_logo()
 
     def _on_remove_company_logo(self) -> None:
         ok, message = self._presenter.assign_logo(source_path=None)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Logo", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Logo", message)
         self._reload_logo()
 
     def _on_branch_logo(self) -> None:
@@ -336,7 +338,7 @@ class EmpresaPage(ConfiguracionWorkspacePage):
                 tolerance=dialog.tolerance, branch_id=branch_id)
         else:
             return
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Logo", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Logo", message)
 
     def _reload_company_summary(self) -> None:
         company = self._presenter.get_company_profile()
@@ -352,9 +354,9 @@ class EmpresaPage(ConfiguracionWorkspacePage):
     def _reload_installation_summary(self) -> None:
         installation = self._presenter.get_installation_branch()
         if installation:
-            self.installation_summary_label.setText(f"📍 Esta instalación: {installation[1]}")
+            self.installation_summary_label.setText(f"Esta instalación: {installation[1]}")
         else:
-            self.installation_summary_label.setText("📍 Instalación sin sucursal asignada")
+            self.installation_summary_label.setText("Instalación sin sucursal asignada")
 
     def _on_edit_company(self) -> None:
         company = self._presenter.get_company_profile()
@@ -365,20 +367,20 @@ class EmpresaPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["legal_name"] or not values["default_currency"] or not values["default_timezone"] or not values["default_locale"]:
-            QMessageBox.warning(
+            MessageDialog.warning(
                 self, "Empresa",
                 "Razón social, moneda, zona horaria y configuración regional son obligatorios.",
             )
             return
         ok, message = self._presenter.save_company_profile(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Empresa", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Empresa", message)
         if ok:
             self._reload_company_summary()
 
     def _on_anchor_installation(self) -> None:
         branches = self._presenter.list_branches_for_user_selector()
         if not branches:
-            QMessageBox.warning(self, "Sucursal de la instalación", "No hay sucursales activas disponibles.")
+            MessageDialog.warning(self, "Sucursal de la instalación", "No hay sucursales activas disponibles.")
             return
         dlg = SetInstallationBranchDialog(self, branch_options=branches)
         if dlg.exec_() != QDialog.Accepted:
@@ -386,19 +388,19 @@ class EmpresaPage(ConfiguracionWorkspacePage):
         values = dlg.values()
         branch_id = values["branch_id"]
         if not branch_id:
-            QMessageBox.warning(self, "Sucursal de la instalación", "Selecciona una sucursal.")
+            MessageDialog.warning(self, "Sucursal de la instalación", "Selecciona una sucursal.")
             return
         branch_name = next((name for bid, name in branches if bid == branch_id), branch_id)
-        confirm = QMessageBox.question(
+        confirm = MessageDialog.question(
             self, "Sucursal de la instalación",
             f"¿Usar «{branch_name}» como la sucursal de esta instalación?\n\n"
             "El login y los módulos operarán sobre esa sucursal.",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            MessageDialog.Yes | MessageDialog.No, MessageDialog.No,
         )
-        if confirm != QMessageBox.Yes:
+        if confirm != MessageDialog.Yes:
             return
         ok, message = self._presenter.set_installation_branch(branch_id)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Sucursal de la instalación", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Sucursal de la instalación", message)
         if not ok:
             return
         self._reload_installation_summary()
@@ -412,16 +414,16 @@ class EmpresaPage(ConfiguracionWorkspacePage):
     def _selected_branch_id(self) -> str | None:
         row_id = self.table.selected_row_id() if self.table is not None else None
         if not row_id:
-            QMessageBox.warning(self, "Sucursales", "Selecciona una sucursal primero.")
+            MessageDialog.warning(self, "Sucursales", "Selecciona una sucursal primero.")
         return row_id
 
     def _on_new_branch(self) -> None:
+        """Crea una sucursal nueva (N12). Si quedara alguna fila de `sucursales`
+        sin perfil (base anterior a la migración 352), primero se ofrece
+        registrarle el perfil, como antes."""
         branches = self._presenter.list_unregistered_branches()
         if not branches:
-            QMessageBox.warning(
-                self, "Sucursales",
-                "No hay sucursales sin perfil de gobierno registrado — todas ya lo tienen.",
-            )
+            self._create_new_branch()
             return
         dlg = BranchProfileCreateDialog(
             self, branch_options=branches,
@@ -430,10 +432,25 @@ class EmpresaPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["branch_id"] or not values["code"] or not values["name"]:
-            QMessageBox.warning(self, "Sucursales", "Sucursal, código y nombre son obligatorios.")
+            MessageDialog.warning(self, "Sucursales", "Sucursal, código y nombre son obligatorios.")
             return
         ok, message = self._presenter.register_branch_profile(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Sucursales", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Sucursales", message)
+        if ok:
+            self.reload(self.search.text())
+
+    def _create_new_branch(self) -> None:
+        dlg = NewBranchDialog(self, parent_options=self._parent_options())
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        valores = dlg.values()
+        if not valores["code"] or not valores["name"]:
+            MessageDialog.warning(self, "Sucursales", "Código y nombre son obligatorios.")
+            return
+        ok, message = self._presenter.create_branch(**valores)
+        if ok:
+            message += " Completa su horario y tickets con «Editar sucursal»."
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Sucursales", message)
         if ok:
             self.reload(self.search.text())
 
@@ -443,7 +460,7 @@ class EmpresaPage(ConfiguracionWorkspacePage):
             return
         profile = self._presenter.get_branch_profile(branch_id)
         if profile is None:
-            QMessageBox.warning(self, "Sucursales", "La sucursal ya no existe.")
+            MessageDialog.warning(self, "Sucursales", "La sucursal ya no existe.")
             return
         dlg = BranchProfileEditDialog(
             self, profile=profile,
@@ -452,10 +469,10 @@ class EmpresaPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["name"]:
-            QMessageBox.warning(self, "Sucursales", "El nombre es obligatorio.")
+            MessageDialog.warning(self, "Sucursales", "El nombre es obligatorio.")
             return
         ok, message = self._presenter.update_branch_profile(branch_id=branch_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Sucursales", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Sucursales", message)
         if ok:
             self.reload(self.search.text())
 

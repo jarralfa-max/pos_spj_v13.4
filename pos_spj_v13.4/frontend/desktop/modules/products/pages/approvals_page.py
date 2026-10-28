@@ -13,7 +13,6 @@ from PyQt5.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QVBoxLayout,
     QWidget,
 )
@@ -23,6 +22,7 @@ from frontend.desktop.components.buttons import (
     create_primary_button,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.page_viewport import PageViewport
 from frontend.desktop.themes.tokens import Spacing
@@ -131,7 +131,7 @@ class ApprovalsPage(QWidget):
     def _act(self, index: int) -> None:
         row = self._selected()
         if row is None:
-            QMessageBox.information(self, "Aprobaciones técnicas", "Selecciona una versión.")
+            MessageDialog.information(self, "Aprobaciones técnicas", "Selecciona una versión.")
             return
         method = getattr(self._presenter, _ACTIONS[row["kind"]][index], None)
         if method is None:

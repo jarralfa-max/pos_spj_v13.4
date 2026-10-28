@@ -675,10 +675,16 @@ class HRPresenter:
                          actor_user_id=self._actor(), kind=kind, item_id=item_id, name=name,
                          active=active)
 
-    def create_department(self, *, code: str, name: str) -> tuple[bool, str]:
+    def create_department(self, *, code: str, name: str,
+                          org_unit_id: str | None = None) -> tuple[bool, str]:
         return self._run(
             self._use_cases["catalog"].create_department, self._conn(),
-            actor_user_id=self._actor(), code=code, name=name, branch_id=self._branch())
+            actor_user_id=self._actor(), code=code, name=name, branch_id=self._branch(),
+            org_unit_id=org_unit_id or None)
+
+    def org_unit_options(self) -> list[tuple[str, str]]:
+        return [(r["id"], f"{r['code']} — {r['name']}")
+                for r in self._queries["employees"].org_units()]
 
     def create_position(self, *, code: str, name: str) -> tuple[bool, str]:
         return self._run(

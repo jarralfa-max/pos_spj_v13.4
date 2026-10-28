@@ -84,7 +84,7 @@ class TestEmpresaPageInstallationBranch:
         view.show_route("config_empresa")
         page = view._pages["config_empresa"]
 
-        assert page.installation_summary_label.text() == "📍 Esta instalación: Principal"
+        assert page.installation_summary_label.text() == "Esta instalación: Principal"
 
     def test_summary_shows_unassigned_when_pin_is_absent(self, app, conn):
         conn.execute("DELETE FROM configuraciones WHERE clave = 'sucursal_instalacion_id'")

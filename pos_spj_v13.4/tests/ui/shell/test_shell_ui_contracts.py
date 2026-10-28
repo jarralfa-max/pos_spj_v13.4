@@ -122,7 +122,7 @@ def test_settings_denial_from_router_is_handled_in_qt_slot(monkeypatch):
 
     messages = []
     monkeypatch.setattr(
-        "frontend.desktop.shell.application_shell.application_window.QMessageBox.information",
+        "frontend.desktop.shell.application_shell.application_window.MessageDialog.information",
         lambda *args: messages.append(args[1:]),
     )
     ApplicationWindow._open_settings(Window())

@@ -14,14 +14,17 @@ from PyQt5.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLayout,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 from frontend.desktop.components.branding import BrandAssetProvider
+from frontend.desktop.components.icons import IconProvider, Icons
 from frontend.desktop.components.page_viewport import PageViewport
 from frontend.desktop.i18n.es_mx import ui
 from frontend.desktop.themes.theme_manager import ThemeManager
@@ -284,3 +287,177 @@ class FormDialog(StandardDialog):
             return (field.currentText() if accepted else "", accepted)
         finally:
             dialog.deleteLater()
+
+
+# Qt order used to lay out and auto-detect message buttons.
+_MESSAGE_BUTTONS = (
+    (QMessageBox.Ok, "Aceptar"), (QMessageBox.Save, "Guardar"),
+    (QMessageBox.SaveAll, "Guardar todo"), (QMessageBox.Open, "Abrir"),
+    (QMessageBox.Yes, "Sí"), (QMessageBox.YesToAll, "Sí a todo"),
+    (QMessageBox.No, "No"), (QMessageBox.NoToAll, "No a todo"),
+    (QMessageBox.Abort, "Abortar"), (QMessageBox.Retry, "Reintentar"),
+    (QMessageBox.Ignore, "Ignorar"), (QMessageBox.Close, "Cerrar"),
+    (QMessageBox.Cancel, "Cancelar"), (QMessageBox.Discard, "Descartar"),
+    (QMessageBox.Help, "Ayuda"), (QMessageBox.Apply, "Aplicar"),
+    (QMessageBox.Reset, "Restablecer"), (QMessageBox.RestoreDefaults, "Restaurar valores"),
+)
+_ACCEPT_ROLES = (QDialogButtonBox.AcceptRole, QDialogButtonBox.YesRole)
+# level -> (icon, icon state, accessible level name)
+_MESSAGE_LEVELS = {
+    "information": (Icons.INFO, "info", "Información"),
+    "question": (Icons.INFO, "info", "Confirmación"),
+    "warning": (Icons.WARNING, "warning", "Advertencia"),
+    "critical": (Icons.ERROR, "danger", "Error"),
+}
+
+
+class MessageDialog(StandardDialog):
+    """Canonical message box: the StandardDialog shell with QMessageBox's API.
+
+    The static methods keep QMessageBox's signature, return values and
+    constants, so callers compare against ``MessageDialog.Yes`` exactly as they
+    compared against ``QMessageBox.Yes``. Buttons are Spanish, the message is
+    plain text and the level is carried by icon and accessible name, not only
+    color. Default/Escape buttons follow QMessageBox's role-based detection.
+    """
+
+    StandardButton = QMessageBox.StandardButton
+    NoButton = QMessageBox.NoButton
+    Ok, Cancel, Close = QMessageBox.Ok, QMessageBox.Cancel, QMessageBox.Close
+    Yes, No = QMessageBox.Yes, QMessageBox.No
+    YesToAll, NoToAll = QMessageBox.YesToAll, QMessageBox.NoToAll
+    Save, SaveAll, Open, Discard = QMessageBox.Save, QMessageBox.SaveAll, QMessageBox.Open, QMessageBox.Discard
+    Abort, Retry, Ignore, Apply = QMessageBox.Abort, QMessageBox.Retry, QMessageBox.Ignore, QMessageBox.Apply
+    Help, Reset, RestoreDefaults = QMessageBox.Help, QMessageBox.Reset, QMessageBox.RestoreDefaults
+    ButtonRole = QMessageBox.ButtonRole
+    AcceptRole, RejectRole, DestructiveRole = QMessageBox.AcceptRole, QMessageBox.RejectRole, QMessageBox.DestructiveRole
+    ActionRole, YesRole, NoRole = QMessageBox.ActionRole, QMessageBox.YesRole, QMessageBox.NoRole
+
+    def __init__(self, parent=None, *, level: str = "information", title: str = "",
+                 text: str = "", buttons=QMessageBox.Ok,
+                 default_button=QMessageBox.NoButton) -> None:
+        if level not in _MESSAGE_LEVELS:
+            raise ValueError(f"Nivel de mensaje no reconocido: {level}")
+        super().__init__(parent, title=title)
+        icon_name, icon_state, level_name = _MESSAGE_LEVELS[level]
+        self.setProperty("messageLevel", level)
+        self.setAccessibleName(f"{level_name}: {title}" if title else level_name)
+        self.setAccessibleDescription(text)
+
+        self._icon = QLabel(self)
+        self._icon.setObjectName("messageDialogIcon")
+        self._icon.setAlignment(Qt.AlignTop | Qt.AlignHCenter)
+        IconProvider.bind(self._icon, icon_name, size=32, state=icon_state)
+        self._icon.setAccessibleName(level_name)
+        self._text = QLabel(text, self)
+        self._text.setObjectName("messageDialogText")
+        self._text.setTextFormat(Qt.PlainText)
+        self._text.setWordWrap(True)
+        self._text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self._text.setAccessibleName(text)
+        row = QHBoxLayout()
+        row.setSpacing(Spacing.MD)
+        row.addWidget(self._icon, 0, Qt.AlignTop)
+        row.addWidget(self._text, 1)
+        self._root.addLayout(row)
+
+        self._box = QDialogButtonBox(self)
+        self._box.clicked.connect(self._on_clicked)
+        self._clicked: QPushButton | None = None
+        self._escape: QPushButton | None = None
+        for standard, label in _MESSAGE_BUTTONS:
+            if int(buttons) & int(standard):
+                self._box.addButton(QDialogButtonBox.StandardButton(int(standard))).setText(label)
+        self.add_footer_widget(self._box)
+        self._apply_default(default_button)
+
+    # ── QMessageBox-compatible instance API ────────────────────────────────
+    def addButton(self, text: str, role) -> QPushButton:  # noqa: N802 - Qt API
+        button = self._box.addButton(text, QDialogButtonBox.ButtonRole(int(role)))
+        self._density_changed()
+        self._apply_default(QMessageBox.NoButton)
+        return button
+
+    def clickedButton(self) -> QPushButton | None:  # noqa: N802 - Qt API
+        return self._clicked
+
+    def standardButton(self, button) -> "QMessageBox.StandardButton":  # noqa: N802
+        if button is None:
+            return QMessageBox.NoButton
+        return QMessageBox.StandardButton(int(self._box.standardButton(button)))
+
+    def text(self) -> str:
+        return self._text.text()
+
+    # ── QMessageBox-compatible static API ──────────────────────────────────
+    @classmethod
+    def information(cls, parent, title, text, buttons=QMessageBox.Ok,
+                    defaultButton=QMessageBox.NoButton):  # noqa: N803 - Qt API
+        return cls._show("information", parent, title, text, buttons, defaultButton)
+
+    @classmethod
+    def warning(cls, parent, title, text, buttons=QMessageBox.Ok,
+                defaultButton=QMessageBox.NoButton):  # noqa: N803 - Qt API
+        return cls._show("warning", parent, title, text, buttons, defaultButton)
+
+    @classmethod
+    def critical(cls, parent, title, text, buttons=QMessageBox.Ok,
+                 defaultButton=QMessageBox.NoButton):  # noqa: N803 - Qt API
+        return cls._show("critical", parent, title, text, buttons, defaultButton)
+
+    @classmethod
+    def question(cls, parent, title, text, buttons=QMessageBox.Yes | QMessageBox.No,
+                 defaultButton=QMessageBox.NoButton):  # noqa: N803 - Qt API
+        return cls._show("question", parent, title, text, buttons, defaultButton)
+
+    @classmethod
+    def _show(cls, level, parent, title, text, buttons, default_button):
+        dialog = cls(parent, level=level, title=title, text=str(text),
+                     buttons=buttons, default_button=default_button)
+        try:
+            dialog.exec_()
+            return dialog.standardButton(dialog.clickedButton())
+        finally:
+            dialog.deleteLater()
+
+    # ── behavior ───────────────────────────────────────────────────────────
+    def _apply_default(self, default_button) -> None:
+        buttons = self._box.buttons()
+        target = self._box.button(QDialogButtonBox.StandardButton(int(default_button))) \
+            if int(default_button) else None
+        if target is None:
+            # Qt focuses the first auto-default button of the Windows layout: YesRole, then AcceptRole.
+            target = next((b for role in (QDialogButtonBox.YesRole, QDialogButtonBox.AcceptRole)
+                           for b in buttons if self._box.buttonRole(b) == role), None)
+        for button in buttons:
+            button.setDefault(button is target)
+        if target is not None:
+            target.setFocus()
+        # QMessageBox: a lone button, else the reject-role one, else a single no-role one.
+        rejects = [b for b in buttons if self._box.buttonRole(b) == QDialogButtonBox.RejectRole]
+        nos = [b for b in buttons if self._box.buttonRole(b) == QDialogButtonBox.NoRole]
+        self._escape = (buttons[0] if len(buttons) == 1 else rejects[0] if rejects
+                        else nos[0] if len(nos) == 1 else None)
+
+    def _on_clicked(self, button) -> None:
+        self._clicked = button
+        role = self._box.buttonRole(button)
+        self.done(QDialog.Accepted if role in _ACCEPT_ROLES else QDialog.Rejected)
+
+    # Escape and the window's close button resolve to the escape button, or do
+    # nothing without one, as in QMessageBox. A programmatic reject() still closes.
+    def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if event.key() == Qt.Key_Escape and event.modifiers() == Qt.NoModifier:
+            if self._escape is not None:
+                self._escape.click()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt API
+        if self._clicked is None:
+            if self._escape is None:
+                event.ignore()
+                return
+            self._clicked = self._escape
+        super().closeEvent(event)

@@ -3,9 +3,10 @@ the REAL ORD-27 analytics/badge query services, no placeholder content."""
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import KPIBar, PageHeader, create_secondary_button
+from frontend.desktop.components.dialogs import MessageDialog
 
 
 class OrdersOverviewPage(QWidget):
@@ -38,6 +39,6 @@ class OrdersOverviewPage(QWidget):
         try:
             cards = self._presenter.kpi_cards()
         except Exception as exc:  # noqa: BLE001 - surface, never crash the page
-            QMessageBox.warning(self, "Resumen", str(exc))
+            MessageDialog.warning(self, "Resumen", str(exc))
             return
         self.kpis.set_cards(cards)

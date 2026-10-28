@@ -133,6 +133,14 @@ class EmployeeQueryService(_HRQueryBase):
                 " ORDER BY name"),
         }
 
+    def org_units(self) -> list[dict]:
+        """Unidades organizacionales activas (para asignar departamentos)."""
+        if not self._query("SELECT 1 AS x FROM sqlite_master WHERE type='table'"
+                           " AND name='org_units'"):
+            return []
+        return self._query("SELECT id, code, name FROM org_units WHERE status='ACTIVE'"
+                           " ORDER BY name")
+
 
 class AttendanceQueryService(_HRQueryBase):
     def list_workdays(self, *, work_date: str | None = None, branch_id: str | None = None,

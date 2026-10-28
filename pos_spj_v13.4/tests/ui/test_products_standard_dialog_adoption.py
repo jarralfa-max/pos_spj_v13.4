@@ -8,9 +8,9 @@ import pytest
 from PyQt5 import sip
 from PyQt5.QtCore import QEvent, QPoint, QRect, QSettings, Qt
 from PyQt5.QtTest import QSignalSpy, QTest
-from PyQt5.QtWidgets import QDialog, QDialogButtonBox, QMessageBox
+from PyQt5.QtWidgets import QDialog, QDialogButtonBox
 
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 from frontend.desktop.themes.theme_manager import ThemeManager
 from frontend.desktop.themes.tokens import density_metrics
 
@@ -170,7 +170,7 @@ def test_catalog_validation_and_saved_payload_are_preserved(dialogs, presenter, 
 def test_product_save_failure_keeps_capture_and_success_accepts_once(dialogs, presenter, qt_font_resources, monkeypatch):
     dialog = dialogs(CASES[12], presenter)
     warnings = []
-    monkeypatch.setattr(QMessageBox, "warning", lambda *_args: warnings.append(_args))
+    monkeypatch.setattr(MessageDialog, "warning", lambda *_args: warnings.append(_args))
     dialog.show()
     _settle(qt_font_resources)
     accepted = QSignalSpy(dialog.accepted)

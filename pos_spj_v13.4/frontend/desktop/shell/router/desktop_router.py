@@ -147,6 +147,12 @@ class DesktopRouter:
             raise NavigationFeatureDisabledError(
                 f"El módulo '{route.module_id}' no está habilitado en esta estación "
                 "(perfil de instalación).")
+        if not self._context.site_allows_module(route.module_id):
+            self._publish(NAVIGATION_DENIED, {"route_id": route.route_id,
+                                              "reason": "SITE_CAPABILITY"})
+            raise NavigationFeatureDisabledError(
+                f"El módulo '{route.module_id}' no opera en «{self._context.branch_name}» "
+                "(capacidades de la unidad organizacional).")
         if module_disabled(self._context.feature_context, route.module_id):
             self._publish(NAVIGATION_DENIED, {"route_id": route.route_id, "reason": "MODULE_DISABLED"})
             raise NavigationFeatureDisabledError(

@@ -14,13 +14,14 @@ separate, bigger, deferred project) and "Auditoría" (read-only, últimas
 200, no buttons at all — same deliberately-read-only shape `OfflinePage`
 's Cache card established).
 """
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QWidget
 
 from backend.application.configuracion.permissions import ConfiguracionPermissions
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
     create_secondary_button, create_state_widget, create_warning_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs.role_permissions_dialog import (
     RolePermissionsDialog,
 )
@@ -71,9 +72,13 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
         self.deactivate_user_button = create_warning_button(self, "Desactivar")
         self.unlock_user_button = create_danger_button(self, "Desbloquear")
         self.user_permissions_button = create_secondary_button(self, "Permisos")
+        # Roles adicionales con ámbito (auditoría enterprise, Fase 2).
+        self.user_scoped_roles_button = create_secondary_button(self, "Roles por ámbito")
+        self.user_scoped_roles_button.setVisible(self._presenter.role_assignments_available())
         user_actions = _button_row(
             self, self.new_user_button, self.edit_user_button, self.activate_user_button,
             self.deactivate_user_button, self.unlock_user_button, self.user_permissions_button,
+            self.user_scoped_roles_button,
         )
         self.layout().insertWidget(1, user_actions)
 
@@ -83,6 +88,7 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
         self.deactivate_user_button.clicked.connect(lambda: self._on_change_user_status(False))
         self.unlock_user_button.clicked.connect(self._on_unlock_user)
         self.user_permissions_button.clicked.connect(self._on_user_permissions)
+        self.user_scoped_roles_button.clicked.connect(self._on_user_scoped_roles)
 
         self._build_roles_card()
         self._build_audit_card()
@@ -96,7 +102,7 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
     def _selected_user_id(self) -> str | None:
         row_id = self.table.selected_row_id() if self.table is not None else None
         if not row_id:
-            QMessageBox.warning(self, "Usuarios y Roles", "Selecciona un usuario primero.")
+            MessageDialog.warning(self, "Usuarios y Roles", "Selecciona un usuario primero.")
         return row_id
 
     def _selector_options(self):
@@ -112,13 +118,13 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["username"] or not values["password"]:
-            QMessageBox.warning(self, "Usuarios y Roles", "Usuario y contraseña son obligatorios.")
+            MessageDialog.warning(self, "Usuarios y Roles", "Usuario y contraseña son obligatorios.")
             return
         if not values["branch_id"]:
-            QMessageBox.warning(self, "Usuarios y Roles", "Selecciona la sucursal del usuario.")
+            MessageDialog.warning(self, "Usuarios y Roles", "Selecciona la sucursal del usuario.")
             return
         ok, message = self._presenter.create_user(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Usuarios y Roles", message)
         if ok:
             self.reload(self.search.text())
 
@@ -128,7 +134,7 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
             return
         form_data = self._presenter.get_user_form_data(user_id)
         if form_data is None:
-            QMessageBox.warning(self, "Usuarios y Roles", "El usuario ya no existe.")
+            MessageDialog.warning(self, "Usuarios y Roles", "El usuario ya no existe.")
             return
         roles, branches, employees = self._selector_options()
         dlg = UserEditDialog(
@@ -140,10 +146,10 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["branch_id"]:
-            QMessageBox.warning(self, "Usuarios y Roles", "Selecciona la sucursal del usuario.")
+            MessageDialog.warning(self, "Usuarios y Roles", "Selecciona la sucursal del usuario.")
             return
         ok, message = self._presenter.update_user(user_id=user_id, username=form_data.username, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Usuarios y Roles", message)
         if ok:
             self.reload(self.search.text())
 
@@ -152,7 +158,7 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
         if not user_id:
             return
         ok, message = self._presenter.set_user_active(user_id=user_id, active=active)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Usuarios y Roles", message)
         if ok:
             self.reload(self.search.text())
 
@@ -162,18 +168,18 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
             return
         user = self._users_by_id.get(user_id)
         if user is not None and not user.locked:
-            QMessageBox.information(self, "Usuarios y Roles", "Este usuario no está bloqueado.")
+            MessageDialog.information(self, "Usuarios y Roles", "Este usuario no está bloqueado.")
             return
-        confirm = QMessageBox.question(
+        confirm = MessageDialog.question(
             self, "Desbloquear usuario",
             f"¿Desbloquear a «{user.username if user else user_id}»? Se reiniciarán los intentos fallidos "
             "y el bloqueo temporal. La acción quedará auditada.",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            MessageDialog.Yes | MessageDialog.No, MessageDialog.No,
         )
-        if confirm != QMessageBox.Yes:
+        if confirm != MessageDialog.Yes:
             return
         ok, message = self._presenter.unlock_user(user_id)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Usuarios y Roles", message)
         if ok:
             self.reload(self.search.text())
 
@@ -219,7 +225,7 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
     def _selected_role_id(self) -> str | None:
         row_id = self.roles_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Usuarios y Roles", "Selecciona un rol primero.")
+            MessageDialog.warning(self, "Usuarios y Roles", "Selecciona un rol primero.")
         return row_id
 
     def _on_new_role(self) -> None:
@@ -228,10 +234,10 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["name"]:
-            QMessageBox.warning(self, "Usuarios y Roles", "El nombre del rol es obligatorio.")
+            MessageDialog.warning(self, "Usuarios y Roles", "El nombre del rol es obligatorio.")
             return
         ok, message = self._presenter.save_role(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Usuarios y Roles", message)
         if ok:
             self._reload_roles()
 
@@ -241,13 +247,13 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
             return
         role = self._roles_by_id.get(role_id)
         if role is None:
-            QMessageBox.warning(self, "Usuarios y Roles", "El rol ya no existe.")
+            MessageDialog.warning(self, "Usuarios y Roles", "El rol ya no existe.")
             return
         dlg = RoleEditDialog(self, name=role.name, description=role.description)
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message = self._presenter.save_role(role_id=role_id, name=role.name, **dlg.values())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Usuarios y Roles", message)
         if ok:
             self._reload_roles()
 
@@ -257,10 +263,10 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
             return
         matrix = self._presenter.user_permission_matrix(user_id)
         if matrix is None:
-            QMessageBox.warning(self, "Usuarios y Roles", "El usuario ya no existe.")
+            MessageDialog.warning(self, "Usuarios y Roles", "El usuario ya no existe.")
             return
         if matrix.mode == "FULL_ACCESS":
-            QMessageBox.information(self, "Usuarios y Roles", matrix.note)
+            MessageDialog.information(self, "Usuarios y Roles", matrix.note)
             return
         dlg = UserPermissionsDialog(
             self, matrix=matrix,
@@ -270,7 +276,22 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
             return
         ok, message = self._presenter.save_user_permissions(
             user_id=user_id, changes=dlg.changes(), branch_id=dlg.scope_branch_id())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Usuarios y Roles", message)
+
+    def _on_user_scoped_roles(self) -> None:
+        from backend.application.configuracion.permissions import ConfiguracionPermissions
+        from frontend.desktop.modules.configuracion.dialogs.role_assignment_dialogs import (
+            RoleAssignmentsDialog,
+        )
+        user_id = self._selected_user_id()
+        if not user_id:
+            return
+        usuario = self._users_by_id.get(user_id)
+        RoleAssignmentsDialog(
+            self, presenter=self._presenter, user_id=user_id,
+            user_name=getattr(usuario, "username", "") or getattr(usuario, "full_name", ""),
+            can_change=self._presenter.can(ConfiguracionPermissions.USUARIOS_ASIGNACIONES),
+        ).exec_()
 
     def _on_role_permissions(self) -> None:
         role_id = self._selected_role_id()
@@ -278,16 +299,16 @@ class UsuariosRolesPage(ConfiguracionWorkspacePage):
             return
         matrix = self._presenter.role_permission_matrix(role_id)
         if matrix is None:
-            QMessageBox.warning(self, "Usuarios y Roles", "El rol ya no existe.")
+            MessageDialog.warning(self, "Usuarios y Roles", "El rol ya no existe.")
             return
         if matrix.mode == "FULL_ACCESS":
-            QMessageBox.information(self, "Usuarios y Roles", matrix.note)
+            MessageDialog.information(self, "Usuarios y Roles", matrix.note)
             return
         dlg = RolePermissionsDialog(self, matrix=matrix)
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message = self._presenter.save_role_permissions(role_id=role_id, changes=dlg.changes())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Usuarios y Roles", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Usuarios y Roles", message)
 
     # ── Auditoría (solo lectura, sin botones de acción) ─────────────────────
 

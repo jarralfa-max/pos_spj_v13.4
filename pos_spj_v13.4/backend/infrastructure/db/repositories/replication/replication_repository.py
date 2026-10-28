@@ -34,6 +34,27 @@ class ReplicationRepository:
                VALUES (?,?,?, 'IDLE', ?, ?) ON CONFLICT(id) DO NOTHING""",
             (station_id, branch_id, "ONLINE" if online else "OFFLINE", now, now))
 
+    def adopt_identity(self, *, station_id: str, branch_id: str, resume_sequence: int,
+                       now: str) -> int:
+        """La estación toma la identidad que le dio el servidor central al
+        vincularse (auditoría enterprise, Fase 4). Los sobres preparados con otra
+        identidad local que el central NUNCA respondió (pendientes, en reintento o en
+        vuelo) se descartan: el motor los
+        vuelve a preparar desde los outbox de contexto con la nueva (cada hecho
+        conserva su `event_id`). Los ya sincronizados no se tocan. La secuencia
+        continúa desde la que el central ya tiene (recuperación). Devuelve cuántos
+        sobres se descartaron."""
+        cursor = self._conn.execute(
+            "DELETE FROM replication_envelopes WHERE station_id <> ?"
+            " AND state IN ('PENDING', 'RETRY', 'IN_FLIGHT')",
+            (station_id,))
+        self.register_station(station_id=station_id, branch_id=branch_id, now=now)
+        self._conn.execute(
+            "UPDATE replication_stations SET branch_id=?, updated_at=?,"
+            " local_sequence = MAX(local_sequence, ?) WHERE id=?",
+            (branch_id, now, int(resume_sequence), station_id))
+        return int(cursor.rowcount or 0)
+
     def get_station(self, station_id: str) -> dict | None:
         return _row(self._conn.execute(
             "SELECT * FROM replication_stations WHERE id=?", (station_id,)))

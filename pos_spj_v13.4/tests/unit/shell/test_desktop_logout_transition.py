@@ -30,7 +30,7 @@ def test_revocation_failure_keeps_current_session_visible(monkeypatch):
     app, window, coordinator = Mock(), Mock(), Mock()
     coordinator.logout.side_effect = RuntimeError("unavailable")
     report = Mock()
-    monkeypatch.setattr("frontend.desktop.app.QMessageBox.critical", report)
+    monkeypatch.setattr("frontend.desktop.components.dialogs.MessageDialog.critical", report)
     assert _logout_and_reauthenticate(app, window, coordinator) is False
     window.hide.assert_not_called()
     window.deleteLater.assert_not_called()

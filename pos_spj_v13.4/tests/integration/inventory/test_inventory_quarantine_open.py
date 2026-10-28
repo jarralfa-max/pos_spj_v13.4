@@ -318,9 +318,9 @@ class TestQuarantinePageOpenAction:
         with patch("frontend.desktop.modules.inventory.dialogs.OpenQuarantineDialog.exec_",
                    _fake_exec, create=True), \
              patch("frontend.desktop.modules.inventory.pages.quarantine_page"
-                   ".QMessageBox.information") as info_mock, \
+                   ".MessageDialog.information") as info_mock, \
              patch("frontend.desktop.modules.inventory.pages.quarantine_page"
-                   ".QMessageBox.warning") as warn_mock:
+                   ".MessageDialog.warning") as warn_mock:
             page._on_open()
 
         assert not warn_mock.called, "open_quarantine failed: revisar seed/ubicación"
@@ -376,9 +376,9 @@ class TestQuarantinePageOpenAction:
         with patch("frontend.desktop.modules.inventory.dialogs.OpenQuarantineDialog.exec_",
                    _fake_exec, create=True), \
              patch("frontend.desktop.modules.inventory.pages.quarantine_page"
-                   ".QMessageBox.information") as info_mock, \
+                   ".MessageDialog.information") as info_mock, \
              patch("frontend.desktop.modules.inventory.pages.quarantine_page"
-                   ".QMessageBox.warning") as warn_mock:
+                   ".MessageDialog.warning") as warn_mock:
             page._on_open()
 
         assert not warn_mock.called, "open_quarantine failed: revisar ubicación seleccionada"

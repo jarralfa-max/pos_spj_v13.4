@@ -9,7 +9,7 @@ docstring).
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -22,6 +22,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_success_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.business_intelligence.presenters.alert_explorer_presenter import (
     AlertTransitionError,
     map_alert_kpis,
@@ -82,7 +83,7 @@ class AlertExplorerPage(QWidget):
         try:
             alerts = self._presenter.evaluate_all()
         except Exception as exc:  # noqa: BLE001 - surface, never crash the page
-            QMessageBox.warning(self, "Alertas", str(exc))
+            MessageDialog.warning(self, "Alertas", str(exc))
             return
         self._alerts_by_id = {alert.id: alert for alert in alerts}
         self._render_table()
@@ -103,12 +104,12 @@ class AlertExplorerPage(QWidget):
         alert_id = self.table.selected_row_id()
         alert = self._alerts_by_id.get(alert_id) if alert_id else None
         if alert is None:
-            QMessageBox.information(self, "Alertas", "Selecciona una alerta primero.")
+            MessageDialog.information(self, "Alertas", "Selecciona una alerta primero.")
             return
         try:
             updated = self._presenter.apply_transition(alert, action, reason=self.reason.value())
         except AlertTransitionError as exc:
-            QMessageBox.warning(self, "Alertas", str(exc))
+            MessageDialog.warning(self, "Alertas", str(exc))
             return
         self._alerts_by_id[updated.id] = updated
         self._render_table()

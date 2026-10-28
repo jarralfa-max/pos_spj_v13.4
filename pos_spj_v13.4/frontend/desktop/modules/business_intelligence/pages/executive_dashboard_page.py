@@ -4,9 +4,10 @@ charts view fed by `ExecutiveDashboardPresenter`. Mirrors
 exactly.
 """
 
-from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import HtmlChartView, KPIBar, PageHeader, create_secondary_button
+from frontend.desktop.components.dialogs import MessageDialog
 
 
 class ExecutiveDashboardPage(QWidget):
@@ -49,7 +50,7 @@ class ExecutiveDashboardPage(QWidget):
             cards = self._presenter.kpi_cards()
             charts = self._presenter.charts()
         except Exception as exc:
-            QMessageBox.warning(self, "Resumen ejecutivo", str(exc))
+            MessageDialog.warning(self, "Resumen ejecutivo", str(exc))
             return
 
         self.kpis.set_cards(cards)

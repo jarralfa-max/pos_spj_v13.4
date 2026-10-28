@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from PyQt5.QtWidgets import (
     QHBoxLayout,
-    QMessageBox,
     QVBoxLayout,
     QWidget,
 )
@@ -21,6 +20,7 @@ from frontend.desktop.components import (
     PageHeader,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.themes.tokens import Spacing
 
@@ -69,8 +69,8 @@ class InventoryAnalyticsPage(QWidget):
         try:
             self.last_export = self._presenter.export_availability_csv()
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self, "Analítica de Inventario",
-                                f"No fue posible exportar:\n{exc}")
+            MessageDialog.warning(self, "Analítica de Inventario",
+                                  f"No fue posible exportar:\n{exc}")
             return
-        QMessageBox.information(self, "Analítica de Inventario",
-                                "Disponibilidad exportada a CSV.")
+        MessageDialog.information(self, "Analítica de Inventario",
+                                  "Disponibilidad exportada a CSV.")

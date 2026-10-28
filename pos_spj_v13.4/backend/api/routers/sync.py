@@ -3,9 +3,11 @@
 `POST /api/v1/sync/events`: una estación entrega un lote de sobres y recibe un
 acuse inequívoco por cada uno (ACCEPTED, DUPLICATE, CONFLICT, REJECTED, RETRY).
 
-* Autenticación por estación: `X-SPJ-Station-Id` + `Authorization: Bearer
-  <secreto>`. Sin credenciales compartidas ni de administrador; el error no dice
-  si falló el id o el secreto.
+* Autenticación por estación: firma Ed25519 con la llave del equipo
+  (`X-SPJ-Signature`, auditoría enterprise Fase 4) o, en transición, el secreto
+  del Slice 4 (`X-SPJ-Station-Id` + `Authorization: Bearer <secreto>`). Sin
+  credenciales compartidas ni de administrador; el error no dice qué falló. Un
+  equipo suspendido o dado de baja recibe 403 con `X-SPJ-Error-Code`.
 * Límites: cuerpo ≤ 8 MiB, ≤ 500 sobres, y un tope de solicitudes por estación
   por minuto (429 con `Retry-After`).
 * `X-Request-ID` se acepta o se genera, se devuelve y queda en el log.
@@ -34,7 +36,7 @@ MAX_ENVELOPES = 500
 
 class SyncWorkflow(Protocol):
     def handle(self, *, station_id: str | None, secret: str | None,
-               envelopes: list) -> list[dict]: ...
+               envelopes: list, signed=None) -> list[dict]: ...
 
 
 class StationRateLimiter:
@@ -97,13 +99,25 @@ async def push_events(request: Request, response: Response) -> dict:
         StationAuthenticationError,
         StationNotAllowedError,
     )
+    firmado = None
+    if request.headers.get("x-spj-signature"):
+        ruta = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+        firmado = (request.method, ruta, request.headers, cuerpo)
     try:
-        acuses = flujo.handle(station_id=estacion, secret=_bearer(request), envelopes=sobres)
+        if firmado is None:
+            acuses = flujo.handle(station_id=estacion, secret=_bearer(request), envelopes=sobres)
+        else:
+            acuses = flujo.handle(station_id=estacion, secret=None, envelopes=sobres,
+                                  signed=firmado)
     except StationAuthenticationError:
         logger.warning("sync %s: credencial inválida (estación %s)", request_id, estacion)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Credencial de estación inválida",
                             headers={"WWW-Authenticate": "Bearer"}) from None
     except StationNotAllowedError as exc:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from None
+        texto = str(exc)
+        codigo = ("DEVICE_REVOKED" if "RETIRED" in texto else
+                  "DEVICE_SUSPENDED" if "SUSPENDED" in texto else "DEVICE_NOT_ALLOWED")
+        raise HTTPException(status.HTTP_403_FORBIDDEN, texto,
+                            headers={"X-SPJ-Error-Code": codigo}) from None
     logger.info("sync %s: estación %s, %s sobres", request_id, estacion, len(sobres))
     return {"request_id": request_id, "acks": acuses}

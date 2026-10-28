@@ -109,6 +109,8 @@ CONTRACTS: tuple[ComponentContract, ...] = (
                       "StandardDialog", "Cabecera sincronizada, cuerpo desplazable, pie fijo y límites del monitor."),
     ComponentContract("ConfirmationDialog", "frontend.desktop.components.dialogs",
                       "ConfirmationDialog", "Confirmación estándar."),
+    ComponentContract("MessageDialog", "frontend.desktop.components.dialogs",
+                      "MessageDialog", "Aviso/confirmación con la API de QMessageBox sobre StandardDialog."),
     ComponentContract("StatusBadge", "frontend.desktop.components.status_badge",
                       "StatusBadge", "Insignia de estado.", variants=_BADGE_VARIANTS),
     ComponentContract("StateWidget", "frontend.desktop.components.view_states",

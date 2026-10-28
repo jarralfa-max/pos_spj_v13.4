@@ -12,7 +12,7 @@ salida. Todo pasa por el presenter; sin SQL ni lógica de negocio aquí.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -21,7 +21,7 @@ from frontend.desktop.components import (
     create_danger_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import ConfirmationDialog
+from frontend.desktop.components.dialogs import ConfirmationDialog, MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.dialogs import BlockReasonDialog
 from frontend.desktop.themes.tokens import Spacing
@@ -72,12 +72,12 @@ class StockPage(QWidget):
     def _selected_pending_balance_id(self) -> str | None:
         row = self._table.currentRow()
         if row < 0 or not self._table.selected_row_id():
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Existencias", "Selecciona una existencia pendiente de inspección.")
             return None
         status_item = self._table.item(row, _STATUS_COLUMN)
         if status_item is None or status_item.text() != _PENDING_INSPECTION_LABEL:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Existencias",
                 "Sólo se puede inspeccionar una fila «Por inspección».")
             return None
@@ -94,7 +94,7 @@ class StockPage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message, _ = self._presenter.inspect_stock(balance_id=balance_id, passed=True)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Existencias", message)
         if ok:
             self.refresh()
@@ -108,7 +108,7 @@ class StockPage(QWidget):
             return
         ok, message, _ = self._presenter.inspect_stock(
             balance_id=balance_id, passed=False, reason=dlg.reason())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Existencias", message)
         if ok:
             self.refresh()

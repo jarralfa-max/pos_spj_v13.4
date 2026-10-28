@@ -12,7 +12,7 @@ values come from the presenter; no SQL, no business logic here.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -20,6 +20,7 @@ from frontend.desktop.components import (
     StandardTable,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.dialogs import MovementDetailDialog
 from frontend.desktop.themes.tokens import Spacing
@@ -64,7 +65,7 @@ class MovementsPage(QWidget):
     def _selected_movement_id(self) -> str | None:
         mid = self._table.selected_row_id()
         if not mid:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Movimientos", "Selecciona un movimiento de la lista.")
             return None
         return mid
@@ -75,14 +76,14 @@ class MovementsPage(QWidget):
             return
         header = self._presenter.movement_detail(movement_id=mid)
         if header is None:
-            QMessageBox.warning(self, "Movimientos", "Movimiento no encontrado.")
+            MessageDialog.warning(self, "Movimientos", "Movimiento no encontrado.")
             return
         caps = self._presenter.capabilities()
 
         def reverse(reason: str) -> None:
             ok, message, _ = self._presenter.reverse_movement(
                 movement_id=mid, reason=reason)
-            (QMessageBox.information if ok else QMessageBox.warning)(
+            (MessageDialog.information if ok else MessageDialog.warning)(
                 self, "Movimientos", message)
             if ok:
                 dlg.accept()

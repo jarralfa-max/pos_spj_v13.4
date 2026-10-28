@@ -8,12 +8,13 @@ Selecting a template row reloads its versions into the secondary table —
 `self.table` is rebuilt on every `reload()` (see `base_page.py`), so the
 selection signal is reconnected each time rather than once in `__init__`.
 """
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
     create_secondary_button, create_state_widget, create_warning_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs import (
     DocumentTemplateCreateDialog,
     DocumentTemplateEditDialog,
@@ -175,7 +176,7 @@ class DocumentosPage(ConfiguracionWorkspacePage):
     def _selected_version_id(self) -> str | None:
         row_id = self.versions_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Documentos", "Selecciona una versión primero.")
+            MessageDialog.warning(self, "Documentos", "Selecciona una versión primero.")
         return row_id
 
     def _on_new_template(self) -> None:
@@ -191,22 +192,22 @@ class DocumentosPage(ConfiguracionWorkspacePage):
                 return
             values["content"], values["content_format"] = layout_json, "ESC_POS"
         if not values["name"] or not values["document_type"] or not values["module"] or not values["content_format"] or not values["content"]:
-            QMessageBox.warning(
+            MessageDialog.warning(
                 self, "Documentos", "Nombre, tipo, módulo, formato y contenido son obligatorios.",
             )
             return
         ok, message = self._presenter.create_document_template(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Documentos", message)
         if ok:
             self.reload(self.search.text())
 
     def _on_edit_template(self) -> None:
         if not self._selected_template_id:
-            QMessageBox.warning(self, "Documentos", "Selecciona una plantilla primero.")
+            MessageDialog.warning(self, "Documentos", "Selecciona una plantilla primero.")
             return
         template = self._presenter.get_template(self._selected_template_id)
         if template is None:
-            QMessageBox.warning(self, "Documentos", "La plantilla ya no existe.")
+            MessageDialog.warning(self, "Documentos", "La plantilla ya no existe.")
             return
         dlg = DocumentTemplateEditDialog(
             self, name=template.name, module=template.module, description=template.description,
@@ -215,29 +216,29 @@ class DocumentosPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["name"] or not values["module"]:
-            QMessageBox.warning(self, "Documentos", "Nombre y módulo son obligatorios.")
+            MessageDialog.warning(self, "Documentos", "Nombre y módulo son obligatorios.")
             return
         ok, message = self._presenter.update_document_template(
             template_id=self._selected_template_id, **values,
         )
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Documentos", message)
         if ok:
             self.reload(self.search.text())
 
     def _on_change_template_status(self, action: str) -> None:
         if not self._selected_template_id:
-            QMessageBox.warning(self, "Documentos", "Selecciona una plantilla primero.")
+            MessageDialog.warning(self, "Documentos", "Selecciona una plantilla primero.")
             return
         ok, message = self._presenter.change_document_template_status(
             template_id=self._selected_template_id, action=action,
         )
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Documentos", message)
         if ok:
             self.reload(self.search.text())
 
     def _on_new_version(self) -> None:
         if not self._selected_template_id:
-            QMessageBox.warning(self, "Documentos", "Selecciona una plantilla primero.")
+            MessageDialog.warning(self, "Documentos", "Selecciona una plantilla primero.")
             return
         version_id = self._selected_version_id()
         if not version_id:
@@ -251,7 +252,7 @@ class DocumentosPage(ConfiguracionWorkspacePage):
                 return
             ok, message = self._presenter.create_next_template_version(
                 version_id=version_id, content=content)
-            (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
+            (MessageDialog.information if ok else MessageDialog.warning)(self, "Documentos", message)
             if ok:
                 self._reload_versions()
             return
@@ -260,17 +261,17 @@ class DocumentosPage(ConfiguracionWorkspacePage):
             return
         content = dlg.content_text()
         if not content:
-            QMessageBox.warning(self, "Documentos", "El contenido no puede estar vacío.")
+            MessageDialog.warning(self, "Documentos", "El contenido no puede estar vacío.")
             return
         ok, message = self._presenter.create_next_template_version(version_id=version_id, content=content)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Documentos", message)
         if ok:
             self._reload_versions()
 
     def _design_ticket(self, document_type: str, content: str | None) -> str | None:
         """El diseñador de tickets; devuelve el diseño (JSON) o None si se canceló."""
         if not self._presenter.ticket_designer_available():
-            QMessageBox.warning(self, "Documentos", "El diseñador de tickets no está disponible.")
+            MessageDialog.warning(self, "Documentos", "El diseñador de tickets no está disponible.")
             return None
         from frontend.desktop.modules.configuracion.dialogs.ticket_designer_dialog import (
             TicketDesignerDialog,
@@ -291,7 +292,7 @@ class DocumentosPage(ConfiguracionWorkspacePage):
         ok, message = self._presenter.change_template_version_status(
             version_id=version_id, action="REJECT", reason=dlg.reason_text(),
         )
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Documentos", message)
         if ok:
             self._reload_versions()
 
@@ -300,7 +301,7 @@ class DocumentosPage(ConfiguracionWorkspacePage):
         if not version_id:
             return
         ok, message = self._presenter.change_template_version_status(version_id=version_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Documentos", message)
         if ok:
             self._reload_versions()
 
@@ -328,7 +329,7 @@ class DocumentosPage(ConfiguracionWorkspacePage):
     def _selected_campaign_id(self) -> str | None:
         row_id = self.campaigns_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Documentos", "Selecciona una campaña primero.")
+            MessageDialog.warning(self, "Documentos", "Selecciona una campaña primero.")
         return row_id
 
     def _on_new_campaign(self) -> None:
@@ -337,10 +338,10 @@ class DocumentosPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["code"] or not values["category"] or not values["message_template"]:
-            QMessageBox.warning(self, "Documentos", "Código, categoría y mensaje son obligatorios.")
+            MessageDialog.warning(self, "Documentos", "Código, categoría y mensaje son obligatorios.")
             return
         ok, message = self._presenter.create_marketing_campaign(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Documentos", message)
         if ok:
             self._reload_campaigns()
 
@@ -350,7 +351,7 @@ class DocumentosPage(ConfiguracionWorkspacePage):
             return
         campaign = self._campaigns_by_id.get(campaign_id)
         if campaign is None:
-            QMessageBox.warning(self, "Documentos", "La campaña ya no existe.")
+            MessageDialog.warning(self, "Documentos", "La campaña ya no existe.")
             return
         dlg = MarketingCampaignEditDialog(
             self, message_template=campaign.message_template, priority=campaign.priority,
@@ -360,10 +361,10 @@ class DocumentosPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["message_template"]:
-            QMessageBox.warning(self, "Documentos", "El mensaje no puede estar vacío.")
+            MessageDialog.warning(self, "Documentos", "El mensaje no puede estar vacío.")
             return
         ok, message = self._presenter.update_marketing_campaign(campaign_id=campaign_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Documentos", message)
         if ok:
             self._reload_campaigns()
 
@@ -372,7 +373,7 @@ class DocumentosPage(ConfiguracionWorkspacePage):
         if not campaign_id:
             return
         ok, message = self._presenter.change_marketing_campaign_status(campaign_id=campaign_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Documentos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Documentos", message)
         if ok:
             self._reload_campaigns()
 

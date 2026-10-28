@@ -12,7 +12,7 @@ confirma intención y muestra el resultado.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -22,7 +22,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import ConfirmationDialog
+from frontend.desktop.components.dialogs import ConfirmationDialog, MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.dialogs import (
     CreateAdjustmentDialog,
@@ -79,7 +79,7 @@ class AdjustmentsPage(QWidget):
     def _selected_adjustment_id(self) -> str | None:
         aid = self._table.selected_row_id()
         if not aid:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Ajustes", "Selecciona un ajuste de la lista.")
             return None
         return aid
@@ -90,16 +90,16 @@ class AdjustmentsPage(QWidget):
             return
         product_id = dlg.product_id()
         if not product_id:
-            QMessageBox.warning(self, "Ajustes", "Selecciona un producto de la lista.")
+            MessageDialog.warning(self, "Ajustes", "Selecciona un producto de la lista.")
             return
         quantity_delta = dlg.quantity_delta()
         if not quantity_delta:
-            QMessageBox.warning(self, "Ajustes", "Captura una cantidad mayor a cero.")
+            MessageDialog.warning(self, "Ajustes", "Captura una cantidad mayor a cero.")
             return
         ok, message, _ = self._presenter.create_adjustment(
             product_id=product_id, reason=dlg.reason_code(),
             quantity_delta=quantity_delta, reason_note=dlg.note())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Ajustes", message)
         if ok:
             self.refresh()
@@ -115,7 +115,7 @@ class AdjustmentsPage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message, _ = self._presenter.approve_adjustment(adjustment_id=aid)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Ajustes", message)
         if ok:
             self.refresh()
@@ -131,7 +131,7 @@ class AdjustmentsPage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message, _ = self._presenter.post_adjustment(adjustment_id=aid)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Ajustes", message)
         if ok:
             self.refresh()
@@ -145,7 +145,7 @@ class AdjustmentsPage(QWidget):
             return
         ok, message, _ = self._presenter.reverse_adjustment(
             adjustment_id=aid, reason=dlg.reason())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Ajustes", message)
         if ok:
             self.refresh()

@@ -10,12 +10,13 @@ read-only (rules are only ever created through the approval flow below,
 by design — segregation of duties, §59). "Solicitudes pendientes" +
 approve/reject/apply stays exactly as it shipped in SET-21.
 """
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
     create_secondary_button, create_state_widget, create_warning_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs import (
     FeatureFlagCreateDialog,
     FeatureFlagEditDialog,
@@ -89,7 +90,7 @@ class FeatureFlagsPage(ConfiguracionWorkspacePage):
     def _selected_flag_id(self) -> str | None:
         row_id = self.table.selected_row_id() if self.table is not None else None
         if not row_id:
-            QMessageBox.warning(self, "Feature Flags", "Selecciona un flag primero.")
+            MessageDialog.warning(self, "Feature Flags", "Selecciona un flag primero.")
         return row_id
 
     def _on_new_flag(self) -> None:
@@ -98,10 +99,10 @@ class FeatureFlagsPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["code"] or not values["name"]:
-            QMessageBox.warning(self, "Feature Flags", "Código y nombre son obligatorios.")
+            MessageDialog.warning(self, "Feature Flags", "Código y nombre son obligatorios.")
             return
         ok, message = self._presenter.create_feature_flag(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Feature Flags", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Feature Flags", message)
         if ok:
             self.reload(self.search.text())
 
@@ -111,7 +112,7 @@ class FeatureFlagsPage(ConfiguracionWorkspacePage):
             return
         flag = self._flags_by_id.get(flag_id)
         if flag is None:
-            QMessageBox.warning(self, "Feature Flags", "El flag ya no existe.")
+            MessageDialog.warning(self, "Feature Flags", "El flag ya no existe.")
             return
         dlg = FeatureFlagEditDialog(
             self, name=flag.name, description=flag.description, default_enabled=flag.default_enabled)
@@ -119,10 +120,10 @@ class FeatureFlagsPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["name"]:
-            QMessageBox.warning(self, "Feature Flags", "El nombre es obligatorio.")
+            MessageDialog.warning(self, "Feature Flags", "El nombre es obligatorio.")
             return
         ok, message = self._presenter.update_feature_flag(flag_id=flag_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Feature Flags", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Feature Flags", message)
         if ok:
             self.reload(self.search.text())
 
@@ -131,7 +132,7 @@ class FeatureFlagsPage(ConfiguracionWorkspacePage):
         if not flag_id:
             return
         ok, message = self._presenter.change_feature_flag_status(flag_id=flag_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Feature Flags", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Feature Flags", message)
         if ok:
             self.reload(self.search.text())
 
@@ -141,10 +142,10 @@ class FeatureFlagsPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["flag_id"] or not values["scope_type"]:
-            QMessageBox.warning(self, "Feature Flags", "Selecciona un flag y un alcance.")
+            MessageDialog.warning(self, "Feature Flags", "Selecciona un flag y un alcance.")
             return
         ok, message = self._presenter.request_feature_flag_change(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Feature Flags", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Feature Flags", message)
         if ok:
             self._reload_requests()
 
@@ -224,7 +225,7 @@ class FeatureFlagsPage(ConfiguracionWorkspacePage):
     def _selected_request_id(self) -> str | None:
         row_id = self.requests_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Feature Flags", "Selecciona una solicitud pendiente primero.")
+            MessageDialog.warning(self, "Feature Flags", "Selecciona una solicitud pendiente primero.")
         return row_id
 
     def _on_approve(self) -> None:
@@ -232,7 +233,7 @@ class FeatureFlagsPage(ConfiguracionWorkspacePage):
         if not request_id:
             return
         ok, message = self._presenter.approve_feature_flag_change_request(request_id)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Feature Flags", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Feature Flags", message)
         if ok:
             self._reload_requests()
 
@@ -244,7 +245,7 @@ class FeatureFlagsPage(ConfiguracionWorkspacePage):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message = self._presenter.reject_feature_flag_change_request(request_id, dlg.reason_text())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Feature Flags", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Feature Flags", message)
         if ok:
             self._reload_requests()
 
@@ -253,7 +254,7 @@ class FeatureFlagsPage(ConfiguracionWorkspacePage):
         if not request_id:
             return
         ok, message = self._presenter.apply_feature_flag_change_request(request_id)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Feature Flags", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Feature Flags", message)
         if ok:
             self._reload_requests()
             self.reload(self.search.text())

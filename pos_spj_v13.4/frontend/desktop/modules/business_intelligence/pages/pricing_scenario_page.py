@@ -6,7 +6,7 @@ run (never saves the simulated price — §42: a what-if never writes).
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QFormLayout, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QFormLayout, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     BranchSearchBox,
@@ -16,6 +16,7 @@ from frontend.desktop.components import (
     ProductSearchBox,
     create_primary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.business_intelligence.presenters.pricing_scenario_presenter import (
     ScenarioUnavailableError,
     map_scenario_kpis,
@@ -78,9 +79,9 @@ class PricingScenarioPage(QWidget):
                 product_id=self._product_id, branch_id=self._branch_id,
                 price_change_pct=self.price_change_pct.value())
         except ScenarioUnavailableError as exc:
-            QMessageBox.information(self, "Escenarios", str(exc))
+            MessageDialog.information(self, "Escenarios", str(exc))
             return
         except Exception as exc:  # noqa: BLE001 - surface, never crash the page
-            QMessageBox.warning(self, "Escenarios", str(exc))
+            MessageDialog.warning(self, "Escenarios", str(exc))
             return
         self.kpis.set_cards(map_scenario_kpis(result))

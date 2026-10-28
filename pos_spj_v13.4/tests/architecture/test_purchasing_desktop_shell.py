@@ -60,7 +60,7 @@ def test_dashboard_uses_canonical_charts_with_visual_hierarchy():
     assert "HtmlChartView" in dashboard
     assert "KPIBar" in dashboard
     assert "(self._cards[0], 2), (self._cards[1], 1)" in dashboard
-    assert "QMessageBox" not in dashboard
+    assert "QMessageBox" not in dashboard and "MessageDialog" not in dashboard
 
 
 def test_dashboard_has_alerts_bar():
@@ -85,7 +85,7 @@ def test_orders_have_master_detail_timeline_and_contextual_actions():
     assert "itemSelectionChanged" in worklist
     assert "class DocumentTimeline" in detail
     assert all(step in detail for step in ("Solicitud", "RFQ", "Embarque", "Recepción", "Factura", "CxP", "Pago"))
-    assert "QMessageBox" not in pages
+    assert "QMessageBox" not in pages and "MessageDialog" not in pages
 
 
 def test_requisitions_have_master_detail_and_real_sourcing_actions():

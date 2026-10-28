@@ -6,7 +6,7 @@ the backend calls. Purchase-vs-transfer and urgency are shown in Spanish.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -14,6 +14,7 @@ from frontend.desktop.components import (
     StandardTable,
     create_primary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.themes.tokens import Spacing
 
@@ -56,7 +57,7 @@ class ReplenishmentPage(QWidget):
 
     def _on_generate(self) -> None:
         ok, message, _ = self._presenter.generate_suggestions()
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Reposición", message)
         if ok:
             self.refresh()

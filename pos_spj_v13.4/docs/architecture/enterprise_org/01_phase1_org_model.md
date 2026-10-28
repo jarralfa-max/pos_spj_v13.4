@@ -138,3 +138,21 @@ En una copia de la base real:
 `tests/unit/test_configuracion_ui_workspace.py` ya fallaba antes de este cambio (29 pruebas, todas las
 páginas). Su presentador falso no tiene sesión, y la política fail-closed de la auditoría de permisos
 rechaza `load_page` con «Operación sin usuario autenticado». No se tocó.
+
+## 7. Pendientes cerrados (2026-10-25, migración 352 y p005)
+
+Los tres puntos que la sección 3 dejaba abiertos, más una deuda de pruebas:
+
+| Pendiente | Cierre |
+|---|---|
+| El perfil de la sucursal se registraba aparte | Sitio, `sucursales` y `branch_profiles` se escriben juntos, con el **mismo código y nombre** (`SqliteOrgUnitRepository._save_branch_profile`). Editar el perfil en «Editar sucursal» actualiza la unidad y su fila de `sucursales` en la misma transacción; un código que ya usa otra unidad se rechaza sin dejar nada a medias. «Nueva sucursal» ahora **crea** una sucursal (permiso de siempre, `sucursal.crear`). La 352 da perfil a todo sitio que no lo tenía: en la copia real, Corregidora. |
+| El organigrama no viajaba al servidor central | Cada comando deja en `org_outbox` la foto completa de la unidad (con capacidades). Es la fuente número 27 del motor único de replicación. La 352 encola la estructura que ya existía (`ORG_UNIT_REGISTERED`). En el central, p005 crea `central_org_units`, donde gana la foto de `updated_at` más reciente (un evento atrasado no deshace uno posterior), y la vista `central_org_sites`. El sobre lleva la sucursal de la estación: el central sólo acepta escrituras en la propia. |
+| `org_unit_id` sin uso | Los centros de costo y de utilidad (Finanzas → Dimensiones) y los departamentos de RR. HH. se asignan a una unidad: sucursal, planta, región u oficina. Si la unidad es un sitio, `branch_id` es esa misma unidad. Una región no tiene `branch_id`. La columna está en el DDL born-clean, pero **no** en el contrato que verifica la 345 (`POST_CONTRACT_COLUMNS`): si contara, una base anterior a la 345 con datos se detendría por una columna que la 351 agrega sola. |
+| 29 pruebas de Configuración fallaban | `test_configuracion_ui_workspace.py` construía el presentador sin sesión, y la política fail-closed lo rechazaba. Ahora usan una sesión y la política permisiva **explícita** de pruebas. Pasan 59. |
+
+Pruebas:
+- `tests/integration/organization/test_org_closure.py`: 13.
+- `tests/unit/central_sync/test_central_org_projection.py`: 3.
+- `tests/integration/central_pg/test_org_projection_pg.py`: PostgreSQL real, en CI.
+- La sincronización de la estación contra el libro central en memoria aceptó los 4 sobres (0 muertos).
+- Copia real: migra a 352 y el arranque completo pasa.

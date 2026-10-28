@@ -12,7 +12,7 @@ presenter; no SQL, no business logic here.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -21,6 +21,7 @@ from frontend.desktop.components import (
     create_danger_button,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.dialogs import EditLotDialog, LotDetailDialog
 from frontend.desktop.themes.tokens import Spacing
@@ -83,21 +84,21 @@ class ExpiryPage(QWidget):
     def _selected_lot_id(self) -> str | None:
         lid = self._table.selected_row_id()
         if not lid:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Caducidades", "Selecciona un lote de la lista.")
             return None
         return lid
 
     def _on_generate_alerts(self) -> None:
         ok, message, _ = self._presenter.generate_expiry_alerts()
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Caducidades", message)
         if ok:
             self.refresh()
 
     def _on_process_expired(self) -> None:
         ok, message, _ = self._presenter.process_expired_lots()
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Caducidades", message)
         if ok:
             self.refresh()
@@ -113,7 +114,7 @@ class ExpiryPage(QWidget):
             return
         ok, message, _ = self._presenter.set_lot_quality_status(
             lot_id=lid, new_status=target_status, reason=dlg.reason())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Caducidades", message)
         if ok:
             self.refresh()
@@ -124,7 +125,7 @@ class ExpiryPage(QWidget):
             return
         header = self._presenter.lot_detail(lot_id=lid)
         if header is None:
-            QMessageBox.warning(self, "Caducidades", "Lote no encontrado.")
+            MessageDialog.warning(self, "Caducidades", "Lote no encontrado.")
             return
         caps = self._presenter.capabilities()
 
@@ -137,7 +138,7 @@ class ExpiryPage(QWidget):
                 production_lot_code=edit_dlg.production_lot_code(),
                 origin_document_id=edit_dlg.origin_document_id(),
                 expiration_date=edit_dlg.expiration_date() or None)
-            (QMessageBox.information if ok else QMessageBox.warning)(
+            (MessageDialog.information if ok else MessageDialog.warning)(
                 self, "Caducidades", message)
             if ok:
                 dlg.accept()
@@ -146,7 +147,7 @@ class ExpiryPage(QWidget):
         def change_status(new_status: str, reason: str) -> None:
             ok, message, _ = self._presenter.set_lot_quality_status(
                 lot_id=lid, new_status=new_status, reason=reason)
-            (QMessageBox.information if ok else QMessageBox.warning)(
+            (MessageDialog.information if ok else MessageDialog.warning)(
                 self, "Caducidades", message)
             if ok:
                 dlg.accept()
@@ -155,7 +156,7 @@ class ExpiryPage(QWidget):
         def print_label(is_reprint: bool) -> None:
             ok, message, _ = self._presenter.print_lot_label(
                 lot_id=lid, is_reprint=is_reprint)
-            (QMessageBox.information if ok else QMessageBox.warning)(
+            (MessageDialog.information if ok else MessageDialog.warning)(
                 self, "Caducidades", message)
 
         dlg = LotDetailDialog(

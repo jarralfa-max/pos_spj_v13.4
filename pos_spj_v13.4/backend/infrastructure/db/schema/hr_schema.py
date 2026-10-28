@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS hr_departments (
     branch_id TEXT,
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL,
+    org_unit_id TEXT,
     UNIQUE (code)
 );
 

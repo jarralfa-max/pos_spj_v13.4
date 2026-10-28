@@ -63,7 +63,7 @@ class TestShowCrmSummaryFor:
         page.notify = lambda ok, msg: shown.append((ok, msg))
         info_calls = []
         monkeypatch.setattr(
-            "frontend.desktop.modules.finance.pages.accounts_receivable_page.QMessageBox.information",
+            "frontend.desktop.modules.finance.pages.accounts_receivable_page.MessageDialog.information",
             lambda *a, **k: info_calls.append(a))
 
         page.show_crm_summary_for("legacy-cust-1")
@@ -86,7 +86,7 @@ class TestShowCrmSummaryFor:
         page.notify = lambda ok, msg: shown.append((ok, msg))
         info_calls = []
         monkeypatch.setattr(
-            "frontend.desktop.modules.finance.pages.accounts_receivable_page.QMessageBox.information",
+            "frontend.desktop.modules.finance.pages.accounts_receivable_page.MessageDialog.information",
             lambda *a, **k: info_calls.append(a))
 
         page.show_crm_summary_for("no-existe")

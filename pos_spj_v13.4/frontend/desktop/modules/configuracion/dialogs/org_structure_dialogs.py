@@ -106,6 +106,32 @@ class OrgUnitDialog(FormDialog):
         return datos
 
 
+class NewBranchDialog(FormDialog):
+    """«Nueva sucursal»: crea la sucursal operable (unidad, fila de `sucursales`
+    y perfil, con el mismo código y nombre). Horario y tickets se completan
+    después con «Editar sucursal»."""
+
+    def __init__(self, parent=None, *, parent_options=()) -> None:
+        super().__init__(parent, title="Nueva sucursal")
+        self.code = StandardLineEdit(self)
+        self.code.setAccessibleName("Código")
+        apply_tooltip(self.code, "Prefijo de los folios de la sucursal; 2 a 24 caracteres, "
+                      "se guarda en mayúsculas.")
+        self.form.addRow("Código:", self.code)
+        self.name = StandardLineEdit(self)
+        self.name.setAccessibleName("Nombre")
+        self.form.addRow("Nombre:", self.name)
+        self.parent_unit = SearchableComboBox(self, placeholder="(Sin unidad superior)")
+        self.parent_unit.set_options([("", "(Sin unidad superior)"), *parent_options])
+        self.parent_unit.setAccessibleName("Unidad superior")
+        self.form.addRow("Depende de:", self.parent_unit)
+        self.add_button_box(ok_text="Crear sucursal")
+
+    def values(self) -> dict:
+        return {"code": self.code.text().strip(), "name": self.name.text().strip(),
+                "parent_id": self.parent_unit.current_id() or None}
+
+
 class MoveOrgUnitDialog(FormDialog):
     def __init__(self, parent=None, *, unit_name: str = "", parent_options=()) -> None:
         super().__init__(parent, title=f"Mover «{unit_name}»")
@@ -146,5 +172,5 @@ class OrgUnitCapabilitiesDialog(FormDialog):
         return {"changes": self.changes(), "reason": self.reason.text().strip()}
 
 
-__all__ = ["CAPABILITY_LABELS", "MoveOrgUnitDialog", "OrgUnitCapabilitiesDialog",
-           "OrgUnitDialog"]
+__all__ = ["CAPABILITY_LABELS", "MoveOrgUnitDialog", "NewBranchDialog",
+           "OrgUnitCapabilitiesDialog", "OrgUnitDialog"]

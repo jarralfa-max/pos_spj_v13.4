@@ -148,6 +148,8 @@ def _release_instance_lock() -> None:
 def _update_gate_allows_start() -> bool:
     """Paso 2: un actualizador en curso o una actualización que requiere
     recuperación impiden abrir la base. Devuelve False cuando hay que salir."""
+    from frontend.desktop.components.dialogs import MessageDialog
+
     if PATHS is None:
         return True
     from backend.application.software_updates.startup_gate import (
@@ -164,7 +166,7 @@ def _update_gate_allows_start() -> bool:
             logger.warning(gate.message)
         return True
     if gate.kind is GateKind.IN_PROGRESS:
-        QMessageBox.information(None, f"Actualizando {APP_NAME}", gate.message)
+        MessageDialog.information(None, f"Actualizando {APP_NAME}", gate.message)
         return False
     return _offer_guided_recovery(gate.job, store)
 
@@ -174,6 +176,8 @@ def _offer_guided_recovery(job, store) -> bool:
     actualizador externo restaura el respaldo previo y reinstala la versión
     anterior) o salir. Abrir sin recuperar no se ofrece: la base puede estar
     a medio migrar."""
+    from frontend.desktop.components.dialogs import MessageDialog
+
     detalle = (
         f"La actualización de {job.from_version} a {job.to_version} no terminó y la "
         "reversión automática tampoco.\n\n"
@@ -183,9 +187,10 @@ def _offer_guided_recovery(job, store) -> bool:
         "«Recuperar» restaura la base de datos al momento previo a la actualización y "
         "reinstala la versión anterior (se pedirá autorización de administrador)."
     )
-    box = QMessageBox(QMessageBox.Critical, f"Recuperación — {APP_NAME}", detalle)
-    recuperar = box.addButton("Recuperar", QMessageBox.AcceptRole)
-    box.addButton("Salir", QMessageBox.RejectRole)
+    box = MessageDialog(level="critical", title=f"Recuperación — {APP_NAME}", text=detalle,
+                        buttons=MessageDialog.NoButton)
+    recuperar = box.addButton("Recuperar", MessageDialog.AcceptRole)
+    box.addButton("Salir", MessageDialog.RejectRole)
     box.exec_()
     if box.clickedButton() is not recuperar:
         return False
@@ -197,13 +202,15 @@ def _offer_guided_recovery(job, store) -> bool:
             job_path=store.path, wait_pid=os.getpid(), mode="recover")
     except Exception as exc:
         logger.exception("No se pudo iniciar la recuperación")
-        QMessageBox.critical(None, "Recuperación",
-                             f"No se pudo iniciar el actualizador: {exc}")
+        MessageDialog.critical(None, "Recuperación",
+                               f"No se pudo iniciar el actualizador: {exc}")
     return False
 
 
 def _relocate_legacy_database() -> bool:
     """Paso 4. False cuando el arranque debe detenerse."""
+    from frontend.desktop.components.dialogs import MessageDialog
+
     if PATHS is None or str(PATHS.database_path) != DB_PATH:
         return True  # ruta fijada a mano (pruebas, soporte)
     from backend.infrastructure.db.database_relocation import (
@@ -214,10 +221,10 @@ def _relocate_legacy_database() -> bool:
     result = LegacyDatabaseRelocator(PATHS).run()
     logger.info("Ubicación de la base: %s — %s", result.status.value, result.message)
     if result.blocks_startup:
-        QMessageBox.critical(None, "Base de datos — no se abrió", result.message)
+        MessageDialog.critical(None, "Base de datos — no se abrió", result.message)
         return False
     if result.status is RelocationStatus.RELOCATED:
-        QMessageBox.information(None, "Base de datos trasladada", result.message)
+        MessageDialog.information(None, "Base de datos trasladada", result.message)
     return True
 
 
@@ -230,6 +237,7 @@ def _prepare_database() -> object:
     """
     from backend.bootstrap.run_database_bootstrap import run_database_bootstrap_sequence
     from backend.infrastructure.db.connection import set_db_path
+    from frontend.desktop.components.dialogs import MessageDialog
 
     os.makedirs(DATA_DIR, exist_ok=True)
     # El pool de conexiones tiene que apuntar al mismo archivo que se acaba de
@@ -249,7 +257,7 @@ def _prepare_database() -> object:
                 result.context.conn.close()
             except Exception:
                 pass
-        QMessageBox.critical(None, "Error fatal — Base de datos", detalle)
+        MessageDialog.critical(None, "Error fatal — Base de datos", detalle)
         sys.exit(1)
 
     for advertencia in result.warnings:
@@ -261,6 +269,8 @@ def _prepare_database() -> object:
 def _record_station_start(connection) -> None:
     """Paso 6: inventario de versión de la estación y resultado de la última
     actualización (que el actualizador dejó en su diario, fuera de la base)."""
+    from frontend.desktop.components.dialogs import MessageDialog
+
     if PATHS is None:
         return
     try:
@@ -276,7 +286,7 @@ def _record_station_start(connection) -> None:
         logger.exception("No se pudo registrar la versión de la estación.")
         return
     if notice is not None:
-        QMessageBox.information(None, notice.title, notice.message)
+        MessageDialog.information(None, notice.title, notice.message)
 
 
 def _build_services():
@@ -292,11 +302,13 @@ def _build_services():
 
 def _logout_and_reauthenticate(app, window, coordinator) -> bool:
     """Discard session-owned widgets and rebuild them only after a fresh login."""
+    from frontend.desktop.components.dialogs import MessageDialog
+
     try:
         coordinator.logout(window.router.current_context.session_id)
     except Exception:
         logger.exception("No se pudo revocar la sesión")
-        QMessageBox.critical(window, "Cerrar sesión", "No se pudo cerrar la sesión. Intente nuevamente.")
+        MessageDialog.critical(window, "Cerrar sesión", "No se pudo cerrar la sesión. Intente nuevamente.")
         return False
     quit_on_close = app.quitOnLastWindowClosed()
     app.setQuitOnLastWindowClosed(False)
@@ -324,6 +336,7 @@ def _make_update_handoff(app, connection, ventana: dict):
     A launch failure restarts background services and keeps the session open.
     Connections and the instance lock remain owned until the main finally.
     """
+    from frontend.desktop.components.dialogs import MessageDialog
 
     def handoff(launch_request) -> bool:
         from backend.application.software_updates.installation import SoftwareInstallation
@@ -333,7 +346,7 @@ def _make_update_handoff(app, connection, ventana: dict):
         try:
             command = ExternalUpdaterLauncher(SoftwareInstallation.describe(PATHS))
         except Exception as exc:
-            QMessageBox.critical(window, "Actualización", f"No se pudo preparar el actualizador: {exc}")
+            MessageDialog.critical(window, "Actualización", f"No se pudo preparar el actualizador: {exc}")
             return False
         if window is not None and window.service_supervisor is not None:
             window.service_supervisor.stop_all()
@@ -345,8 +358,8 @@ def _make_update_handoff(app, connection, ventana: dict):
             command.launch(job_path=launch_request.job_path, wait_pid=os.getpid())
         except Exception as exc:
             logger.exception("No se pudo iniciar el actualizador")
-            QMessageBox.critical(window, "Actualización",
-                                 f"No se pudo iniciar el actualizador: {exc}\n\nNo se cambió nada.")
+            MessageDialog.critical(window, "Actualización",
+                                   f"No se pudo iniciar el actualizador: {exc}\n\nNo se cambió nada.")
             if window is not None and window.service_supervisor is not None:
                 window.service_supervisor.start_all()
             return False
@@ -407,7 +420,9 @@ def main() -> int:
         return 0
 
     if not _acquire_instance_lock():
-        QMessageBox.information(
+        from frontend.desktop.components.dialogs import MessageDialog
+
+        MessageDialog.information(
             None, "Ya está ejecutándose",
             f"{APP_NAME} ya está abierto en esta computadora.")
         return 0

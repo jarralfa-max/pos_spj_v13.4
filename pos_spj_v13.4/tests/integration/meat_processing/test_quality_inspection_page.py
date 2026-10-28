@@ -107,8 +107,8 @@ def test_the_page_asks_for_a_reason_before_blocking(app, planta, monkeypatch):
     monkeypatch.setattr(pag.FormDialog, "get_text",
                         staticmethod(lambda *a, **k: ("Temperatura fuera de rango", True)))
     avisos = []
-    monkeypatch.setattr(pag.QMessageBox, "information", lambda *a: avisos.append(a[2]))
-    monkeypatch.setattr(pag.QMessageBox, "warning", lambda *a: avisos.append(a[2]))
+    monkeypatch.setattr(pag.MessageDialog, "information", lambda *a: avisos.append(a[2]))
+    monkeypatch.setattr(pag.MessageDialog, "warning", lambda *a: avisos.append(a[2]))
     pagina._on_decide("BLOCKED")
     assert "Bloquear" in avisos[0]
     assert "AVAILABLE" not in planta.estados_en_inventario(planta.filete)

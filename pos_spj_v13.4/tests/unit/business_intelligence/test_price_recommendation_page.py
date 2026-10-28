@@ -95,9 +95,9 @@ def test_selecting_a_product_and_branch_stores_their_ids(qapp, conn):
 
 def test_apply_transition_without_a_recommendation_shows_a_message_not_a_crash(qapp, conn, monkeypatch):
     page = PriceRecommendationPage(PriceRecommendationPresenter(conn))
-    from PyQt5.QtWidgets import QMessageBox
+    from frontend.desktop.components.dialogs import MessageDialog
     calls = []
-    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: calls.append(a))
+    monkeypatch.setattr(MessageDialog, "information", lambda *a, **k: calls.append(a))
     page._apply_transition("acknowledge")
     assert len(calls) == 1
 

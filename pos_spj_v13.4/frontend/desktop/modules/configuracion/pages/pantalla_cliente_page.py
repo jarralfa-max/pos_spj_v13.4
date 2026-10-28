@@ -7,12 +7,13 @@ Campañas (7-action approval lifecycle — same button row
 publicitarios, and Asignaciones (+ a per-row "Ver métricas" action).
 """
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QMessageBox, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
     create_secondary_button, create_state_widget, create_warning_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs import (
     AdvertisingSlotCreateDialog,
     AdvertisingSlotEditDialog,
@@ -151,7 +152,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
     def _selected_content_id(self) -> str | None:
         row_id = self.content_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Pantalla del cliente", "Selecciona un contenido primero.")
+            MessageDialog.warning(self, "Pantalla del cliente", "Selecciona un contenido primero.")
         return row_id
 
     def _on_new_content(self) -> None:
@@ -161,11 +162,11 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         values = dlg.values()
         if not values["title"] or not values["content_type"] or not (
                 values["body"] or values.get("media_path")):
-            QMessageBox.warning(self, "Pantalla del cliente",
-                                "Título, tipo y contenido (o el archivo adjunto) son obligatorios.")
+            MessageDialog.warning(self, "Pantalla del cliente",
+                                  "Título, tipo y contenido (o el archivo adjunto) son obligatorios.")
             return
         ok, message = self._presenter.create_display_content(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Pantalla del cliente", message)
         if ok:
             self._reload_content()
 
@@ -175,7 +176,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
             return
         content = self._presenter.get_display_content(content_id)
         if content is None:
-            QMessageBox.warning(self, "Pantalla del cliente", "El contenido ya no existe.")
+            MessageDialog.warning(self, "Pantalla del cliente", "El contenido ya no existe.")
             return
         dlg = ContentEditDialog(
             self, title=content.title, body=content.body, duration_seconds=content.duration_seconds,
@@ -184,10 +185,10 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["title"] or not values["body"]:
-            QMessageBox.warning(self, "Pantalla del cliente", "Título y contenido son obligatorios.")
+            MessageDialog.warning(self, "Pantalla del cliente", "Título y contenido son obligatorios.")
             return
         ok, message = self._presenter.update_display_content(content_id=content_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Pantalla del cliente", message)
         if ok:
             self._reload_content()
 
@@ -196,7 +197,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         if not content_id:
             return
         ok, message = self._presenter.change_display_content_status(content_id=content_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Pantalla del cliente", message)
         if ok:
             self._reload_content()
 
@@ -256,7 +257,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
     def _selected_campaign_id(self) -> str | None:
         row_id = self.campaigns_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Pantalla del cliente", "Selecciona una campaña primero.")
+            MessageDialog.warning(self, "Pantalla del cliente", "Selecciona una campaña primero.")
         return row_id
 
     def _on_new_campaign(self) -> None:
@@ -265,10 +266,10 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["name"] or not values["content_id"]:
-            QMessageBox.warning(self, "Pantalla del cliente", "Nombre y contenido son obligatorios.")
+            MessageDialog.warning(self, "Pantalla del cliente", "Nombre y contenido son obligatorios.")
             return
         ok, message = self._presenter.create_content_campaign(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Pantalla del cliente", message)
         if ok:
             self._reload_campaigns()
 
@@ -284,7 +285,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message = self._presenter.update_content_campaign(campaign_id=campaign_id, **dlg.values())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Pantalla del cliente", message)
         if ok:
             self._reload_campaigns()
 
@@ -299,7 +300,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
                 return
         ok, message = self._presenter.change_content_campaign_status(
             campaign_id=campaign_id, action=action, reason=reason)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Pantalla del cliente", message)
         if ok:
             self._reload_campaigns()
 
@@ -350,7 +351,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
     def _selected_slot_id(self) -> str | None:
         row_id = self.slots_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Pantalla del cliente", "Selecciona un slot primero.")
+            MessageDialog.warning(self, "Pantalla del cliente", "Selecciona un slot primero.")
         return row_id
 
     def _on_new_slot(self) -> None:
@@ -359,10 +360,10 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["code"] or not values["mode"]:
-            QMessageBox.warning(self, "Pantalla del cliente", "Código y modo son obligatorios.")
+            MessageDialog.warning(self, "Pantalla del cliente", "Código y modo son obligatorios.")
             return
         ok, message = self._presenter.create_advertising_slot(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Pantalla del cliente", message)
         if ok:
             self._reload_slots()
 
@@ -372,13 +373,13 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
             return
         slot = self._slots_by_id.get(slot_id)
         if slot is None:
-            QMessageBox.warning(self, "Pantalla del cliente", "El slot ya no existe.")
+            MessageDialog.warning(self, "Pantalla del cliente", "El slot ya no existe.")
             return
         dlg = AdvertisingSlotEditDialog(self, display_order=slot.display_order)
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message = self._presenter.update_advertising_slot(slot_id=slot_id, **dlg.values())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Pantalla del cliente", message)
         if ok:
             self._reload_slots()
 
@@ -387,7 +388,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         if not slot_id:
             return
         ok, message = self._presenter.change_advertising_slot_status(slot_id=slot_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Pantalla del cliente", message)
         if ok:
             self._reload_slots()
 
@@ -434,7 +435,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
     def _selected_placement_id(self) -> str | None:
         row_id = self.placements_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Pantalla del cliente", "Selecciona una asignación primero.")
+            MessageDialog.warning(self, "Pantalla del cliente", "Selecciona una asignación primero.")
         return row_id
 
     def _on_new_placement(self) -> None:
@@ -446,10 +447,10 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["campaign_id"] or not values["slot_id"]:
-            QMessageBox.warning(self, "Pantalla del cliente", "Campaña y slot son obligatorios.")
+            MessageDialog.warning(self, "Pantalla del cliente", "Campaña y slot son obligatorios.")
             return
         ok, message = self._presenter.assign_campaign_placement(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Pantalla del cliente", message)
         if ok:
             self._reload_placements()
 
@@ -458,7 +459,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         if not placement_id:
             return
         ok, message = self._presenter.unassign_campaign_placement(placement_id=placement_id)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Pantalla del cliente", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Pantalla del cliente", message)
         if ok:
             self._reload_placements()
 
@@ -467,7 +468,7 @@ class PantallaClientePage(ConfiguracionWorkspacePage):
         if not placement_id:
             return
         summary = self._presenter.get_impression_summary(placement_id)
-        QMessageBox.information(self, "Métricas de la asignación", summary)
+        MessageDialog.information(self, "Métricas de la asignación", summary)
 
 
 __all__ = ["PantallaClientePage"]

@@ -8,11 +8,12 @@ does not.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, HtmlChartView, KPIBar, PageHeader, StandardTable, create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 
 
 class AnalyticalSectionPage(QWidget):
@@ -56,7 +57,7 @@ class AnalyticalSectionPage(QWidget):
             charts = self._presenter.charts()
             tables = self._presenter.tables()
         except Exception as exc:  # noqa: BLE001 - surface, never crash the page
-            QMessageBox.warning(self, "Inteligencia de negocios", str(exc))
+            MessageDialog.warning(self, "Inteligencia de negocios", str(exc))
             return
 
         self.kpis.set_cards(cards)

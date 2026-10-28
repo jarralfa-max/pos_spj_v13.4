@@ -54,3 +54,4 @@ def test_main_does_not_silently_continue_after_a_migration_failure():
 def test_main_does_not_offer_ignore_on_a_corrupted_database():
     source = _source()
     assert "QMessageBox.Ignore" not in source
+    assert "MessageDialog.Ignore" not in source

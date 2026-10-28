@@ -5,9 +5,9 @@ from types import SimpleNamespace
 from unittest.mock import Mock, call
 
 import pytest
-from PyQt5.QtWidgets import QInputDialog, QMessageBox
+from PyQt5.QtWidgets import QInputDialog
 
-from frontend.desktop.components.dialogs import FormDialog
+from frontend.desktop.components.dialogs import FormDialog, MessageDialog
 
 
 ENTITY_ID = "019f327a-1694-7000-8000-000000000001"
@@ -22,8 +22,8 @@ def prompts(monkeypatch):
     monkeypatch.setattr(QInputDialog, "getItem", item)
     monkeypatch.setattr(FormDialog, "get_text", text, raising=False)
     monkeypatch.setattr(FormDialog, "get_item", item, raising=False)
-    monkeypatch.setattr(QMessageBox, "information", Mock())
-    monkeypatch.setattr(QMessageBox, "warning", Mock())
+    monkeypatch.setattr(MessageDialog, "information", Mock())
+    monkeypatch.setattr(MessageDialog, "warning", Mock())
     return text, item
 
 

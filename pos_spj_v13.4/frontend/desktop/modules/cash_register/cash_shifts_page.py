@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
 from backend.domain.cash_register.exceptions import CashRegisterError
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
@@ -161,7 +162,7 @@ class CashShiftsPage(QWidget):
         self.refresh()
 
     def _show_result(self, message: str) -> None:
-        QMessageBox.information(self, "Caja", message)
+        MessageDialog.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", user_facing_error(message))
+        MessageDialog.warning(self, "Caja", user_facing_error(message))

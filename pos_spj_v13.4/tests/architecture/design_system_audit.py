@@ -147,6 +147,8 @@ def scan_source(source: str, path: str) -> list[Finding]:
                             add("dialog_geometry_exceeds_smallest_viewport", node)
             if call == "QTableWidget" and not canonical_component:
                 add("native_operational_table", node)
+            if call == "QTabWidget" and not canonical_component:
+                add("native_tab_widget", node)
             if call == "QDialog" and not canonical_component:
                 add("noncanonical_dialog", node)
         elif isinstance(node, ast.ClassDef) and not canonical_component:
@@ -156,6 +158,8 @@ def scan_source(source: str, path: str) -> list[Finding]:
                 add("local_standard_component", node, identity)
             if "QTableWidget" in bases:
                 add("native_operational_table", node, identity)
+            if "QTabWidget" in bases:
+                add("native_tab_widget", node, identity)
             if "QDialog" in bases:
                 add("noncanonical_dialog", node, identity)
             if bases & {"QPushButton", "QLineEdit"}:

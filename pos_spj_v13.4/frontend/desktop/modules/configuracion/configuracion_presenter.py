@@ -203,12 +203,14 @@ class ConfiguracionPresenter:
         import_display_media_uc=None, set_device_windows_printer_uc=None,
         authorization=None, audit_log_repository=None,
         address_search_factory=None, software_updates=None, ticket_designer=None,
-        org_structure=None,
+        org_structure=None, role_assignments=None,
     ) -> None:
         self._query_service = query_service
         #: Estructura organizacional (auditoría enterprise, Fase 1): servicio de
         #: aplicación que autoriza, abre la transacción y audita por su cuenta.
         self._org_structure = org_structure
+        #: Roles adicionales con ámbito (auditoría enterprise, Fase 2).
+        self._role_assignments = role_assignments
         #: Diseñador de tickets y logos (comparativa de tickets, 2026-10-16).
         self._ticket_designer = ticket_designer
         #: «Acerca de y actualizaciones» tiene su propio presentador
@@ -458,6 +460,42 @@ class ConfiguracionPresenter:
     def list_unregistered_branches(self):
         return self._query_service.list_unregistered_branches()
 
+    # ── roles por ámbito (auditoría enterprise, Fase 2) ───────────────────
+    def role_assignments_available(self) -> bool:
+        return self._role_assignments is not None and self.can(
+            ConfiguracionPermissions.USUARIOS_VIEW)
+
+    def role_assignments(self, user_id: str) -> list[dict]:
+        if self._role_assignments is None:
+            return []
+        return self._role_assignments.list_for_user(user_id)
+
+    def assignment_role_options(self) -> list[tuple[str, str]]:
+        return self._role_assignments.role_options() if self._role_assignments else []
+
+    def assignment_scope_options(self) -> list[tuple[str, str, str]]:
+        return self._role_assignments.scope_options() if self._role_assignments else []
+
+    def _assignment_command(self, accion, mensaje) -> tuple[bool, str]:
+        if self._role_assignments is None:
+            return False, "Roles por ámbito no disponibles."
+        from backend.domain.organization.role_assignment import RoleAssignmentError
+        try:
+            accion(self._role_assignments)
+            return True, mensaje
+        except (RoleAssignmentError, ConfigurationDomainError) as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter: comando de roles por ámbito")
+            return False, "Error inesperado; revise el log."
+
+    def assign_role(self, **values) -> tuple[bool, str]:
+        return self._assignment_command(lambda s: s.assign(**values), "Rol otorgado.")
+
+    def revoke_role_assignment(self, assignment_id: str, reason: str) -> tuple[bool, str]:
+        return self._assignment_command(
+            lambda s: s.revoke(assignment_id, reason=reason), "Rol revocado.")
+
     # ── estructura organizacional (auditoría enterprise, Fase 1) ──────────
     def org_structure_visible(self) -> bool:
         return (self._org_structure is not None
@@ -499,6 +537,10 @@ class ConfiguracionPresenter:
     def create_org_unit(self, **values) -> tuple[bool, str]:
         return self._org_command(lambda s: s.create_unit(**values),
                                  lambda u: f"Unidad «{u.name}» creada.")
+
+    def create_branch(self, **values) -> tuple[bool, str]:
+        return self._org_command(lambda s: s.create_branch(**values),
+                                 lambda u: f"Sucursal «{u.name}» creada.")
 
     def update_org_unit(self, unit_id: str, **values) -> tuple[bool, str]:
         return self._org_command(lambda s: s.update_unit(unit_id, **values),

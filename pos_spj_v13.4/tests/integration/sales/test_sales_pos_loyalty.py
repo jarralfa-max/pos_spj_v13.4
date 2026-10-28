@@ -25,7 +25,7 @@ import pytest  # noqa: E402
 
 pytest.importorskip("PyQt5")
 
-from PyQt5.QtWidgets import QApplication, QMessageBox  # noqa: E402
+from PyQt5.QtWidgets import QApplication
 
 from backend.application.loyalty.authorization import LoyaltyAuthorizationPolicy  # noqa: E402
 from backend.application.loyalty.queries.redemption_preview_query import (  # noqa: E402
@@ -51,6 +51,7 @@ from backend.infrastructure.db.schema.sales_schema import create_sales_schema  #
 from backend.shared.events.application_bus import ApplicationEventBus  # noqa: E402
 from backend.shared.ids import new_uuid  # noqa: E402
 from tests.integration._governed_settings import ensure_governance, set_setting
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.sales_pos.composition import create_sales_pos_view  # noqa: E402
 from frontend.desktop.modules.sales_pos.dialogs.redeem_points_dialog import (  # noqa: E402
     RedeemPointsDialog,
@@ -112,8 +113,8 @@ def pos(app, conn, monkeypatch):
     bus = ApplicationEventBus()
     wire_sales(bus, conn)
     monkeypatch.setattr("backend.shared.events.application_bus.get_bus", lambda: bus)
-    monkeypatch.setattr(QMessageBox, "information", staticmethod(lambda *_a: None))
-    monkeypatch.setattr(QMessageBox, "warning", staticmethod(lambda *_a: None))
+    monkeypatch.setattr(MessageDialog, "information", staticmethod(lambda *_a: None))
+    monkeypatch.setattr(MessageDialog, "warning", staticmethod(lambda *_a: None))
     # Desde FID-03 no se canjea sobre un producto sin costo confiable (abriría el
     # diálogo modal de autorización y la prueba se quedaría esperando). Estas
     # pruebas son de los puntos, no del margen: el Huacal cuesta $30 sobre $100.

@@ -58,6 +58,14 @@ class SessionGrantRefresher:
         return PermissionQueryService(
             SqlitePermissionRepository(self._conn)).permission_codes_for_user(user_id, branch_id)
 
+    def load_roles(self, user_id: str, branch_id: str | None) -> tuple[str, ...]:
+        """Roles que valen hoy para el usuario en la sucursal de la sesión. La
+        sesión los necesita además de los permisos: `is_admin()` mira los roles,
+        y un administrador al que le quitan el rol seguía siéndolo hasta cerrar
+        sesión (auditoría enterprise, Fase 2)."""
+        return PermissionQueryService(
+            SqlitePermissionRepository(self._conn)).roles_for(user_id, branch_id)
+
     def _user_is_active(self, user_id: str) -> bool:
         row = self._conn.execute(
             "SELECT COALESCE(activo, 1) FROM usuarios WHERE id=?", (str(user_id),)).fetchone()

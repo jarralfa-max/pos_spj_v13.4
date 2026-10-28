@@ -7,7 +7,7 @@ página con ``MoveCategoryDialog``. Delega el guardado en el presenter.
 
 from __future__ import annotations
 
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 from frontend.desktop.modules.products.dialogs.auto_code import (
     AutoCodeBinder,
     catalog_suggester,
@@ -19,7 +19,6 @@ from PyQt5.QtWidgets import (
     QFormLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QSpinBox,
 )
 
@@ -96,7 +95,7 @@ class CategoryFormDialog(StandardDialog):
             self.accept()
         else:
             self._error.setText(message)
-            QMessageBox.warning(self, "No se pudo guardar", message)
+            MessageDialog.warning(self, "No se pudo guardar", message)
 
 
 class MoveCategoryDialog(StandardDialog):
@@ -143,4 +142,4 @@ class MoveCategoryDialog(StandardDialog):
             self.accept()
         else:
             self._error.setText(message)
-            QMessageBox.warning(self, "No se pudo mover", message)
+            MessageDialog.warning(self, "No se pudo mover", message)

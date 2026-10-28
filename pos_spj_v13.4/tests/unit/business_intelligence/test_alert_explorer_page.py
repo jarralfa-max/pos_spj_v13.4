@@ -8,8 +8,9 @@ all against a bare (schemaless) in-memory connection, safe to fully
 import sqlite3
 
 import pytest
-from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtWidgets import QApplication
 
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.business_intelligence.business_intelligence_routes import build_page
 from frontend.desktop.modules.business_intelligence.pages.alert_explorer_page import (
     AlertExplorerPage,
@@ -50,7 +51,7 @@ def test_apply_transition_without_a_selected_row_shows_a_message_not_a_crash(qap
     page = AlertExplorerPage(AlertExplorerPresenter(conn))
     page.refresh()
     calls = []
-    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: calls.append(a))
+    monkeypatch.setattr(MessageDialog, "information", lambda *a, **k: calls.append(a))
     page._apply_transition("acknowledge")
     assert len(calls) == 1
 

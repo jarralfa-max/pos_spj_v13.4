@@ -97,12 +97,12 @@ def test_designer_controls_change_the_saved_design(app, presenter):
 
 
 def test_print_test_sends_the_design_being_edited(app, presenter, monkeypatch):
-    from PyQt5.QtWidgets import QMessageBox
+    from frontend.desktop.components.dialogs import MessageDialog
 
     from frontend.desktop.modules.configuracion.dialogs.ticket_designer_dialog import (
         TicketDesignerDialog,
     )
-    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+    monkeypatch.setattr(MessageDialog, "information", lambda *a, **k: None)
     dialog = TicketDesignerDialog(presenter, document_type="SWEEPSTAKES_TICKET")
     dialog._print_test()
     assert parse(presenter.tests[-1]).kind == "RAFFLE"

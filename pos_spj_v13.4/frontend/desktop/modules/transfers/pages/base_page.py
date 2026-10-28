@@ -1,9 +1,10 @@
 """Canonical responsive Transfers page shell using only SPJ Design System."""
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QDialog, QLabel, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QLabel, QVBoxLayout, QWidget
 
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
 from frontend.desktop.components.cards import SectionCard
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.search_input import SearchInput
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
@@ -76,12 +77,12 @@ class TransferWorkspacePage(QWidget):
     def _selected(self) -> str | None:
         tid = self.table.selected_row_id()
         if not tid:
-            QMessageBox.information(self, self.title, "Selecciona una transferencia de la lista.")
+            MessageDialog.information(self, self.title, "Selecciona una transferencia de la lista.")
         return tid
 
     def _report(self, result) -> None:
         ok, message, _data = result
-        (QMessageBox.information if ok else QMessageBox.warning)(self, self.title, message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, self.title, message)
         if ok:
             self.reload(self.search.text() if hasattr(self.search, "text") else "")
 
@@ -119,7 +120,7 @@ class TransferWorkspacePage(QWidget):
             return
         detalle = self._presenter.detail(tid)
         if detalle is None:
-            QMessageBox.warning(self, self.title, "No se pudo leer la transferencia.")
+            MessageDialog.warning(self, self.title, "No se pudo leer la transferencia.")
             return
         dialogo = DispatchTransferDialog(self, detail=detalle,
                                          verify=self._presenter.verify_verifier)
@@ -139,7 +140,7 @@ class TransferWorkspacePage(QWidget):
         detalle = self._presenter.detail(tid) or {}
         pendientes = [e for e in detalle.get("shipments", ()) if e["pending_lines"]]
         if not pendientes:
-            QMessageBox.information(self, self.title, "Esta transferencia no tiene nada pendiente "
+            MessageDialog.information(self, self.title, "Esta transferencia no tiene nada pendiente "
                                                       "de recibir.")
             return
         envio = pendientes[0]

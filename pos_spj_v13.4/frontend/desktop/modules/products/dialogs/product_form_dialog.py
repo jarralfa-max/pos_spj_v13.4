@@ -11,7 +11,7 @@ from pathlib import Path
 
 from PyQt5.QtCore import Qt
 
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 
 from PyQt5.QtWidgets import (
     QCheckBox,
@@ -24,8 +24,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
-    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -38,6 +36,7 @@ from frontend.desktop.components import (
 from frontend.desktop.components.barcode_input import BarcodeInput
 from frontend.desktop.components.decimal_input import DecimalInput
 from frontend.desktop.components.image_thumbnail import ImageThumbnail
+from frontend.desktop.components.tabs import Tabs
 from frontend.desktop.modules.products.product_codes_profiles_presenter import (
     BARCODE_TYPE_ES,
 )
@@ -84,7 +83,7 @@ class ProductFormDialog(StandardDialog):
         self._manual_code = not self._is_new  # en edición el código ya es explícito
 
         layout = self.content_layout()
-        self.tabs = QTabWidget(self)
+        self.tabs = Tabs(self)
         general_page = QWidget(self)
         general_layout = QVBoxLayout(general_page)
         operation_page = QWidget(self)
@@ -531,4 +530,4 @@ class ProductFormDialog(StandardDialog):
             self.accept()
         else:
             self._error.setText(message)
-            QMessageBox.warning(self, "No se pudo guardar", message)
+            MessageDialog.warning(self, "No se pudo guardar", message)

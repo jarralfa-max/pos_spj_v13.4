@@ -10,12 +10,13 @@ table, this one isn't selection-driven by the main table (a route isn't
 scoped to one selected device), it just lists every route and reloads
 whenever the page does.
 """
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, ConfirmationDialog, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
     create_secondary_button, create_state_widget, create_warning_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs import (
     BlockDeviceDialog,
     DeviceCreateDialog,
@@ -187,7 +188,7 @@ class DispositivosPage(ConfiguracionWorkspacePage):
             return
         ok, message = self._presenter.set_device_windows_printer(
             device_id=device_id, printer_name=dlg.printer_name())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Dispositivos", message)
 
     def _on_test(self, test_type: str) -> None:
         device_id = self._selected_device_id()
@@ -201,13 +202,13 @@ class DispositivosPage(ConfiguracionWorkspacePage):
             if confirmar.exec_() != QDialog.Accepted:
                 return
         ok, message = self._presenter.test_device(device_id=device_id, test_type=test_type)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Dispositivos", message)
         self._reload_tests()
 
     def _selected_device_id(self) -> str | None:
         row_id = self.table.selected_row_id() if self.table is not None else None
         if not row_id:
-            QMessageBox.warning(self, "Dispositivos", "Selecciona un dispositivo primero.")
+            MessageDialog.warning(self, "Dispositivos", "Selecciona un dispositivo primero.")
         return row_id
 
     def _reload_routes(self) -> None:
@@ -239,7 +240,7 @@ class DispositivosPage(ConfiguracionWorkspacePage):
     def _selected_route_id(self) -> str | None:
         row_id = self.routes_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Dispositivos", "Selecciona una ruta primero.")
+            MessageDialog.warning(self, "Dispositivos", "Selecciona una ruta primero.")
         return row_id
 
     def _on_new_profile(self) -> None:
@@ -249,16 +250,16 @@ class DispositivosPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["name"] or not values["device_type"] or not values["connection_type"]:
-            QMessageBox.warning(self, "Dispositivos", "Nombre, tipo y conexión son obligatorios.")
+            MessageDialog.warning(self, "Dispositivos", "Nombre, tipo y conexión son obligatorios.")
             return
         ok, message = self._presenter.register_device_profile(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Dispositivos", message)
 
     def _on_new_device(self) -> None:
         branches = self._presenter.list_branches()
         profiles = self._presenter.list_device_profiles()
         if not profiles:
-            QMessageBox.warning(
+            MessageDialog.warning(
                 self, "Dispositivos",
                 "No hay perfiles de dispositivo activos todavía. Crea un perfil primero con "
                 "«Nuevo perfil».",
@@ -269,10 +270,10 @@ class DispositivosPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["branch_id"] or not values["profile_id"] or not values["code"] or not values["name"]:
-            QMessageBox.warning(self, "Dispositivos", "Sucursal, perfil, código y nombre son obligatorios.")
+            MessageDialog.warning(self, "Dispositivos", "Sucursal, perfil, código y nombre son obligatorios.")
             return
         ok, message = self._presenter.register_device(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Dispositivos", message)
         if ok:
             self.reload(self.search.text())
 
@@ -282,14 +283,14 @@ class DispositivosPage(ConfiguracionWorkspacePage):
             return
         device = self._presenter.get_device(device_id)
         if device is None:
-            QMessageBox.warning(self, "Dispositivos", "El dispositivo ya no existe.")
+            MessageDialog.warning(self, "Dispositivos", "El dispositivo ya no existe.")
             return
         dlg = DeviceEditDialog(self, name=device.name, notes=device.notes)
         if dlg.exec_() != QDialog.Accepted:
             return
         values = dlg.values()
         ok, message = self._presenter.update_device(device_id=device_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Dispositivos", message)
         if ok:
             self.reload(self.search.text())
 
@@ -303,7 +304,7 @@ class DispositivosPage(ConfiguracionWorkspacePage):
         ok, message = self._presenter.change_device_status(
             device_id=device_id, action="BLOCK", reason=dlg.reason_text(),
         )
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Dispositivos", message)
         if ok:
             self.reload(self.search.text())
 
@@ -312,14 +313,14 @@ class DispositivosPage(ConfiguracionWorkspacePage):
         if not device_id:
             return
         ok, message = self._presenter.change_device_status(device_id=device_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Dispositivos", message)
         if ok:
             self.reload(self.search.text())
 
     def _on_new_route(self) -> None:
         devices = self._presenter.list_devices()
         if not devices:
-            QMessageBox.warning(self, "Dispositivos", "No hay dispositivos activos todavía.")
+            MessageDialog.warning(self, "Dispositivos", "No hay dispositivos activos todavía.")
             return
         branches = self._presenter.list_branches()
         dlg = PrintRouteCreateDialog(self, device_options=devices, branch_options=branches)
@@ -327,10 +328,10 @@ class DispositivosPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["document_type"] or not values["primary_device_id"]:
-            QMessageBox.warning(self, "Dispositivos", "Tipo de documento y dispositivo principal son obligatorios.")
+            MessageDialog.warning(self, "Dispositivos", "Tipo de documento y dispositivo principal son obligatorios.")
             return
         ok, message = self._presenter.create_print_route(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Dispositivos", message)
         if ok:
             self._reload_routes()
 
@@ -351,10 +352,10 @@ class DispositivosPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["primary_device_id"]:
-            QMessageBox.warning(self, "Dispositivos", "Selecciona un dispositivo principal.")
+            MessageDialog.warning(self, "Dispositivos", "Selecciona un dispositivo principal.")
             return
         ok, message = self._presenter.update_print_route(route_id=route_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Dispositivos", message)
         if ok:
             self._reload_routes()
 
@@ -363,7 +364,7 @@ class DispositivosPage(ConfiguracionWorkspacePage):
         if not route_id:
             return
         ok, message = self._presenter.change_print_route_status(route_id=route_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Dispositivos", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Dispositivos", message)
         if ok:
             self._reload_routes()
 

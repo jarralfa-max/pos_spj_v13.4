@@ -15,7 +15,6 @@ from PyQt5.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QVBoxLayout,
     QWidget,
 )
@@ -26,7 +25,7 @@ from frontend.desktop.components.buttons import (
     create_primary_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.components.page_viewport import PageViewport
 from frontend.desktop.modules.products.external_catalog_presenter import STATUS_ES
@@ -155,7 +154,7 @@ class ExternalCatalogPage(QWidget):
     def _need_selection(self) -> dict | None:
         row = self._selected()
         if row is None:
-            QMessageBox.information(self, "Catálogo externo", "Selecciona un registro.")
+            MessageDialog.information(self, "Catálogo externo", "Selecciona un registro.")
         return row
 
     def _approve(self) -> None:

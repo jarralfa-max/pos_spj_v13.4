@@ -84,6 +84,8 @@ class ConfiguracionPermissions:
     USUARIOS_ACTIVAR = permission_code("CONFIGURACION", "usuario.activar")
     # Excepciones de permiso de un usuario (además de las de su rol).
     USUARIOS_PERMISOS = permission_code("CONFIGURACION", "usuario.permisos")
+    # Roles adicionales con ámbito (auditoría enterprise, Fase 2; migración 353).
+    USUARIOS_ASIGNACIONES = permission_code("CONFIGURACION", "usuario.asignaciones")
     # No USUARIOS_DESBLOQUEAR here — unlock is gated by
     # UserSecurityService.unlock_user()'s own internal permission check
     # against its pre-existing codes (CONFIG_SEGURIDAD.editar /

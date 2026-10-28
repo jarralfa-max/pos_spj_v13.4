@@ -9,9 +9,9 @@
   (no en la UI), abre la transacción y anota en `audit_logs` antes/después.
 
 Crear una unidad de sitio (sucursal, planta, CEDIS…) crea también su fila de
-`sucursales` con el mismo id: es la primera vía de la aplicación para dar de
-alta una sucursal nueva (N12). El perfil de la sucursal (`branch_profiles`) se
-sigue registrando en «Empresa y sucursales», como hoy.
+`sucursales` y su perfil (`branch_profiles`) con el mismo id, código y nombre: es
+la vía de la aplicación para dar de alta una sucursal nueva (N12). Cada comando
+deja un evento en `org_outbox` para el servidor central.
 """
 
 from __future__ import annotations
@@ -172,7 +172,18 @@ class OrgStructureService:
                     parent_id: str | None = None,
                     capabilities: Iterable[Capability | str] | None = None) -> OrgUnit:
         actor = self._require(P.ORGANIZACION_CREAR)
-        tipo = OrgUnitType(unit_type)
+        return self._create(actor, OrgUnitType(unit_type), code=code, name=name,
+                            parent_id=parent_id, capabilities=capabilities)
+
+    def create_branch(self, *, code: str, name: str, parent_id: str | None = None) -> OrgUnit:
+        """«Nueva sucursal» de Empresa y sucursales: con el permiso de siempre
+        (`sucursal.crear`), una sucursal con las capacidades de una sucursal."""
+        actor = self._require(P.SUCURSAL_CREAR)
+        return self._create(actor, OrgUnitType.RETAIL_BRANCH, code=code, name=name,
+                            parent_id=parent_id, capabilities=None)
+
+    def _create(self, actor: str, tipo: OrgUnitType, *, code: str, name: str,
+                parent_id: str | None, capabilities) -> OrgUnit:
         caps = (SUGGESTED_CAPABILITIES[tipo] if capabilities is None
                 else frozenset(Capability(c) for c in capabilities))
         check_capabilities(tipo, caps)
@@ -186,6 +197,7 @@ class OrgStructureService:
             for cap in sorted(caps, key=lambda c: c.value):
                 uow.units.grant_capability(unidad.id, cap, actor=actor or None,
                                            reason=f"Alta de {tipo.label.lower()}")
+            uow.units.emit(unidad, "ORG_UNIT_CREATED", actor=actor)
             self._record(action="ORG_UNIT_CREATED", unit=unidad, actor=actor, before=None)
         return unidad
 
@@ -198,6 +210,7 @@ class OrgStructureService:
             if unidad.code != antes["code"]:
                 self._check_code_free(uow, unidad)
             uow.units.save(unidad)
+            uow.units.emit(unidad, "ORG_UNIT_UPDATED", actor=actor)
             self._record(action="ORG_UNIT_UPDATED", unit=unidad, actor=actor, before=antes)
         return unidad
 
@@ -210,6 +223,7 @@ class OrgStructureService:
             unidad.move_under(padre, ancestors_of_parent=set(
                 uow.units.ancestor_ids(padre.id)) if padre else set())
             uow.units.save(unidad)
+            uow.units.emit(unidad, "ORG_UNIT_MOVED", actor=actor)
             self._record(action="ORG_UNIT_MOVED", unit=unidad, actor=actor, before=antes)
         return unidad
 
@@ -222,6 +236,7 @@ class OrgStructureService:
             self._check_can_stop(uow, unidad)
             unidad.deactivate(active_children=uow.units.active_children_count(unidad.id))
             uow.units.save(unidad)
+            uow.units.emit(unidad, "ORG_UNIT_DEACTIVATED", actor=actor)
             self._record(action="ORG_UNIT_DEACTIVATED", unit=unidad, actor=actor,
                          before=antes, reason=motivo)
         return unidad
@@ -238,6 +253,7 @@ class OrgStructureService:
                     raise OrgUnitError(f"Reactive primero «{padre.name}»")
             unidad.reactivate()
             uow.units.save(unidad)
+            uow.units.emit(unidad, "ORG_UNIT_REACTIVATED", actor=actor)
             self._record(action="ORG_UNIT_REACTIVATED", unit=unidad, actor=actor,
                          before=antes, reason=motivo)
         return unidad
@@ -251,6 +267,7 @@ class OrgStructureService:
             self._check_can_stop(uow, unidad)
             unidad.close(active_children=uow.units.active_children_count(unidad.id))
             uow.units.save(unidad)
+            uow.units.emit(unidad, "ORG_UNIT_CLOSED", actor=actor)
             self._record(action="ORG_UNIT_CLOSED", unit=unidad, actor=actor, before=antes,
                          reason=motivo)
         return unidad
@@ -275,6 +292,7 @@ class OrgStructureService:
                 uow.units.grant_capability(unidad.id, cap, actor=actor or None, reason=motivo)
             else:
                 uow.units.revoke_capability(unidad.id, cap)
+            uow.units.emit(unidad, "ORG_UNIT_CAPABILITIES_CHANGED", actor=actor)
             if self._audit is not None:
                 self._audit.record(
                     action="ORG_UNIT_CAPABILITY_GRANTED" if enabled

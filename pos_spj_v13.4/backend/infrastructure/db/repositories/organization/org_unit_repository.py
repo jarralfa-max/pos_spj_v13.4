@@ -1,14 +1,19 @@
-"""Persistencia de la estructura organizacional (tablas de la migración 351).
+"""Persistencia de la estructura organizacional (migraciones 351 y 352).
 
-Un sitio de operación vive en DOS filas con el mismo id: `org_units` (tipo,
-jerarquía, estado) y `sucursales` (la identidad que ya usan todos los módulos).
+Un sitio de operación vive en TRES filas con el mismo id: `org_units` (tipo,
+jerarquía, estado), `sucursales` (la identidad que ya usan todos los módulos) y
+`branch_profiles` (horario, tickets; su código es el prefijo de los folios).
 Este repositorio las mantiene juntas: crear, renombrar, desactivar o cerrar un
-sitio también escribe su fila de `sucursales`. Nunca confirma: la frontera
-transaccional es de quien llama.
+sitio también escribe las otras dos, con el MISMO código y nombre.
+
+Cada cambio deja además un evento en `org_outbox` con la foto completa de la
+unidad (y sus capacidades): el motor de replicación lo lleva al servidor
+central. Nunca confirma: la frontera transaccional es de quien llama.
 """
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -20,6 +25,7 @@ from backend.domain.organization.org_unit import (
     suggest_code,
 )
 from backend.infrastructure.db.transaction import TransactionalUnitOfWork
+from backend.shared.ids import new_uuid
 
 _COLS = ("id, company_id, parent_id, unit_type, code, name, status, created_by, closed_at,"
          " created_at, updated_at")
@@ -27,6 +33,23 @@ _COLS = ("id, company_id, parent_id, unit_type, code, name, status, created_by, 
 
 def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _table_exists(conn, name: str) -> bool:
+    return conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                        (name,)).fetchone() is not None
+
+
+def org_unit_snapshot(unit: OrgUnit, capabilities) -> dict:
+    """Foto de la unidad que viaja en cada evento (transferencia de estado: el
+    servidor central se queda con la más reciente por `updated_at`). Sin clave
+    `branch_id`: el sobre lleva la sucursal de la ESTACIÓN que hizo el cambio."""
+    return {"unit_id": unit.id, "company_id": unit.company_id, "parent_id": unit.parent_id,
+            "unit_type": unit.unit_type.value, "code": unit.code, "name": unit.name,
+            "status": unit.status.value, "closed_at": unit.closed_at,
+            "is_operating_site": unit.unit_type.is_operating_site,
+            "capabilities": sorted(c.value for c in capabilities),
+            "updated_at": unit.updated_at}
 
 
 def _row_to_unit(row) -> OrgUnit:
@@ -88,6 +111,15 @@ class SqliteOrgUnitRepository:
             "SELECT capability FROM org_unit_capabilities WHERE org_unit_id=?",
             (str(unit_id),)))
 
+    def site_capabilities(self, site_id: str) -> frozenset[str] | None:
+        """Capacidades del sitio para la sesión; `None` si la base no tiene
+        estructura organizacional o el sitio no tiene unidad (no se restringe)."""
+        if not site_id or not _table_exists(self._conn, "org_units"):
+            return None
+        if self.get(site_id) is None:
+            return None
+        return frozenset(c.value for c in self.capabilities(site_id))
+
     def capabilities_by_unit(self, company_id: str) -> dict[str, frozenset[Capability]]:
         resultado: dict[str, set[Capability]] = {}
         for uid, cap in self._conn.execute(
@@ -148,6 +180,47 @@ class SqliteOrgUnitRepository:
         else:
             self._conn.execute("INSERT INTO sucursales (id, nombre, activa) VALUES (?,?,?)",
                                (unit.id, unit.name, activa))
+        self._save_branch_profile(unit, activa)
+
+    def _save_branch_profile(self, unit: OrgUnit, activa: int) -> None:
+        """El perfil de la sucursal comparte código y nombre con la unidad; el
+        horario, los tickets y lo demás siguen siendo del perfil."""
+        if not _table_exists(self._conn, "branch_profiles"):
+            return
+        ahora = _utcnow()
+        if self._conn.execute("SELECT 1 FROM branch_profiles WHERE branch_id=?",
+                              (unit.id,)).fetchone():
+            self._conn.execute(
+                "UPDATE branch_profiles SET code=?, name=?, active=?, updated_at=?"
+                " WHERE branch_id=?", (unit.code, unit.name, activa, ahora, unit.id))
+            return
+        zona, region = "", ""
+        if _table_exists(self._conn, "company_profiles"):
+            fila = self._conn.execute(
+                "SELECT default_timezone, default_locale FROM company_profiles WHERE id=?",
+                (unit.company_id,)).fetchone()
+            if fila:
+                zona, region = str(fila[0] or ""), str(fila[1] or "")
+        self._conn.execute(
+            "INSERT INTO branch_profiles (id, branch_id, code, name, timezone, locale, active,"
+            " created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            (unit.id, unit.id, unit.code, unit.name, zona, region, activa, ahora, ahora))
+
+    def emit(self, unit: OrgUnit, event_name: str, *, actor: str | None = None,
+             operation_id: str | None = None) -> None:
+        """Evento con la foto de la unidad en `org_outbox` (misma transacción)."""
+        if not _table_exists(self._conn, "org_outbox"):
+            return
+        ahora = _utcnow()
+        evento = {"event_id": new_uuid(), "event_name": event_name,
+                  "operation_id": operation_id or new_uuid(), "entity_id": unit.id,
+                  "branch_id": None, "user_id": actor or None, "timestamp": ahora,
+                  "payload": org_unit_snapshot(unit, self.capabilities(unit.id))}
+        self._conn.execute(
+            "INSERT INTO org_outbox (id, event_name, aggregate_type, entity_id, payload_json,"
+            " operation_id, created_at) VALUES (?,?,?,?,?,?,?)",
+            (new_uuid(), event_name, "org_unit", unit.id, json.dumps(evento, sort_keys=True),
+             evento["operation_id"], ahora))
 
     def grant_capability(self, unit_id: str, capability: Capability, *, actor: str | None,
                          reason: str) -> bool:
@@ -184,6 +257,7 @@ def register_initial_site(connection: Any, *, company_id: str, branch_id: str,
     for cap in Capability:
         unidades.grant_capability(unidad.id, cap, actor=None,
                                   reason="Sucursal inicial de la instalación")
+    unidades.emit(unidad, "ORG_UNIT_CREATED")
     return unidad
 
 
@@ -194,4 +268,5 @@ class OrgStructureUnitOfWork(TransactionalUnitOfWork):
         self._completed = False
 
 
-__all__ = ["OrgStructureUnitOfWork", "SqliteOrgUnitRepository", "register_initial_site"]
+__all__ = ["OrgStructureUnitOfWork", "SqliteOrgUnitRepository", "org_unit_snapshot",
+           "register_initial_site"]

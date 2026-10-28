@@ -19,7 +19,7 @@ from __future__ import annotations
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
 from PyQt5.QtWidgets import (
-    QFormLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox, QScrollArea,
+    QFormLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,QScrollArea,
     QStackedWidget, QVBoxLayout, QWidget,
 )
 
@@ -42,7 +42,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 
 _ALIGN_LABELS = (("left", "Izquierda"), ("center", "Centro"), ("right", "Derecha"))
 _PAPER_LABELS = (("AUTO", "Según la impresora"), ("58", "58 mm"), ("80", "80 mm"))
@@ -341,13 +341,13 @@ class TicketDesignerDialog(StandardDialog):
     def _print_test(self) -> None:
         ok, message = self._presenter.ticket_print_test(
             layout_json=self._json(), document_type=self._document_type)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Imprimir prueba", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Imprimir prueba", message)
 
     def _save(self) -> None:
         layout_json = self._json()
         problem = self._presenter.validate_ticket_layout(layout_json)
         if problem:
-            QMessageBox.warning(self, "Diseño del ticket", problem)
+            MessageDialog.warning(self, "Diseño del ticket", problem)
             return
         self.layout_json = layout_json
         self.accept()

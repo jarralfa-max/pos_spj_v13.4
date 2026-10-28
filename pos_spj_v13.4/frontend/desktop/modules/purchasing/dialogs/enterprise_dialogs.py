@@ -404,8 +404,8 @@ def _accept_or_warn(dialog, problema: str | None) -> bool:
     """Valida ANTES de cerrar. La página avisaba "Agrega al menos un producto"
     DESPUÉS de cerrarse el diálogo, con lo que se perdía todo lo capturado."""
     if problema:
-        from PyQt5.QtWidgets import QMessageBox
-        QMessageBox.warning(dialog, dialog.windowTitle() or "Compras", problema)
+        from frontend.desktop.components.dialogs import MessageDialog
+        MessageDialog.warning(dialog, dialog.windowTitle() or "Compras", problema)
         return False
     return True
 
@@ -848,7 +848,7 @@ class AwardDialog(FormDialog):
         ], self)
         self._table.load_rows([
             [r.product_name, r.supplier_name, f"{r.unit_price} {r.currency_code}",
-             str(r.lead_time_days), "★" if r.is_best else ""] for r in self._rows],
+             str(r.lead_time_days), "Sí" if r.is_best else ""] for r in self._rows],
             row_ids=[r.quote_line_id for r in self._rows])
         self._table.itemSelectionChanged.connect(self._on_row_selected)
         self.form.addRow("Cotizaciones por producto", self._table)

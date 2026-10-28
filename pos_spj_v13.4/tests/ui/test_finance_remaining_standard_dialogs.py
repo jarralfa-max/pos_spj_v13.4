@@ -9,9 +9,9 @@ import pytest
 from PyQt5 import sip
 from PyQt5.QtCore import QPoint, QRect, QSettings, Qt
 from PyQt5.QtTest import QSignalSpy, QTest
-from PyQt5.QtWidgets import QDialog, QDialogButtonBox, QLineEdit, QMessageBox, QPushButton
+from PyQt5.QtWidgets import QDialog, QDialogButtonBox, QLineEdit, QPushButton
 
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 from frontend.desktop.components.tables import StandardTable
 from frontend.desktop.components.tables import ColumnSpec
 from frontend.desktop.modules.finance.dialogs.table_dialog import TableDialog
@@ -122,7 +122,7 @@ def _close_button(dialog, kind):
 def test_supplier_capture_validates_then_accepts_once(desktop, monkeypatch, kind, activation):
     app, _ = desktop
     warnings = []
-    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args))
+    monkeypatch.setattr(MessageDialog, "warning", lambda *args: warnings.append(args))
     dialog = _build(kind)
     accepted = QSignalSpy(dialog.accepted)
     try:

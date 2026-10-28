@@ -13,7 +13,7 @@ autorizados reales; esta página no tiene SQL ni lógica de negocio.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -22,7 +22,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import ConfirmationDialog
+from frontend.desktop.components.dialogs import ConfirmationDialog, MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.dialogs import (
     CreateCountDialog,
@@ -83,7 +83,7 @@ class CountsPage(QWidget):
     def _selected_count_id(self) -> str | None:
         cid = self._table.selected_row_id()
         if not cid:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Conteos", "Selecciona un conteo de la lista.")
             return None
         return cid
@@ -94,11 +94,11 @@ class CountsPage(QWidget):
             return
         product_id = dlg.product_id()
         if not product_id:
-            QMessageBox.warning(self, "Conteos", "Selecciona un producto de la lista.")
+            MessageDialog.warning(self, "Conteos", "Selecciona un producto de la lista.")
             return
         ok, message, _ = self._presenter.create_count(
             product_id=product_id, count_type=dlg.count_type_code(), blind=dlg.blind())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Conteos", message)
         if ok:
             self.refresh()
@@ -112,11 +112,11 @@ class CountsPage(QWidget):
             return
         quantity = dlg.counted_quantity()
         if quantity is None:
-            QMessageBox.warning(self, "Conteos", "Captura la cantidad contada.")
+            MessageDialog.warning(self, "Conteos", "Captura la cantidad contada.")
             return
         ok, message, _ = self._presenter.record_count(
             count_id=cid, counted_quantity=quantity)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Conteos", message)
         if ok:
             self.refresh()
@@ -132,7 +132,7 @@ class CountsPage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message, _ = self._presenter.confirm_count(count_id=cid)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Conteos", message)
         if ok:
             self.refresh()
@@ -148,7 +148,7 @@ class CountsPage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message, _ = self._presenter.approve_count(count_id=cid)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Conteos", message)
         if ok:
             self.refresh()
@@ -165,7 +165,7 @@ class CountsPage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message, _ = self._presenter.generate_adjustment_from_count(count_id=cid)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Conteos", message)
         if ok:
             self.refresh()

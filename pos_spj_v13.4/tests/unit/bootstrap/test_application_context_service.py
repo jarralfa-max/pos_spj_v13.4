@@ -124,3 +124,24 @@ def test_no_events_leak_the_context_payload_beyond_ids():
     service.change_branch(_context(), new_branch_id="branch-2")
     for payload in events:
         assert set(payload.keys()) <= {"user_id", "from_branch_id", "to_branch_id", "branch_id"}
+
+
+def test_switching_to_a_branch_none_of_the_users_roles_covers_is_rejected():
+    """Auditoría enterprise, Fase 2: el permiso de cambiar no basta, algún rol
+    tiene que valer en la sucursal destino; los roles y capacidades se recargan."""
+    base = dict(
+        branch_resolver=lambda branch_id: BRANCHES.get(branch_id),
+        permissions_loader=lambda user_id, branch_id: PERMISSIONS_BY_BRANCH.get(
+            branch_id, frozenset()),
+        feature_flags_loader=lambda branch_id: FLAGS_BY_BRANCH.get(branch_id, {}))
+    service = ApplicationContextService(**base, site_access_checker=lambda u, b: False)
+    with pytest.raises(ContextSwitchNotAllowedError, match="Sucursal Norte"):
+        service.change_branch(_context(), new_branch_id="branch-2")
+    service = ApplicationContextService(
+        **base, site_access_checker=lambda u, b: True,
+        roles_loader=lambda u, b: ("cajero",),
+        site_capabilities_loader=lambda b: frozenset({"POS", "SALES", "CASH"}))
+    switched = service.change_branch(_context(), new_branch_id="branch-2")
+    assert switched.roles == ("cajero",)
+    assert switched.site_allows_module("sales_pos")
+    assert not switched.site_allows_module("meat_processing")

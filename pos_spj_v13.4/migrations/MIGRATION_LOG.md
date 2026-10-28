@@ -5375,3 +5375,31 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Copia de la base real: migra 332 → 351. Respalda 2 sucursales (`PRI`, `CORREGIDORA`) con 11 capacidades
   cada una, `foreign_key_check` queda vacío y el arranque completo de la app pasa.
 - Detalle: `docs/architecture/enterprise_org/01_phase1_org_model.md`.
+
+### 352 — estructura organizacional hacia el central y perfiles de sucursal (2026-10-25, cierre de la Fase 1)
+
+- `org_outbox`: cada cambio de una unidad deja la foto completa (con capacidades). Es la fuente
+  número 27 del motor único de replicación.
+- Encola un `ORG_UNIT_REGISTERED` por cada unidad que no tenía evento (lo respaldado por la 351).
+- Da perfil de sucursal (`branch_profiles`) a todo sitio que no lo tenía, con el mismo código y
+  nombre que su unidad y la zona horaria y la configuración regional de la empresa.
+- Del lado PostgreSQL, **p005**: `central_org_units`, donde gana la foto más reciente por
+  `updated_at`, y la vista `central_org_sites`.
+- Finanzas: `org_unit_id` entra al DDL born-clean de `cost_centers` y `profit_centers`, pero queda
+  **fuera** del contrato que verifica la 345 (`POST_CONTRACT_COLUMNS`). RR. HH.: entra al DDL de
+  `hr_departments`.
+- Copia de la base real: Corregidora recibe su perfil, se encolan 2 unidades, `foreign_key_check`
+  queda vacío y el arranque pasa.
+
+### 353 — varios roles por usuario, con ámbito (2026-10-25, auditoría enterprise Fase 2)
+
+- `user_role_assignments`:
+  - `user_id` y `role_id`;
+  - ámbito: `COMPANY` con el id de la empresa u `ORG_UNIT` con una unidad, que cubre todo lo que
+    cuelga de ella;
+  - vigencia opcional y motivo obligatorio;
+  - revocación sin borrado;
+  - índice único parcial: el mismo rol y ámbito, una sola vez mientras esté vigente.
+- Siembra `CONFIGURACION.usuario.asignaciones` para `system_owner` y `admin`.
+- Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
+- Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.

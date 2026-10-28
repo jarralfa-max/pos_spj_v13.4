@@ -9,8 +9,6 @@ from __future__ import annotations
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QMessageBox,
-    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -23,7 +21,8 @@ from frontend.desktop.components import (
     create_secondary_button,
     create_success_button,
 )
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
+from frontend.desktop.components.tabs import Tabs
 from frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs import (
     SupplierAddressDialog,
     SupplierBankAccountDialog,
@@ -59,7 +58,7 @@ class SupplierDetailDialog(StandardDialog):
         self._header.addWidget(self._risk_badge)
         root.addLayout(self._header)
 
-        self._tabs = QTabWidget(self)
+        self._tabs = Tabs(self)
         self._tabs.currentChanged.connect(self._on_tab_changed)
         self._build_tabs()
         root.addWidget(self._tabs, stretch=1)
@@ -211,7 +210,7 @@ class SupplierDetailDialog(StandardDialog):
         self._load_header()
 
     def _notify(self, ok, msg, tab_index=None):
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Proveedores", msg)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Proveedores", msg)
         if ok and tab_index is not None:
             self._refresh_tab(tab_index)
 

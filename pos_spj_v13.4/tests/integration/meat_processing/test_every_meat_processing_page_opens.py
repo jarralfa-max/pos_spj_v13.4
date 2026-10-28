@@ -38,7 +38,7 @@ import logging
 import sqlite3
 
 import pytest
-from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtWidgets import QApplication
 
 from backend.application.meat_processing.permissions import MeatProcessingPermissions
 from backend.domain.meat_processing.slaughter.feature_flag import SLAUGHTER_ENABLED
@@ -46,6 +46,7 @@ from backend.infrastructure.desktop.meat_processing_factory import (
     create_meat_processing_view,
 )
 from backend.shared.ids import new_uuid
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.meat_processing.navigation.meat_processing_sidebar import (
     MEAT_PROCESSING_NAV,
 )
@@ -149,11 +150,11 @@ def dialogos(monkeypatch):
     def _registrar(nivel):
         def _fn(_parent, titulo, texto, *a, **kw):
             capturados.append((nivel, titulo, texto))
-            return QMessageBox.Ok
+            return MessageDialog.Ok
         return _fn
 
     for nivel in ("warning", "critical", "information", "question"):
-        monkeypatch.setattr(QMessageBox, nivel, staticmethod(_registrar(nivel)))
+        monkeypatch.setattr(MessageDialog, nivel, staticmethod(_registrar(nivel)))
     return capturados
 
 

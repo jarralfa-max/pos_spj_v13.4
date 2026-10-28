@@ -8,9 +8,9 @@ import pytest
 from PyQt5 import sip
 from PyQt5.QtCore import QPoint, QRect, QSettings, Qt
 from PyQt5.QtTest import QSignalSpy, QTest
-from PyQt5.QtWidgets import QDialog, QLabel, QMessageBox, QPushButton
+from PyQt5.QtWidgets import QDialog, QLabel, QPushButton
 
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 from frontend.desktop.modules.inventory import dialogs as inventory
 from frontend.desktop.modules.sales_pos.dialogs.discount_dialog import DiscountDialog
 from frontend.desktop.modules.sales_pos.dialogs.payment_dialog import PaymentDialog
@@ -186,7 +186,7 @@ def test_payment_enter_adds_local_line_and_cancel_never_starts_checkout(qt_font_
 
 def test_payment_retry_keeps_recorded_lines_and_accepts_once(
         qt_font_resources, dialogs, monkeypatch):
-    monkeypatch.setattr(QMessageBox, "warning", lambda *_args: None)
+    monkeypatch.setattr(MessageDialog, "warning", lambda *_args: None)
     presenter = Presenter()
     presenter.checkout_results = [_result(False), _result()]
     dialog = _show(_build("payment", presenter), dialogs, qt_font_resources)

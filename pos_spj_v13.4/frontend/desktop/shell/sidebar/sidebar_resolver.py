@@ -68,6 +68,8 @@ class SidebarResolver:
                 continue  # módulo apagado para esta sucursal (Feature Flags)
             if not context.capabilities.is_enabled(item.module_id):
                 continue  # módulo no instalado en esta estación (perfil)
+            if not context.site_allows_module(item.module_id):
+                continue  # el sitio de la sesión no tiene esa capacidad
             resolved.append(SidebarItemViewModel(
                 item_id=item.item_id, route_id=item.route_id, label=item.label, icon=item.icon,
                 group=item.group, order=item.order,

@@ -83,6 +83,9 @@ def conn(branch_id):
     c.execute("PRAGMA foreign_keys = ON")
     importlib.import_module("migrations.standalone.176_cash_register_configuration_schema").run(c)
     importlib.import_module("migrations.standalone.175_cash_register_bounded_context_schema").run(c)
+    # Motor de replicación (Slice 2): la página «Sincronización» de Caja registra la
+    # estación en `replication_stations`, como en cualquier base migrada.
+    importlib.import_module("migrations.standalone.350_replication_engine").run(c)
 
     register_id, drawer_id, terminal_id = new_uuid(), new_uuid(), new_uuid()
     c.execute("INSERT INTO cash_registers VALUES(?,?,?,?,?,?,?)",

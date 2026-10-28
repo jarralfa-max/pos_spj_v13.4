@@ -5,18 +5,39 @@
       "Bash(git status*)",
       "Bash(git diff*)",
       "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
       "Bash(python -m pytest*)"
     ],
-    "deny": []
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(gh release*)",
+      "Bash(gh pr merge*)",
+      "Read(./.env)",
+      "Read(./.env.*)"
+    ]
   },
   "hooks": {
-    "PostToolUse": [
+    "PreToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "python -c \"\nimport ast, sys, os\npath = os.environ.get('CLAUDE_TOOL_INPUT_FILE_PATH', '')\nif path.endswith('.py') and os.path.exists(path):\n    try:\n        ast.parse(open(path).read())\n    except SyntaxError as e:\n        print(f'SYNTAX ERROR in {path}: {e}', file=sys.stderr)\n        sys.exit(1)\n\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/check_syntax.py\""
           }
         ]
       }

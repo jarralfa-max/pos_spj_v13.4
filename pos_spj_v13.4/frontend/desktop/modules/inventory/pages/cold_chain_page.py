@@ -12,7 +12,7 @@ SQL, no business logic.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -21,6 +21,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.dialogs import (
     RecordTemperatureReadingDialog,
@@ -75,7 +76,7 @@ class ColdChainPage(QWidget):
     def _selected_excursion_id(self) -> str | None:
         eid = self._table.selected_row_id()
         if not eid:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Cadena de frío", "Selecciona una excursión de la lista.")
             return None
         return eid
@@ -89,19 +90,19 @@ class ColdChainPage(QWidget):
             return
         sensor_id = dlg.sensor_id()
         if not sensor_id:
-            QMessageBox.warning(self, "Cadena de frío", "Captura el identificador del sensor.")
+            MessageDialog.warning(self, "Cadena de frío", "Captura el identificador del sensor.")
             return
         temperature = dlg.temperature()
         min_temp, max_temp = dlg.min_temp(), dlg.max_temp()
         if temperature is None or min_temp is None or max_temp is None:
-            QMessageBox.warning(self, "Cadena de frío", "Captura la temperatura y el rango.")
+            MessageDialog.warning(self, "Cadena de frío", "Captura la temperatura y el rango.")
             return
         ok, message, _ = self._presenter.record_temperature_reading(
             sensor_id=sensor_id, warehouse_id=dlg.warehouse_id(), temperature=temperature,
             reading_point=dlg.reading_point(), min_temp=min_temp, max_temp=max_temp,
             warning_margin=dlg.warning_margin(), lot_id=dlg.lot_id(),
             auto_block=dlg.auto_block())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Cadena de frío", message)
         if ok:
             self.refresh()
@@ -115,11 +116,11 @@ class ColdChainPage(QWidget):
             return
         note = dlg.note()
         if not note:
-            QMessageBox.warning(self, "Cadena de frío", "Captura el motivo de la resolución.")
+            MessageDialog.warning(self, "Cadena de frío", "Captura el motivo de la resolución.")
             return
         ok, message, _ = self._presenter.resolve_temperature_excursion(
             excursion_id=eid, resolution=dlg.resolution(), resolution_note=note)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Cadena de frío", message)
         if ok:
             self.refresh()

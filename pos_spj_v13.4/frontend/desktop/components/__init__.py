@@ -60,6 +60,7 @@ from frontend.desktop.components.dialogs import (
     ConfirmationDialog,
     DestructiveConfirmationDialog,
     FormDialog,
+    MessageDialog,
     StandardDialog,
 )
 from frontend.desktop.components.time_input import TimeInput
@@ -169,6 +170,7 @@ __all__ = [
     "ConfirmationDialog",
     "DestructiveConfirmationDialog",
     "FormDialog",
+    "MessageDialog",
     "TimeInput",
     "TimeRangeInput",
     # DS-4 specialized inputs

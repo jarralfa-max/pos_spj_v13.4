@@ -270,6 +270,33 @@ _LOYALTY_LEDGER = ("LOYALTY_POINTS_ISSUED", "LOYALTY_POINTS_RESERVED", "LOYALTY_
                    "LOYALTY_TRANSACTION_REVERSED")
 
 
+# ── Estructura organizacional (auditoría enterprise) ─────────────────────────
+#: Cada evento trae la foto COMPLETA de la unidad: el central se queda con la de
+#: `updated_at` más reciente (datos maestros, no dinero ni existencias).
+ORG_UNIT_EVENTS = ("ORG_UNIT_REGISTERED", "ORG_UNIT_CREATED", "ORG_UNIT_UPDATED",
+                   "ORG_UNIT_MOVED", "ORG_UNIT_DEACTIVATED", "ORG_UNIT_REACTIVATED",
+                   "ORG_UNIT_CLOSED", "ORG_UNIT_CAPABILITIES_CHANGED")
+_ORG_TYPES = {"RETAIL_BRANCH", "PRODUCTION_PLANT", "DISTRIBUTION_CENTER", "WAREHOUSE",
+              "CORPORATE_OFFICE", "LOGISTICS_OPERATION", "REGION"}
+_ORG_STATUS = {"ACTIVE", "INACTIVE", "CLOSED"}
+
+
+def org_unit_row(fact: Mapping[str, Any]) -> dict:
+    p = fact["payload"]
+    faltan = [k for k in ("unit_id", "company_id", "unit_type", "code", "name", "status",
+                          "updated_at") if not p.get(k)]
+    if faltan:
+        raise ProjectionError(f"Evento de unidad organizacional sin {', '.join(faltan)}")
+    if p["unit_type"] not in _ORG_TYPES or p["status"] not in _ORG_STATUS:
+        raise ProjectionError(f"Tipo o estado de unidad inválido: {p['unit_type']}/{p['status']}")
+    return {"unit_id": p["unit_id"], "company_id": p["company_id"],
+            "parent_id": p.get("parent_id"), "unit_type": p["unit_type"],
+            "code": str(p["code"]), "name": str(p["name"]), "status": p["status"],
+            "closed_at": p.get("closed_at"), "capabilities": sorted(p.get("capabilities") or []),
+            "source_branch_id": fact["branch_id"], "event_id": fact["event_id"],
+            "updated_at": p["updated_at"]}
+
+
 # ── ciclo de proyección ──────────────────────────────────────────────────────
 class CentralProjectionRepository(Protocol):
     def pending_facts(self, *, projector: str, limit: int) -> list[Mapping[str, Any]]: ...
@@ -287,6 +314,7 @@ class CentralProjectionRepository(Protocol):
     def add_journal_entry(self, rows: dict) -> None: ...
     def upsert_credit_account(self, row: dict) -> None: ...
     def upsert_loyalty_transaction(self, row: dict) -> None: ...
+    def upsert_org_unit(self, row: dict) -> None: ...
     def commit(self) -> None: ...
 
 
@@ -324,6 +352,8 @@ class CentralProjector:
                for evento in _CREDIT_STATUS},
             **{evento: (lambda f: self._repo.upsert_loyalty_transaction(
                 loyalty_transaction_row(f))) for evento in _LOYALTY_LEDGER},
+            **{evento: (lambda f: self._repo.upsert_org_unit(org_unit_row(f)))
+               for evento in ORG_UNIT_EVENTS},
         }
 
     def _close_shift(self, fact) -> None:
@@ -360,5 +390,6 @@ class CentralProjector:
 
 __all__ = ["CentralProjectionRepository", "CentralProjector", "PROJECTOR", "ProjectionError",
            "ProjectionRun", "cash_cut_row", "cash_movement_row", "cash_reversal_row",
-           "cash_shift_row", "credit_account_row", "journal_rows", "loyalty_transaction_row",
+           "ORG_UNIT_EVENTS", "cash_shift_row", "credit_account_row", "journal_rows",
+           "loyalty_transaction_row", "org_unit_row",
            "sale_return_row", "sale_rows", "stock_rows"]

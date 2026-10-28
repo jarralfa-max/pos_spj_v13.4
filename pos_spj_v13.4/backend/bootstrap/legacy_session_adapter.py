@@ -56,8 +56,10 @@ class LegacySessionAdapter:
         self._revoked = False
 
     def _refresh_permissions(self) -> None:
-        """Si cambió alguna concesión, recarga los permisos de ESTA sesión. Sólo
-        cambia el conjunto de permisos: usuario, sucursal y rol siguen igual."""
+        """Si cambió alguna concesión, recarga los permisos y los roles de ESTA
+        sesión (usuario y sucursal siguen igual). Los roles también: `is_admin()`
+        los mira, y antes un administrador degradado seguía saltándose todas
+        las comprobaciones hasta cerrar sesión (auditoría enterprise, Fase 2)."""
         if self._refresher is None or not self._refresher.changed():
             return
         try:
@@ -72,9 +74,17 @@ class LegacySessionAdapter:
             logger.warning("Sesión revocada: la cuenta %s ya no está activa.",
                            self._context.user_name)
             return
-        if nuevos == self._context.permissions:
+        roles = self._context.roles
+        cargar_roles = getattr(self._refresher, "load_roles", None)
+        if callable(cargar_roles):
+            try:
+                roles = tuple(cargar_roles(self._context.user_id, self._context.branch_id))
+            except Exception:  # noqa: BLE001 - igual que los permisos: se conserva lo anterior
+                logger.exception("No se pudieron recargar los roles de la sesión.")
+        if nuevos == self._context.permissions and roles == self._context.roles:
             return
-        self._context = dataclasses.replace(self._context, permissions=frozenset(nuevos))
+        self._context = dataclasses.replace(self._context, permissions=frozenset(nuevos),
+                                            roles=roles)
         self._evaluator = PermissionEvaluator(self._context)
         logger.info("Permisos de la sesión recargados: %s (%d códigos).",
                     self._context.user_name, len(nuevos))

@@ -22,11 +22,14 @@ class CostCenter:
     branch_id: str | None = None
     active: bool = True
     created_at: str = field(default_factory=_utcnow)
+    #: Unidad organizacional (sucursal, planta, región, oficina…). Si es un
+    #: sitio de operación, `branch_id` es esa misma unidad.
+    org_unit_id: str | None = None
 
     @classmethod
     def create(cls, code: str, name: str, *, parent_id: str | None = None,
-               branch_id: str | None = None) -> "CostCenter":
+               branch_id: str | None = None, org_unit_id: str | None = None) -> "CostCenter":
         if not code or not name:
             raise FinanceDomainError("CostCenter requires code and name")
         return cls(id=new_uuid(), code=code.strip(), name=name.strip(),
-                   parent_id=parent_id, branch_id=branch_id)
+                   parent_id=parent_id, branch_id=branch_id, org_unit_id=org_unit_id)

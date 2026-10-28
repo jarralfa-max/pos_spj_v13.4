@@ -121,6 +121,8 @@ def test_desktop_visual_debt_does_not_grow():
     ('color = "#ffffff"', "hardcoded_visual_hex"),
     ('from PyQt5.QtWidgets import QTableWidget as Grid\ntable = Grid()', "native_operational_table"),
     ('class LocalTable(QtWidgets.QTableWidget):\n    pass', "native_operational_table"),
+    ('from PyQt5.QtWidgets import QTabWidget\ntabs = QTabWidget(self)', "native_tab_widget"),
+    ('class LocalTabs(QtWidgets.QTabWidget):\n    pass', "native_tab_widget"),
     ('class KPICard(QWidget):\n    pass', "local_standard_component"),
     ('class SalesPageHeader(QWidget):\n    pass', "local_standard_component"),
     ('class LocalInput(QLineEdit):\n    def paintEvent(self, event):\n        pass', "local_visual_control"),

@@ -90,7 +90,7 @@ class TestOrdersOverviewPage(object):
             def kpi_cards(self):
                 raise RuntimeError("boom")
 
-        monkeypatch.setattr(page_module, "QMessageBox", _FakeMessageBox)
+        monkeypatch.setattr(page_module, "MessageDialog", _FakeMessageBox)
         page = OrdersOverviewPage(_BrokenPresenter())
         page.ensure_loaded()  # must not raise (real QMessageBox would show a blocking modal)
 

@@ -7,7 +7,7 @@ convierte en una orden de procesamiento que nace aprobada, lista para preparar.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QLabel, QMessageBox
+from PyQt5.QtWidgets import QDialog, QLabel
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -17,7 +17,7 @@ from frontend.desktop.components import (
     create_secondary_button,
 )
 from frontend.desktop.components.date_input import DateInput
-from frontend.desktop.components.dialogs import FormDialog
+from frontend.desktop.components.dialogs import FormDialog, MessageDialog
 from frontend.desktop.components.pages import StandardPage
 
 COLUMNS = [
@@ -78,12 +78,12 @@ class ProductionPlanPage(StandardPage):
             boton.setEnabled(habilitado)
 
     def _avisar(self, ok: bool, mensaje: str) -> None:
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Plan", mensaje)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Plan", mensaje)
 
     def _linea(self) -> str | None:
         linea = self.table.selected_row_id()
         if not linea:
-            QMessageBox.information(self, "Plan", "Selecciona una línea del plan.")
+            MessageDialog.information(self, "Plan", "Selecciona una línea del plan.")
         return linea
 
     def _on_create(self) -> None:
@@ -99,11 +99,11 @@ class ProductionPlanPage(StandardPage):
             return False
         datos = dlg.values()
         if not datos["product_id"]:
-            QMessageBox.warning(self, "Plan", "Selecciona el producto de la lista.")
+            MessageDialog.warning(self, "Plan", "Selecciona el producto de la lista.")
             return False
         ok, mensaje, _ = self._presenter.add_line(self._plan_id, **datos)
         if not ok:
-            QMessageBox.warning(self, "Plan", mensaje)
+            MessageDialog.warning(self, "Plan", mensaje)
         return ok
 
     def _on_add(self) -> None:
@@ -115,7 +115,7 @@ class ProductionPlanPage(StandardPage):
 
         fuentes = self._presenter.suggestion_sources()
         if not fuentes:
-            QMessageBox.information(self, "Plan", "No hay fuentes de sugerencias.")
+            MessageDialog.information(self, "Plan", "No hay fuentes de sugerencias.")
             return
         etiqueta, aceptado = FormDialog.get_item(
             self, "Sugerir líneas", "Fuente:", [f[1] for f in fuentes], 0, False)
@@ -124,7 +124,7 @@ class ProductionPlanPage(StandardPage):
         clave = next(c for c, e in fuentes if e == etiqueta)
         sugerencias, nota = self._presenter.suggestions(clave)
         if not sugerencias:
-            QMessageBox.information(self, "Plan", nota or "Sin sugerencias.")
+            MessageDialog.information(self, "Plan", nota or "Sin sugerencias.")
             return
         dlg = PlanSuggestionsDialog(self, title=etiqueta, suggestions=sugerencias, note=nota)
         if dlg.exec_() != QDialog.Accepted:

@@ -175,3 +175,19 @@ Hecho; el detalle está en [`01_phase1_org_model.md`](01_phase1_org_model.md).
 
 - **N06**: hay unidades organizacionales con tipo, jerarquía y capacidades (migración 351).
 - **N12**: la app ya puede dar de alta una sucursal, planta o centro de distribución nueva.
+
+## 9. Avance: pendientes de la Fase 1 y Fase 2 (2026-10-25)
+
+**Pendientes de la Fase 1, cerrados** (detalle en `01_phase1_org_model.md`, sección 7):
+- perfil de sucursal junto con el sitio;
+- organigrama hacia el servidor central (352/p005);
+- `org_unit_id` en Finanzas y RR. HH.;
+- 29 pruebas de Configuración.
+
+**Fase 2** (detalle en `02_phase2_contextual_permissions.md`):
+- **N01**: la sesión opera el sitio de la estación y exige un rol que lo cubra.
+- **N02**: un rol puede valer en toda la empresa sin sucursal propia.
+- **N03**: varios roles por usuario, cada uno con ámbito y con herencia por jerarquía.
+- **Capacidades del sitio**: se hacen valer en el menú, el router y los permisos.
+- **Defecto corregido**: un administrador degradado conservaba el acceso total con la sesión
+  abierta.

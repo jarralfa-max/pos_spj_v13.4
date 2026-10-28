@@ -8,7 +8,7 @@ Pestaña «Salidas»: el registro de salidas con su estado de calidad.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QLabel, QMessageBox
+from PyQt5.QtWidgets import QLabel
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -18,7 +18,7 @@ from frontend.desktop.components import (
     create_secondary_button,
 )
 from frontend.desktop.components.pages import StandardPage, TabbedPage
-from frontend.desktop.components.dialogs import FormDialog
+from frontend.desktop.components.dialogs import FormDialog, MessageDialog
 
 COLUMNS = [ColumnSpec("Producto"), ColumnSpec("Lote"), ColumnSpec("Retenido", "numeric"),
            ColumnSpec("Solicitada", "date"), ColumnSpec("Origen")]
@@ -56,7 +56,7 @@ class PendingInspectionsPage(StandardPage):
     def _on_decide(self, decision: str, *, reason: str | None = None) -> None:
         inspeccion = self.table.selected_row_id()
         if not inspeccion:
-            QMessageBox.information(self, "Calidad", "Selecciona una salida de la lista.")
+            MessageDialog.information(self, "Calidad", "Selecciona una salida de la lista.")
             return
         motivo = reason or ""
         if reason is None and self._presenter.needs_reason(decision):
@@ -64,7 +64,7 @@ class PendingInspectionsPage(StandardPage):
             if not aceptado:
                 return
         ok, mensaje = self._presenter.decide(inspeccion, decision, motivo)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Calidad", mensaje)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Calidad", mensaje)
         self.refresh()
 
 

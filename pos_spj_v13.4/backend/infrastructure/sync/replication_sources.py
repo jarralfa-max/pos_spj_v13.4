@@ -155,6 +155,7 @@ DEFAULT_SOURCES: tuple[ReplicationSource, ...] = (
     ReplicationSource("loyalty_cards", "loyalty_cards_outbox", "card"),
     ReplicationSource("sweepstakes", "sweepstakes_outbox", "campaign"),
     ReplicationSource("quotes", "quote_outbox", "quote"),
+    ReplicationSource("organization", "org_outbox", "org_unit"),
 )
 # Fuera a propósito: `whatsapp_outbox` y `product_whatsapp_outbox` son colas de
 # MENSAJES por enviar (su propio despachador los entrega), no hechos de negocio;

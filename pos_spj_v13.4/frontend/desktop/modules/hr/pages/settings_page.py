@@ -43,7 +43,8 @@ class SettingsPage(HRPage):
 
     def _create_department(self) -> None:
         dialog = CatalogDialog("departamento", self,
-                               on_submit=lambda v: self._presenter.create_department(**v))
+                               on_submit=lambda v: self._presenter.create_department(**v),
+                               unit_options=self._presenter.org_unit_options())
         if dialog.exec_():
             self.notify(True, getattr(dialog, "submitted_message", "Departamento creado"))
             self.reload()

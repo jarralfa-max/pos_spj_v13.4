@@ -60,7 +60,7 @@ class CustomerAddressDialog(FormDialog):
         # error obliga a capturar todo otra vez.
         problema = self.error()
         if problema:
-            from PyQt5.QtWidgets import QMessageBox
-            QMessageBox.warning(self, "Dirección", problema)
+            from frontend.desktop.components.dialogs import MessageDialog
+            MessageDialog.warning(self, "Dirección", problema)
             return
         super().accept()

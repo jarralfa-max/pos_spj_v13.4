@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QLabel, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from backend.domain.cash_register.exceptions import CashAuthorizationRequiredError, CashRegisterError
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
@@ -238,7 +238,7 @@ class CashLedgerPage(QWidget):
         dialog.add_button_box(ok_text="Cerrar")
         dialog.exec_()
         return
-        QMessageBox.information(
+        MessageDialog.information(
             self,
             "Detalle de movimiento",
             "\n".join((
@@ -261,29 +261,29 @@ class CashLedgerPage(QWidget):
         if not (row.reference_id or row.related_sale_id):
             self._show_error("El movimiento no tiene documento origen vinculado.")
             return
-        QMessageBox.information(
+        MessageDialog.information(
             self,
             "Documento origen",
             f"Documento origen disponible para auditoria:\n{origin_label(reference_id=row.reference_id, sale_id=row.related_sale_id)}",
         )
 
     def _show_result(self, message: str) -> None:
-        QMessageBox.information(self, "Caja", message)
+        MessageDialog.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", user_facing_error(message))
+        MessageDialog.warning(self, "Caja", user_facing_error(message))
 
     def _offer_prepare_handover(self, safe_drop_entry_id: str) -> None:
         if not safe_drop_entry_id or self._presenter is None:
             return
-        answer = QMessageBox.question(
+        answer = MessageDialog.question(
             self,
             "Entrega de valores",
             "El retiro a boveda fue registrado. ¿Preparar entrega de valores ahora?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.Yes,
+            MessageDialog.Yes | MessageDialog.No,
+            MessageDialog.Yes,
         )
-        if answer != QMessageBox.Yes:
+        if answer != MessageDialog.Yes:
             return
         denominations = tuple(self._presenter.denomination_options())
         if not denominations:

@@ -362,3 +362,18 @@ for root, _, files in os.walk('pos_spj_v13.4'):
 print('\n'.join(errors) if errors else 'SIN errores de sintaxis')
 "
 ```
+
+---
+
+## 🔁 SDLC de 6 etapas (cómo se trabaja a partir de ahora)
+
+Todo cambio pasa por el ciclo **Plan → Design → Build → Test → Deploy → Maintain** descrito en `pos_spj_v13.4/docs/sdlc/README.md`. Cada etapa tiene su comando (`/sdlc-plan`, `/sdlc-design`, `/sdlc-build`, `/sdlc-test`, `/sdlc-deploy`, `/sdlc-maintain`) y deja un artefacto en `pos_spj_v13.4/docs/sdlc/items/<ID>/`. El trabajo pendiente vive en `pos_spj_v13.4/docs/sdlc/BACKLOG.md`.
+
+Reglas que aplican en cualquier etapa:
+
+- **Evidencia antes que afirmaciones.** Nada se declara existente, corregido o probado sin ruta:línea o salida real de un comando. Lo no verificado se dice como tal.
+- **Puntos de parada.** No se escribe código sin `spec.md` y `plan.md` aprobados por el responsable. Si el plan resulta incorrecto a mitad del Build, se detiene y se pide aprobación de la desviación.
+- **Un ítem, una rama, un PR.** Ramas `sdlc/<id>` desde la rama base del README. Defectos encontrados fuera de alcance van al backlog, no al mismo cambio.
+- **Datos reales intocables.** Migraciones y scripts de integridad se prueban sobre una copia de la base en el directorio temporal, nunca sobre un `.db` real. Los hooks de `.claude/hooks/` bloquean ediciones a bases, `.env`, llaves y logs, y comandos destructivos o de publicación.
+- **El humano libera.** Claude prepara PR y notas; el merge, los tags `v*` y el workflow `windows-release.yml` los ejecuta el responsable.
+- **Fuentes de autoridad:** este archivo, `pos_spj_v13.4/docs/skills/SPJ_REFACTOR_SKILL.md` (UUIDv7, rutas) y, para la arquitectura objetivo offline-first, `pos_spj_v13.4/docs/sdlc/inputs/requisitos-arquitectura.md`. Si dos fuentes se contradicen, se registra como pregunta abierta en el backlog en lugar de elegir una en silencio.

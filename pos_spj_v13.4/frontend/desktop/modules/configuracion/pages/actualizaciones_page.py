@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
-    QFileDialog, QFormLayout, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QVBoxLayout, QWidget,
+    QFileDialog, QFormLayout, QHBoxLayout, QLabel,QProgressBar, QVBoxLayout, QWidget,
 )
 
 from frontend.desktop.components import (
@@ -18,6 +18,7 @@ from frontend.desktop.components import (
     TimeRangeInput, ViewState, create_primary_button, create_secondary_button,
     create_state_widget, create_warning_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.themes.tokens import Spacing
 
 _HISTORY_COLUMNS = [
@@ -334,7 +335,7 @@ class ActualizacionesPage(QWidget):
 
     # ── actions ───────────────────────────────────────────────────────────
     def _show(self, ok: bool, message: str) -> None:
-        (QMessageBox.information if ok else QMessageBox.warning)(self, self.title, message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, self.title, message)
 
     def _on_check(self) -> None:
         ok, message = self._presenter.check()
@@ -381,12 +382,12 @@ class ActualizacionesPage(QWidget):
         self.reload()
 
     def _on_install_now(self) -> None:
-        answer = QMessageBox.question(
+        answer = MessageDialog.question(
             self, self.title,
             "SPJ se cerrará, respaldará la base de datos e instalará la nueva versión. Windows "
             "pedirá autorización de administrador. Si algo falla, se vuelve a la versión actual.\n\n"
             "¿Continuar?")
-        if answer != QMessageBox.Yes:
+        if answer != MessageDialog.Yes:
             return
         ok, message = self._presenter.install_now()
         if not ok:

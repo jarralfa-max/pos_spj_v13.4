@@ -7,7 +7,7 @@ de uso quien valida permiso, estado y segregación de funciones.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from backend.application.pricing.permissions import PricingPermissions
 from frontend.desktop.components import (
@@ -18,6 +18,7 @@ from frontend.desktop.components import (
     create_secondary_button,
     create_success_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.pricing.dialogs import (
     DuplicatePriceListDialog,
@@ -95,10 +96,10 @@ class PriceListsPage(QWidget):
 
     def _notify(self, ok: bool, message: str) -> None:
         if ok:
-            QMessageBox.information(self, "Precios", message)
+            MessageDialog.information(self, "Precios", message)
             self.refresh()
         else:
-            QMessageBox.warning(self, "Precios", message)
+            MessageDialog.warning(self, "Precios", message)
 
     def _selected(self) -> str | None:
         return self.table.selected_row_id()

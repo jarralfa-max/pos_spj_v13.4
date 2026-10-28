@@ -603,8 +603,12 @@ class LinkUserDialog(HRFormDialog):
 class CatalogDialog(HRFormDialog):
     """Create a department or a position (code + name)."""
 
-    def __init__(self, kind_label: str, parent=None, *, on_submit=None) -> None:
+    def __init__(self, kind_label: str, parent=None, *, on_submit=None,
+                 unit_options=None) -> None:
         self.dialog_title = f"Nuevo {kind_label}"
+        #: Departamentos: a qué unidad organizacional pertenecen (vacío = la
+        #: sucursal de la sesión). Los puestos no la llevan.
+        self._unit_options = unit_options
         super().__init__(parent, on_submit=on_submit)
 
     def _build_form(self) -> None:
@@ -612,6 +616,10 @@ class CatalogDialog(HRFormDialog):
         self._name = QLineEdit()
         self.form.addRow("Código", self._code)
         self.form.addRow("Nombre", self._name)
+        self._unit = None
+        if self._unit_options is not None:
+            self._unit = _combo(self._unit_options, empty="(Sucursal de la sesión)")
+            self.form.addRow("Unidad organizacional", self._unit)
 
     def _error(self) -> str | None:
         if not self._code.text().strip() or not self._name.text().strip():
@@ -619,7 +627,10 @@ class CatalogDialog(HRFormDialog):
         return None
 
     def values(self) -> dict:
-        return {"code": self._code.text().strip(), "name": self._name.text().strip()}
+        datos = {"code": self._code.text().strip(), "name": self._name.text().strip()}
+        if self._unit is not None:
+            datos["org_unit_id"] = self._unit.currentData() or None
+        return datos
 
 
 __all__ = [

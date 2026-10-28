@@ -44,10 +44,11 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtWidgets import QApplication
 
 from backend.application.losses.permissions import LossPermissions
 from backend.infrastructure.desktop.losses_factory import create_losses_view
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.losses.navigation.losses_sidebar import LOSSES_NAV
 from frontend.desktop.modules.losses.pages import LossesPlaceholderPage
 
@@ -116,7 +117,7 @@ def dialogos(monkeypatch):
 
     Además de desbloquear la prueba, es la comprobación de verdad: estas
     páginas convierten un fallo de carga en un aviso, así que un diálogo ES
-    el fallo. `QMessageBox` es la misma clase en todos los módulos, así que
+    el fallo. `MessageDialog` es la misma clase en todos los módulos, así que
     parchear los estáticos aquí los cubre todos.
     """
     capturados = []
@@ -124,11 +125,11 @@ def dialogos(monkeypatch):
     def _registrar(nivel):
         def _fn(_parent, titulo, texto, *a, **kw):
             capturados.append((nivel, titulo, texto))
-            return QMessageBox.Ok
+            return MessageDialog.Ok
         return _fn
 
     for nivel in ("warning", "critical", "information", "question"):
-        monkeypatch.setattr(QMessageBox, nivel, staticmethod(_registrar(nivel)))
+        monkeypatch.setattr(MessageDialog, nivel, staticmethod(_registrar(nivel)))
     return capturados
 
 

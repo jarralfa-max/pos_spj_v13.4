@@ -11,6 +11,13 @@ DESKTOP = APP_ROOT / "frontend" / "desktop"
 CANONICAL_DIALOGS = DESKTOP / "components" / "dialogs.py"
 LAYOUT_TYPES = {"QVBoxLayout", "QHBoxLayout", "QGridLayout", "QFormLayout", "QStackedLayout"}
 INPUT_METHODS = {"getText", "getItem", "getDouble", "getInt"}
+MESSAGE_METHODS = {"information", "warning", "critical", "question", "about", "aboutQt"}
+# Last-resort native boxes: an uncaught exception, and a damaged installation
+# reported before branding/theme load. Keyed by file and enclosing function.
+NATIVE_MESSAGE_EXCEPTIONS = {
+    ("frontend/desktop/app.py", "_install_crash_handler._handler"): 1,
+    ("frontend/desktop/app.py", "main"): 1,
+}
 
 
 def _ownership_violations(source: str) -> list[tuple[int, str]]:
@@ -57,11 +64,25 @@ def _ownership_violations(source: str) -> list[tuple[int, str]]:
 
     class Visitor(ast.NodeVisitor):
         owns_standard_layout = False
+        scope: tuple[str, ...] = ()
+
+        def visit_FunctionDef(self, node):
+            previous = self.scope
+            self.scope = (*previous, node.name)
+            self.generic_visit(node)
+            self.scope = previous
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+
+        def native_message(self, node):
+            violations.append((node.lineno, f"native QMessageBox in {'.'.join(self.scope) or '<module>'}"))
 
         def visit_ClassDef(self, node):
             for native in ("QDialog", "QInputDialog"):
                 if any(is_qt_type(base, {native}) for base in node.bases):
                     violations.append((node.lineno, f"native {native} base"))
+            if any(is_qt_type(base, {"QMessageBox"}) for base in node.bases):
+                self.native_message(node)
             previous = self.owns_standard_layout
             self.owns_standard_layout = any(is_standard_dialog(base) for base in node.bases)
             self.generic_visit(node)
@@ -74,6 +95,9 @@ def _ownership_violations(source: str) -> list[tuple[int, str]]:
             owner, _, method = symbol(node.func).rpartition(".")
             if owner in {"QInputDialog", "PyQt5.QtWidgets.QInputDialog"} and method in INPUT_METHODS:
                 violations.append((node.lineno, "native QInputDialog prompt"))
+            if is_qt_type(node.func, {"QMessageBox"}) or (
+                    owner in {"QMessageBox", "PyQt5.QtWidgets.QMessageBox"} and method in MESSAGE_METHODS):
+                self.native_message(node)
             if self.owns_standard_layout:
                 layout_on_self = is_qt_type(node.func, LAYOUT_TYPES) and (
                     bool(node.args and is_self(node.args[0]))
@@ -113,6 +137,28 @@ def test_standard_dialog_subclasses_preserve_the_owned_layout(desktop_violations
     assert not findings, "Use content_layout(), self.form or add_footer_widget():\n" + "\n".join(findings)
 
 
+def _native_messages(desktop_violations):
+    found: dict[tuple[str, str], list[str]] = {}
+    for reason, message in desktop_violations:
+        if reason.startswith("native QMessageBox in "):
+            key = (message.split(":", 1)[0], reason.removeprefix("native QMessageBox in "))
+            found.setdefault(key, []).append(message)
+    return found
+
+
+def test_messages_use_the_canonical_message_dialog(desktop_violations):
+    findings = [message for key, messages in _native_messages(desktop_violations).items()
+                if len(messages) > NATIVE_MESSAGE_EXCEPTIONS.get(key, 0) for message in messages]
+    assert not findings, "Use MessageDialog (same API as QMessageBox):\n" + "\n".join(findings)
+
+
+def test_native_message_exceptions_are_still_needed(desktop_violations):
+    found = _native_messages(desktop_violations)
+    stale = {key: count for key, count in NATIVE_MESSAGE_EXCEPTIONS.items()
+             if len(found.get(key, ())) != count}
+    assert not stale, f"Update NATIVE_MESSAGE_EXCEPTIONS to the remaining native boxes: {stale}"
+
+
 def test_native_input_dialogs_use_the_canonical_capture_components(desktop_violations):
     findings = [message for reason, message in desktop_violations if reason.startswith("native QInputDialog")]
     assert not findings, "Use FormDialog or the canonical numeric input dialogs:\n" + "\n".join(findings)
@@ -128,6 +174,10 @@ def test_native_input_dialogs_use_the_canonical_capture_components(desktop_viola
     "from PyQt5.QtWidgets import QInputDialog as Native\nclass Edit(Native): pass",
     "from PyQt5.QtWidgets import QInputDialog as Native\ndialog = Native()",
     "import PyQt5.QtWidgets as W\ndialog = W.QInputDialog()",
+    "from PyQt5.QtWidgets import QMessageBox\nmessage = QMessageBox()",
+    "from PyQt5.QtWidgets import QMessageBox as Box\nBox.warning(parent, title, text)",
+    "from PyQt5 import QtWidgets as W\nanswer = W.QMessageBox.question(parent, title, text)",
+    "from PyQt5.QtWidgets import QMessageBox\nclass Alert(QMessageBox): pass",
     "from PyQt5.QtWidgets import QInputDialog as Native\nvalue = Native.getText(parent, title, label)",
     "from frontend.desktop.components.dialogs import StandardDialog as Base\n"
     "from PyQt5.QtWidgets import QVBoxLayout as Layout\n"
@@ -155,8 +205,10 @@ def test_guard_detects_aliased_native_prompt_methods(method):
 @pytest.mark.parametrize("source", [
     "from PyQt5.QtWidgets import QDialog\naccepted = dialog.exec_() == QDialog.Accepted",
     "from PyQt5 import QtWidgets as W\nrejected = W.QDialog.Rejected",
-    "from PyQt5.QtWidgets import QFileDialog, QMessageBox\n"
-    "picker = QFileDialog()\nmessage = QMessageBox()",
+    "from PyQt5.QtWidgets import QFileDialog\npicker = QFileDialog()",
+    "from frontend.desktop.components.dialogs import MessageDialog\n"
+    "answer = MessageDialog.question(parent, title, text, MessageDialog.Yes | MessageDialog.No)",
+    "from PyQt5.QtWidgets import QMessageBox\nkind = isinstance(widget, QMessageBox)",
     "class Edit(StandardDialog):\n def setup(self):\n"
     "  root = self.content_layout()\n  footer = QWidget(self)\n"
     "  buttons = QHBoxLayout(footer)\n  self.add_footer_widget(footer)",

@@ -353,7 +353,7 @@ class TestStockPageInspectionActions:
         with patch("frontend.desktop.modules.inventory.pages.stock_page"
                    ".ConfirmationDialog.exec_", return_value=QDialog.Accepted), \
              patch("frontend.desktop.modules.inventory.pages.stock_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_approve_inspection()
 
         page.refresh()
@@ -382,7 +382,7 @@ class TestStockPageInspectionActions:
         with patch("frontend.desktop.modules.inventory.pages.stock_page"
                    ".BlockReasonDialog", return_value=dlg), \
              patch("frontend.desktop.modules.inventory.pages.stock_page"
-                   ".QMessageBox.information"):
+                   ".MessageDialog.information"):
             page._on_reject_inspection()
 
         page.refresh()
@@ -411,7 +411,7 @@ class TestStockPageInspectionActions:
         page._table.selectRow(0)
 
         with patch("frontend.desktop.modules.inventory.pages.stock_page"
-                   ".QMessageBox.information") as info, \
+                   ".MessageDialog.information") as info, \
              patch.object(pres, "inspect_stock") as inspect_stock:
             page._on_approve_inspection()
         info.assert_called_once()
@@ -432,7 +432,7 @@ class TestStockPageInspectionActions:
         page.refresh()
 
         with patch("frontend.desktop.modules.inventory.pages.stock_page"
-                   ".QMessageBox.information") as info, \
+                   ".MessageDialog.information") as info, \
              patch.object(pres, "inspect_stock") as inspect_stock:
             page._on_approve_inspection()
         info.assert_called_once()

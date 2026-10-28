@@ -8,12 +8,13 @@ non-cascaded "campaign card alongside the main table" shape
 (SET-13), rather than a selection cascade (a Route composes an existing
 Account + Template, it isn't a child of either).
 """
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_primary_button, create_secondary_button,
     create_state_widget, create_warning_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs import (
     NotificationAccountCreateDialog,
     NotificationAccountEditDialog,
@@ -81,7 +82,7 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
     def _selected_route_id(self) -> str | None:
         row_id = self.table.selected_row_id() if self.table is not None else None
         if not row_id:
-            QMessageBox.warning(self, "Notificaciones", "Selecciona una ruta primero.")
+            MessageDialog.warning(self, "Notificaciones", "Selecciona una ruta primero.")
         return row_id
 
     def _on_new_route(self) -> None:
@@ -93,10 +94,10 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["event_code"] or not values["template_id"] or not values["account_id"]:
-            QMessageBox.warning(self, "Notificaciones", "Evento, plantilla y cuenta son obligatorios.")
+            MessageDialog.warning(self, "Notificaciones", "Evento, plantilla y cuenta son obligatorios.")
             return
         ok, message = self._presenter.create_notification_route(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Notificaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Notificaciones", message)
         if ok:
             self.reload(self.search.text())
 
@@ -105,7 +106,7 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
         if not route_id:
             return
         ok, message = self._presenter.change_notification_route_status(route_id=route_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Notificaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Notificaciones", message)
         if ok:
             self.reload(self.search.text())
 
@@ -153,7 +154,7 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
     def _selected_account_id(self) -> str | None:
         row_id = self.accounts_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Notificaciones", "Selecciona una cuenta primero.")
+            MessageDialog.warning(self, "Notificaciones", "Selecciona una cuenta primero.")
         return row_id
 
     def _on_new_account(self) -> None:
@@ -162,10 +163,10 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["channel"] or not values["name"]:
-            QMessageBox.warning(self, "Notificaciones", "Canal y nombre son obligatorios.")
+            MessageDialog.warning(self, "Notificaciones", "Canal y nombre son obligatorios.")
             return
         ok, message = self._presenter.create_notification_account(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Notificaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Notificaciones", message)
         if ok:
             self._reload_accounts()
 
@@ -175,7 +176,7 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
             return
         account = self._accounts_by_id.get(account_id)
         if account is None:
-            QMessageBox.warning(self, "Notificaciones", "La cuenta ya no existe.")
+            MessageDialog.warning(self, "Notificaciones", "La cuenta ya no existe.")
             return
         dlg = NotificationAccountEditDialog(
             self, name=account.name, credential_reference=account.credential_reference)
@@ -183,10 +184,10 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["name"]:
-            QMessageBox.warning(self, "Notificaciones", "El nombre es obligatorio.")
+            MessageDialog.warning(self, "Notificaciones", "El nombre es obligatorio.")
             return
         ok, message = self._presenter.update_notification_account(account_id=account_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Notificaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Notificaciones", message)
         if ok:
             self._reload_accounts()
 
@@ -195,7 +196,7 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
         if not account_id:
             return
         ok, message = self._presenter.change_notification_account_status(account_id=account_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Notificaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Notificaciones", message)
         if ok:
             self._reload_accounts()
 
@@ -243,7 +244,7 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
     def _selected_template_id(self) -> str | None:
         row_id = self.templates_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Notificaciones", "Selecciona una plantilla primero.")
+            MessageDialog.warning(self, "Notificaciones", "Selecciona una plantilla primero.")
         return row_id
 
     def _on_new_template(self) -> None:
@@ -252,10 +253,10 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["code"] or not values["channel"] or not values["language"]:
-            QMessageBox.warning(self, "Notificaciones", "Código, canal e idioma son obligatorios.")
+            MessageDialog.warning(self, "Notificaciones", "Código, canal e idioma son obligatorios.")
             return
         ok, message = self._presenter.create_notification_template(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Notificaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Notificaciones", message)
         if ok:
             self._reload_templates()
 
@@ -265,13 +266,13 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
             return
         template = self._templates_by_id.get(template_id)
         if template is None:
-            QMessageBox.warning(self, "Notificaciones", "La plantilla ya no existe.")
+            MessageDialog.warning(self, "Notificaciones", "La plantilla ya no existe.")
             return
         dlg = NotificationTemplateEditDialog(self, parameter_names=template.parameter_names)
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message = self._presenter.update_notification_template(template_id=template_id, **dlg.values())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Notificaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Notificaciones", message)
         if ok:
             self._reload_templates()
 
@@ -280,7 +281,7 @@ class NotificacionesPage(ConfiguracionWorkspacePage):
         if not template_id:
             return
         ok, message = self._presenter.change_notification_template_status(template_id=template_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Notificaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Notificaciones", message)
         if ok:
             self._reload_templates()
 

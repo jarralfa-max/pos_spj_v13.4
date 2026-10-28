@@ -20,11 +20,12 @@ from __future__ import annotations
 import sqlite3
 
 import pytest
-from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtWidgets import QApplication
 
 from backend.application.transfers.permissions import TransferPermissions
 from backend.infrastructure.desktop.transfers_factory import create_transfers_view
 from backend.shared.ids import new_uuid
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.transfers.navigation.transfers_sidebar import TRANSFERS_NAV
 
 PAGE_IDS = [entry.page_id for entry in TRANSFERS_NAV]
@@ -108,11 +109,11 @@ def dialogos(monkeypatch):
     def _registrar(nivel):
         def _fn(_parent, titulo, texto, *a, **kw):
             capturados.append((nivel, titulo, texto))
-            return QMessageBox.Ok
+            return MessageDialog.Ok
         return _fn
 
     for nivel in ("warning", "critical", "information", "question"):
-        monkeypatch.setattr(QMessageBox, nivel, staticmethod(_registrar(nivel)))
+        monkeypatch.setattr(MessageDialog, nivel, staticmethod(_registrar(nivel)))
     return capturados
 
 

@@ -35,7 +35,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from PyQt5.QtWidgets import (
-    QComboBox, QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox, QWidget,
+    QComboBox, QGridLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,QWidget,
 )
 from frontend.desktop.components import (
     MoneyInput,
@@ -44,7 +44,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 
 METHOD_LABELS = {
     "CASH": "Efectivo",
@@ -307,7 +307,7 @@ class PaymentDialog(StandardDialog):
         result = self._presenter.void_payment(
             sale_id=self._sale_id, payment_id=payment_id, reason=dialog.reason)
         if not result.success:
-            QMessageBox.warning(self, "No se pudo anular el pago", result.message)
+            MessageDialog.warning(self, "No se pudo anular el pago", result.message)
             return
         self._list.takeItem(row)
         del self._lines[row]
@@ -317,7 +317,7 @@ class PaymentDialog(StandardDialog):
         self._on_method_changed()
         refund = result.data.get("refund") or {}
         if refund.get("text"):
-            QMessageBox.information(self, "Pago anulado", refund["text"])
+            MessageDialog.information(self, "Pago anulado", refund["text"])
 
     def reject(self) -> None:
         """Cerrar sin pagos registrados regresa la venta al carrito; con pagos,
@@ -336,7 +336,7 @@ class PaymentDialog(StandardDialog):
             checkout = self._presenter.begin_checkout(sale_id=self._sale_id)
             if not checkout.success:
                 self.public_state_changed.emit("FAILED")
-                QMessageBox.warning(self, "No se pudo iniciar el cobro", checkout.message)
+                MessageDialog.warning(self, "No se pudo iniciar el cobro", checkout.message)
                 self._btn_confirm.setEnabled(True)
                 return
             self._checkout_started = True
@@ -347,7 +347,7 @@ class PaymentDialog(StandardDialog):
                 sale_id=self._sale_id, method=method, amount=amount, reference=reference)
             if not result.success:
                 self.public_state_changed.emit("FAILED")
-                QMessageBox.warning(
+                MessageDialog.warning(
                     self, "Pago no registrado",
                     f"{result.message}\n\nLos pagos ya registrados quedan aplicados a la venta: "
                     "corrige el pago restante, quita uno registrado con «Quitar pago "
@@ -375,7 +375,7 @@ class PaymentDialog(StandardDialog):
                     reason=dialog.reason)
         if not result.success:
             self.public_state_changed.emit("FAILED")
-            QMessageBox.warning(self, "No se pudo finalizar la venta", result.message)
+            MessageDialog.warning(self, "No se pudo finalizar la venta", result.message)
             self._btn_confirm.setEnabled(True)
             return
 

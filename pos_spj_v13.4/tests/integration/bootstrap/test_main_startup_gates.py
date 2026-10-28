@@ -27,6 +27,8 @@ def app_module(monkeypatch):
 
     monkeypatch.setattr(app, "QApplication", Mock(return_value=Mock()))
     monkeypatch.setattr(app, "QMessageBox", Mock())
+    from frontend.desktop.components import dialogs
+    monkeypatch.setattr(dialogs, "MessageDialog", Mock())
     monkeypatch.setattr(app, "_install_crash_handler", lambda: None)
     monkeypatch.setattr(app, "_update_gate_allows_start", lambda: True)
     monkeypatch.setattr(app, "_acquire_instance_lock", lambda: True)
@@ -83,7 +85,9 @@ def test_failed_migration_exits_before_setup_or_login(app_module, monkeypatch):
 
     assert exit_result.value.code == 1
     coordinator.assert_not_called()
-    app_module.QMessageBox.critical.assert_called_once()
+    from frontend.desktop.components.dialogs import MessageDialog
+    MessageDialog.critical.assert_called_once()
+    app_module.QMessageBox.critical.assert_not_called()
 
 
 @pytest.mark.parametrize("outcome", ["cancel", "normal", "event_error", "services_error"])

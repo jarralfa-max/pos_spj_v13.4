@@ -9,7 +9,6 @@ from __future__ import annotations
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QMessageBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -30,6 +29,7 @@ from frontend.desktop.components import (
     create_success_button,
     create_danger_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.finance.suppliers.dialogs.supplier_dialogs import (
     SupplierBlockDialog,
@@ -162,7 +162,7 @@ class SupplierListPage(QWidget):
             self._page_label.setText(self._page_text())
             self._loaded = True
         except Exception as exc:  # surface, never swallow
-            QMessageBox.warning(self, "Proveedores", f"No fue posible cargar:\n{exc}")
+            MessageDialog.warning(self, "Proveedores", f"No fue posible cargar:\n{exc}")
 
     # filters / pagination ----------------------------------------------------
     def _on_filter_changed(self) -> None:
@@ -190,10 +190,10 @@ class SupplierListPage(QWidget):
 
     def _notify(self, ok: bool, message: str) -> None:
         if ok:
-            QMessageBox.information(self, "Proveedores", message)
+            MessageDialog.information(self, "Proveedores", message)
             self.reload()
         else:
-            QMessageBox.warning(self, "Proveedores", message)
+            MessageDialog.warning(self, "Proveedores", message)
 
     def _create(self) -> None:
         dialog = SupplierFormDialog(self)
@@ -202,10 +202,10 @@ class SupplierListPage(QWidget):
         ok, msg, data = self._presenter.create_supplier(**dialog.values())
         if not ok and data.get("duplicates"):
             reasons = "; ".join(r["reasons"][0] for r in data["duplicates"])
-            proceed = QMessageBox.question(
+            proceed = MessageDialog.question(
                 self, "Posible duplicado",
                 f"{msg}: {reasons}.\n¿Continuar con la autorización de todos modos?")
-            if proceed == QMessageBox.Yes:
+            if proceed == MessageDialog.Yes:
                 ok, msg, _ = self._presenter.create_supplier(
                     allow_duplicate=True, **dialog.values())
         self._notify(ok, msg)

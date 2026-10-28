@@ -7,11 +7,13 @@ dominio de liquidación, no en esta tabla).
 """
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QMessageBox, QTabWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
+from frontend.desktop.components.tabs import Tabs
 from frontend.desktop.components.tooltip import apply_tooltip
 from frontend.desktop.modules.cash_register.cash_register_dialogs import (
     CashAlertRecipientDialog,
@@ -57,7 +59,7 @@ class CashConfigurationPage(QWidget):
             self, title="Configuración de Caja",
             subtitle="Catálogos que Caja aplica al operar y a quién avisa cuando algo sale mal.",
             actions=[refresh_button, self._deactivate_button, self._add_button]))
-        self._tabs = QTabWidget(self)
+        self._tabs = Tabs(self)
         self._tabs.setObjectName("cashConfigurationTabs")
         for section, label in self.SECTIONS:
             table = StandardTable([
@@ -99,9 +101,9 @@ class CashConfigurationPage(QWidget):
                 result = self._presenter.configure_cash_catalog(
                     section=section, fields=dialog.result_fields())
         except Exception as exc:  # noqa: BLE001 - se muestra al usuario
-            QMessageBox.warning(self, "Caja", user_facing_error(exc))
+            MessageDialog.warning(self, "Caja", user_facing_error(exc))
             return
-        QMessageBox.information(self, "Caja", getattr(result, "message", "Configuracion guardada"))
+        MessageDialog.information(self, "Caja", getattr(result, "message", "Configuracion guardada"))
         self.refresh()
 
     def _request_deactivate(self) -> None:
@@ -110,7 +112,7 @@ class CashConfigurationPage(QWidget):
         if self._presenter is None or section not in self.EDITABLE:
             return
         if not row_id:
-            QMessageBox.information(self, "Caja", "Selecciona el registro que quieres dar de baja.")
+            MessageDialog.information(self, "Caja", "Selecciona el registro que quieres dar de baja.")
             return
         try:
             if section == "recipients":
@@ -119,9 +121,9 @@ class CashConfigurationPage(QWidget):
                 result = self._presenter.deactivate_cash_configuration(
                     section=section, row_id=row_id)
         except Exception as exc:  # noqa: BLE001 - se muestra al usuario
-            QMessageBox.warning(self, "Caja", user_facing_error(exc))
+            MessageDialog.warning(self, "Caja", user_facing_error(exc))
             return
-        QMessageBox.information(self, "Caja", getattr(result, "message", "Registro dado de baja"))
+        MessageDialog.information(self, "Caja", getattr(result, "message", "Registro dado de baja"))
         self.refresh()
 
     def refresh(self) -> None:

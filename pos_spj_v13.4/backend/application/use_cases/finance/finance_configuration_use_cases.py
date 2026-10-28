@@ -94,18 +94,19 @@ class UpdatePostingProfileUseCase:
 class ManageDimensionsUseCase:
     def create(self, connection, *, kind: str, code: str, name: str, operation_id: str,
                created_by: str, branch_id: str | None = None, parent_id: str | None = None,
-               is_capex: bool = False):
+               is_capex: bool = False, org_unit_id: str | None = None):
         with FinanceUnitOfWork(connection) as uow:
             if kind == "COST_CENTER":
                 if uow.cost_centers.get_by_code(code.strip().upper()) is not None:
                     raise FinanceDomainError(f"Ya existe el centro de costo {code}")
                 item = CostCenter.create(code.strip().upper(), name, parent_id=parent_id,
-                                         branch_id=branch_id)
+                                         branch_id=branch_id, org_unit_id=org_unit_id)
                 uow.cost_centers.save(item)
             elif kind == "PROFIT_CENTER":
                 if uow.profit_centers.get_by_code(code.strip().upper()) is not None:
                     raise FinanceDomainError(f"Ya existe el centro de utilidad {code}")
-                item = ProfitCenter.create(code.strip().upper(), name, branch_id=branch_id)
+                item = ProfitCenter.create(code.strip().upper(), name, branch_id=branch_id,
+                                           org_unit_id=org_unit_id)
                 uow.profit_centers.save(item)
             elif kind == "PROJECT":
                 if uow.dimensions.get_project_by_code(code.strip().upper()) is not None:
@@ -121,7 +122,9 @@ class ManageDimensionsUseCase:
                 raise FinanceDomainError(f"Dimensión desconocida: {kind}")
             uow.audit(AuditAction.SETTINGS_UPDATED, entity_type=kind.lower(), entity_id=item.id,
                       operation_id=operation_id, user_id=created_by,
-                      after={"code": item.code, "name": item.name}, branch_id=branch_id)
+                      after={"code": item.code, "name": item.name,
+                             "org_unit_id": getattr(item, "org_unit_id", None)},
+                      branch_id=branch_id)
             return item
 
 

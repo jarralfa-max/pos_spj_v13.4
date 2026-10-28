@@ -209,13 +209,13 @@ def test_products_view_has_the_new_sections_and_fits_the_shell(conn, qapp):
 
 def test_catalog_actions_without_selection_explain_instead_of_doing_nothing(
         conn, qapp, monkeypatch):
-    from PyQt5.QtWidgets import QMessageBox
+    from frontend.desktop.components.dialogs import MessageDialog
 
     from frontend.desktop.modules.products.pages.product_catalog_page import (
         ProductCatalogPage,
     )
     shown = []
-    monkeypatch.setattr(QMessageBox, "information",
+    monkeypatch.setattr(MessageDialog, "information",
                         lambda *a, **k: shown.append(a[2]))
     page = ProductCatalogPage(_presenter(conn))
     page.table.clearSelection()

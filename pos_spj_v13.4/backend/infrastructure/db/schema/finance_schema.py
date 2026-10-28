@@ -469,7 +469,8 @@ CREATE TABLE IF NOT EXISTS cost_centers (
     parent_id TEXT REFERENCES cost_centers(id),
     branch_id TEXT,
     active INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    org_unit_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS profit_centers (
@@ -478,7 +479,8 @@ CREATE TABLE IF NOT EXISTS profit_centers (
     name TEXT NOT NULL,
     branch_id TEXT,
     active INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    org_unit_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS projects (
@@ -981,6 +983,17 @@ def drop_legacy_finance_tables(conn) -> list[str]:
     return dropped
 
 
+#: Columnas que una migración POSTERIOR a la 345 agrega con ``ALTER`` (nulas,
+#: aditivas). Están en el DDL para que una base nueva nazca con ellas, pero no
+#: forman parte del contrato que verifica la 345: si contaran, una base anterior
+#: a la 345 con datos en esas tablas se detendría ahí por una columna que la
+#: migración siguiente agrega sola.
+POST_CONTRACT_COLUMNS: dict[str, frozenset[str]] = {
+    "cost_centers": frozenset({"org_unit_id"}),     # 351
+    "profit_centers": frozenset({"org_unit_id"}),   # 351
+}
+
+
 def finance_schema_differences(conn) -> dict[str, list[str]]:
     """Columnas del contrato que faltan en la base, por tabla (``"*"`` = tabla ausente)."""
     differences: dict[str, list[str]] = {}
@@ -989,7 +1002,7 @@ def finance_schema_differences(conn) -> dict[str, list[str]]:
         if not actual:
             differences[table] = ["*"]
             continue
-        missing = sorted(expected - actual)
+        missing = sorted(expected - actual - POST_CONTRACT_COLUMNS.get(table, frozenset()))
         if missing:
             differences[table] = missing
     return differences

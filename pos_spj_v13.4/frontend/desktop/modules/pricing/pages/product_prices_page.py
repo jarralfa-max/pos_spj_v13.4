@@ -11,7 +11,7 @@ lista— y abre el precio ya sobre la copia en borrador.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from backend.application.pricing.permissions import PricingPermissions
 from frontend.desktop.components import (
@@ -22,6 +22,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.pricing.dialogs import (
     BulkPriceDialog,
@@ -93,15 +94,15 @@ class ProductPricesPage(QWidget):
 
     def _notify(self, ok: bool, message: str) -> None:
         if ok:
-            QMessageBox.information(self, "Precios", message)
+            MessageDialog.information(self, "Precios", message)
             self.refresh()
         else:
-            QMessageBox.warning(self, "Precios", message)
+            MessageDialog.warning(self, "Precios", message)
 
     def _ask(self, message: str) -> bool:
-        respuesta = QMessageBox.question(
-            self, "Precios", message, QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
-        return respuesta == QMessageBox.Yes
+        respuesta = MessageDialog.question(
+            self, "Precios", message, MessageDialog.Yes | MessageDialog.No, MessageDialog.Yes)
+        return respuesta == MessageDialog.Yes
 
     def _price_dialog(self, *, initial=None):
         """El diálogo de precio con las listas editables RECIÉN leídas (una
@@ -132,7 +133,7 @@ class ProductPricesPage(QWidget):
         if not ok:
             self._notify(False, msg)
             return None
-        QMessageBox.information(self, "Precios", msg)
+        MessageDialog.information(self, "Precios", msg)
         self.refresh()
         return datos.get("entity_id")
 

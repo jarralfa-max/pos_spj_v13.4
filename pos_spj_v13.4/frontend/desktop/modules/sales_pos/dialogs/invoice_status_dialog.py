@@ -10,7 +10,7 @@ resultado: el UUID del timbre o el error. Tras un error se puede pedir de nuevo.
 from __future__ import annotations
 
 from PyQt5.QtWidgets import (
-    QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QMessageBox, QWidget,
+    QHBoxLayout, QLabel, QListWidget, QListWidgetItem,QWidget,
 )
 
 from frontend.desktop.components import (
@@ -18,6 +18,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 
 STATUS_LABELS = {"REQUESTED": "Solicitada", "ISSUED": "Timbrada", "ERROR": "Con error"}
 
@@ -102,7 +103,7 @@ class InvoiceStatusDialog(StandardDialog):
 
     def _apply(self, result) -> None:
         if not result.success:
-            QMessageBox.warning(self, "No se registró", result.message)
+            MessageDialog.warning(self, "No se registró", result.message)
             return
         self._sale = result.data.get("sale") or self._sale
         self.changed = True

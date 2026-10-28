@@ -6,8 +6,9 @@ from pathlib import Path
 import pytest
 from PyQt5.QtCore import QPoint, QRect, QSettings, Qt, QTimer
 from PyQt5.QtTest import QTest
-from PyQt5.QtWidgets import QLabel, QMessageBox
+from PyQt5.QtWidgets import QLabel
 
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.shell.application_shell.top_bar import TopBar
 from frontend.desktop.shell.application_shell.application_window import ApplicationWindow
 from frontend.desktop.shell.router.desktop_router import DesktopRouter
@@ -72,7 +73,7 @@ def test_profile_uses_current_context_and_plain_text(monkeypatch):
     assert len(seen) == 1
 
 
-@pytest.mark.parametrize("answer,expected", [(QMessageBox.Yes, ["logout"]), (QMessageBox.No, [])])
+@pytest.mark.parametrize("answer,expected", [(MessageDialog.Yes, ["logout"]), (MessageDialog.No, [])])
 def test_logout_from_user_menu_confirms_without_closing_window(monkeypatch, answer, expected):
     window = _window()
     window.show()
@@ -80,10 +81,10 @@ def test_logout_from_user_menu_confirms_without_closing_window(monkeypatch, answ
     window.logout_requested.connect(lambda: calls.append("logout"))
 
     def confirm(*args):
-        assert args[-1] == QMessageBox.No
+        assert args[-1] == MessageDialog.No
         return answer
 
-    monkeypatch.setattr(QMessageBox, "question", confirm)
+    monkeypatch.setattr(MessageDialog, "question", confirm)
     action = next(action for action in window.top_bar.user_menu.actions() if action.text() == "Cerrar sesión")
     action.trigger()
     assert calls == expected

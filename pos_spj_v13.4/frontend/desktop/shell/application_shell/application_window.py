@@ -38,10 +38,11 @@ would drive `DesktopRouter` directly.
 from __future__ import annotations
 
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from backend.bootstrap.application_context import ApplicationContext
 from backend.bootstrap.permission_evaluator import PermissionEvaluator
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.standard_window import StandardWindow
 from frontend.desktop.components.side_nav import SideNav
 from frontend.desktop.shell.application_shell.content_host import ContentHost
@@ -183,7 +184,7 @@ class ApplicationWindow(StandardWindow):
         try:
             self.navigate("configuracion.workspace")
         except NavigationDeniedError:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Configuración no disponible",
                 "No se puede abrir Configuración con los permisos y la conexión actuales.",
             )
@@ -198,11 +199,11 @@ class ApplicationWindow(StandardWindow):
             dialog.deleteLater()
 
     def _confirm_logout(self) -> None:
-        result = QMessageBox.question(
+        result = MessageDialog.question(
             self, "Cerrar sesión", "¿Desea cerrar la sesión actual? Guarde los cambios pendientes antes de continuar.",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+            MessageDialog.Yes | MessageDialog.No, MessageDialog.No,
         )
-        if result == QMessageBox.Yes:
+        if result == MessageDialog.Yes:
             self.logout_requested.emit()
 
     def _build_error_result(self, route: RouteDefinition, error: BaseException) -> NavigationResult:

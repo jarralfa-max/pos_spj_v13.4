@@ -9,9 +9,10 @@ Ahora explica, ofrece duplicar y abre el precio ya sobre la copia en borrador.
 from __future__ import annotations
 
 import pytest
-from PyQt5.QtWidgets import QApplication, QMessageBox
+from PyQt5.QtWidgets import QApplication
 
 from backend.application.pricing.permissions import PricingPermissions
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.pricing.dialogs.pricing_dialogs import (
     BulkPriceDialog,
     DuplicatePriceListDialog,
@@ -91,9 +92,9 @@ def mensajes(monkeypatch):
             return respuesta
         return _fn
 
-    monkeypatch.setattr(QMessageBox, "warning", _registrar("warning"))
-    monkeypatch.setattr(QMessageBox, "information", _registrar("information"))
-    monkeypatch.setattr(QMessageBox, "question", _registrar("question", QMessageBox.No))
+    monkeypatch.setattr(MessageDialog, "warning", _registrar("warning"))
+    monkeypatch.setattr(MessageDialog, "information", _registrar("information"))
+    monkeypatch.setattr(MessageDialog, "question", _registrar("question", MessageDialog.No))
     return vistos
 
 
@@ -128,8 +129,8 @@ def test_editar_precio_de_lista_activa_ofrece_duplicar_y_abre_la_copia(
                           resumen={"l-act": {"status_recognized": True}})
     page = pagina_mod.ProductPricesPage(p)
     monkeypatch.setattr(page.table, "selected_row_id", lambda: "pp-1")
-    monkeypatch.setattr(QMessageBox, "question",
-                        lambda *a, **k: mensajes["question"].append(a[2]) or QMessageBox.Yes)
+    monkeypatch.setattr(MessageDialog, "question",
+                        lambda *a, **k: mensajes["question"].append(a[2]) or MessageDialog.Yes)
     abiertos = []
     monkeypatch.setattr(pagina_mod.DuplicatePriceListDialog, "exec_", lambda self: True)
 

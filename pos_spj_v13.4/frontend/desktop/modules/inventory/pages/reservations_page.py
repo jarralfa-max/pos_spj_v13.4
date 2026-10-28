@@ -13,7 +13,7 @@ SQL, no business logic.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -22,7 +22,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import ConfirmationDialog
+from frontend.desktop.components.dialogs import ConfirmationDialog, MessageDialog
 from frontend.desktop.components.entity_search_input import EntitySearchInput
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.modules.inventory.dialogs import (
@@ -92,14 +92,14 @@ class ReservationsPage(QWidget):
     def _selected_reservation_id(self) -> str | None:
         rid = self._table.selected_row_id()
         if not rid:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Reservas", "Selecciona una reserva de la lista.")
             return None
         return rid
 
     def _on_create(self) -> None:
         if not self._product_id:
-            QMessageBox.information(self, "Reservas", "Selecciona un producto primero.")
+            MessageDialog.information(self, "Reservas", "Selecciona un producto primero.")
             return
         dlg = CreateReservationDialog(
             self, warehouse_options=self._presenter.warehouse_options(),
@@ -108,14 +108,14 @@ class ReservationsPage(QWidget):
             return
         quantity = dlg.quantity()
         if not quantity:
-            QMessageBox.warning(self, "Reservas", "Captura una cantidad mayor a cero.")
+            MessageDialog.warning(self, "Reservas", "Captura una cantidad mayor a cero.")
             return
         ok, message, _ = self._presenter.create_reservation(
             product_id=self._product_id, source=dlg.source_code(),
             source_document_id=dlg.source_document_id(), quantity=quantity,
             weight=dlg.weight(), warehouse_id=dlg.warehouse_id(),
             location_id=dlg.location_id(), expires_at=dlg.expires_at())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Reservas", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Reservas", message)
         if ok:
             self.refresh()
 
@@ -130,7 +130,7 @@ class ReservationsPage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message, _ = self._presenter.allocate_reservation(reservation_id=rid)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Reservas", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Reservas", message)
         if ok:
             self.refresh()
 
@@ -143,6 +143,6 @@ class ReservationsPage(QWidget):
             return
         ok, message, _ = self._presenter.release_reservation(
             reservation_id=rid, reason=dlg.reason())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Reservas", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Reservas", message)
         if ok:
             self.refresh()

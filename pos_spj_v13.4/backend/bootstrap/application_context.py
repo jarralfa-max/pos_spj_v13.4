@@ -25,6 +25,10 @@ import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from backend.domain.organization.site_capabilities import (
+    blocked_permission_families,
+    module_allowed,
+)
 from backend.domain.software_distribution.install_profile import EnabledCapabilities
 from backend.security.permissions.principals import FULL_ACCESS_ROLE_NAMES
 
@@ -97,6 +101,10 @@ class ApplicationContext:
     #: módulo no instalado se oculta, el router lo rechaza y sus familias de
     #: permisos se niegan incluso al administrador.
     capabilities: EnabledCapabilities = field(default_factory=EnabledCapabilities.everything)
+    #: Capacidades del SITIO de la sesión (estructura organizacional, auditoría
+    #: enterprise Fase 2): en una planta sin POS no hay punto de venta. `None` =
+    #: sitio no gobernado (base sin estructura organizacional): no restringe.
+    site_capabilities: frozenset[str] | None = None
     locale: str = DEFAULT_LOCALE
     timezone: str = DEFAULT_TIMEZONE
     currency: str = DEFAULT_CURRENCY
@@ -106,18 +114,31 @@ class ApplicationContext:
     def is_admin(self) -> bool:
         return any(role.lower() in _ADMIN_ROLES for role in self.roles)
 
+    def site_allows_module(self, module_id: str) -> bool:
+        return module_allowed(module_id, self.site_capabilities)
+
+    def site_blocks_permission(self, normalized_code: str) -> bool:
+        """La familia del permiso es exclusiva de un módulo que este sitio no
+        tiene (p. ej. `PRODUCCION.*` en una sucursal sin producción)."""
+        code = str(normalized_code or "").strip().upper()
+        return "." in code and code.split(".", 1)[0] in blocked_permission_families(
+            self.site_capabilities)
+
     def with_branch(
         self, *, branch_id: str, branch_name: str, permissions: frozenset[str],
-        feature_context: FeatureContext,
+        feature_context: FeatureContext, roles: tuple[str, ...] | None = None,
+        site_capabilities: frozenset[str] | None = None,
     ) -> "ApplicationContext":
         """Used only by `ApplicationContextService.change_branch()` — every
-        other field carries over unchanged; permissions and feature flags
-        are branch-scoped so they're replaced, not merged."""
+        other field carries over unchanged; permissions, feature flags, the roles
+        valid at the branch and its site capabilities are branch-scoped so they're
+        replaced, not merged."""
         return ApplicationContext(
             installation_id=self.installation_id, company_id=self.company_id,
             branch_id=branch_id, branch_name=branch_name,
             workstation_id=self.workstation_id, workstation_type=self.workstation_type,
-            user_id=self.user_id, user_name=self.user_name, roles=self.roles,
+            user_id=self.user_id, user_name=self.user_name,
+            roles=self.roles if roles is None else tuple(roles),
             permissions=permissions, feature_context=feature_context,
             session_id=self.session_id,
             # Se propaga explícitamente: este método reconstruye el contexto
@@ -126,6 +147,7 @@ class ApplicationContext:
             # donde el alcance más importa.
             assigned_branch_ids=self.assigned_branch_ids,
             capabilities=self.capabilities,
+            site_capabilities=site_capabilities,
             locale=self.locale, timezone=self.timezone,
             currency=self.currency, offline_status=self.offline_status,
             created_at=self.created_at,

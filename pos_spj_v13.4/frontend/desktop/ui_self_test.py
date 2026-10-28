@@ -93,11 +93,13 @@ def _start_modal_dismisser(app, report: dict):
     from PyQt5.QtCore import QTimer
     from PyQt5.QtWidgets import QDialog, QMessageBox
 
+    from frontend.desktop.components.dialogs import MessageDialog
+
     def _sweep() -> None:
         widget = app.activeModalWidget()
         if widget is None or _PROGRESS["step"] == "ventana de login":
             return  # the login window is modal itself and is closed by the test
-        text = widget.text() if isinstance(widget, QMessageBox) else ""
+        text = widget.text() if isinstance(widget, (QMessageBox, MessageDialog)) else ""
         report["dialogs"].append(
             f"{_PROGRESS['step']}: «{widget.windowTitle()}» {text}".strip()[:300])
         if isinstance(widget, QDialog):

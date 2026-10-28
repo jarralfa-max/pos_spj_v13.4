@@ -581,7 +581,9 @@ class _Clock:
 
 def test_an_open_session_loses_a_revoked_permission(conn):
     _grant_role(conn, CAJERO, "POS.ver")
-    owner, cajero = _user(conn, "system_owner"), _user(conn, "cajero")
+    # La sesión opera «b1»: el cajero tiene que ser de esa sucursal. Desde la
+    # Fase 2 de la auditoría enterprise un rol sólo vale donde su ámbito llega.
+    owner, cajero = _user(conn, "system_owner"), _user(conn, "cajero", branch="b1")
     reloj = _Clock()
     sesion = _adapter(conn, cajero, ("cajero",), SessionGrantRefresher(conn, clock=reloj))
     assert sesion.tiene_permiso("POS.ver")

@@ -60,15 +60,15 @@ def test_data_table_with_filters_hides_non_matching_rows():
 def test_confirm_action_returns_bool_with_mocked_exec(monkeypatch):
     _app()
     QtWidgets = pytest.importorskip("PyQt5.QtWidgets", exc_type=ImportError)
-    QMessageBox = QtWidgets.QMessageBox
+    MessageDialog = QtWidgets.MessageDialog
     from modulos.ui_components import confirm_action
 
-    monkeypatch.setattr(QMessageBox, "exec_", lambda self: QMessageBox.Yes)
+    monkeypatch.setattr(MessageDialog, "exec_", lambda self: MessageDialog.Yes)
     result_yes = confirm_action(None, "t", "m")
     assert isinstance(result_yes, bool)
     assert result_yes is True
 
-    monkeypatch.setattr(QMessageBox, "exec_", lambda self: QMessageBox.No)
+    monkeypatch.setattr(MessageDialog, "exec_", lambda self: MessageDialog.No)
     result_no = confirm_action(None, "t", "m")
     assert isinstance(result_no, bool)
     assert result_no is False

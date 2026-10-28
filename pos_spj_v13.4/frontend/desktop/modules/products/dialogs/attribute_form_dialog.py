@@ -6,7 +6,7 @@ El tipo de dato sólo se elige al crear (inmutable después). Delega en el prese
 
 from __future__ import annotations
 
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 from frontend.desktop.modules.products.dialogs.auto_code import (
     AutoCodeBinder,
     catalog_suggester,
@@ -19,7 +19,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPushButton,
     QSpinBox,
 )
@@ -99,7 +98,7 @@ class AttributeFormDialog(StandardDialog):
             self.accept()
         else:
             self._error.setText(message)
-            QMessageBox.warning(self, "No se pudo guardar", message)
+            MessageDialog.warning(self, "No se pudo guardar", message)
 
 
 class _OptionEditor(StandardDialog):
@@ -157,7 +156,7 @@ class _OptionEditor(StandardDialog):
             self.accept()
         else:
             self._error.setText(message)
-            QMessageBox.warning(self, "No se pudo guardar", message)
+            MessageDialog.warning(self, "No se pudo guardar", message)
 
 
 class AttributeOptionsDialog(StandardDialog):

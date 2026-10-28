@@ -1,8 +1,9 @@
 """LOSS-5 form. Business rules and persistence remain behind the presenter."""
 from decimal import Decimal
-from PyQt5.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QComboBox, QFormLayout, QHBoxLayout, QLabel, QLineEdit, QPlainTextEdit, QVBoxLayout, QWidget
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
 from frontend.desktop.components.decimal_input import DecimalInput
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.file_path_input import FilePathInput
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.product_search_box import ProductSearchBox
@@ -45,10 +46,10 @@ class LossRegistrationPage(QWidget):
     def _save(self, submit):
         reason = self.reason.currentData(); quantity = self.quantity.decimal_value() or Decimal("0"); weight = self.weight.decimal_value() or Decimal("0")
         if not self._product_id or not self.classification.currentData() or not reason:
-            QMessageBox.warning(self,"Datos incompletos","Selecciona producto, clasificación y causa."); return
+            MessageDialog.warning(self,"Datos incompletos","Selecciona producto, clasificación y causa."); return
         try:
             result = self._presenter.register(warehouse_id=self._warehouse_id, classification_id=self.classification.currentData(), reason_id=reason[0], origin=self.origin.currentData(), product_id=self._product_id, lot_id=self._lot_id, quantity=quantity, weight=weight, unit=self.unit.text().strip(), evidence_path=self.evidence.path(), notes=self.notes.toPlainText(), submit=submit)
         except Exception as exc:
-            QMessageBox.critical(self,"No fue posible registrar",str(exc)); return
+            MessageDialog.critical(self,"No fue posible registrar",str(exc)); return
         self.status.setText(f"Expediente {result.case_id} · {result.status.value}")
-        QMessageBox.information(self,"Registro guardado","La pérdida se registró correctamente.")
+        MessageDialog.information(self,"Registro guardado","La pérdida se registró correctamente.")

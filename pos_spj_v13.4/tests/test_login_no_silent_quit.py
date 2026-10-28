@@ -92,7 +92,8 @@ def window(qapp, tmp_path):
 def test_cancelar_login_cierra_limpio_sin_dialogo_extra(qapp, window, monkeypatch):
     """Cerrar el login sin autenticar (Escape/✕) cierra la app de forma limpia
     y explícita (app.quit), SIN un diálogo de confirmación adicional."""
-    from PyQt5.QtWidgets import QDialog, QMessageBox
+    from PyQt5.QtWidgets import QDialog
+    from frontend.desktop.components.dialogs import MessageDialog
     from interfaz import main_window as mw
 
     monkeypatch.setattr(mw.DialogoLogin, "exec_", lambda self: QDialog.Rejected)
@@ -100,7 +101,7 @@ def test_cancelar_login_cierra_limpio_sin_dialogo_extra(qapp, window, monkeypatc
     # No debe aparecer ningún QMessageBox de confirmación.
     def _no_popup(*a, **k):
         pytest.fail("no debe mostrarse ningún diálogo extra al cancelar el login")
-    monkeypatch.setattr(QMessageBox, "question", staticmethod(_no_popup))
+    monkeypatch.setattr(MessageDialog, "question", staticmethod(_no_popup))
 
     quits = {"n": 0}
     monkeypatch.setattr(qapp, "quit", lambda: quits.__setitem__("n", quits["n"] + 1))

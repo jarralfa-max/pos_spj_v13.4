@@ -140,7 +140,7 @@ def test_transfer_requests_page_wires_create_button_to_the_dialog_and_presenter(
     presenter = Presenter()
     page = page_module.TransferRequestsPage(presenter)
     monkeypatch.setattr(page_module, "TransferRequestDialog", FakeDialog)
-    monkeypatch.setattr(page_module, "QMessageBox", FakeMessageBox)
+    monkeypatch.setattr(page_module, "MessageDialog", FakeMessageBox)
     page._on_create()
     assert presenter.reload_calls == 1
     assert presenter.create_calls == [{

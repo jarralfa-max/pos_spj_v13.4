@@ -9,7 +9,7 @@ use cases (validan que la suma caiga dentro de la tolerancia de 100 %).
 
 from __future__ import annotations
 
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 
 from decimal import Decimal, InvalidOperation
 
@@ -20,7 +20,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPushButton,
 )
 
@@ -223,7 +222,7 @@ class YieldProfileFormDialog(StandardDialog):
             self.accept()
         else:
             self._error.setText(message)
-            QMessageBox.warning(self, "No se pudo guardar", message)
+            MessageDialog.warning(self, "No se pudo guardar", message)
 
 
 class _OutputEditor(StandardDialog):

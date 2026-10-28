@@ -6,12 +6,13 @@ Instances/Credentials/Health/Webhooks pillars. Main table lists
 shape `documentos_page.py` established for Templates→Versions, just
 with 2 secondary cards driven by the same selection instead of 1.
 """
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QMessageBox, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QLabel, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
     create_secondary_button, create_state_widget, create_warning_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs import (
     IntegrationDefinitionCreateDialog,
     IntegrationDefinitionEditDialog,
@@ -181,13 +182,13 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
 
     def _selected_definition(self):
         if not self._selected_definition_id:
-            QMessageBox.warning(self, "Integraciones", "Selecciona una definición primero.")
+            MessageDialog.warning(self, "Integraciones", "Selecciona una definición primero.")
             return None
         return self._selected_definition_id
 
     def _selected_instance(self):
         if not self._selected_instance_id:
-            QMessageBox.warning(self, "Integraciones", "Selecciona una instancia primero.")
+            MessageDialog.warning(self, "Integraciones", "Selecciona una instancia primero.")
             return None
         return self._selected_instance_id
 
@@ -199,11 +200,11 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["name"]:
-            QMessageBox.warning(self, "Integraciones", "El nombre es obligatorio.")
+            MessageDialog.warning(self, "Integraciones", "El nombre es obligatorio.")
             return
         ok, message = self._presenter.create_integration_instance(
             definition_id=self._selected_definition_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Integraciones", message)
         if ok:
             self._reload_instances()
 
@@ -213,17 +214,17 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
             return
         instance = self._instances_by_id.get(instance_id)
         if instance is None:
-            QMessageBox.warning(self, "Integraciones", "La instancia ya no existe.")
+            MessageDialog.warning(self, "Integraciones", "La instancia ya no existe.")
             return
         dlg = IntegrationInstanceEditDialog(self, name=instance.name, config=instance.config)
         if dlg.exec_() != QDialog.Accepted:
             return
         values = dlg.values()
         if not values["name"]:
-            QMessageBox.warning(self, "Integraciones", "El nombre es obligatorio.")
+            MessageDialog.warning(self, "Integraciones", "El nombre es obligatorio.")
             return
         ok, message = self._presenter.update_integration_instance(instance_id=instance_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Integraciones", message)
         if ok:
             self._reload_instances()
 
@@ -232,7 +233,7 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
         if not instance_id:
             return
         ok, message = self._presenter.change_integration_instance_status(instance_id=instance_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Integraciones", message)
         if ok:
             self._reload_instances()
 
@@ -242,7 +243,7 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
             return
         row_id = self.credentials_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Integraciones", "Selecciona una credencial primero.")
+            MessageDialog.warning(self, "Integraciones", "Selecciona una credencial primero.")
             return
         instance = self._instances_by_id.get(instance_id)
         existing_reference = instance.credential_references.get(row_id) if instance else ""
@@ -250,7 +251,7 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message = self._presenter.set_integration_instance_credential(instance_id=instance_id, **dlg.values())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Integraciones", message)
         if ok:
             self._reload_credentials()
 
@@ -304,20 +305,20 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["code"] or not values["path"]:
-            QMessageBox.warning(self, "Integraciones", "Código y ruta son obligatorios.")
+            MessageDialog.warning(self, "Integraciones", "Código y ruta son obligatorios.")
             return
         ok, message = self._presenter.create_webhook_endpoint(instance_id=instance_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Integraciones", message)
         if ok:
             self._reload_webhooks()
 
     def _on_change_webhook_status(self, action: str) -> None:
         endpoint_id = self.webhooks_table.selected_row_id()
         if not endpoint_id:
-            QMessageBox.warning(self, "Integraciones", "Selecciona un webhook primero.")
+            MessageDialog.warning(self, "Integraciones", "Selecciona un webhook primero.")
             return
         ok, message = self._presenter.change_webhook_endpoint_status(endpoint_id=endpoint_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Integraciones", message)
         if ok:
             self._reload_webhooks()
 
@@ -368,7 +369,7 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
         if not instance_id:
             return
         ok, message = self._presenter.test_integration_connection(instance_id)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Integraciones", message)
         self._reload_health()
 
     def _on_record_health_check(self) -> None:
@@ -379,7 +380,7 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message = self._presenter.record_integration_health_check(instance_id=instance_id, **dlg.values())
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Integraciones", message)
         if ok:
             self._reload_health()
 
@@ -391,10 +392,10 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["code"] or not values["name"] or not values["category"]:
-            QMessageBox.warning(self, "Integraciones", "Código, nombre y categoría son obligatorios.")
+            MessageDialog.warning(self, "Integraciones", "Código, nombre y categoría son obligatorios.")
             return
         ok, message = self._presenter.create_integration_definition(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Integraciones", message)
         if ok:
             self.reload(self.search.text())
 
@@ -405,7 +406,7 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
         definitions = {d.entity_id: d for d in self._presenter.list_integration_definitions()}
         definition = definitions.get(definition_id)
         if definition is None:
-            QMessageBox.warning(self, "Integraciones", "La definición ya no existe.")
+            MessageDialog.warning(self, "Integraciones", "La definición ya no existe.")
             return
         dlg = IntegrationDefinitionEditDialog(
             self, name=definition.name, required_credential_names=definition.required_credential_names)
@@ -413,10 +414,10 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["name"]:
-            QMessageBox.warning(self, "Integraciones", "El nombre es obligatorio.")
+            MessageDialog.warning(self, "Integraciones", "El nombre es obligatorio.")
             return
         ok, message = self._presenter.update_integration_definition(definition_id=definition_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Integraciones", message)
         if ok:
             self.reload(self.search.text())
 
@@ -426,7 +427,7 @@ class IntegracionesPage(ConfiguracionWorkspacePage):
             return
         ok, message = self._presenter.change_integration_definition_status(
             definition_id=definition_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Integraciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Integraciones", message)
         if ok:
             self.reload(self.search.text())
 

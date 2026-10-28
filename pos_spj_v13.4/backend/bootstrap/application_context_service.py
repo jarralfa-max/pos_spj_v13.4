@@ -54,6 +54,10 @@ BranchResolver = Callable[[str], Optional[BranchLookupResult]]
 PermissionsLoader = Callable[[str, str], frozenset]
 FeatureFlagsLoader = Callable[[str], dict]
 OpenOperationsChecker = Callable[[], bool]
+#: (user_id, branch_id) → ¿algún rol del usuario cubre esa sucursal? (Fase 2)
+SiteAccessChecker = Callable[[str, str], bool]
+RolesLoader = Callable[[str, str], tuple]
+SiteCapabilitiesLoader = Callable[[str], Optional[frozenset]]
 
 
 class ApplicationContextService:
@@ -65,12 +69,18 @@ class ApplicationContextService:
         feature_flags_loader: FeatureFlagsLoader,
         open_operations_checker: Optional[OpenOperationsChecker] = None,
         audit_sink: Optional[AuditSink] = None,
+        site_access_checker: Optional[SiteAccessChecker] = None,
+        roles_loader: Optional[RolesLoader] = None,
+        site_capabilities_loader: Optional[SiteCapabilitiesLoader] = None,
     ) -> None:
         self._resolve_branch = branch_resolver
         self._load_permissions = permissions_loader
         self._load_feature_flags = feature_flags_loader
         self._has_open_operations = open_operations_checker or (lambda: False)
         self._audit = audit_sink or (lambda event, payload: None)
+        self._covers = site_access_checker
+        self._load_roles = roles_loader
+        self._load_site_capabilities = site_capabilities_loader
 
     def change_branch(
         self, context: ApplicationContext, *, new_branch_id: str, now: datetime | None = None,
@@ -94,12 +104,20 @@ class ApplicationContextService:
         branch = self._resolve_branch(new_branch_id)
         if branch is None:
             raise BranchNotFoundError(f"La sucursal '{new_branch_id}' no existe o no está activa.")
+        # Auditoría enterprise, Fase 2: el permiso de cambiar de sucursal no basta;
+        # algún rol del usuario tiene que valer en la sucursal destino.
+        if self._covers is not None and not self._covers(context.user_id, branch.id):
+            raise ContextSwitchNotAllowedError(
+                f"Su usuario no tiene ningún rol en «{branch.name}».")
 
         new_permissions = self._load_permissions(context.user_id, branch.id)
         new_feature_context = FeatureContext.from_flags_dict(self._load_feature_flags(branch.id))
         new_context = context.with_branch(
             branch_id=branch.id, branch_name=branch.name,
             permissions=frozenset(new_permissions), feature_context=new_feature_context,
+            roles=self._load_roles(context.user_id, branch.id) if self._load_roles else None,
+            site_capabilities=(self._load_site_capabilities(branch.id)
+                               if self._load_site_capabilities else None),
         )
 
         self._audit(APPLICATION_CONTEXT_CHANGED, {"user_id": context.user_id, "branch_id": new_context.branch_id})

@@ -7,9 +7,9 @@ import pytest
 from PyQt5 import sip
 from PyQt5.QtCore import QEvent, QPoint, QRect, Qt
 from PyQt5.QtTest import QSignalSpy, QTest
-from PyQt5.QtWidgets import QDialog, QDialogButtonBox, QLineEdit, QMessageBox
+from PyQt5.QtWidgets import QDialog, QDialogButtonBox, QLineEdit
 
-from frontend.desktop.components.dialogs import StandardDialog
+from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 from frontend.desktop.modules.finance.dialogs.bank_transfer_dialog import BankTransferDialog
 from frontend.desktop.modules.hr.dialogs.hr_dialogs import EmployeeDialog
 from frontend.desktop.themes.theme_manager import ThemeManager
@@ -64,7 +64,7 @@ def _capture(dialog, kind, theme, density, position):
 def test_real_form_validates_before_accepting(qt_font_resources, monkeypatch, kind, activation):
     app = qt_font_resources
     warnings = []
-    monkeypatch.setattr(QMessageBox, "warning", lambda *_args: warnings.append(_args))
+    monkeypatch.setattr(MessageDialog, "warning", lambda *_args: warnings.append(_args))
     dialog = _build(kind)
     accepted = QSignalSpy(dialog.accepted)
     try:

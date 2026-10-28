@@ -10,7 +10,7 @@ confirms intent and shows the result.
 
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -20,7 +20,7 @@ from frontend.desktop.components import (
     create_primary_button,
     create_secondary_button,
 )
-from frontend.desktop.components.dialogs import ConfirmationDialog
+from frontend.desktop.components.dialogs import ConfirmationDialog, MessageDialog
 from frontend.desktop.components.icons import Icons
 from frontend.desktop.themes.tokens import Spacing
 from frontend.desktop.modules.inventory.dialogs import (
@@ -74,7 +74,7 @@ class QuarantinePage(QWidget):
     def _selected_quarantine_id(self) -> str | None:
         qid = self._table.selected_row_id()
         if not qid:
-            QMessageBox.information(
+            MessageDialog.information(
                 self, "Cuarentena", "Selecciona una cuarentena de la lista.")
             return None
         return qid
@@ -87,16 +87,16 @@ class QuarantinePage(QWidget):
             return
         product_id = dlg.product_id()
         if not product_id:
-            QMessageBox.warning(self, "Cuarentena", "Selecciona un producto de la lista.")
+            MessageDialog.warning(self, "Cuarentena", "Selecciona un producto de la lista.")
             return
         quantity = dlg.quantity_value()
         if not quantity or quantity <= 0:
-            QMessageBox.warning(self, "Cuarentena", "Captura una cantidad mayor a cero.")
+            MessageDialog.warning(self, "Cuarentena", "Captura una cantidad mayor a cero.")
             return
         ok, message, _ = self._presenter.open_quarantine(
             product_id=product_id, reason=dlg.reason_code(), quantity=quantity,
             location_id=dlg.location_id(), reason_note=dlg.note())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Cuarentena", message)
         if ok:
             self.refresh()
@@ -112,7 +112,7 @@ class QuarantinePage(QWidget):
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message, _ = self._presenter.release_quarantine(quarantine_id=qid)
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Cuarentena", message)
         if ok:
             self.refresh()
@@ -126,7 +126,7 @@ class QuarantinePage(QWidget):
             return
         ok, message, _ = self._presenter.dispose_quarantine(
             quarantine_id=qid, reason=dlg.reason())
-        (QMessageBox.information if ok else QMessageBox.warning)(
+        (MessageDialog.information if ok else MessageDialog.warning)(
             self, "Cuarentena", message)
         if ok:
             self.refresh()

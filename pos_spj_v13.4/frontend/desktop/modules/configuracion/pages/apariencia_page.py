@@ -11,12 +11,13 @@ always-visible shape `NotificacionesPage`'s Accounts/Templates cards
 use — neither is scoped to a Theme selection.
 """
 from PyQt5.QtCore import QSignalBlocker
-from PyQt5.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QMessageBox, QWidget
+from PyQt5.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_primary_button, create_secondary_button,
     create_state_widget, create_warning_button, StandardComboBox, Toolbar,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs import (
     AppearancePreferenceCreateDialog,
     DensityProfileCreateDialog,
@@ -150,7 +151,7 @@ class AparienciaPage(ConfiguracionWorkspacePage):
     def _selected_theme_id(self) -> str | None:
         row_id = self.table.selected_row_id() if self.table is not None else None
         if not row_id:
-            QMessageBox.warning(self, "Apariencia", "Selecciona un tema primero.")
+            MessageDialog.warning(self, "Apariencia", "Selecciona un tema primero.")
         return row_id
 
     def _on_new_theme(self) -> None:
@@ -159,10 +160,10 @@ class AparienciaPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["code"] or not values["name"] or not values["mode"]:
-            QMessageBox.warning(self, "Apariencia", "Código, nombre y modo son obligatorios.")
+            MessageDialog.warning(self, "Apariencia", "Código, nombre y modo son obligatorios.")
             return
         ok, message = self._presenter.create_theme(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Apariencia", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Apariencia", message)
         if ok:
             self.reload(self.search.text())
 
@@ -175,10 +176,10 @@ class AparienciaPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["name"]:
-            QMessageBox.warning(self, "Apariencia", "El nombre es obligatorio.")
+            MessageDialog.warning(self, "Apariencia", "El nombre es obligatorio.")
             return
         ok, message = self._presenter.update_theme(theme_id=theme_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Apariencia", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Apariencia", message)
         if ok:
             self.reload(self.search.text())
 
@@ -187,20 +188,20 @@ class AparienciaPage(ConfiguracionWorkspacePage):
         if not theme_id:
             return
         ok, message = self._presenter.change_theme_status(theme_id=theme_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Apariencia", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Apariencia", message)
         if ok:
             self.reload(self.search.text())
 
     def _on_set_default(self) -> None:
         theme_id = self.table.selected_row_id() if self.table is not None else None
         if not theme_id:
-            QMessageBox.warning(self, "Apariencia", "Selecciona un tema primero.")
+            MessageDialog.warning(self, "Apariencia", "Selecciona un tema primero.")
             return
         dlg = SetDefaultThemeDialog(self, theme_name=self._theme_names.get(theme_id, theme_id))
         if dlg.exec_() != QDialog.Accepted:
             return
         ok, message = self._presenter.set_default_theme(theme_id)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Apariencia", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Apariencia", message)
         if ok:
             self.reload(self.search.text())
 
@@ -246,25 +247,25 @@ class AparienciaPage(ConfiguracionWorkspacePage):
     def _selected_token_id(self) -> str | None:
         row_id = self.tokens_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Apariencia", "Selecciona un token primero.")
+            MessageDialog.warning(self, "Apariencia", "Selecciona un token primero.")
         return row_id
 
     def _on_new_token(self) -> None:
         theme_id = self.table.selected_row_id() if self.table is not None else None
         if not theme_id:
-            QMessageBox.warning(self, "Apariencia", "Selecciona un tema primero.")
+            MessageDialog.warning(self, "Apariencia", "Selecciona un tema primero.")
             return
         dlg = DesignTokenCreateDialog(self, theme_name=self._theme_names.get(theme_id, ""))
         if dlg.exec_() != QDialog.Accepted:
             return
         values = dlg.values()
         if not values["token_key"] or not values["category"] or not values["token_value"]:
-            QMessageBox.warning(self, "Apariencia", "Clave, categoría y valor son obligatorios.")
+            MessageDialog.warning(self, "Apariencia", "Clave, categoría y valor son obligatorios.")
             return
         is_global = values.pop("is_global")
         ok, message = self._presenter.create_design_token(
             theme_id=None if is_global else theme_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Apariencia", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Apariencia", message)
         if ok:
             self._reload_tokens()
 
@@ -277,10 +278,10 @@ class AparienciaPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["token_value"]:
-            QMessageBox.warning(self, "Apariencia", "El valor es obligatorio.")
+            MessageDialog.warning(self, "Apariencia", "El valor es obligatorio.")
             return
         ok, message = self._presenter.update_design_token(token_id=token_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Apariencia", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Apariencia", message)
         if ok:
             self._reload_tokens()
 
@@ -326,7 +327,7 @@ class AparienciaPage(ConfiguracionWorkspacePage):
     def _selected_density_profile_id(self) -> str | None:
         row_id = self.density_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Apariencia", "Selecciona un perfil de densidad primero.")
+            MessageDialog.warning(self, "Apariencia", "Selecciona un perfil de densidad primero.")
         return row_id
 
     def _on_new_density_profile(self) -> None:
@@ -335,10 +336,10 @@ class AparienciaPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["level"] or not values["name"]:
-            QMessageBox.warning(self, "Apariencia", "Nivel y nombre son obligatorios.")
+            MessageDialog.warning(self, "Apariencia", "Nivel y nombre son obligatorios.")
             return
         ok, message = self._presenter.create_density_profile(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Apariencia", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Apariencia", message)
         if ok:
             self._reload_density_profiles()
 
@@ -348,7 +349,7 @@ class AparienciaPage(ConfiguracionWorkspacePage):
             return
         profile = self._density_by_id.get(profile_id)
         if profile is None:
-            QMessageBox.warning(self, "Apariencia", "El perfil ya no existe.")
+            MessageDialog.warning(self, "Apariencia", "El perfil ya no existe.")
             return
         dlg = DensityProfileEditDialog(
             self, name=profile.name, scale_factor=profile.scale_factor,
@@ -359,10 +360,10 @@ class AparienciaPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["name"]:
-            QMessageBox.warning(self, "Apariencia", "El nombre es obligatorio.")
+            MessageDialog.warning(self, "Apariencia", "El nombre es obligatorio.")
             return
         ok, message = self._presenter.update_density_profile(profile_id=profile_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Apariencia", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Apariencia", message)
         if ok:
             self._reload_density_profiles()
 
@@ -371,7 +372,7 @@ class AparienciaPage(ConfiguracionWorkspacePage):
         if not profile_id:
             return
         ok, message = self._presenter.change_density_profile_status(profile_id=profile_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Apariencia", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Apariencia", message)
         if ok:
             self._reload_density_profiles()
 
@@ -418,7 +419,7 @@ class AparienciaPage(ConfiguracionWorkspacePage):
     def _selected_preference_id(self) -> str | None:
         row_id = self.preferences_table.selected_row_id()
         if not row_id:
-            QMessageBox.warning(self, "Apariencia", "Selecciona una preferencia primero.")
+            MessageDialog.warning(self, "Apariencia", "Selecciona una preferencia primero.")
         return row_id
 
     def _on_new_preference(self) -> None:
@@ -427,10 +428,10 @@ class AparienciaPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["scope_type"] or not values["theme_id"] or not values["density_level"]:
-            QMessageBox.warning(self, "Apariencia", "Alcance, tema y densidad son obligatorios.")
+            MessageDialog.warning(self, "Apariencia", "Alcance, tema y densidad son obligatorios.")
             return
         ok, message = self._presenter.create_appearance_preference(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Apariencia", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Apariencia", message)
         if ok:
             self._reload_preferences()
 
@@ -440,7 +441,7 @@ class AparienciaPage(ConfiguracionWorkspacePage):
             return
         ok, message = self._presenter.change_appearance_preference_status(
             preference_id=preference_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Apariencia", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Apariencia", message)
         if ok:
             self._reload_preferences()
 

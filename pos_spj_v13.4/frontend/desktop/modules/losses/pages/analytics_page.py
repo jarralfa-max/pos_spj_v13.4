@@ -1,7 +1,8 @@
 """LOSS-20 KPI and chart page; metrics and export come from its presenter."""
 from pathlib import Path
-from PyQt5.QtWidgets import QFileDialog,QHBoxLayout,QMessageBox,QVBoxLayout,QWidget
+from PyQt5.QtWidgets import QFileDialog, QHBoxLayout, QVBoxLayout, QWidget
 from frontend.desktop.components import HtmlChartView,KPIBar,PageHeader,create_secondary_button
+from frontend.desktop.components.dialogs import MessageDialog
 class LossAnalyticsPage(QWidget):
     def __init__(self,presenter,parent=None):
         super().__init__(parent);self._presenter=presenter;self._loaded=False
@@ -13,12 +14,12 @@ class LossAnalyticsPage(QWidget):
         if not self._loaded:self.refresh();self._loaded=True
     def refresh(self):
         try:dashboard=self._presenter.dashboard()
-        except Exception as exc:QMessageBox.warning(self,"BI de mermas",str(exc));return
+        except Exception as exc:MessageDialog.warning(self,"BI de mermas",str(exc));return
         self.kpis.set_cards(self._presenter.kpi_cards(dashboard))
         for view,dto in zip(self.charts,dashboard.charts):view.set_chart(dto)
     def _export(self):
         target,_=QFileDialog.getSaveFileName(self,"Exportar análisis de mermas","losses_analytics.csv","CSV (*.csv)")
         if not target:return
         try:Path(target).write_text(self._presenter.export_csv(),encoding="utf-8-sig")
-        except Exception as exc:QMessageBox.warning(self,"Exportación",str(exc));return
-        QMessageBox.information(self,"Exportación","El archivo CSV se generó correctamente.")
+        except Exception as exc:MessageDialog.warning(self,"Exportación",str(exc));return
+        MessageDialog.information(self,"Exportación","El archivo CSV se generó correctamente.")

@@ -46,12 +46,16 @@ class Department:
     branch_id: str | None = None
     active: bool = True
     created_at: str = field(default_factory=_utcnow)
+    #: Unidad organizacional (sucursal, planta, oficina corporativa, región…).
+    org_unit_id: str | None = None
 
     @classmethod
-    def create(cls, code: str, name: str, *, branch_id: str | None = None) -> "Department":
+    def create(cls, code: str, name: str, *, branch_id: str | None = None,
+               org_unit_id: str | None = None) -> "Department":
         if not code or not name:
             raise HRDomainError("Department requiere code y name")
-        return cls(id=new_uuid(), code=code.strip(), name=name.strip(), branch_id=branch_id)
+        return cls(id=new_uuid(), code=code.strip(), name=name.strip(), branch_id=branch_id,
+                   org_unit_id=org_unit_id)
 
 
 @dataclass(slots=True)

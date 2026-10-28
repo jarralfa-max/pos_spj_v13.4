@@ -6,7 +6,7 @@ conexión, como el resto del módulo.
 La ruta `losses_yields` abría un placeholder. No le faltaban datos:
 `YieldMonitoringQueryService` ya existía y `losses_factory.py` ya lo construía.
 """
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QMessageBox
+from PyQt5.QtWidgets import QHBoxLayout, QLabel
 
 from frontend.desktop.components import (
     ColumnSpec,
@@ -15,6 +15,7 @@ from frontend.desktop.components import (
     StandardTable,
     create_secondary_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 
 _COLUMNAS_DESVIACION = [
     ColumnSpec(title="Producción", min_width=90),
@@ -82,7 +83,7 @@ class YieldMonitoringPage(StandardPage):
         except Exception as exc:  # noqa: BLE001 — frontera de UI
             # Se avisa en vez de dejar las tablas con lo anterior: una pantalla
             # que no se actualiza y no lo dice es peor que una vacía.
-            QMessageBox.warning(self, "Rendimientos", str(exc))
+            MessageDialog.warning(self, "Rendimientos", str(exc))
             return
 
         self.kpis.set_cards(self._presenter.kpi_cards(desviaciones, alertas))

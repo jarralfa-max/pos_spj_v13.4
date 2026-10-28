@@ -79,7 +79,7 @@ def _pasos(p, nombre):
 
 
 def test_reintentar_el_cobro_no_duplica_pagos(app, monkeypatch):
-    monkeypatch.setattr(QtWidgets.QMessageBox, "warning", lambda *a, **k: None)
+    monkeypatch.setattr(QtWidgets.MessageDialog, "warning", lambda *a, **k: None)
     p = _Presentador([_fail("NO_OPEN_CASH_SHIFT"), _ok()])
     d = _pago(p)
 
@@ -166,7 +166,7 @@ def test_sin_turno_el_cobro_ni_siquiera_se_abre(app, monkeypatch):
             return code in {p for p in vars(SalesPermissions).values() if isinstance(p, str)}
 
     avisos, abiertos = [], []
-    monkeypatch.setattr(ws_mod.QMessageBox, "warning", lambda *a, **k: avisos.append(a[2]))
+    monkeypatch.setattr(ws_mod.MessageDialog, "warning", lambda *a, **k: avisos.append(a[2]))
     presenter = SalesPosPresenter(
         session_context=_Sesion(),
         query_services={"sale_query": SimpleNamespace(

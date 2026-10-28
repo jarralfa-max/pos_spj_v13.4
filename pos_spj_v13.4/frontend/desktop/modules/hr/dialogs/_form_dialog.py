@@ -45,11 +45,11 @@ class HRFormDialog(FormDialog):
         self._error_label.setVisible(bool(message))
 
     def _accept_if_valid(self) -> None:
-        from PyQt5.QtWidgets import QMessageBox
+        from frontend.desktop.components.dialogs import MessageDialog
         error = self._error()
         if error:
             if self._on_submit is None:
-                QMessageBox.warning(self, self.dialog_title, error)
+                MessageDialog.warning(self, self.dialog_title, error)
             else:
                 self.show_error(error)
             return

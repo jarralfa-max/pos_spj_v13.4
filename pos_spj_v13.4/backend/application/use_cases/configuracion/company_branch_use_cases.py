@@ -13,6 +13,12 @@ application-layer concern"). This IS that application-layer concern.
 EXISTING `sucursales` row — it does not create new physical branches
 (that table is legacy-owned and out of scope for this SET, per
 `branch_profile.py`'s own docstring).
+
+Estructura organizacional (auditoría enterprise): una sucursal nueva se da de
+alta como unidad organizacional (`OrgStructureService`), que crea su fila de
+`sucursales` y su perfil. El perfil y la unidad comparten código y nombre:
+editar uno aquí actualiza la unidad (y su fila de `sucursales`) en la misma
+transacción, para que nunca diverjan.
 """
 
 from __future__ import annotations
@@ -26,6 +32,10 @@ from backend.domain.settings.exceptions import (
     ConfigurationInvalidValueError,
 )
 from backend.domain.settings.value_objects.asset_reference import AssetReference
+from backend.domain.organization.org_unit import OrgUnitError
+from backend.infrastructure.db.repositories.organization.org_unit_repository import (
+    SqliteOrgUnitRepository,
+)
 from backend.infrastructure.db.repositories.settings.branch_profile_repository import (
     SqliteBranchProfileRepository,
 )
@@ -72,6 +82,28 @@ class SaveCompanyProfileUseCase:
         return profile
 
 
+def _sync_org_unit(connection, profile: BranchProfile) -> None:
+    """Lleva código y nombre del perfil a su unidad organizacional, si existe."""
+    if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table'"
+                          " AND name='org_units'").fetchone() is None:
+        return
+    unidades = SqliteOrgUnitRepository(connection)
+    unidad = unidades.get(profile.branch_id)
+    if unidad is None or (unidad.code == profile.code.strip().upper()
+                          and unidad.name == profile.name):
+        return
+    try:
+        unidad.rename(name=profile.name, code=profile.code)
+    except OrgUnitError as exc:
+        raise ConfigurationInvalidValueError(str(exc)) from exc
+    otra = unidades.get_by_code(unidad.company_id, unidad.code)
+    if otra is not None and otra.id != unidad.id:
+        raise ConfigurationInvalidValueError(
+            f"El código «{unidad.code}» ya lo usa la unidad «{otra.name}».")
+    unidades.save(unidad)
+    unidades.emit(unidad, "ORG_UNIT_UPDATED")
+
+
 class RegisterBranchProfileUseCase:
     def __init__(self, connection) -> None:
         self._conn = connection
@@ -88,7 +120,12 @@ class RegisterBranchProfileUseCase:
             timezone=timezone, locale=locale, opening_time=opening_time, closing_time=closing_time,
             operation_days=operation_days, ticket_header=ticket_header, ticket_footer=ticket_footer,
         )
-        self._branches.save(profile)
+        try:
+            self._branches.save(profile)
+            _sync_org_unit(self._conn, profile)
+        except Exception:
+            self._conn.rollback()   # nada a medias: ni el perfil ni la unidad
+            raise
         self._conn.commit()
         return profile
 
@@ -120,6 +157,11 @@ class UpdateBranchProfileUseCase:
         )
         profile.set_operating_hours(opening_time, closing_time, operation_days)
         profile.set_ticket_texts(header=ticket_header, footer=ticket_footer)
-        self._branches.save(profile)
+        try:
+            self._branches.save(profile)
+            _sync_org_unit(self._conn, profile)
+        except Exception:
+            self._conn.rollback()   # nada a medias: ni el perfil ni la unidad
+            raise
         self._conn.commit()
         return profile

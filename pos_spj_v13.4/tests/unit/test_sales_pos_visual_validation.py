@@ -237,7 +237,7 @@ class TestScannerValidation:
         workspace._presenter = _FailingPresenter()
         shown = []
         monkeypatch.setattr(
-            "frontend.desktop.modules.sales_pos.sales_pos_workspace.QMessageBox.warning",
+            "frontend.desktop.modules.sales_pos.sales_pos_workspace.MessageDialog.warning",
             lambda *a, **k: shown.append(a[2]))
         workspace._on_code_scanned("xyz")
         assert shown and "xyz" in shown[0]

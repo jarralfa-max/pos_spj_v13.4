@@ -18,7 +18,7 @@ class DimensionsPage(FinancePage):
         ColumnSpec("Dimensión", "status"),
         ColumnSpec("Código", "date"),
         ColumnSpec("Nombre"),
-        ColumnSpec("Marca", "status"),
+        ColumnSpec("Marca / unidad", "status"),
     ]
     header_actions = [("Nueva dimensión", P.SETTINGS_MANAGE, "_create", True)]
 
@@ -31,8 +31,16 @@ class DimensionsPage(FinancePage):
             FieldSpec("code", "Código", required=True),
             FieldSpec("name", "Nombre", required=True),
             FieldSpec("is_capex", "Proyecto de inversión (CAPEX)", "check"),
+            # Centros de costo y de utilidad: de qué unidad organizacional son
+            # (sucursal, planta, región, oficina). Vacío = de toda la empresa.
+            FieldSpec("org_unit_id", "Unidad organizacional", "combo",
+                      options=[("", "(Toda la empresa)"),
+                               *self._presenter.org_unit_options()]),
         ])
         if values:
             if values["kind"] != "PROJECT":
                 values["is_capex"] = False
+            if values["kind"] not in ("COST_CENTER", "PROFIT_CENTER"):
+                values["org_unit_id"] = None
+            values["org_unit_id"] = values.get("org_unit_id") or None
             self.run(self._presenter.create_dimension(**values))

@@ -15,12 +15,13 @@ Keeps the class name `GeneralPage` and `page_id = "config_general"` from
 the generic placeholder this replaces — the sidebar entry ("General")
 and route id are unchanged, only the page gains real actions.
 """
-from PyQt5.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QWidget
+from PyQt5.QtWidgets import QDialog, QHBoxLayout, QWidget
 
 from frontend.desktop.components import (
     ColumnSpec, SectionCard, StandardTable, ViewState, create_danger_button, create_primary_button,
     create_secondary_button, create_state_widget, create_warning_button,
 )
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs import (
     AssignDeviceDialog,
     BlockWorkstationDialog,
@@ -107,7 +108,7 @@ class GeneralPage(ConfiguracionWorkspacePage):
     def _selected_workstation_id(self) -> str | None:
         row_id = self.table.selected_row_id() if self.table is not None else None
         if not row_id:
-            QMessageBox.warning(self, "Estaciones", "Selecciona una estación primero.")
+            MessageDialog.warning(self, "Estaciones", "Selecciona una estación primero.")
         return row_id
 
     def _reload_assignments(self) -> None:
@@ -138,10 +139,10 @@ class GeneralPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         if not values["branch_id"] or not values["workstation_type"] or not values["code"] or not values["name"]:
-            QMessageBox.warning(self, "Estaciones", "Sucursal, tipo, código y nombre son obligatorios.")
+            MessageDialog.warning(self, "Estaciones", "Sucursal, tipo, código y nombre son obligatorios.")
             return
         ok, message = self._presenter.register_workstation(**values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Estaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Estaciones", message)
         if ok:
             self.reload(self.search.text())
 
@@ -151,7 +152,7 @@ class GeneralPage(ConfiguracionWorkspacePage):
             return
         workstation = self._presenter.get_workstation(workstation_id)
         if workstation is None:
-            QMessageBox.warning(self, "Estaciones", "La estación ya no existe.")
+            MessageDialog.warning(self, "Estaciones", "La estación ya no existe.")
             return
         dlg = WorkstationEditDialog(
             self, name=workstation.name, device_identifier=workstation.device_identifier,
@@ -161,7 +162,7 @@ class GeneralPage(ConfiguracionWorkspacePage):
             return
         values = dlg.values()
         ok, message = self._presenter.update_workstation(workstation_id=workstation_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Estaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Estaciones", message)
         if ok:
             self.reload(self.search.text())
 
@@ -175,7 +176,7 @@ class GeneralPage(ConfiguracionWorkspacePage):
         ok, message = self._presenter.change_workstation_status(
             workstation_id=workstation_id, action="BLOCK", reason=dlg.reason_text(),
         )
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Estaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Estaciones", message)
         if ok:
             self.reload(self.search.text())
 
@@ -184,7 +185,7 @@ class GeneralPage(ConfiguracionWorkspacePage):
         if not workstation_id:
             return
         ok, message = self._presenter.change_workstation_status(workstation_id=workstation_id, action=action)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Estaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Estaciones", message)
         if ok:
             self.reload(self.search.text())
 
@@ -194,27 +195,27 @@ class GeneralPage(ConfiguracionWorkspacePage):
             return
         devices = self._presenter.list_devices()
         if not devices:
-            QMessageBox.warning(self, "Estaciones", "No hay dispositivos activos todavía.")
+            MessageDialog.warning(self, "Estaciones", "No hay dispositivos activos todavía.")
             return
         dlg = AssignDeviceDialog(self, device_options=devices)
         if dlg.exec_() != QDialog.Accepted:
             return
         values = dlg.values()
         if not values["role"] or not values["device_id"]:
-            QMessageBox.warning(self, "Estaciones", "Rol y dispositivo son obligatorios.")
+            MessageDialog.warning(self, "Estaciones", "Rol y dispositivo son obligatorios.")
             return
         ok, message = self._presenter.assign_device(workstation_id=workstation_id, **values)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Estaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Estaciones", message)
         if ok:
             self._reload_assignments()
 
     def _on_unassign(self) -> None:
         assignment_id = self.assignments_table.selected_row_id()
         if not assignment_id:
-            QMessageBox.warning(self, "Estaciones", "Selecciona una asignación primero.")
+            MessageDialog.warning(self, "Estaciones", "Selecciona una asignación primero.")
             return
         ok, message = self._presenter.unassign_device(assignment_id=assignment_id)
-        (QMessageBox.information if ok else QMessageBox.warning)(self, "Estaciones", message)
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Estaciones", message)
         if ok:
             self._reload_assignments()
 

@@ -1,12 +1,14 @@
 """CASH-18 device and hardware operations UI; backend owns every mutation."""
 
-from PyQt5.QtWidgets import QMessageBox, QTabWidget, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QVBoxLayout, QWidget
 
 from backend.domain.cash_register.exceptions import CashRegisterError
 from backend.shared.ids import is_uuidv7
 from frontend.desktop.components.buttons import create_primary_button, create_secondary_button
+from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
+from frontend.desktop.components.tabs import Tabs
 from frontend.desktop.modules.cash_register.cash_register_dialogs import (
     CashDeviceActionDialog,
     CashDeviceDialog,
@@ -64,7 +66,7 @@ class CashDevicesPage(QWidget):
             subtitle="Administracion, diagnostico y operacion auditada del hardware de Caja.",
             actions=[refresh, drawer_button, diagnose, retire, maintenance, block, activate, create],
         ))
-        self._tabs = QTabWidget(self)
+        self._tabs = Tabs(self)
         for kind, label in self.SECTIONS:
             table = StandardTable([
                 ColumnSpec("Nombre"),
@@ -232,7 +234,7 @@ class CashDevicesPage(QWidget):
         return dialog.result_value().reason
 
     def _show_result(self, message: str) -> None:
-        QMessageBox.information(self, "Caja", message)
+        MessageDialog.information(self, "Caja", message)
 
     def _show_error(self, message: str) -> None:
-        QMessageBox.warning(self, "Caja", user_facing_error(message))
+        MessageDialog.warning(self, "Caja", user_facing_error(message))
