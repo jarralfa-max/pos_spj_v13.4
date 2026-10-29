@@ -2,7 +2,7 @@
 
 - **Intent:** `items/SDLC-WA-002/intent.md` (aprobado el 2026-10-28, Alfred)
 - **Nivel:** T1 (microservicio WhatsApp; no toca dinero, esquema ni BD del ERP)
-- **Estado:** borrador
+- **Estado:** (aprobado el 2026-10-28, Alfred)
 
 ## 0. Lo que el código hace hoy (medido en Design)
 
@@ -149,20 +149,12 @@ Lo exige T1 y es recomendable aquí. Antes de tocar código, Build:
 ## Decisiones que requieren aprobación
 
 - **D1 — ¿Dónde se aplica el fail-closed?**
-  - (A) cambiar el default global de `APP_ENV` a `production`;
   - (B) desacoplar sólo la verificación de firma de `APP_ENV`, con opt-in explícito para desarrollo, y dejar los demás usos de `is_production()` como están hasta SDLC-WA-003;
-  - (C) producción por defecto cuando `AppPaths.is_installed`.
-
-  **Recomiendo B:** cierra el agujero sin apagar el único camino por el que hoy funcionan los pedidos por WhatsApp. A y C se pueden reconsiderar al cerrar WA-003.
+  
 - **D2 — Ventana anti-replay de MercadoPago.**
-  - (A) mantener 300 s;
   - (B) hacerla configurable (`MP_SIGNATURE_MAX_AGE_SECONDS`, default 300) y registrar el rechazo por antigüedad con motivo propio;
-  - (C) ampliarla por defecto (p. ej. 3600 s) para no rechazar reintentos.
 
-  **Recomiendo B.** No está verificado si los reintentos cada 15 min re-firman con un `ts` nuevo. Con el log distinto se verá en la primera semana, y el replay ya está acotado por la consulta a la API y la idempotencia. Si el responsable sabe que los reintentos conservan el `ts` original, conviene C.
 - **D3 — Despliegue en estaciones instaladas sin `WA_APP_SECRET`.**
   - (A) fail-closed inmediato con nota de release y health UNHEALTHY;
-  - (B) un release de gracia en que sólo se registra la advertencia y se bloquea en el siguiente.
-
-  **Recomiendo A:** es un hueco de seguridad activo y la corrección operativa (capturar el secreto en el módulo WhatsApp) ya existe (`settings.py:102-110`).
+ 
 - **Pregunta del intent (no bloqueante):** «¿hay hoy algún despliegue sin `APP_ENV=production`?». El código responde que **toda estación instalada** lo está. Falta saber si alguna tiene el servicio local activo y sin secreto, porque esa es la que D3 afectaría.
