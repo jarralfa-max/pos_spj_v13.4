@@ -37,3 +37,6 @@ Pipeline híbrido Slice 6.
 
 ## Preguntas abiertas
 - Ninguna por ahora.
+
+## Ampliación (`/sdlc-plan arquitectura`, 2026-10-29)
+La proyección de unidades organizacionales también usa última-escritura-gana según el `updated_at` del reloj de la estación (`backend/infrastructure/central/projection_repository.py:217-226`). Es la misma causa raíz (upsert de proyección sin guardia de versión), así que entra en este ítem en lugar de abrir uno nuevo. Requisito: `docs/sdlc/inputs/requisitos-arquitectura.md` §10 («nada de gana el último»). La detección de conflictos entre estaciones es otro problema y va en SDLC-ARQ-SYNC-001.
