@@ -15,7 +15,7 @@ Etapas válidas: `intent-borrador` · `intent-aprobado` · `spec-borrador` · `s
 | [SDLC-SYNC-001](items/SDLC-SYNC-001/intent.md) | P0 | T0 | Servidor central no aplica p006: toda petición de sync revienta en BD nueva | `migrations/engine.py:475-481` | intent-borrador | — | — |
 | [SDLC-SYNC-002](items/SDLC-SYNC-002/intent.md) | P0 | T0 | Hecho en CONFLICTO reenviado se marca SYNCED y nunca se proyecta | `backend/application/sync/central_ingestion.py:166-176,192-194` | intent-borrador | — | SDLC-SYNC-001 |
 | [SDLC-WA-001](items/SDLC-WA-001/intent.md) | P0 | T1 | Webhook de MercadoPago puede confirmar el pedido equivocado y pierde aprobaciones | `whatsapp_service/webhook/mercadopago.py:65` | intent-borrador | — | SDLC-WA-002 |
-| [SDLC-WA-002](items/SDLC-WA-002/intent.md) | P0 | T1 | Webhooks de WhatsApp y pagos aceptan peticiones sin firma si falta APP_ENV | `whatsapp_service/config/settings.py:166` | intent-borrador | — | — |
+| [SDLC-WA-002](items/SDLC-WA-002/intent.md) | P0 | T1 | Webhooks de WhatsApp y pagos aceptan peticiones sin firma si falta APP_ENV | `whatsapp_service/config/settings.py:166` | intent-aprobado | — | — |
 | [SDLC-BI-001](items/SDLC-BI-001/intent.md) | P1 | T0 | BI ignora el alcance por sucursal y usa un verificador de permisos que permite todo | `frontend/desktop/modules/business_intelligence/business_intelligence_routes.py:98-100,108-183` | intent-borrador | — | — |
 | [SDLC-CASH-001](items/SDLC-CASH-001/intent.md) | P1 | T0 | Reversa de venta registra la salida de efectivo en el turno original, aunque esté cerrado | `backend/application/sales/use_cases/return_use_cases.py:190-268` (vs ~185 para devolución parcial) | intent-borrador | — | — |
 | [SDLC-CORE-001](items/SDLC-CORE-001/intent.md) | P1 | T0 | Falla en el cableado de eventos al arrancar deja la app sin integración contable, en silencio | `backend/bootstrap/wiring/event_wiring.py:62-88,93-126,224-255` | intent-borrador | — | — |
@@ -86,6 +86,8 @@ Etapas válidas: `intent-borrador` · `intent-aprobado` · `spec-borrador` · `s
 ## Decisiones aprobadas
 
 _(fecha · ID · decisión · quién aprobó)_
+
+- 2026-10-28 · SDLC-WA-002 · Intent aprobado · Alfred
 
 ## Preguntas abiertas para el responsable
 
