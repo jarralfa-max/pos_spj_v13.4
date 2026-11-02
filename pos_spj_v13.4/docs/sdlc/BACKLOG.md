@@ -37,7 +37,7 @@ Etapas válidas: `intent-borrador` · `intent-aprobado` · `spec-borrador` · `s
 | [SDLC-ARQ-PERM-001](items/SDLC-ARQ-PERM-001/intent.md) | P0 | T0 | Configuración autoriza sólo en el presentador: casos de uso de escritura sin política en backend | `frontend/desktop/modules/configuracion/configuracion_routes.py:230-300` | intent-aprobado | — | — |
 | [SDLC-ARQ-PERM-002](items/SDLC-ARQ-PERM-002/intent.md) | P0 | T0 | Escalada por alcance: se pueden asignar roles y permisos fuera del alcance de quien los otorga | `backend/application/security/role_assignment_service.py:133-157` | intent-aprobado | — | SDLC-ARQ-PERM-003 |
 | [SDLC-ARQ-SESS-003](items/SDLC-ARQ-SESS-003/intent.md) | P0 | T0 | Una venta suspendida puede reanudarla otro usuario y queda atribuida al cajero original | `backend/application/sales/use_cases/lifecycle_use_cases.py:90-94` | intent-aprobado | — | — |
-| [SDLC-ARQ-SYNC-001](items/SDLC-ARQ-SYNC-001/intent.md) | P0 | T0 | Conflictos entre estaciones invisibles: sin autoridad por entidad ni detección de turno doble o sobreventa | `backend/infrastructure/central/sync_inbox_repository.py:240-257` | intent-aprobador | — | SDLC-SYNC-002, SDLC-SYNC-003, SDLC-ARQ-TERM-001 |
+| [SDLC-ARQ-SYNC-001](items/SDLC-ARQ-SYNC-001/intent.md) | P0 | T0 | Conflictos entre estaciones invisibles: sin autoridad por entidad ni detección de turno doble o sobreventa | `backend/infrastructure/central/sync_inbox_repository.py:240-257` | intent-aprobado | — | SDLC-SYNC-002, SDLC-SYNC-003, SDLC-ARQ-TERM-001 |
 | [SDLC-ARQ-INST-001](items/SDLC-ARQ-INST-001/intent.md) | P0 | T0 | Actualizar con el Setup manual o 'Reparar' migra la base al arrancar sin respaldo previo | `backend/bootstrap/run_database_bootstrap.py` | intent-aprobado | — | — |
 | [SDLC-PAY-002](items/SDLC-PAY-002/intent.md) | P0 | T0 | Un mismo pago de Mercado Pago puede respaldar varias ventas: referencia opcional, libre y no única | `frontend/desktop/modules/sales_pos/dialogs/payment_dialog.py:194-196`; `backend/infrastructure/db/schema/sales_schema.py:117-125` | intent-borrador | — | — |
 | [SDLC-FIN-002](items/SDLC-FIN-002/intent.md) | P0 | T0 | Activo comprado en Compras queda en la cuenta de activo sin alta en el auxiliar; darlo de alta después duplica la CxP o el pago | `backend/application/event_handlers/finance/procurement_payable_bridge.py:69-107`; `backend/application/use_cases/finance/capitalize_asset_use_case.py:56-59,87-100` | intent-borrador | — | — |
@@ -66,7 +66,7 @@ Etapas válidas: `intent-borrador` · `intent-aprobado` · `spec-borrador` · `s
 | [SDLC-SALES-003](items/SDLC-SALES-003/intent.md) | P1 | T0 | Outbox de ventas sin contador de intentos ni dead-letter: un evento envenenado se reintenta para siempre | `backend/application/sales/integrations/wiring.py:88-123` | intent-borrador | — | — |
 | [SDLC-SEC-001](items/SDLC-SEC-001/intent.md) | P1 | T0 | Contraseñas de usuario se hashean en la UI y saltan la política de contraseñas | `frontend/desktop/modules/configuracion/configuracion_presenter.py:1007-1009,1038-1040` | intent-borrador | — | — |
 | [SDLC-SEC-002](items/SDLC-SEC-002/intent.md) | P1 | T0 | Autorización de dos personas confía en IDs enviados por la UI; usuarios inactivos siguen autorizando | `backend/infrastructure/desktop/cash_register_factory.py:614,628,642,1269-1278` | intent-borrador | — | — |
-| [SDLC-SET-001](items/SDLC-SET-001/intent.md) | P1 | T0 | Anclar la sucursal de la instalación no cambia la sesión en curso | `frontend/desktop/modules/configuracion/pages/empresa_page.py:408-412` | intent-borrador | — | — |
+| [SDLC-SET-001](items/SDLC-SET-001/intent.md) | P1 | T0 | Anclar la sucursal de la instalación no cambia la sesión en curso | `frontend/desktop/modules/configuracion/pages/empresa_page.py:408-412` | intent-aprobado | — | — |
 | [SDLC-SYNC-003](items/SDLC-SYNC-003/intent.md) | P1 | T0 | Proyección central: errores permanentes, eventos fuera de orden y última-escritura-gana en crédito/lealtad | `backend/infrastructure/central/projection_repository.py:35-37,76-78,117-120,177-207` (comparar `:223` `upsert_org_unit` con guardia) | intent-borrador | — | SDLC-SYNC-001 |
 | [SDLC-SYNC-004](items/SDLC-SYNC-004/intent.md) | P1 | T0 | Huecos en la secuencia de estación bloquean la recuperación de dispositivo | `backend/application/sync/replication_outbox.py:148,163-171` | intent-borrador | — | SDLC-SYNC-001 |
 | [SDLC-SYNC-005](items/SDLC-SYNC-005/intent.md) | P1 | T0 | Ninguna estación replica al central: transporte nunca configurado y sin planificador | `backend/infrastructure/desktop/cash_register_factory.py:492-496,1238-1254` | intent-borrador | — | SDLC-SYNC-002, SDLC-SYNC-003, SDLC-SYNC-004 |
@@ -95,12 +95,12 @@ Etapas válidas: `intent-borrador` · `intent-aprobado` · `spec-borrador` · `s
 | [SDLC-ARQ-OFF-001](items/SDLC-ARQ-OFF-001/intent.md) | P1 | T0 | No hay modelo de autorización offline: login siempre local, sin vigencia ni autoridad central | `backend/application/sync/device_provisioning.py:18-20` | intent-aprobado | — | SDLC-ARQ-SYNC-003, SDLC-ARQ-TERM-001 |
 | [SDLC-ARQ-INST-002](items/SDLC-ARQ-INST-002/intent.md) | P1 | T0 | Respaldo de actualización omite configuración e identidad; desinstalar borra install_config.json | `installer/windows/spj_setup.iss:151-152` | intent-aprobado | — | — |
 | [SDLC-ARQ-INST-003](items/SDLC-ARQ-INST-003/intent.md) | P1 | T0 | Llave maestra de secretos en claro sin pywin32; DPAPI por usuario con datos de alcance máquina | `backend/security/secrets/encrypted_local_secret_store.py:155-165,169-182` | intent-aprobado | — | SDLC-INST-003 |
-| [SDLC-ARQ-AUD-001](items/SDLC-ARQ-AUD-001/intent.md) | P1 | T0 | Eventos de seguridad (login, bloqueo, denegación) nunca se persisten; una denegación por sitio cuenta como éxito | [spec](items/SDLC-ARQ-AUD-001/spec.md) · `backend/security/authentication/authenticate_user_use_case.py:71,104-107` | en-test | — | — |
+| [SDLC-ARQ-AUD-001](items/SDLC-ARQ-AUD-001/intent.md) | P1 | T0 | Eventos de seguridad (login, bloqueo, denegación) nunca se persisten; una denegación por sitio cuenta como éxito | [spec](items/SDLC-ARQ-AUD-001/spec.md) · `backend/security/authentication/authenticate_user_use_case.py:71,104-107` | spec-aprobado | — | — |
 | [SDLC-PAY-003](items/SDLC-PAY-003/intent.md) | P1 | T0 | La referencia del procesador se pierde en Caja, Finanzas y ticket: conciliación por operación imposible | `backend/infrastructure/integrations/sales_cash_effects_client.py:139-148` | intent-borrador | — | SDLC-PAY-002 |
 | [SDLC-PAY-004](items/SDLC-PAY-004/intent.md) | P1 | T0 | Cobros con procesador se asientan a la cuenta puente 1120 mientras tesorería y compras usan la 1115 | `backend/application/services/finance/finance_bootstrap.py:211-212,254` | intent-borrador | — | — |
 | [SDLC-PAY-005](items/SDLC-PAY-005/intent.md) | P1 | T0 | Arqueo y cortes X/Z sólo cuentan efectivo: no desglosan tarjeta, Mercado Pago, transferencia, vales ni crédito | `backend/application/cash_register/x_cut_use_cases.py:53-69` | intent-borrador | — | SDLC-PAY-003 |
 | [SDLC-PAY-006](items/SDLC-PAY-006/intent.md) | P1 | T0 | Reembolsos y anulaciones a medio electrónico se registran como ejecutados sin que nadie los haga | `backend/application/cash_register/refund_integration.py:130-155` | intent-borrador | — | SDLC-PAY-003 |
-| [SDLC-UI-001](items/SDLC-UI-001/intent.md) | P1 | T1 | La suite tests/ui no termina (una prueba tumba el proceso) y los jobs ventas/ui/api de CI llaman un script inexistente | `tests/ui/test_operations_standard_dialogs.py` (`test_payment_retry_keeps_recorded_lines_and_accepts_once`, código 127); `../.github/workflows/ci-segmented.yml:146` | en-test | sdlc/sdlc-ui-001 | — |
+| [SDLC-UI-001](items/SDLC-UI-001/intent.md) | P1 | T1 | La suite tests/ui no termina (una prueba tumba el proceso) y los jobs ventas/ui/api de CI llaman un script inexistente | `tests/ui/test_operations_standard_dialogs.py` (`test_payment_retry_keeps_recorded_lines_and_accepts_once`, código 127); `../.github/workflows/ci-segmented.yml:146` | spec-aprobado | — | — |
 | [SDLC-FIN-003](items/SDLC-FIN-003/intent.md) | P1 | T0 | Baja o venta de activo fijo no exige depreciación al día y sus casos de uso no tienen pruebas | `backend/application/use_cases/finance/dispose_asset_use_case.py:57-69,114-138` | intent-borrador | — | — |
 | [SDLC-PROC-004](items/SDLC-PROC-004/intent.md) | P1 | T0 | Salidas de despiece estimadas sin regla de venta, pesaje posterior ni conciliación | `backend/application/meat_processing/use_cases/order_execution_use_cases.py:505`; `frontend/desktop/modules/meat_processing/dialogs_direct_transformation.py:62-73`; C-06 | intent-borrador | — | SDLC-PROC-001 |
 | [SDLC-PRICE-001](items/SDLC-PRICE-001/intent.md) | P1 | T1 | Cambiar un solo precio de una lista aprobada obliga a duplicar toda la lista | `backend/domain/pricing/entities/price_list.py:102-104`; `frontend/desktop/modules/pricing/pages/product_prices_page.py:165-196`; `pricing_schema.py:61`; C-07 (migración con ceremonia T0) | intent-borrador | — | SDLC-SALES-001 |
@@ -180,24 +180,24 @@ Etapas válidas: `intent-borrador` · `intent-aprobado` · `spec-borrador` · `s
 | [SDLC-PAY-027](items/SDLC-PAY-027/intent.md) | P2 | T0 | Sin suite de fallos y concurrencia para pagos (20 escenarios del documento) | línea base en `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md` | intent-borrador | — | SDLC-PAY-011, SDLC-PAY-013, SDLC-PAY-016 |
 | [SDLC-UI-002](items/SDLC-UI-002/intent.md) | P2 | T2 | 106 fallas en tests/ui: layout de módulo, iconos del sidebar de Finanzas y secciones de Productos | `tests/ui/test_module_layout.py` (92 fallas: `PricingWorkspace` sin `moduleLayoutVariant`); `tests/ui/test_shell_prompt_adoption.py` (9) y `tests/ui/test_page_stack.py:45` (1), destapadas por SDLC-UI-001 | intent-aprobado | — | SDLC-UI-001 |
 | [SDLC-UI-003](items/SDLC-UI-003/intent.md) | P2 | T2 | Guardia de deuda visual en rojo: línea base del 2026-09-10 con 17 hallazgos nuevos y 26 resueltos sin podar | `tests/architecture/test_design_system_guardrails.py` (2 fallas); `design_system_debt_baseline.json` | intent-aprobado | — | — |
-| [SDLC-UI-004](items/SDLC-UI-004/intent.md) | P2 | T2 | Tokens semánticos incompletos; modo oscuro con color de marca crudo y gráficas casi invisibles en oscuro | `frontend/desktop/themes/semantic_colors.py:92-94,174` | intent-borrador | — | — |
-| [SDLC-UI-005](items/SDLC-UI-005/intent.md) | P2 | T2 | Segundo sistema visual: webs de delivery/logística con paleta azul propia y PDF de BI con colores sueltos | `frontend/web/delivery/styles.css`; `backend/application/analytics/services/bi_export_service.py:157,161` | intent-borrador | — | — |
-| [SDLC-UI-007](items/SDLC-UI-007/intent.md) | P2 | T2 | Densidad global por usuario de Windows: POS, Inventario, Recepción y Producción no arrancan en TOUCH | `frontend/desktop/themes/theme_manager.py:46,77`; `components/pages.py:104` | intent-borrador | — | — |
-| [SDLC-UI-010](items/SDLC-UI-010/intent.md) | P2 | T2 | Overflow: 101 pantallas sin contrato explícito, scroll anidado y encabezado/acciones fijos fuera del viewport | `frontend/desktop/shell/application_shell/content_host.py:57-59`; 101 hallazgos de la auditoría AST | intent-borrador | — | SDLC-UI-003 |
-| [SDLC-UI-011](items/SDLC-UI-011/intent.md) | P2 | T2 | Layouts canónicos que solo existen de nombre (FormPage, MasterDetailPage, POSPage, Toast) y WizardPage duplicado | `frontend/desktop/components/pages.py:58,62,88,104` | intent-borrador | — | SDLC-UI-007, SDLC-UI-010 |
-| [SDLC-UI-012](items/SDLC-UI-012/intent.md) | P2 | T2 | AppSidebar: sin Inicio ni Reportes, orden distinto al estándar, encabezado crudo 'operacion' y búsqueda que coincide con todo | `frontend/desktop/shell/sidebar/global_sidebar.py:148`; `sidebar_search.py:24` | intent-borrador | — | — |
-| [SDLC-UI-013](items/SDLC-UI-013/intent.md) | P2 | T1 | El indicador de sesión siempre dice 'Conectado': offline_status nunca cambia y 'próxima a vencer' no tiene fuente | `backend/bootstrap/application_context.py:111`; `frontend/desktop/shell/application_shell/top_bar.py:142` | intent-borrador | — | SDLC-SYNC-005, SDLC-ARQ-HYB-002, SDLC-ARQ-SESS-002 |
+| [SDLC-UI-004](items/SDLC-UI-004/intent.md) | P2 | T2 | Tokens semánticos incompletos; modo oscuro con color de marca crudo y gráficas casi invisibles en oscuro | `frontend/desktop/themes/semantic_colors.py:92-94,174` | intent-aprobado | — | — |
+| [SDLC-UI-005](items/SDLC-UI-005/intent.md) | P2 | T2 | Segundo sistema visual: webs de delivery/logística con paleta azul propia y PDF de BI con colores sueltos | `frontend/web/delivery/styles.css`; `backend/application/analytics/services/bi_export_service.py:157,161` | intent-aprobado | — | — |
+| [SDLC-UI-007](items/SDLC-UI-007/intent.md) | P2 | T2 | Densidad global por usuario de Windows: POS, Inventario, Recepción y Producción no arrancan en TOUCH | `frontend/desktop/themes/theme_manager.py:46,77`; `components/pages.py:104` | intent-aprobado | — | — |
+| [SDLC-UI-010](items/SDLC-UI-010/intent.md) | P2 | T2 | Overflow: 101 pantallas sin contrato explícito, scroll anidado y encabezado/acciones fijos fuera del viewport | `frontend/desktop/shell/application_shell/content_host.py:57-59`; 101 hallazgos de la auditoría AST | intent-aprobado | — | SDLC-UI-003 |
+| [SDLC-UI-011](items/SDLC-UI-011/intent.md) | P2 | T2 | Layouts canónicos que solo existen de nombre (FormPage, MasterDetailPage, POSPage, Toast) y WizardPage duplicado | `frontend/desktop/components/pages.py:58,62,88,104` | intent-aprobado | — | SDLC-UI-007, SDLC-UI-010 |
+| [SDLC-UI-012](items/SDLC-UI-012/intent.md) | P2 | T2 | AppSidebar: sin Inicio ni Reportes, orden distinto al estándar, encabezado crudo 'operacion' y búsqueda que coincide con todo | `frontend/desktop/shell/sidebar/global_sidebar.py:148`; `sidebar_search.py:24` | intent-aprobado | — | — |
+| [SDLC-UI-013](items/SDLC-UI-013/intent.md) | P2 | T1 | El indicador de sesión siempre dice 'Conectado': offline_status nunca cambia y 'próxima a vencer' no tiene fuente | `backend/bootstrap/application_context.py:111`; `frontend/desktop/shell/application_shell/top_bar.py:142` | intent-aprobado | — | SDLC-SYNC-005, SDLC-ARQ-HYB-002, SDLC-ARQ-SESS-002 |
 | [SDLC-UI-016](items/SDLC-UI-016/intent.md) | P2 | T0 | No existe 'Cambiar sucursal': ni en Archivo ni en el menú de usuario, y el contexto no puede cambiar en sesión | `frontend/desktop/shell/application_shell/top_bar.py:63-72`; `application_window.py:153` | intent-aprobado | — | SDLC-SET-001, SDLC-ARQ-TERM-002, SDLC-ARQ-PERM-003 |
-| [SDLC-UI-017](items/SDLC-UI-017/intent.md) | P2 | T2 | ModuleSidebar: deep-links que dejan oculta la página en grupos colapsados; badge y permiso por grupo sin uso; módulos grandes planos | `frontend/desktop/modules/finance/finance_view.py:167` (`setCurrentRow`) | intent-borrador | — | — |
-| [SDLC-UI-018](items/SDLC-UI-018/intent.md) | P2 | T2 | CRM tiene pestañas dentro de pestañas (4 niveles) y un componente de pestañas propio (PillTabBar) | `frontend/desktop/modules/customers_crm/pages/customer_profile_page.py:458`; `_pill_tab_bar.py:28` | intent-borrador | — | — |
-| [SDLC-UI-019](items/SDLC-UI-019/intent.md) | P2 | T2 | StandardTable sin acciones por fila ni ordenamiento; anchos guardados, filtro y carga casi sin uso | `frontend/desktop/components/tables.py:41` (sorting inactivo); sin API de acciones | intent-borrador | — | — |
-| [SDLC-UI-020](items/SDLC-UI-020/intent.md) | P2 | T1 | MoneyInput guarda montos en float (QDoubleSpinBox) | `frontend/desktop/components/numeric_input.py:13`; `components/money_input.py` | intent-borrador | — | — |
-| [SDLC-UI-021](items/SDLC-UI-021/intent.md) | P2 | T1 | Teclado virtual: el modo por terminal nunca se aplica y la protección contra escáner/báscula está muerta | `frontend/desktop/components/virtual_keyboard.py:328` (sin `terminal_key`) | intent-borrador | — | — |
-| [SDLC-UI-022](items/SDLC-UI-022/intent.md) | P2 | T2 | La matriz de 5 resoluciones solo cubre 4 módulos y con páginas de relleno | `tests/ui/test_route_module_layout.py:54` (4 módulos, páginas de relleno) | intent-borrador | — | SDLC-UI-001, SDLC-UI-002 |
-| [SDLC-UI-023](items/SDLC-UI-023/intent.md) | P2 | T2 | Productos: 57 QPushButton, 18 QLineEdit, 34 QComboBox y 2 QTreeWidget fuera del estándar | `frontend/desktop/modules/products/pages/categories_page.py:61` (`QTreeWidget`); 57 `QPushButton` | intent-borrador | — | SDLC-UI-011, SDLC-UI-019 |
-| [SDLC-UI-024](items/SDLC-UI-024/intent.md) | P2 | T2 | RRHH: 32 QLineEdit y 8 QDateEdit nativos | `frontend/desktop/modules/hr/` (32 QLineEdit, 8 QDateEdit) | intent-borrador | — | SDLC-UI-011 |
-| [SDLC-UI-025](items/SDLC-UI-025/intent.md) | P2 | T1 | Finanzas y Cárnico: 4 QTableWidget (asiento contable editable incluido) e inputs nativos | `frontend/desktop/modules/finance/dialogs/journal_entry_dialog.py:68` (`QTableWidget`) | intent-borrador | — | SDLC-UI-019, SDLC-UI-020 |
-| [SDLC-UI-029](items/SDLC-UI-029/intent.md) | P2 | T2 | Huecos de las guardias: personalización por instancia, QTreeWidget/QTableView, Qt.<color>, glifos y ventanas QWidget | `tests/architecture/design_system_audit.py:21,123-185` | intent-borrador | — | SDLC-UI-003 |
+| [SDLC-UI-017](items/SDLC-UI-017/intent.md) | P2 | T2 | ModuleSidebar: deep-links que dejan oculta la página en grupos colapsados; badge y permiso por grupo sin uso; módulos grandes planos | `frontend/desktop/modules/finance/finance_view.py:167` (`setCurrentRow`) | intent-aprobado | — | — |
+| [SDLC-UI-018](items/SDLC-UI-018/intent.md) | P2 | T2 | CRM tiene pestañas dentro de pestañas (4 niveles) y un componente de pestañas propio (PillTabBar) | `frontend/desktop/modules/customers_crm/pages/customer_profile_page.py:458`; `_pill_tab_bar.py:28` | intent-aprobado | — | — |
+| [SDLC-UI-019](items/SDLC-UI-019/intent.md) | P2 | T2 | StandardTable sin acciones por fila ni ordenamiento; anchos guardados, filtro y carga casi sin uso | `frontend/desktop/components/tables.py:41` (sorting inactivo); sin API de acciones | intent-aprobado | — | — |
+| [SDLC-UI-020](items/SDLC-UI-020/intent.md) | P2 | T1 | MoneyInput guarda montos en float (QDoubleSpinBox) | `frontend/desktop/components/numeric_input.py:13`; `components/money_input.py` | intent-aprobado | — | — |
+| [SDLC-UI-021](items/SDLC-UI-021/intent.md) | P2 | T1 | Teclado virtual: el modo por terminal nunca se aplica y la protección contra escáner/báscula está muerta | `frontend/desktop/components/virtual_keyboard.py:328` (sin `terminal_key`) | intent-aprobado | — | — |
+| [SDLC-UI-022](items/SDLC-UI-022/intent.md) | P2 | T2 | La matriz de 5 resoluciones solo cubre 4 módulos y con páginas de relleno | `tests/ui/test_route_module_layout.py:54` (4 módulos, páginas de relleno) | intent-aprobado | — | SDLC-UI-001, SDLC-UI-002 |
+| [SDLC-UI-023](items/SDLC-UI-023/intent.md) | P2 | T2 | Productos: 57 QPushButton, 18 QLineEdit, 34 QComboBox y 2 QTreeWidget fuera del estándar | `frontend/desktop/modules/products/pages/categories_page.py:61` (`QTreeWidget`); 57 `QPushButton` | intent-aprobado | — | SDLC-UI-011, SDLC-UI-019 |
+| [SDLC-UI-024](items/SDLC-UI-024/intent.md) | P2 | T2 | RRHH: 32 QLineEdit y 8 QDateEdit nativos | `frontend/desktop/modules/hr/` (32 QLineEdit, 8 QDateEdit) | intent-aprobado | — | SDLC-UI-011 |
+| [SDLC-UI-025](items/SDLC-UI-025/intent.md) | P2 | T1 | Finanzas y Cárnico: 4 QTableWidget (asiento contable editable incluido) e inputs nativos | `frontend/desktop/modules/finance/dialogs/journal_entry_dialog.py:68` (`QTableWidget`) | intent-aprobado | — | SDLC-UI-019, SDLC-UI-020 |
+| [SDLC-UI-029](items/SDLC-UI-029/intent.md) | P2 | T2 | Huecos de las guardias: personalización por instancia, QTreeWidget/QTableView, Qt.<color>, glifos y ventanas QWidget | `tests/architecture/design_system_audit.py:21,123-185` | intent-aprobado | — | SDLC-UI-003 |
 | [SDLC-FIN-004](items/SDLC-FIN-004/intent.md) | P2 | T0 | La depreciación mensual solo se corre a mano: la corrida automática del legacy se perdió al borrarlo | `frontend/desktop/modules/finance/pages/depreciation_page.py:35`; `backend/application/services/finance/period_close_checklist.py:86,108` | intent-borrador | — | SDLC-FIN-003 |
 | [SDLC-ASSET-002](items/SDLC-ASSET-002/intent.md) | P2 | T2 | Las guardias de arquitectura de Activos pasan en vacío y no vigilan el andamiaje ni el esquema legacy | `tests/architecture/assets_guardrails.py:29,33,50-64`; `tests/architecture/test_assets_use_decimal.py:44-45` | intent-borrador | — | — |
 | [SDLC-ASSET-004](items/SDLC-ASSET-004/intent.md) | P2 | T0 | Seis tablas legacy de activos se siguen creando sin lector ni escritor, con dinero en REAL | `migrations/m000_base_schema.py:88,1441,1459,1472,1490,3070`; `migrations/standalone/060_depreciacion_acumulada.py:9` | intent-borrador | — | — |
@@ -271,16 +271,16 @@ Etapas válidas: `intent-borrador` · `intent-aprobado` · `spec-borrador` · `s
 | [SDLC-ARQ-PERM-006](items/SDLC-ARQ-PERM-006/intent.md) | P3 | T2 | Falta la matriz de permisos de los perfiles de referencia | `migrations/m000_base_schema.py:3174-3181` | intent-aprobado | — | SDLC-ARQ-PERM-004 |
 | [SDLC-PAY-028](items/SDLC-PAY-028/intent.md) | P3 | T1 | Pruebas y docstrings de Mercado Pago apuntan a código legacy eliminado | `tests/test_mercado_pago_pending_flow.py` | intent-borrador | — | — |
 | [SDLC-PAY-029](items/SDLC-PAY-029/intent.md) | P3 | T2 | Runbook operativo de Mercado Pago en español | — | intent-borrador | — | SDLC-PAY-013, SDLC-PAY-014, SDLC-PAY-019, SDLC-PAY-022 |
-| [SDLC-UI-006](items/SDLC-UI-006/intent.md) | P3 | T2 | Quedan glifos Unicode como icono (⌨ ⌫ →) y la guardia no cubre ese rango | `frontend/desktop/components/numeric_keypad_dialog.py:101,122` | intent-borrador | — | SDLC-UI-003 |
-| [SDLC-UI-008](items/SDLC-UI-008/intent.md) | P3 | T2 | StandardWindow no gestiona tema ni estado y la pantalla del cliente lo evita sin que la guardia lo note | `frontend/desktop/modules/sales_pos/customer_display_window.py:60,81` | intent-borrador | — | — |
+| [SDLC-UI-006](items/SDLC-UI-006/intent.md) | P3 | T2 | Quedan glifos Unicode como icono (⌨ ⌫ →) y la guardia no cubre ese rango | `frontend/desktop/components/numeric_keypad_dialog.py:101,122` | intent-aprobado | — | SDLC-UI-003 |
+| [SDLC-UI-008](items/SDLC-UI-008/intent.md) | P3 | T2 | StandardWindow no gestiona tema ni estado y la pantalla del cliente lo evita sin que la guardia lo note | `frontend/desktop/modules/sales_pos/customer_display_window.py:60,81` | intent-aprobado | — | — |
 | [SDLC-UI-009](items/SDLC-UI-009/intent.md) | P3 | T2 | StandardDialog: sin icono en encabezado, orden de botones de la plataforma y Escape implícito | `frontend/desktop/components/dialogs.py:347,449` | intent-borrador | — | — |
-| [SDLC-UI-014](items/SDLC-UI-014/intent.md) | P3 | T2 | Bloque de usuario sin iniciales ni rol, Acerca de sin logo y Configuración deshabilitada sin explicación | `frontend/desktop/shell/application_shell/top_bar.py:84,122` | intent-borrador | — | — |
-| [SDLC-UI-015](items/SDLC-UI-015/intent.md) | P3 | T2 | Contador de notificaciones calculado sobre 50 filas y avisos que no llevan a su origen | `frontend/desktop/shell/application_shell/notification_inbox_feed.py:51-58` | intent-borrador | — | — |
-| [SDLC-UI-026](items/SDLC-UI-026/intent.md) | P3 | T2 | Inventario y resto de módulos: QComboBox nativos y componentes locales | `frontend/desktop/modules/inventory/` (19 QComboBox) | intent-borrador | — | SDLC-UI-011 |
-| [SDLC-UI-027](items/SDLC-UI-027/intent.md) | P3 | T2 | Accesibilidad: sin orden de tabulación, nombres accesibles sin guardia y estado por color sin prueba | `setTabOrder` 0 usos en `frontend/desktop` | intent-borrador | — | — |
-| [SDLC-UI-028](items/SDLC-UI-028/intent.md) | P3 | T2 | QSS con variantes de botón no oficiales y KPICard que solo muestra la frescura en estado STALE | `frontend/desktop/themes/qss_builder.py:170,268`; `components/kpi_card.py:74` | intent-borrador | — | — |
-| [SDLC-UI-030](items/SDLC-UI-030/intent.md) | P3 | T2 | Pruebas visuales sin imágenes de referencia, fuera de CI y con componentes sin cubrir | `tests/ui/test_design_system_visual_matrix.py:3-4` (sin comparación de referencia) | intent-borrador | — | SDLC-UI-001 |
-| [SDLC-UI-031](items/SDLC-UI-031/intent.md) | P3 | T2 | Prueba de geometría intermitente: la ventana queda 2 px fuera del área del monitor nuevo | `tests/ui/test_standard_window_geometry.py:131` (falla 7 de 12 corridas sin las guardias de SDLC-UI-001) | intent-borrador | — | SDLC-UI-001 |
+| [SDLC-UI-014](items/SDLC-UI-014/intent.md) | P3 | T2 | Bloque de usuario sin iniciales ni rol, Acerca de sin logo y Configuración deshabilitada sin explicación | `frontend/desktop/shell/application_shell/top_bar.py:84,122` | intent-aprobado | — | — |
+| [SDLC-UI-015](items/SDLC-UI-015/intent.md) | P3 | T2 | Contador de notificaciones calculado sobre 50 filas y avisos que no llevan a su origen | `frontend/desktop/shell/application_shell/notification_inbox_feed.py:51-58` | intent-aprobado | — | — |
+| [SDLC-UI-026](items/SDLC-UI-026/intent.md) | P3 | T2 | Inventario y resto de módulos: QComboBox nativos y componentes locales | `frontend/desktop/modules/inventory/` (19 QComboBox) | intent-aprobado | — | SDLC-UI-011 |
+| [SDLC-UI-027](items/SDLC-UI-027/intent.md) | P3 | T2 | Accesibilidad: sin orden de tabulación, nombres accesibles sin guardia y estado por color sin prueba | `setTabOrder` 0 usos en `frontend/desktop` | intent-aprobado | — | — |
+| [SDLC-UI-028](items/SDLC-UI-028/intent.md) | P3 | T2 | QSS con variantes de botón no oficiales y KPICard que solo muestra la frescura en estado STALE | `frontend/desktop/themes/qss_builder.py:170,268`; `components/kpi_card.py:74` | intent-aprobado | — | — |
+| [SDLC-UI-030](items/SDLC-UI-030/intent.md) | P3 | T2 | Pruebas visuales sin imágenes de referencia, fuera de CI y con componentes sin cubrir | `tests/ui/test_design_system_visual_matrix.py:3-4` (sin comparación de referencia) | intent-aprobado | — | SDLC-UI-001 |
+| [SDLC-UI-031](items/SDLC-UI-031/intent.md) | P3 | T2 | Prueba de geometría intermitente: la ventana queda 2 px fuera del área del monitor nuevo | `tests/ui/test_standard_window_geometry.py:131` (falla 7 de 12 corridas sin las guardias de SDLC-UI-001) | intent-aprobado | — | SDLC-UI-001 |
 | [SDLC-ASSET-003](items/SDLC-ASSET-003/intent.md) | P3 | T1 | Restos del legacy de Activos: pruebas y script que importan `core/` borrado y andamiaje muerto con float | `tests/test_fase3_depreciacion.py:60`; `backend/application/commands/asset_commands.py:17,45` | intent-borrador | — | SDLC-ASSET-002 |
 | [SDLC-ASSET-009](items/SDLC-ASSET-009/intent.md) | P3 | T1 | Validaciones de dominio de Activos incompletas o inalcanzables (ubicación raíz, QR, escaneo, seguros, inspecciones, documentos) | `backend/domain/assets/entities/asset_location.py:44`; `asset_physical_inventory_line.py:24-35` | intent-borrador | — | — |
 | [SDLC-ASSET-030](items/SDLC-ASSET-030/intent.md) | P3 | T2 | Indicadores de Activos incompletos: 5 conteos, sin gráficas, MTBF/MTTR, salud ni candidatos a reemplazo, y nada expuesto a BI | `backend/application/assets/queries/asset_read_services.py:88-96` | intent-borrador | — | SDLC-ASSET-016, SDLC-ASSET-024 |
@@ -349,12 +349,52 @@ _(fecha · ID · decisión · quién aprobó)_
 - 2026-10-30 . SDLC-UI-002 . intent aprobado . Alfred
 - 2026-10-30 . SDLC-UI-003 . intent aprobado . Alfred
 - 2026-10-31 . SDLC-TRF-001 / SDLC-PROC-001 / SDLC-PROC-002 . prioridad P0 (fijada en `inputs/correcciones.md` C-01/C-03/C-04; resuelve la pregunta del triage) . Alfred
+- 2026-11-02 · SDLC-SET-001 · ¿Cambio en caliente o reinicio obligatorio? → en caliente · Alfred
+- 2026-11-02 · SDLC-ASSET-001 · ¿Ocultar Activos del menú hasta construirlo? (condicionaba el orden de SDLC-ASSET-012) → construir la capa de escritura · Alfred
+- 2026-11-02 · SDLC-ARQ-HYB-001 · ¿Servicio local de sucursal (§2.C/§9) o cajas autónomas (D1)? → cajas autónomas, offline-first · Alfred
+- 2026-11-02 · SDLC-ARQ-HYB-001 · ¿Qué PC aloja el servicio local y qué pasa si se apaga? → híbrido: servicio local en cada equipo; si se desconecta sigue trabajando y cuando se enciende comparte información · Alfred
+- 2026-11-02 · SDLC-ARQ-HYB-002 · ¿Qué operaciones se permiten sin servicio local ni internet? → todas las que no requieran compartir información ni internet; repartos no, compras no, transferencias no, Mercado Pago no; todo lo demás sí · Alfred
+- 2026-11-02 · SDLC-ARQ-PERM-004 · ¿`system_owner` y cuentas COMPANY operan el POS de cualquier sucursal sin asignación operativa? → sí · Alfred
+- 2026-11-02 · SDLC-ARQ-PERM-004 · ¿Roles reservados por nombre o roles normales? → roles reservados · Alfred
+- 2026-11-02 · SDLC-ARQ-PERM-001 · ¿Dentro del pipeline CONFIGURACION o como ítem SDLC? → independiente · Alfred
+- 2026-11-02 · SDLC-ARQ-PERM-003 · ¿Existen transferencias sin sucursal objetivo (p. ej. hacia planta)? → las transferencias siempre van a sucursal · Alfred
+- 2026-11-02 · SDLC-ARQ-OFF-001 · Vigencia de permisos offline y operaciones de alto riesgo bloqueadas offline → horas; no se bloquea ninguna, al reconectar se emite una alerta · Alfred
+- 2026-11-02 · SDLC-ARQ-SYNC-001 · Autoridad del inventario: ¿estación que vende, servicio local o central? → la estación, de inicio, pero debe ser configurable · Alfred
+- 2026-11-02 · SDLC-ARQ-SHIFT-001 · ¿Un turno `SUSPENDED` o `CLOSING` cuenta como activo para vender? → `SUSPENDED` sí, pero debe reanudarse; `CLOSING` no, debe abrir un turno · Alfred
+- 2026-11-02 · SDLC-ARQ-SHIFT-004 · Turnos incompatibles: ¿uno por caja, por cajón, por cajero o por terminal? → por cajero · Alfred
+- 2026-11-02 · SDLC-ARQ-SHIFT-003 · ¿Existe entrega de turno entre cajeros? ¿Revisar el Z es obligatorio antes de cerrar? → sí existe la entrega de turnos; revisar el corte Z no necesariamente · Alfred
+- 2026-11-02 · SDLC-ARQ-SESS-003 · ¿Quién puede reanudar una venta suspendida de otro cajero? → un supervisor sí, y otro cajero con autorización también · Alfred
+- 2026-11-02 · SDLC-ARQ-SESS-002 · Tiempo de inactividad para bloqueo en POS y terminal administrativa → 30 min de inicio, configurable desde Configuración · Alfred
+- 2026-11-02 · SDLC-ARQ-TERM-001 · ¿Qué tabla es la fuente canónica de terminal? → `workstations`; borrar las demás y las migraciones legacy · Alfred
+- 2026-11-02 · SDLC-ARQ-TERM-002 · ¿Re-anclar requiere aprobación central o basta un permiso local? → si hay registro central, sí; si no, solo con permiso local · Alfred
+- 2026-11-02 · SDLC-ARQ-TERM-005 · ¿Enrolamiento en la instalación (código de invitación) o en el primer arranque? → por un administrador · Alfred
+- 2026-11-02 · SDLC-ARQ-SYNC-004 · ¿Cuántas versiones atrás acepta el central? → N-2 · Alfred
+- 2026-11-02 · SDLC-UI-002 · Productos con 14 secciones: ¿diseño vigente o agrupar en 7? → 14 secciones · Alfred
+- 2026-11-02 · SDLC-UI-003 · ¿Meter a la línea base los 17 hallazgos nuevos y corregirlos después en UI-010/UI-025? → sí · Alfred
+- 2026-11-02 · SDLC-UI-004 · ¿La pantalla del cliente sigue el tema de la caja o tiene apariencia fija de marca? → debe seguir el tema · Alfred
+- 2026-11-02 · SDLC-UI-005 · ¿Las PWA de delivery y logística llevan identidad JUANIS? → identidad JUANIS · Alfred
+- 2026-11-02 · SDLC-UI-007 · ¿Densidad TOUCH por terminal o por pantalla? → por terminal · Alfred
+- 2026-11-02 · SDLC-UI-007 · ¿Qué pantallas de Inventario, Recepción y Producción son operación táctil? → todas · Alfred
+- 2026-11-02 · SDLC-UI-009 · Orden de botones: ¿acción principal a la derecha o a la izquierda? → a la derecha · Alfred
+- 2026-11-02 · SDLC-UI-012 · ¿Qué es «Inicio»? ¿«Reportes» es Inteligencia de Negocios? → Inicio = dashboard: BI resumido y accesos rápidos; «Reportes» sí es Inteligencia de Negocios · Alfred
+- 2026-11-02 · SDLC-UI-012 · Orden oficial del menú → 1. Inicio: Dashboard; 2. Ventas y clientes: POS, CRM, Repartos, WhatsApp; 3. Abastecimiento y Distribución: Compras, Transferencias, Logística; 4. Inventarios y Producción: Inventario, Productos, Precios, Producción, Merma; 5. Administración: Activos, Finanzas, RRHH, BI; 6. Sistema: Configuración · Alfred
+- 2026-11-02 · SDLC-UI-013 · Sin replicación: ¿ocultar el indicador o decir «Sin sincronización configurada»? → «Sin sincronización configurada» · Alfred
+- 2026-11-02 · SDLC-UI-014 · ¿«Mi perfil» permite cambiar la contraseña propia? → cambiar · Alfred
+- 2026-11-02 · SDLC-UI-016 · «Cambiar sucursal»: ¿cambia la sucursal operativa de la sesión o re-ancla la terminal? → cambia la sucursal de la sesión, pero se mantiene el anclaje original · Alfred
+- 2026-11-02 · SDLC-UI-016 · ¿Cambiar de sucursal exige volver a escribir la contraseña? → sí, y si el usuario no tiene credenciales para esa sucursal se niega el acceso · Alfred
+- 2026-11-02 · SDLC-UI-016 · ¿Se permite con un turno de caja abierto? → sí, pero no abre otro turno · Alfred
+- 2026-11-02 · SDLC-UI-017 · ¿Se consolidan Finanzas → «Activos fijos» y el módulo «Activos»? → Finanzas y Activos son módulos separados · Alfred
+- 2026-11-02 · SDLC-UI-018 · ¿Qué contenido de «Comercial» pasa a nivel 3 y qué sale del expediente? → según la lógica de negocio · Alfred
+- 2026-11-02 · SDLC-UI-021 · ¿Desde dónde se configura el modo del teclado por terminal? → Dispositivos · Alfred
+- 2026-11-02 · SDLC-UI-023 · ¿`StandardTree` canónico o rediseñar categorías como tabla? → componente canónico · Alfred
+- 2026-11-02 · SDLC-UI-025 · ¿Edición en celda en `StandardTable` o un `EditableTable` canónico? → `EditableTable` canónico · Alfred
+- 2026-11-02 · SDLC-UI-030 · ¿Imágenes de referencia versionadas en el repo o como artefacto de CI? → se versionan en el repo · Alfred
+- 2026-11-02 · SDLC-UI-030 · ¿Se generan en Windows o en `offscreen`? → Windows · Alfred
 
 ## Preguntas abiertas para el responsable
 
 _(ID · pregunta · por qué bloquea)_
 
-- ~~SDLC-TRF-001 / SDLC-PROC-001 / SDLC-PROC-002 · La auditoría 2026-10-26 los clasificó P0; el triage los deja en P1 (flujo roto, sin pérdida directa de dinero) según la tabla del comando. · Si se quieren P0, cambia el orden de trabajo.~~ · **Respondida 2026-10-31** por `inputs/correcciones.md`: P0.
 - SDLC-CORE-002 · Posible contradicción entre fuentes: la REGLA CERO exige UUIDv7 en toda operación, pero la idempotencia necesita `operation_id` derivados deterministas. · Registrada aquí en vez de elegir en silencio (regla del README).
 - SDLC-INST-001 · ¿Nombre/huella del certificado de firma de código que se usará? · bloquea `/sdlc-design SDLC-INST-001`
 - SDLC-INV-001 · ¿Las bajas por caducidad son merma (Mermas valúa y asienta) o ajuste de inventario directo? · bloquea `/sdlc-design SDLC-INV-001`
@@ -375,13 +415,10 @@ _(ID · pregunta · por qué bloquea)_
 - SDLC-ORD-001 · ¿Cuenta contable para 'efectivo en poder de repartidores'? · bloquea `/sdlc-design SDLC-ORD-001`
 - SDLC-PROC-001 · ¿Política por producto/sucursal/almacén de qué dispara la transformación? Concretamente (correcciones C-03): ¿qué productos y sucursales usan `NEVER`, `OFFER_AFTER_RECEIPT` o `AUTO_ESTIMATE_AFTER_RECEIPT`, con alcance producto + sucursal + almacén + origen? · bloquea `/sdlc-design SDLC-PROC-001`
 - SDLC-SALES-002 · ¿Regla de redondeo: por línea o sobre el total? ¿HALF_UP o bancario? · bloquea `/sdlc-design SDLC-SALES-002`
-- SDLC-SET-001 · ¿Cambio en caliente o reinicio obligatorio? · bloquea `/sdlc-design SDLC-SET-001`
 - SDLC-SYNC-005 · ¿Ya hay un servidor central (Oracle Always Free) listo para recibir tráfico real? · bloquea `/sdlc-design SDLC-SYNC-005`
-- ~~SDLC-TRF-001 · La auditoría lo clasificó P0; aquí P1 (flujo roto, sin pérdida de dinero). ¿De acuerdo? · bloquea `/sdlc-design SDLC-TRF-001`~~ · **Respondida 2026-10-31** por `inputs/correcciones.md` C-01: P0.
 - SDLC-WA-003 · ¿El destino es la API REST del ERP (aún inexistente) o los casos de uso canónicos `customer_orders`/`quotes`? · bloquea `/sdlc-design SDLC-WA-003`
 - SDLC-WA-003 · ¿El canal WhatsApp está en uso hoy en alguna sucursal? · bloquea `/sdlc-design SDLC-WA-003`
 - SDLC-WA-004 · ¿Cuenta contable de anticipos de clientes? · bloquea `/sdlc-design SDLC-WA-004`
-- SDLC-ASSET-001 · ¿Ocultar Activos del menú hasta construirlo? · bloquea `/sdlc-design SDLC-ASSET-001`
 - SDLC-CASH-002 · ¿Quién confirma el depósito (cajero, tesorería) y con qué evidencia? · bloquea `/sdlc-design SDLC-CASH-002`
 - SDLC-CORE-002 · Los ids derivados necesitan ser deterministas para idempotencia: ¿se acepta UUIDv5/v8 derivado del UUIDv7 padre, o se exige UUIDv7 persistido? (posible contradicción con la REGLA CERO) · bloquea `/sdlc-design SDLC-CORE-002`
 - SDLC-INST-003 · ¿Varios usuarios de Windows por PC de sucursal, o uno solo? · bloquea `/sdlc-design SDLC-INST-003`
@@ -394,25 +431,7 @@ _(ID · pregunta · por qué bloquea)_
 
 ### Arquitectura (2026-10-29)
 
-- SDLC-ARQ-HYB-001 · **Contradicción entre fuentes:** `requisitos-arquitectura.md` §2.C/§9 pide un servicio local de sucursal; la decisión D1 de `docs/architecture/enterprise_org/00_phase0_audit.md:147` eligió «cajas autónomas» porque un servidor local es un punto único de falla. ¿Cuál prevalece? · bloquea `/sdlc-design SDLC-ARQ-HYB-001` y todo §8/§9 entre terminales
-- SDLC-ARQ-HYB-001 · ¿Qué PC de la sucursal aloja el servicio local (¿la misma anfitriona 24/7 de webhooks del PLAN-MAESTRO?) y qué pasa si se apaga? · bloquea `/sdlc-design SDLC-ARQ-HYB-001`
-- SDLC-ARQ-HYB-002 · ¿Qué operaciones se permiten sin servicio local ni internet (efectivo sí; crédito, devolución, retiro no…)? · bloquea `/sdlc-design SDLC-ARQ-HYB-002`
 - §3.4 · La precedencia actual es ROL < USUARIO < SUCURSAL y gana la capa más específica, también cuando concede (`backend/application/security/permission_query_service.py:3-13`). El documento dice respetarla si existe: ¿se ratifica como política? · no bloquea; confirma la base de PERM-002/004
-- SDLC-ARQ-PERM-004 · ¿El dueño (`system_owner`) y las cuentas COMPANY pueden operar el POS de cualquier sucursal sin asignación operativa? Hoy sí, y una prueba lo fija. · bloquea `/sdlc-design SDLC-ARQ-PERM-004`
-- SDLC-ARQ-PERM-004 · ¿Se mantienen roles reservados por nombre (`admin`, `superadmin`, `administrador`, `system_owner`) o se convierten en roles normales? El documento dice que el nombre no concede privilegios. · bloquea `/sdlc-design SDLC-ARQ-PERM-004`
-- SDLC-ARQ-PERM-001 · ¿Se ejecuta dentro del pipeline CONFIGURACION (`work_queue.json`) o como ítem SDLC? · bloquea `/sdlc-design SDLC-ARQ-PERM-001`
-- SDLC-ARQ-PERM-003 · ¿Existen transferencias sin sucursal objetivo (p. ej. hacia planta)? · bloquea `/sdlc-design SDLC-ARQ-PERM-003`
-- SDLC-ARQ-OFF-001 · Vigencia de permisos offline: ¿cuánto puede operar un usuario sin revalidar? ¿Qué operaciones de alto riesgo se bloquean offline? · bloquea `/sdlc-design SDLC-ARQ-OFF-001`
-- SDLC-ARQ-SYNC-001 · Autoridad del inventario: ¿estación que vende, servicio local o central? Decide si la sobreventa entre cajas se previene o sólo se detecta. · bloquea `/sdlc-design SDLC-ARQ-SYNC-001`
-- SDLC-ARQ-SHIFT-001 · ¿Un turno `SUSPENDED` o `CLOSING` cuenta como activo para vender? · bloquea `/sdlc-design SDLC-ARQ-SHIFT-001`
-- SDLC-ARQ-SHIFT-004 · Regla vigente de turnos incompatibles: ¿uno por caja, por cajón, por cajero o por terminal? · bloquea `/sdlc-design SDLC-ARQ-SHIFT-004`
-- SDLC-ARQ-SHIFT-003 · ¿Existe entrega de turno entre cajeros en la operación real? ¿Revisar el Z es obligatorio antes de cerrar? · bloquea `/sdlc-design SDLC-ARQ-SHIFT-003`
-- SDLC-ARQ-SESS-003 · ¿Quién puede reanudar una venta suspendida de otro cajero (supervisor, otro cajero con autorización, nadie)? · bloquea `/sdlc-design SDLC-ARQ-SESS-003`
-- SDLC-ARQ-SESS-002 · Tiempo de inactividad para bloqueo en POS y en terminal administrativa. · bloquea `/sdlc-design SDLC-ARQ-SESS-002`
-- SDLC-ARQ-TERM-001 · ¿Qué tabla es la fuente canónica de terminal (`workstations` parece la más completa)? · bloquea `/sdlc-design SDLC-ARQ-TERM-001`
-- SDLC-ARQ-TERM-002 · ¿Re-anclar una estación a otra sucursal requiere aprobación central o basta un permiso local? · bloquea `/sdlc-design SDLC-ARQ-TERM-002`
-- SDLC-ARQ-TERM-005 · ¿El enrolamiento se hace en la instalación (código de invitación) o en el primer arranque por un administrador? · bloquea `/sdlc-design SDLC-ARQ-TERM-005`
-- SDLC-ARQ-SYNC-004 · ¿Cuántas versiones atrás debe aceptar el central (N-1, N-2)? · bloquea `/sdlc-design SDLC-ARQ-SYNC-004`
 - Entregables · `requisitos-arquitectura.md` §1/§16 pide `docs/spj/auditoria/matriz-hallazgos.md` y `plan-por-etapas.md`; `/sdlc-plan` sólo escribe en `docs/sdlc/`. Hoy `arquitectura/matriz-brechas.md` cumple ese papel y el orden por etapas vive en la columna «Depende de». ¿Se crea además `docs/spj/` (enlace o copia) o se adopta `docs/sdlc/` como ubicación oficial? · no bloquea
 - SDLC-PAY-001 · ¿Dónde vive el backend de pagos y el Access Token: PC anfitriona de sucursal (plan maestro, decisión 1), servidor central o, temporalmente, cada caja? · bloquea `/sdlc-design SDLC-PAY-001`
 - SDLC-PAY-001 · ¿Entrada pública de webhooks: ngrok, Cloudflare Tunnel o servidor central? · bloquea `/sdlc-design SDLC-PAY-001`
@@ -435,29 +454,8 @@ _(ID · pregunta · por qué bloquea)_
 
 ### UI/UX (2026-10-29)
 
-- SDLC-UI-002 · Productos con 14 secciones en el sidebar: ¿es el diseño vigente (y la prueba está vieja) o se esperaba agrupar en 7? · bloquea `/sdlc-design SDLC-UI-002`
-- SDLC-UI-003 · ¿Se autoriza meter a la línea base los 17 hallazgos nuevos para volver a verde y corregirlos después en sus ítems (UI-010, UI-025), o se exige corregirlos antes? · bloquea `/sdlc-design SDLC-UI-003`
-- SDLC-UI-004 · ¿La pantalla del cliente debe seguir el tema de la caja o tener siempre la apariencia de marca (hoy es fija)? · bloquea `/sdlc-design SDLC-UI-004`
-- SDLC-UI-005 · ¿Las PWA de delivery y logística deben llevar identidad JUANIS, o se aceptan como producto aparte? · bloquea `/sdlc-design SDLC-UI-005`
-- SDLC-UI-007 · ¿La densidad TOUCH va por terminal (todo táctil en esa PC) o por pantalla (solo POS, recepción, producción e inventario operativo)? · bloquea `/sdlc-design SDLC-UI-007`
-- SDLC-UI-007 · ¿Qué pantallas exactas de Inventario, Recepción y Producción son «operación táctil»? · bloquea `/sdlc-design SDLC-UI-007`
-- SDLC-UI-009 · Orden de botones oficial: ¿acción principal a la derecha (Windows) o a la izquierda? · bloquea `/sdlc-design SDLC-UI-009`
-- SDLC-UI-012 · ¿Qué es «Inicio» (un tablero nuevo, BI, o el POS)? ¿«Reportes» es Inteligencia de Negocios? · bloquea `/sdlc-design SDLC-UI-012`
-- SDLC-UI-012 · ¿Orden oficial del menú, o el orden de §12 tal cual? · bloquea `/sdlc-design SDLC-UI-012`
-- SDLC-UI-013 · Mientras no exista replicación (SDLC-SYNC-005), ¿el indicador debe ocultarse o decir «Sin sincronización configurada»? · bloquea `/sdlc-design SDLC-UI-013`
-- SDLC-UI-014 · ¿«Mi perfil» debe permitir cambiar la contraseña propia o seguir de solo lectura? · bloquea `/sdlc-design SDLC-UI-014`
-- SDLC-UI-016 · «Cambiar sucursal» ¿cambia la sucursal operativa de la sesión de un usuario multi-sucursal, o re-ancla la terminal? Si es lo segundo, ¿la entrada del menú solo lleva a Configuración? · bloquea `/sdlc-design SDLC-UI-016`
-- SDLC-UI-016 · ¿Cambiar de sucursal exige volver a escribir la contraseña? · bloquea `/sdlc-design SDLC-UI-016`
-- SDLC-UI-016 · ¿Se permite si hay un turno de caja abierto? · bloquea `/sdlc-design SDLC-UI-016`
 - SDLC-UI-017 · ¿Qué módulos planos deben agruparse primero? · bloquea `/sdlc-design SDLC-UI-017`
-- SDLC-UI-017 · Finanzas → «Activos fijos» y el módulo «Activos»: ¿se consolida en uno? (ver SDLC-ASSET-001) · bloquea `/sdlc-design SDLC-UI-017`
 - SDLC-UI-017 · ¿Se debe restaurar la última página dentro del módulo al reabrir? · bloquea `/sdlc-design SDLC-UI-017`
-- SDLC-UI-018 · ¿Qué contenido de la pestaña «Comercial» pasa a nivel 3 y qué sale del expediente? · bloquea `/sdlc-design SDLC-UI-018`
-- SDLC-UI-021 · ¿Desde dónde se configura el modo del teclado por terminal (Configuración → Dispositivos u otra sección)? · bloquea `/sdlc-design SDLC-UI-021`
-- SDLC-UI-023 · ¿Se agrega un componente canónico de árbol (`StandardTree`) o se rediseña categorías como tabla? · bloquea `/sdlc-design SDLC-UI-023`
-- SDLC-UI-025 · ¿`StandardTable` debe soportar edición en celda, o se crea un `EditableTable` canónico? · bloquea `/sdlc-design SDLC-UI-025`
-- SDLC-UI-030 · ¿Las imágenes de referencia se versionan en el repo (tamaño) o como artefacto de CI? · bloquea `/sdlc-design SDLC-UI-030`
-- SDLC-UI-030 · ¿Se generan en Windows (plataforma real) o en `offscreen`? · bloquea `/sdlc-design SDLC-UI-030`
 - SDLC-UI-004/007 · El tema y la densidad se guardan por usuario de Windows (QSettings), no por usuario de la app ni por terminal. El documento pide «por usuario o terminal»: ¿basta lo actual? · no bloquea
 - Precedencia de fuentes · `ui-ux.md` §45 exige un solo sistema visual; las PWA web y la pantalla del cliente tienen identidad propia. Registrado aquí en vez de elegir en silencio (ver SDLC-UI-004/005). · no bloquea
 
@@ -481,7 +479,6 @@ _(ID · pregunta · por qué bloquea)_
 - SDLC-ASSET-024 · Igual que en SDLC-UI-017: ¿el alta de un activo nace en Activos (y Finanzas solo lo reconoce) o se mantiene el alta en Finanzas y Activos la toma de ahí? · bloquea `/sdlc-design SDLC-ASSET-024`
 - SDLC-ASSET-028 · ¿Una línea de compra con cantidad 5 genera 5 activos en borrador, o un borrador que se desdobla al capturar series? · bloquea `/sdlc-design SDLC-ASSET-028`
 - SDLC-ASSET-034 · ¿El mantenimiento de equipos de producción se muda a Activos, o Cárnico conserva el suyo y solo notifica a Activos? · bloquea `/sdlc-design SDLC-ASSET-034`
-- SDLC-ASSET-001 / SDLC-ASSET-012 · La pregunta abierta de SDLC-ASSET-001 («¿ocultar Activos del menú hasta construirlo?») sigue vigente y ahora condiciona el orden: si se oculta, SDLC-ASSET-012 lo vuelve a mostrar. · bloquea `/sdlc-design SDLC-ASSET-001`
 - Precedencia de fuentes · `activos.md` pide códigos `ASSETS_VIEW…` (§71–§81); el repo usa `ACTIVOS.<accion>` (convención de Compras, ya en el catálogo). Los intents asumen la del repo; registrado aquí en vez de elegir en silencio. · no bloquea
 - Precedencia de fuentes · `activos.md` §1/§109 pide eliminar `modulos/activos.py` y `AssetService`, ya borrados; la función que hacían (alta de equipos, mantenimientos, etiquetas, PDF, depreciación automática) se perdió sin reemplazo, contra la regla de preservación de `CLAUDE.md`. Los ítems ASSET-013/016/019/023/027 y FIN-004 la restituyen. · no bloquea
 
