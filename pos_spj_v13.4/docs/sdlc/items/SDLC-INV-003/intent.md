@@ -29,7 +29,7 @@ Stock 'existente' que no puede venderse, bajarse ni transformarse; saldos partid
 
 ## Alcance
 - **Incluye:** Resolver único y su adopción.
-- **No incluye:** Orquestación recepción→despiece (PROC-001).
+- **No incluye:** Orquestación recepción→despiece (PROC-001). El caso concreto «transferencia recibida en `PURCHASE`, invisible para `PRODUCTION`» se atiende antes en SDLC-TRF-003 (oleada 1 de `inputs/correcciones.md` C-02); si este ítem llega primero, TRF-003 usa su resolvedor.
 
 ## Restricciones
 CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asiento()`, rastro en `financial_event_log`, sin SQL en UI); `docs/skills/SPJ_REFACTOR_SKILL.md` REGLA CERO (UUIDv7 desde `backend/shared/ids.py`, sin lectura/escritura dual) y rutas dentro de `pos_spj_v13.4/`; migraciones registradas en `migrations/engine.py` y probadas sobre una copia de la BD en el directorio temporal, nunca sobre un `.db` real; presupuesto $0; Windows. Nivel T0: spec aprobado por escrito, pruebas de regresión antes del cambio, suite completa del segmento y revisión independiente obligatoria.

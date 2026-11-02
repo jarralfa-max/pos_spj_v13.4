@@ -36,3 +36,9 @@ WA-22.
 
 ## Preguntas abiertas
 - Ninguna por ahora.
+
+## Ampliación 2026-11-01 (`/sdlc-plan arquitectura docs/sdlc/inputs/whatsapp.md`)
+Origen: `docs/sdlc/inputs/whatsapp.md` §2, §29, §74; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`.
+- `whatsapp_service/ai/intent_resolver.py:36-47` hace UPSERT a `configuraciones` del ERP **en cada mensaje entrante** (llamadas en `:54,65,76,82,94,99,103`) y traga errores.
+- `whatsapp_service/router/delivery_router.py:228-237` inserta en `wa_event_log` sin guarda de producción.
+- Arranque que migra la base del ERP: ver también SDLC-WA-016.

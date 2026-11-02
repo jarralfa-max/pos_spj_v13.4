@@ -40,3 +40,10 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 ## Preguntas abiertas
 - ¿El destino es la API REST del ERP (aún inexistente) o los casos de uso canónicos `customer_orders`/`quotes`?
 - ¿El canal WhatsApp está en uso hoy en alguna sucursal?
+
+## Ampliación 2026-11-01 (`/sdlc-plan arquitectura docs/sdlc/inputs/whatsapp.md`)
+Origen: `docs/sdlc/inputs/whatsapp.md` §34, §37, §52; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`.
+- `ERPBridge.create` está definido dos veces (`whatsapp_service/erp/bridge.py:395` pedido y `:654` cotización, *verificado directamente*); gana el último, así que `ErpBridgeOrdersApiClient.create` (`whatsapp_service/infrastructure/erp_clients/erp_bridge_clients.py:86`) crearía una cotización o fallaría y `ErpBridgeQuotesApiClient.create` (`:113`) falla sin `sucursal_id`. La prueba lo oculta con `_FakeBridge.create(**kwargs)` (`whatsapp_service/tests/test_erp_bridge_clients.py:35`). Hoy es ruta no cableada.
+- `whatsapp_service/application/confirm_order_use_case.py:61` hace `int(order["venta_id"])`: rompe con el UUID que devolvería la API.
+- Dueños existentes sin API: `CreateCustomerOrderUseCase` (`backend/application/orders_delivery/use_cases/order_capture_use_cases.py:36`, deduplica por `whatsapp_order_id`/`operation_id`), `CaptureOrderUseCase` (`capture_order_use_cases.py:99`), casos de uso de Quotes (`backend/application/quotes/use_cases/quote_use_cases.py:129,333,343`). No existe `InventoryApiClient` ni fachada `ERPChannelGateway`; `consent_client.py:19-21` importa un repositorio interno del ERP y `loyalty_client.py:35` hace SQL directo.
+- Se separaron en ítems propios: SDLC-WA-009 (autenticación WA→ERP), SDLC-WA-021 (precio de registro), SDLC-WA-028 (cotizaciones), SDLC-WA-031 (crédito), SDLC-WA-032 (delivery), SDLC-WA-033 (lealtad).

@@ -37,3 +37,9 @@ WA-22.
 
 ## Preguntas abiertas
 - Ninguna por ahora.
+
+## Ampliación 2026-11-01 (`/sdlc-plan arquitectura docs/sdlc/inputs/whatsapp.md`)
+Origen: `docs/sdlc/inputs/whatsapp.md` §36, §9; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`.
+- **Defecto que se activa al arreglar el import:** "no acepto" contiene "acepto" y se evalúa primero, así que se registra como **aceptación** del ajuste (`whatsapp_service/router/message_router.py:212-214`, *verificado directamente*). Debe corregirse en el mismo cambio que repare `adjustment_approval.py`.
+- `notification_inbox` se inserta sin `id` contra `id TEXT NOT NULL PRIMARY KEY` (`whatsapp_service/erp/pos_notifier.py:266-284`; `migrations/standalone/041_notification_inbox.py:11`, *verificado directamente*) y el error queda en `logger.debug`; `wa_event_log` igual en `whatsapp_service/erp/adjustment_approval.py:127,137`.
+- Las pruebas ocultan ambos con su propio DDL INTEGER (`whatsapp_service/tests/test_adjustment_approval_phase7.py:42-43`, `test_pos_notifier_dedupe`). El rediseño de la aprobación pasa a SDLC-WA-029.

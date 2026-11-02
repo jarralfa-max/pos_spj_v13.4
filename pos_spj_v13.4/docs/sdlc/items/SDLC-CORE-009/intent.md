@@ -37,3 +37,6 @@ Memoria UI Design System (2026-10-28).
 
 ## Preguntas abiertas
 - ¿Las herramientas de `tools/refactor_control` y el orquestador Codex siguen en uso?
+
+## Enlace 2026-10-29 (UI/UX)
+Las 2 fallas de `tests/architecture/test_design_system_guardrails.py` quedan cubiertas por **SDLC-UI-003** (línea base de deuda visual: 17 hallazgos nuevos y 26 resueltos sin podar, medido el 2026-10-29). Los huecos de detección de esa guardia están en SDLC-UI-029. Este ítem conserva el resto de guardias.

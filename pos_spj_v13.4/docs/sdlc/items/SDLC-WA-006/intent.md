@@ -37,3 +37,10 @@ WA-17/WA-22.
 
 ## Preguntas abiertas
 - Ninguna por ahora.
+
+## Ampliación 2026-11-01 (`/sdlc-plan arquitectura docs/sdlc/inputs/whatsapp.md`)
+Origen: `docs/sdlc/inputs/whatsapp.md` §17, §19, §20; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`.
+- Solo se procesa `entry[0].changes[0].messages[0]` de cada lote (`whatsapp_service/models/message.py:52-63`, *verificado directamente*).
+- El dedupe marca el mensaje como visto antes de procesarlo, no es atómico y se ignora el resultado de `log_message` (`whatsapp_service/state/conversation.py:118-135`; `webhook/whatsapp.py:114-139`): una excepción responde 200 y el reintento de Meta se descarta.
+- Los webhooks de estado (sent/delivered/read/failed) se descartan sin persistir (`webhook/whatsapp.py:98-103`, *verificado directamente*); lo cortado por el limitador se descarta sin registro (`:120-122`).
+- El corte al pipeline canónico es SDLC-WA-019; reintentos y dead letter, SDLC-WA-039.

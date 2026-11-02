@@ -34,3 +34,7 @@ CRM-43.
 
 ## Preguntas abiertas
 - Ninguna por ahora.
+
+## Ampliación 2026-11-01 (`/sdlc-plan arquitectura docs/sdlc/inputs/whatsapp.md`)
+Origen: `docs/sdlc/inputs/whatsapp.md` §44; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`.
+- El registro por WhatsApp da de alta en `clientes` y luego crea el puente en `customers` (`whatsapp_service/erp/bridge.py:174-178,331-333`); el control de consentimiento del sender puede crear filas en `customers` en cada envío (`whatsapp_service/messaging/sender.py:147`). Ver SDLC-WA-034.

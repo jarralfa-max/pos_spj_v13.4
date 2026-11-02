@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-02, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -34,4 +34,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 Memoria SET (install-branch pin), ORG-AUD (sitio de sesión = pin).
 
 ## Preguntas abiertas
-- ¿Cambio en caliente o reinicio obligatorio?
+- ¿Cambio en caliente o reinicio obligatorio? en caliente

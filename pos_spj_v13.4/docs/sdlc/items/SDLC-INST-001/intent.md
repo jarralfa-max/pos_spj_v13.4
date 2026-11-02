@@ -38,3 +38,6 @@ Memoria INST-0 (2026-10-14/16): instalador + updater firmado, CI Windows verde.
 
 ## Preguntas abiertas
 - ¿Nombre/huella del certificado de firma de código que se usará?
+
+## Ampliación (`/sdlc-plan arquitectura`, 2026-10-29)
+Además, `AuthenticodeVerifier` se construye sin `expected_subject` (`backend/infrastructure/updater/updater_main.py:98`, *verificado directamente*; `backend/infrastructure/updater/installer_trust.py:50`), así que acepta un instalador firmado por **cualquier** editor con certificado válido. Con `update_job.json` manipulable, se ejecutaría elevado cualquier exe firmado por un tercero. Va en este ítem porque comparte superficie de ataque y archivos. Requisito: `requisitos-arquitectura.md` §13 (verificar firma e integridad).

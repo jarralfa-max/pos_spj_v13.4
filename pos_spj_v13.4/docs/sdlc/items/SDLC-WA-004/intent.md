@@ -34,3 +34,17 @@ WA-22.
 
 ## Preguntas abiertas
 - ¿Cuenta contable de anticipos de clientes?
+
+## Ampliación 2026-10-29 (`/sdlc-plan arquitectura docs/sdlc/inputs/mercado-pago.md`)
+Origen: `docs/sdlc/inputs/mercado-pago.md` Fase 14; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md` (Fase 14 «Microservicio no dueño del estado financiero», `defectuoso`, CRITICAL).
+
+- `whatsapp_service/erp/gateways/payment_gateway.py:24-26` hace `INSERT INTO anticipos (venta_id, monto, metodo, estado, fecha)` sin `id`, pero `migrations/standalone/114_anticipos_schema.py:23` define `id TEXT NOT NULL PRIMARY KEY` sin valor por defecto: contra el esquema real el registro del anticipo viola NOT NULL (*verificado directamente*; no ejecutado contra una BD).
+- `tests/test_wa_bridge.py:68-72` crea su propia tabla `anticipos` con `INTEGER AUTOINCREMENT` y oculta el defecto (`:254-257`).
+- `whatsapp_service/erp/gateways/payment_gateway.py:51-53` sobrescribe `ventas.anticipo_pagado = monto` (no acumula) y marca `confirmada` aunque se haya pagado menos.
+- `tests/test_financial_core_enforcement.py:486-545` (asiento a 217 anticipos de clientes) importa `core.services.anticipo_service`, que no existe: la única prueba del asiento de anticipos está rota (ver SDLC-PAY-028).
+
+## Ampliación 2026-11-01 (`/sdlc-plan arquitectura docs/sdlc/inputs/whatsapp.md`)
+Origen: `docs/sdlc/inputs/whatsapp.md` §38; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`.
+- En el camino vivo el anticipo nunca se registra: solo lo haría `BusinessOrchestrator` (`whatsapp_service/erp/business_orchestrator.py:163-247`), que no se inyecta en los flujos (`whatsapp_service/router/message_router.py:189-195`; `flows/base_flow.py:212-218`).
+- El canal calcula el monto: 30% de respaldo en `whatsapp_service/application/confirm_order_use_case.py:136-142` (tras un import de `core.*` borrado en `:114`) y 50% en `whatsapp_service/erp/bridge.py:886`.
+- Relacionado: SDLC-PAY-025 (enlace prometido y nunca generado), SDLC-WA-031 (crédito decide el anticipo).

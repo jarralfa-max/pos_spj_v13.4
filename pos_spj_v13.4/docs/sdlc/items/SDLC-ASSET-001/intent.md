@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T2
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-10-28, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -34,3 +34,4 @@ Memoria ASSET-0..24 (capa de escritura nunca construida).
 
 ## Preguntas abiertas
 - ¿Ocultar Activos del menú hasta construirlo?
+construir la capa de escritura

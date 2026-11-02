@@ -14,6 +14,7 @@ Rutas relativas a `pos_spj_v13.4/` (las que empiezan con `whatsapp_service/` son
 
 - `backend/application/use_cases/cancel_sale_use_case.py:9`; `execute_monthly_closing_use_case.py:24-28`
 - `backend/application/use_cases/settle_delivery_driver_use_case.py:30-139`; `create_delivery_order_use_case.py:9-10`; `backend/application/queries/delivery_query_service.py`
+- **Ampliado 2026-10-31** (`/sdlc-plan` Modo B, pendientes de Delivery), *verificado directamente*: `settle_delivery_driver_use_case.py:135` todavía hace `UPDATE delivery_orders SET corte_id=?` (tabla legacy) y solo lo llama `tests/integration/test_delivery_cut_uuid_relationships.py` (4 passed). `backend/application/queries/driver_settlement_query_service.py` no tiene llamadores. `DeliveryQueryService` y `DriverQueryService` solo se reexportan en `backend/application/queries/__init__.py:16,18,36,38`; su único consumidor es `tests/test_delivery_board_query_route.py`, que importa otra clase homónima de `core.delivery` (borrado) y no se puede recolectar (SDLC-ORD-010).
 - `frontend/desktop/modules/hr/hr_routes.py:169-177`
 - `whatsapp_service/erp/bridge.py:752,899,1022`
 - `frontend/desktop/modules/business_intelligence/navigation/business_intelligence_sidebar.py:47`; `business_intelligence/shell_registration.py:8-15,30-32`

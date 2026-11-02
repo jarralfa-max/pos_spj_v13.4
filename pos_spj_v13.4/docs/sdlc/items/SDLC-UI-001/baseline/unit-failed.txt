@@ -1,0 +1,5 @@
+FAILED tests\unit\sales_pos\test_live_scale.py::test_capture_rejects_future_naive_or_unstable_readings[2026-10-30T23:32:38.489188+00:00-True]
+FAILED tests\unit\test_feature_flags_page.py::TestFeatureFlagsFullLoop::test_create_request_approve_apply_closes_the_loop
+FAILED tests\unit\test_feature_flags_page.py::TestFeatureFlagsPageLoadsRealData::test_selecting_a_flag_loads_its_rules
+FAILED tests\unit\test_pos_checkout_dialogs.py::test_reintentar_el_cobro_no_duplica_pagos
+FAILED tests\unit\test_transfers_ui_workspace.py::test_sidebar_filters_permissions_and_dialogs_use_accessible_standard_inputs

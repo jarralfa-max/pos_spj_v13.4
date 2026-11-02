@@ -30,7 +30,7 @@ Integraciones entre contextos que aparentan existir y no corren.
 CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asiento()`, rastro en `financial_event_log`, sin SQL en UI); `docs/skills/SPJ_REFACTOR_SKILL.md` REGLA CERO (UUIDv7 desde `backend/shared/ids.py`, sin lectura/escritura dual) y rutas dentro de `pos_spj_v13.4/`; migraciones registradas en `migrations/engine.py` y probadas sobre una copia de la BD en el directorio temporal, nunca sobre un `.db` real; presupuesto $0; Windows. Nivel T1: pruebas del módulo + `tests/architecture`; revisión independiente recomendada.
 
 ## Trabajo previo relacionado
-Memoria corte del shell.
+Memoria corte del shell. `docs/audits/DELIVERY_REFACTOR_AUDIT.md` §Riesgos 1 y 7 (2026-10-31): en el estrato canónico, el descuento de inventario no depende de este outbox porque no existe en ninguna ruta (SDLC-ORD-004), y los avisos al cliente no pasan por outbox (SDLC-ORD-006). Este ítem no cubre ninguno de los dos.
 
 ## Preguntas abiertas
 - Ninguna por ahora.

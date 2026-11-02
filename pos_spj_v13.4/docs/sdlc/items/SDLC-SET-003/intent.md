@@ -33,3 +33,13 @@ work_queue CONFIGURACION-06 (IN_PROGRESS) a CONFIGURACION-17: referenciar.
 
 ## Preguntas abiertas
 - ¿Qué secciones conectar y cuáles ocultar?
+
+## Ampliación 2026-10-29 (UI/UX)
+Origen: `docs/sdlc/inputs/ui-ux.md` §5 y §10; matriz `docs/sdlc/arquitectura/matriz-ui-ux.md` (filas 5.1, 5.3 y 10).
+
+- Apariencia permite crear, editar, activar y marcar como predeterminados temas en la base (`frontend/desktop/modules/configuracion/pages/apariencia_page.py:69-84,157-206`). La app solo aplica `light`/`dark` desde QSettings (`frontend/desktop/themes/theme_manager.py:21,66-85`). Esto contradice §5.1 («exactamente dos temas oficiales») y crea una segunda fuente de verdad del tema.
+- `resolve_appearance` y `resolve_tokens_for_theme` (`backend/domain/appearance/policies/`) solo tienen llamadores en `tests/unit/appearance/` y `tests/integration/appearance/test_appearance_repositories.py`.
+- Los perfiles de densidad en la base (`frontend/desktop/modules/configuracion/configuracion_presenter.py:291-293,859`) tampoco llegan a `ThemeManager`.
+- La misma página sí aplica el tema y la densidad de la terminal (`apariencia_page.py:92-134` → `ThemeManager.set_theme/set_density`). Eso funciona y se conserva.
+- Relacionados: SDLC-UI-004 (tokens) y SDLC-UI-007 (densidad por terminal).
+- Pregunta nueva: ¿las tablas de temas y tokens se conectan a `ThemeManager.restore` (y entonces cómo se respeta «solo dos temas»), o se retiran esas tarjetas de Apariencia?
