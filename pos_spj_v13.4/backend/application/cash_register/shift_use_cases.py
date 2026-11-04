@@ -66,16 +66,22 @@ class OpenCashShiftUseCase:
                 raise CashInvalidStateError("Caja, cajón y terminal deben estar activos en la sucursal")
             if drawer["register_id"] != register_id or terminal["register_id"] != register_id:
                 raise CashInvalidStateError("Cajón y terminal deben estar asignados a la caja")
-            if uow.shifts.find_active_for_cashier(cashier_user_id=cashier_user_id):
+            # SDLC-ARQ-SHIFT-001: la misma fuente que Caja y POS. Por cajero y
+            # sin sucursal (decisión SHIFT-004: turnos incompatibles por cajero).
+            from backend.application.cash_register.active_shift_resolver import (
+                ActiveShiftResolver,
+            )
+            active = ActiveShiftResolver(uow.connection)
+            if active.for_cashier(cashier_user_id=cashier_user_id):
                 raise CashInvalidStateError(
                     "El cajero ya tiene un turno activo. Cierra o suspende el turno actual antes de abrir otro.")
-            if uow.shifts.find_active_for_resource(column="register_id", value=register_id):
+            if active.for_resource(column="register_id", value=register_id):
                 raise CashInvalidStateError(
                     "La caja seleccionada ya tiene un turno activo. Selecciona otra caja o cierra el turno actual.")
-            if uow.shifts.find_active_for_resource(column="drawer_id", value=drawer_id):
+            if active.for_resource(column="drawer_id", value=drawer_id):
                 raise CashInvalidStateError(
                     "El cajon seleccionado ya tiene un turno activo. Selecciona otro cajon o cierra el turno actual.")
-            if uow.shifts.find_active_for_resource(column="terminal_id", value=terminal_id):
+            if active.for_resource(column="terminal_id", value=terminal_id):
                 raise CashInvalidStateError(
                     "La terminal seleccionada ya tiene un turno activo. Selecciona otra terminal o cierra el turno actual.")
             shift = CashShift.open(

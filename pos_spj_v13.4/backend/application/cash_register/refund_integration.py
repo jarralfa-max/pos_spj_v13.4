@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Mapping
 
+from backend.application.cash_register.active_shift_resolver import ActiveShiftResolver
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.permissions import CashPermissions
 from backend.application.cash_register.sales_integration import (
@@ -104,10 +105,8 @@ class CashRefundIntegrationService:
                     Decimal(data["cash_amount"]), True)
             if uow.ledger.find_refund_entry(refund_id):
                 raise CashInvalidStateError("El reembolso ya fue registrado con otra operación")
-            shift = uow.shifts.find_open_for_cashier(
-                branch_id=branch_id, cashier_user_id=cashier_user_id)
-            if not shift:
-                raise CashInvalidStateError("El reembolso requiere un turno abierto")
+            shift_id = ActiveShiftResolver(uow.connection).require_operable(
+                branch_id=branch_id, cashier_user_id=cashier_user_id, purpose="refund").id
             entry = None
             if cash_amount > 0:
                 original_cash = uow.ledger.find_sale_entry(sale_id)
@@ -116,10 +115,10 @@ class CashRefundIntegrationService:
                 refunded = uow.ledger.refunded_cash_for_sale(sale_id)
                 if refunded + cash_amount > Decimal(original_cash["amount"]):
                     raise CashInvalidStateError("El efectivo acumulado reembolsado excede la venta original")
-                if cash_amount > _drawer_balance(uow.ledger.list_for_shift(shift["id"])):
+                if cash_amount > _drawer_balance(uow.ledger.list_for_shift(shift_id)):
                     raise CashInvalidStateError("No hay efectivo suficiente en el cajón para el reembolso")
                 entry = CashLedgerEntry.create(
-                    shift_id=shift["id"], branch_id=branch_id,
+                    shift_id=shift_id, branch_id=branch_id,
                     movement_type=CashMovementType.CASH_REFUND,
                     direction=CashMovementDirection.OUTFLOW, amount=cash_amount,
                     operation_id=operation_id, recorded_by=cashier_user_id,
@@ -130,7 +129,7 @@ class CashRefundIntegrationService:
             execution = CashRefundExecution.execute(
                 refund_id=refund_id,
                 sale_id=sale_id,
-                shift_id=shift["id"],
+                shift_id=shift_id,
                 branch_id=branch_id,
                 method=CashRefundMethod.CASH if cash_amount > 0 else CashRefundMethod.ORIGINAL_PAYMENT_METHOD,
                 amount=cash_amount if cash_amount > 0 else requested_total,
@@ -166,7 +165,7 @@ class CashRefundIntegrationService:
             _record(uow, CashEvents.REFUND_PROCESSED, operation_id=operation_id,
                     entity_id=refund_id, branch_id=branch_id,
                     actor_user_id=cashier_user_id, reason=reason.strip(),
-                    sale_id=sale_id, shift_id=shift["id"],
+                    sale_id=sale_id, shift_id=shift_id,
                     refund_execution_id=execution.id,
                     ledger_entry_id=entry.id if entry else None,
                     cash_amount=str(cash_amount),
