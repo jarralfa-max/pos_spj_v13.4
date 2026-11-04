@@ -235,7 +235,6 @@ class ActiveShiftDivergenceTests(_ShiftHarness):
         from frontend.desktop.modules.sales_pos.composition import _cash_shift_problem
         return _cash_shift_problem(self.db)(branch_id=self.branch, cashier_user_id=self.cashier)
 
-    @unittest.expectedFailure
     def test_pos_tells_the_cashier_to_resume_a_suspended_shift(self):
         shift_id = self._open()
         self._transition(SuspendCashShiftUseCase, shift_id, reason="Pausa")
@@ -244,7 +243,6 @@ class ActiveShiftDivergenceTests(_ShiftHarness):
             self._pos_shift_id()
         self.assertEqual(caught.exception.shift_id, shift_id)
 
-    @unittest.expectedFailure
     def test_pos_tells_the_cashier_to_finish_closing_and_open_a_new_shift(self):
         shift_id = self._open()
         self._transition(BeginCashShiftClosingUseCase, shift_id)

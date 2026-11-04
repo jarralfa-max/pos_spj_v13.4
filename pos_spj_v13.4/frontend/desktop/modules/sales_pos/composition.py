@@ -127,17 +127,11 @@ def _after_commit(handler, connection):
 
 def _cash_shift_problem(connection):
     def check(*, branch_id: str, cashier_user_id: str) -> str | None:
-        from backend.domain.cash_register.exceptions import CashRegisterError
         from backend.infrastructure.integrations.sales_cash_effects_client import (
             SalesCashEffectsClient,
         )
-        import sqlite3
-        try:
-            SalesCashEffectsClient().require_open_shift(
-                connection, branch_id=branch_id, cashier_user_id=cashier_user_id)
-        except (CashRegisterError, sqlite3.OperationalError):
-            return "No tienes un turno de caja abierto. Abre tu turno en Caja antes de cobrar."
-        return None
+        return SalesCashEffectsClient().open_shift_problem(
+            connection, branch_id=branch_id, cashier_user_id=cashier_user_id)
     return check
 
 

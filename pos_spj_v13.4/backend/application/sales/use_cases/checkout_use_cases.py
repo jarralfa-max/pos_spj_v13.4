@@ -200,17 +200,10 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
     # ── cobro: turno, inventario y costo ─────────────────────────────────
     @staticmethod
     def _open_shift_problem(connection, sale) -> str | None:
-        import sqlite3
-
-        from backend.domain.cash_register.exceptions import CashRegisterError
-        try:
-            SalesCashEffectsClient().require_open_shift(
-                connection, branch_id=sale.branch_id, cashier_user_id=sale.cashier_user_id)
-        except (CashRegisterError, sqlite3.OperationalError):
-            # Sin esquema de Caja no puede haber turno: se falla cerrado.
-            return ("No tienes un turno de caja abierto. Abre tu turno en Caja antes de "
-                    "cobrar: sin turno, el dinero de la venta no entra a ningún corte.")
-        return None
+        # Misma fuente y redacción que Caja y la barra del POS
+        # (SDLC-ARQ-SHIFT-001); sin esquema de Caja se falla cerrado.
+        return SalesCashEffectsClient().open_shift_problem(
+            connection, branch_id=sale.branch_id, cashier_user_id=sale.cashier_user_id)
 
     def _unit_costs(self, connection, sale, *, virtual: dict | None = None
                     ) -> tuple[dict, list[str]]:
