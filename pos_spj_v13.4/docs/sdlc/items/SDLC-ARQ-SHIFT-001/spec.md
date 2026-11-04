@@ -41,7 +41,7 @@ Decisiones de negocio aplicadas (fuente: `BACKLOG.md` → "Decisiones aprobadas"
 
 Reglas:
 
-1. **Turno activo del cajero** = su turno en un estado de `CashShiftLifecyclePolicy.ACTIVE_STATUSES`, en la sucursal pedida; si hubiera más de uno (datos previos a la validación de apertura) gana el más reciente (`opened_at DESC, id DESC`, lo que hoy hace el camino 7). Caja, POS, devoluciones y cierre financiero ven **el mismo** turno.
+1. **Turno activo del cajero** = su turno en un estado de `CashShiftLifecyclePolicy.ACTIVE_STATUSES`, en la sucursal pedida. La base ya impide más de uno por cajero, caja, cajón y terminal: índices únicos parciales `ux_cash_shift_active_*` sobre los 8 estados activos (`migrations/standalone/175_cash_register_bounded_context_schema.py:234-237`, verificado: un segundo `OPEN` del mismo cajero lanza `UNIQUE constraint failed: cash_shifts.cashier_user_id`). El resolvedor ordena igual (`opened_at DESC, id DESC`) sólo para ser determinista. Caja, POS, devoluciones y cierre financiero ven **el mismo** turno.
 2. **Operabilidad para cobrar o reembolsar** (nueva clasificación en la política de dominio):
    - `OPEN` → operable.
    - `SUSPENDED` → sigue siendo el turno activo del cajero (Caja lo muestra, la apertura de otro sigue bloqueada) pero el POS rechaza con "Tu turno de caja está suspendido. Reanúdalo en Caja antes de cobrar." (D-A).
@@ -84,7 +84,8 @@ Bounded context dueño: Caja (`cash_register`). Capas:
   - `cash_register_factory.py:548` → se borra la escritura de la caché.
   - `SalesCashEffectsClient` (`backend/infrastructure/integrations/sales_cash_effects_client.py`) gana `open_shift_problem(connection, *, branch_id, cashier_user_id, purpose)`; `composition.py`, `checkout_use_cases.py` y `return_use_cases.py` lo usan en lugar de sus tres copias (sigue siendo el único ACL Ventas→Caja).
   - `overview_query_service.py`, `shift_query_service.py` (read models propios de Caja que listan muchos turnos con JOIN) → placeholders desde `active_status_values()`.
-  - `finance_close_sources.py`, `org_unit_repository.py`, `station_update_repository.py` → `ActiveShiftResolver.count_active()` / `count_closing()`. (`finance_close_sources.py:25` ya importa de `backend.application.cash_register`.)
+  - `finance_close_sources.py` (adaptador ACL que ya importa de `backend.application.cash_register`, `:25`) → `ActiveShiftResolver.count_active()`.
+  - `org_unit_repository.py`, `station_update_repository.py`: son repositorios de infraestructura de otros contextos; para no invertir capas (infraestructura → aplicación) conservan su `COUNT(*)` con su guarda de tabla, pero los estados salen de `CashShiftLifecyclePolicy.active_status_values()` / `closing_status_values()` (dominio). Ninguna tupla copiada.
   - Documentación: docstrings de `frontend/desktop/modules/cash_register/shell_registration.py:16-19,89-92` y su prueba `tests/unit/test_cash_register_shell_registration.py:56-63` dejan de nombrar `active_cash_shift_id` (queda `active_cash_count_id`, fuera de alcance).
 
 ```mermaid
@@ -113,13 +114,13 @@ Sin permisos nuevos ni cambios de autorización. Los eventos de dominio y el led
 3. **Coherencia CLOSING:** Caja devuelve el id; POS y reembolso rechazan con `CashShiftClosingError` (mismo id, mensaje "abre un turno nuevo"); el cierre financiero lo cuenta; tras cerrarlo (`CLOSED`) nadie lo devuelve y la apertura de un turno nuevo funciona.
 4. **Sin turno:** todas las fuentes devuelven `None`/0 y el POS da el texto de "sin turno"; base sin tabla `cash_shifts` ⇒ el POS sigue fallando cerrado.
 5. **Sin caché:** tras abrir un turno por el handler de la fábrica, el `composition_root` no tiene `active_cash_shift_id`; cambiar el estado en la base se refleja en la siguiente consulta del contexto sin reconstruir el presentador.
-6. **Más reciente gana:** con dos turnos activos del mismo cajero (datos heredados), Caja y POS devuelven el mismo (el de `opened_at` mayor).
+6. **Unicidad en base:** se conserva; no se toca la migración 175. (Criterio original "más reciente gana" retirado: el escenario es imposible por los índices de 175:234-237.)
 7. **Recuentos:** `org_unit_repository.open_cash_shifts` y `station_update_repository` (cortes en curso) coinciden con `ActiveShiftResolver.count_active` / `count_closing` y no cuentan `CLOSED`/`CANCELLED`.
-8. **Guardia de arquitectura** (`tests/architecture/test_active_shift_single_source.py`): falla si (a) fuera del resolvedor alguien llama a `find_active`/`find_open_for_cashier`/`find_active_for_cashier`/`find_active_for_resource`; (b) aparece `active_cash_shift_id` en `backend/` o `frontend/`; (c) una cadena SQL que menciona `cash_shifts` filtra `status IN ('…')`/`NOT IN ('…')`/`status='OPEN|SUSPENDED|CLOSING'` con literales fuera del repositorio de Caja; (d) un literal de tupla/lista/conjunto con ≥2 valores de `CashShiftStatus` aparece fuera de `backend/domain/cash_register/`.
+8. **Guardia de arquitectura** (`tests/architecture/test_active_shift_single_source.py`): falla si (a) fuera del resolvedor alguien llama a `find_active`/`find_open_for_cashier`/`find_active_for_cashier`/`find_active_for_resource`; (b) aparece `active_cash_shift_id` en `backend/` o `frontend/`; (c) una cadena SQL que menciona `cash_shifts` filtra el estado del turno (`status`/`s.status`, no `c.status` de otra tabla) con literales — `IN ('…')`, `NOT IN ('…')` o `='<estado activo>'` — fuera de `backend/infrastructure/db/repositories/cash_register/repositories.py`; (d) en un archivo de `backend/` o `frontend/` que menciona `cash_shift`, un literal de tupla/lista/conjunto con ≥2 valores de `CashShiftStatus` fuera de `backend/domain/cash_register/`. `migrations/` queda fuera: sus índices son la copia en esquema. El `ORDER BY CASE s.status WHEN 'OPEN' …` de presentación no es un filtro y no se prohíbe.
 9. Las suites de Caja, Ventas/POS, Organización, Actualizaciones y Finanzas no tienen fallos nuevos respecto a la línea base de `plan.md`.
 
 ## Riesgos y alternativas descartadas
-- **Riesgo:** algún consumidor dependía de que `find_open_for_cashier` no ordenara. Mitigación: con la validación de apertura por cajero sólo puede haber un activo; el orden sólo decide en datos heredados (criterio 6).
+- **Riesgo:** algún consumidor dependía de que `find_open_for_cashier` no ordenara. Mitigación: los índices únicos de 175 garantizan a lo sumo un turno activo por cajero; el orden no cambia resultados.
 - **Riesgo:** mensajes de POS distintos para SUSPENDED/CLOSING rompen pruebas que comparan texto. Búsqueda: sólo `tests/unit/test_pos_checkout_dialogs.py:175,184` compara un texto, y lo inyecta con un doble.
 - **Descartado:** dejar que el POS acepte `SUSPENDED` y venda sobre él (contradice D-A "debe reanudarse").
 - **Descartado:** permitir abrir un turno nuevo con uno `CLOSING` abierto (cambia la regla de incompatibilidad; es SHIFT-004).
