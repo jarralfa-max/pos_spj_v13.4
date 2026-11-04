@@ -24,6 +24,16 @@ class CashShiftStatus(str, Enum):
     CANCELLED = "CANCELLED"
 
 
+class CashShiftOperability(str, Enum):
+    """Qué puede hacer el cajero con su turno activo para cobrar o reembolsar
+    (SDLC-ARQ-SHIFT-001, decisión 2026-11-02: SUSPENDED se reanuda; CLOSING
+    no sirve, se abre un turno nuevo)."""
+
+    OPERABLE = "OPERABLE"
+    MUST_RESUME = "MUST_RESUME"
+    MUST_OPEN_NEW = "MUST_OPEN_NEW"
+
+
 class CashMovementDirection(str, Enum):
     INFLOW = "INFLOW"
     OUTFLOW = "OUTFLOW"
