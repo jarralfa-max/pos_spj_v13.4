@@ -27,6 +27,9 @@ from backend.infrastructure.db.repositories.feature_flags.feature_flag_change_re
 from backend.infrastructure.db.repositories.feature_flags.feature_flag_repository import (
     SqliteFeatureFlagRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class FeatureFlagStatusAction(str, Enum):
@@ -35,13 +38,15 @@ class FeatureFlagStatusAction(str, Enum):
 
 
 class CreateFeatureFlagUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._flags = SqliteFeatureFlagRepository(connection)
 
     def execute(
         self, *, code: str, name: str, description: str = "", default_enabled: bool = False,
     ) -> FeatureFlag:
+        self._authz.require(ConfiguracionPermissions.FEATURE_FLAGS_CREAR)
         if self._flags.get_by_code(code) is not None:
             raise FeatureFlagCodeOccupiedError(f"Ya existe un feature flag con código {code!r}")
         flag = FeatureFlag.create(
@@ -53,13 +58,15 @@ class CreateFeatureFlagUseCase:
 
 
 class UpdateFeatureFlagUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._flags = SqliteFeatureFlagRepository(connection)
 
     def execute(
         self, *, flag_id: str, name: str, description: str = "", default_enabled: bool = False,
     ) -> FeatureFlag:
+        self._authz.require(ConfiguracionPermissions.FEATURE_FLAGS_EDITAR)
         flag = self._flags.get(flag_id)
         if flag is None:
             raise FeatureFlagNotFoundError(f"Feature flag {flag_id} no encontrado")
@@ -70,11 +77,13 @@ class UpdateFeatureFlagUseCase:
 
 
 class ChangeFeatureFlagStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._flags = SqliteFeatureFlagRepository(connection)
 
     def execute(self, *, flag_id: str, action: FeatureFlagStatusAction) -> FeatureFlag:
+        self._authz.require(ConfiguracionPermissions.FEATURE_FLAGS_EDITAR)
         flag = self._flags.get(flag_id)
         if flag is None:
             raise FeatureFlagNotFoundError(f"Feature flag {flag_id} no encontrado")
@@ -90,7 +99,8 @@ class ChangeFeatureFlagStatusUseCase:
 
 
 class RequestFeatureFlagChangeUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._flags = SqliteFeatureFlagRepository(connection)
         self._requests = SqliteFeatureFlagChangeRequestRepository(connection)
@@ -99,6 +109,7 @@ class RequestFeatureFlagChangeUseCase:
         self, *, flag_id: str, scope_type: FeatureFlagScopeType | str, scope_id: str | None,
         proposed_enabled: bool, requested_by_user_id: str, proposed_rollout_percentage: int = 100,
     ) -> FeatureFlagChangeRequest:
+        self._authz.require(ConfiguracionPermissions.FEATURE_FLAGS_EDITAR, claimed_actor=requested_by_user_id)
         if self._flags.get(flag_id) is None:
             raise FeatureFlagNotFoundError(f"Feature flag {flag_id} no encontrado")
         request = FeatureFlagChangeRequest.create(

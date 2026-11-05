@@ -49,6 +49,27 @@ from backend.application.use_cases.configuracion.appearance_management_use_cases
 from backend.application.use_cases.configuracion.offline_management_use_cases import (
     CacheExpirationPolicyStatusAction,
 )
+# SDLC-ARQ-PERM-001: tablas de permiso por acción, una sola fuente (el caso de uso).
+from backend.application.use_cases.configuracion.customer_display_advertising_use_cases import (
+    CONTENT_CAMPAIGN_STATUS_PERMISSIONS as _CONTENT_CAMPAIGN_STATUS_PERMISSIONS,
+)
+from backend.application.use_cases.configuracion.device_management_use_cases import (
+    DEVICE_STATUS_PERMISSIONS as _DEVICE_STATUS_PERMISSIONS,
+)
+from backend.application.use_cases.configuracion.document_template_use_cases import (
+    DOCUMENT_TEMPLATE_STATUS_PERMISSION as _DOCUMENT_TEMPLATE_STATUS_PERMISSION,
+    TEMPLATE_VERSION_STATUS_PERMISSIONS as _TEMPLATE_STATUS_PERMISSIONS,
+)
+from backend.application.use_cases.configuracion.integration_management_use_cases import (
+    INTEGRATION_DEFINITION_STATUS_PERMISSIONS as _INTEGRATION_DEFINITION_STATUS_PERMISSIONS,
+    INTEGRATION_INSTANCE_STATUS_PERMISSIONS as _INTEGRATION_INSTANCE_STATUS_PERMISSIONS,
+)
+from backend.application.use_cases.configuracion.marketing_campaign_use_cases import (
+    MARKETING_CAMPAIGN_STATUS_PERMISSION as _CAMPAIGN_STATUS_PERMISSION,
+)
+from backend.application.use_cases.configuracion.workstation_use_cases import (
+    WORKSTATION_STATUS_PERMISSIONS as _WORKSTATION_STATUS_PERMISSIONS,
+)
 from backend.application.commands.settings_commands import (
     SaveRoleCommand,
     SaveRolePermissionsCommand,
@@ -89,63 +110,28 @@ _PAGE_VIEW_PERMISSIONS = {entry.page_id: entry.permission for entry in CONFIGURA
 
 # SET-1: permission code required for each mutating command whose gate
 # doesn't depend on the requested action (device/template status changes
-# resolve their code dynamically — see _DEVICE_STATUS_PERMISSIONS /
-# _TEMPLATE_STATUS_PERMISSIONS below).
-_DEVICE_STATUS_PERMISSIONS = {
-    DeviceStatusAction.ACTIVATE: ConfiguracionPermissions.DISPOSITIVOS_EDITAR,
-    DeviceStatusAction.DEACTIVATE: ConfiguracionPermissions.DISPOSITIVOS_EDITAR,
-    DeviceStatusAction.UNBLOCK: ConfiguracionPermissions.DISPOSITIVOS_EDITAR,
-    DeviceStatusAction.BLOCK: ConfiguracionPermissions.DISPOSITIVOS_DESHABILITAR,
-    DeviceStatusAction.RETIRE: ConfiguracionPermissions.DISPOSITIVOS_DESHABILITAR,
-}
-_TEMPLATE_STATUS_PERMISSIONS = {
-    TemplateVersionAction.SUBMIT_FOR_APPROVAL: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
-    TemplateVersionAction.REJECT: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_APROBAR,
-    TemplateVersionAction.APPROVE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_APROBAR,
-    TemplateVersionAction.ACTIVATE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_ACTIVAR,
-    TemplateVersionAction.DEACTIVATE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
-    TemplateVersionAction.EXPIRE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
-    TemplateVersionAction.ARCHIVE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
-}
+# resolve their code dynamically). SDLC-ARQ-PERM-001: las tablas por acción
+# viven junto a su enum en el módulo del caso de uso, que las verifica en
+# backend; el presentador sólo las importa (arriba) para su mensaje previo.
 # Status changes worth a persisted before/after audit entry (§60): the
 # ones that gate/unblock a device or move a document towards production
 # use. Routine edits (rename, notes) are permission-gated but not
 # audit-logged — same scope boundary the plan's own audit checklist draws.
 _DEVICE_STATUS_AUDITED = {DeviceStatusAction.BLOCK, DeviceStatusAction.RETIRE}
 _TEMPLATE_STATUS_AUDITED = {TemplateVersionAction.APPROVE, TemplateVersionAction.ACTIVATE}
-_WORKSTATION_STATUS_PERMISSIONS = {
-    WorkstationStatusAction.ACTIVATE: ConfiguracionPermissions.ESTACION_EDITAR,
-    WorkstationStatusAction.DEACTIVATE: ConfiguracionPermissions.ESTACION_EDITAR,
-    WorkstationStatusAction.ENTER_MAINTENANCE: ConfiguracionPermissions.ESTACION_EDITAR,
-    WorkstationStatusAction.EXIT_MAINTENANCE: ConfiguracionPermissions.ESTACION_EDITAR,
-    WorkstationStatusAction.UNBLOCK: ConfiguracionPermissions.ESTACION_EDITAR,
-    WorkstationStatusAction.BLOCK: ConfiguracionPermissions.ESTACION_BLOQUEAR,
-    WorkstationStatusAction.RETIRE: ConfiguracionPermissions.ESTACION_RETIRAR,
-}
 _WORKSTATION_STATUS_AUDITED = {WorkstationStatusAction.BLOCK, WorkstationStatusAction.RETIRE}
 # SET-11 follow-up: the whole template *family*'s active/inactive
 # toggle (DocumentTemplateStatusAction) is a different action from a
 # single version's status (TemplateVersionAction above) — retiring a
 # template entirely is always audited, same weight as blocking a device.
-_DOCUMENT_TEMPLATE_STATUS_PERMISSION = ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_ACTIVAR
 # SET-13 cutover: same weight as the template family toggle above — a
 # campaign starting/stopping to print on live tickets is a critical
 # transition, always audited; create/edit are routine content edits.
-_CAMPAIGN_STATUS_PERMISSION = ConfiguracionPermissions.DOCUMENTOS_CAMPANA_ACTIVAR
 # SET-18 cutover: ContentCampaign's 7-state machine mirrors
 # DocumentTemplateVersion's exact shape (SET-11) — same permission-mapping
 # discipline as _TEMPLATE_STATUS_PERMISSIONS. SUBMIT/ACTIVATE/DEACTIVATE/
 # EXPIRE/ARCHIVE are "programar" (schedule/lifecycle management);
 # APPROVE/REJECT are the actual approval-workflow gate.
-_CONTENT_CAMPAIGN_STATUS_PERMISSIONS = {
-    ContentCampaignStatusAction.SUBMIT_FOR_APPROVAL: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
-    ContentCampaignStatusAction.REJECT: ConfiguracionPermissions.PANTALLA_CLIENTE_CONTENIDO_APROBAR,
-    ContentCampaignStatusAction.APPROVE: ConfiguracionPermissions.PANTALLA_CLIENTE_CONTENIDO_APROBAR,
-    ContentCampaignStatusAction.ACTIVATE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
-    ContentCampaignStatusAction.DEACTIVATE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
-    ContentCampaignStatusAction.EXPIRE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
-    ContentCampaignStatusAction.ARCHIVE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
-}
 _CONTENT_CAMPAIGN_STATUS_AUDITED = {ContentCampaignStatusAction.APPROVE, ContentCampaignStatusAction.ACTIVATE}
 
 
@@ -2068,10 +2054,7 @@ class ConfiguracionPresenter:
             action_enum = IntegrationDefinitionStatusAction(action)
         except ValueError:
             return False, f"Acción de definición desconocida: {action}"
-        permission = (
-            ConfiguracionPermissions.INTEGRACIONES_ACTIVAR if action_enum is IntegrationDefinitionStatusAction.ACTIVATE
-            else ConfiguracionPermissions.INTEGRACIONES_DESACTIVAR
-        )
+        permission = _INTEGRATION_DEFINITION_STATUS_PERMISSIONS[action_enum]
         denial = self._authorize(permission)
         if denial:
             return False, denial
@@ -2123,10 +2106,7 @@ class ConfiguracionPresenter:
             action_enum = IntegrationInstanceStatusAction(action)
         except ValueError:
             return False, f"Acción de instancia desconocida: {action}"
-        permission = (
-            ConfiguracionPermissions.INTEGRACIONES_ACTIVAR if action_enum is IntegrationInstanceStatusAction.ACTIVATE
-            else ConfiguracionPermissions.INTEGRACIONES_DESACTIVAR
-        )
+        permission = _INTEGRATION_INSTANCE_STATUS_PERMISSIONS[action_enum]
         denial = self._authorize(permission)
         if denial:
             return False, denial

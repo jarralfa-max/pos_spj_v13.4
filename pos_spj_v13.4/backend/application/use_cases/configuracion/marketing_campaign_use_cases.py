@@ -25,6 +25,9 @@ from backend.domain.document_output.value_objects.campaign_rule import CampaignR
 from backend.infrastructure.db.repositories.document_output.marketing_campaign_repository import (
     SqliteMarketingCampaignRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class MarketingCampaignStatusAction(str, Enum):
@@ -32,8 +35,14 @@ class MarketingCampaignStatusAction(str, Enum):
     DEACTIVATE = "DEACTIVATE"
 
 
+#: Permiso por acción. ÚNICA fuente: la verifica el caso de uso
+#: (SDLC-ARQ-PERM-001) y el presentador la importa para su mensaje previo.
+MARKETING_CAMPAIGN_STATUS_PERMISSION = ConfiguracionPermissions.DOCUMENTOS_CAMPANA_ACTIVAR
+
+
 class CreateMarketingCampaignUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._campaigns = SqliteMarketingCampaignRepository(connection)
 
@@ -42,6 +51,7 @@ class CreateMarketingCampaignUseCase:
         priority: int = 0, requires_customer: bool = False,
         rules: tuple[CampaignRule, ...] | list[CampaignRule] = (),
     ) -> MarketingCampaign:
+        self._authz.require(ConfiguracionPermissions.DOCUMENTOS_CAMPANA_CREAR)
         campaign = MarketingCampaign.create(
             code=code, category=MarketingMessageCategory(category), message_template=message_template,
             priority=priority, requires_customer=requires_customer, rules=rules,
@@ -53,7 +63,8 @@ class CreateMarketingCampaignUseCase:
 
 
 class UpdateMarketingCampaignUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._campaigns = SqliteMarketingCampaignRepository(connection)
 
@@ -61,6 +72,7 @@ class UpdateMarketingCampaignUseCase:
         self, *, campaign_id: str, message_template: str, priority: int = 0,
         requires_customer: bool = False, rules: tuple[CampaignRule, ...] | list[CampaignRule] = (),
     ) -> MarketingCampaign:
+        self._authz.require(ConfiguracionPermissions.DOCUMENTOS_CAMPANA_EDITAR)
         campaign = self._campaigns.get(campaign_id)
         if campaign is None:
             raise MarketingCampaignNotFoundError(f"Campaña {campaign_id} no encontrada")
@@ -75,11 +87,13 @@ class UpdateMarketingCampaignUseCase:
 
 
 class ChangeMarketingCampaignStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._campaigns = SqliteMarketingCampaignRepository(connection)
 
     def execute(self, *, campaign_id: str, action: MarketingCampaignStatusAction) -> MarketingCampaign:
+        self._authz.require(MARKETING_CAMPAIGN_STATUS_PERMISSION)
         campaign = self._campaigns.get(campaign_id)
         if campaign is None:
             raise MarketingCampaignNotFoundError(f"Campaña {campaign_id} no encontrada")
