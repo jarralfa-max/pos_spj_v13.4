@@ -1182,16 +1182,20 @@ class ConfiguracionPresenter:
         actor = self._actor()
         if not actor:
             return False, "Sesión inválida; no se puede anclar la instalación sin un usuario autenticado."
-        denial = self._authorize(ConfiguracionPermissions.EMPRESA_EDITAR)
-        if denial:
-            return False, denial
+        # El permiso (CONFIGURACION.estacion.reanclar), el turno abierto, la
+        # sincronización pendiente y la auditoría los decide el caso de uso
+        # (SDLC-ARQ-TERM-002); aquí sólo se traduce el resultado.
         try:
             cmd = SetInstallationBranchCommand(
                 operation_id=new_uuid(), branch_id=branch_id, user_name=actor,
+                workstation_id=str(getattr(self._session, "workstation_id", None) or ""),
             )
             result = self._set_installation_branch_uc.execute(cmd)
-            return True, f"Instalación anclada a «{result.data.get('branch_name', '')}»."
-        except ValueError as exc:
+            nombre = result.data.get("branch_name", "")
+            if not result.data.get("changed", True):
+                return True, f"La instalación ya está anclada a «{nombre}»."
+            return True, f"Instalación anclada a «{nombre}»."
+        except (ConfigurationDomainError, ValueError) as exc:
             return False, str(exc)
         except Exception:
             logger.exception("ConfiguracionPresenter.set_installation_branch failed")

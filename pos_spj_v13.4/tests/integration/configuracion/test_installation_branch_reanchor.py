@@ -5,8 +5,8 @@ necesita), construido una vez por módulo; cada prueba trabaja sobre una copia e
 memoria (`sqlite3.Connection.backup`). Nunca se abre un `.db` real.
 
 Paso 1 del plan (T0): fija lo que se conserva y reproduce los defectos tal como
-están hoy. La clase `TestDefectosActuales` documenta el comportamiento que el
-ítem corrige; los pasos siguientes la sustituyen por las reglas nuevas.
+estaban. Los del caso de uso (sin permiso, sin auditoría) se retiraron en el
+paso 4: sus reglas nuevas viven en `test_installation_branch_reanchor_use_case.py`.
 """
 from __future__ import annotations
 
@@ -15,11 +15,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from backend.application.commands.settings_commands import SetInstallationBranchCommand
-from backend.application.configuracion.settings_services import CompanyProfileService
-from backend.application.use_cases.set_installation_branch_use_case import (
-    SetInstallationBranchUseCase,
-)
 from backend.bootstrap.application_context_builder import ApplicationContextBuilder
 from backend.infrastructure.db.repositories.settings.installation_branch_repository import (
     INSTALLATION_BRANCH_KEY,
@@ -115,23 +110,6 @@ class TestSeConserva:
 
 # ── defectos que corrige el ítem (comportamiento de hoy) ─────────────────────
 class TestDefectosActuales:
-    def test_the_use_case_does_not_check_any_permission(self, conn):
-        destino = _sucursal(conn, "Norte")
-        uc = SetInstallationBranchUseCase(
-            CompanyProfileService(SqliteInstallationBranchRepository(conn)))
-        uc.execute(SetInstallationBranchCommand(
-            operation_id=new_uuid(), branch_id=destino, user_name="nadie"))
-        assert _ancla(conn) == destino
-
-    def test_it_ignores_an_open_shift_and_leaves_no_audit(self, conn):
-        destino = _sucursal(conn, "Norte")
-        antes = conn.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0]
-        uc = SetInstallationBranchUseCase(
-            CompanyProfileService(SqliteInstallationBranchRepository(conn)))
-        uc.execute(SetInstallationBranchCommand(
-            operation_id=new_uuid(), branch_id=destino, user_name="nadie"))
-        assert conn.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0] == antes
-
     def test_without_anchor_the_session_silently_uses_the_users_branch(self, conn):
         propia = _sucursal(conn, "Propia")
         conn.execute("DELETE FROM configuraciones WHERE clave=?", (INSTALLATION_BRANCH_KEY,))

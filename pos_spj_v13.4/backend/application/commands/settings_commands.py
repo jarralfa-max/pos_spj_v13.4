@@ -118,6 +118,8 @@ class SetUserActiveCommand(BaseCommand):
 @dataclass(frozen=True)
 class SetInstallationBranchCommand(BaseCommand):
     branch_id: str = ""
+    #: Estación que pide el cambio; viaja a la auditoría (SDLC-ARQ-TERM-002).
+    workstation_id: str = ""
 
     def validate_context(self) -> None:
         super().validate_context()

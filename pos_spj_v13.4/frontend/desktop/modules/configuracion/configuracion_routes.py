@@ -146,6 +146,9 @@ def build_configuracion_view(*, connection, session_context, parent=None):
     from backend.infrastructure.db.repositories.settings.installation_branch_repository import (
         SqliteInstallationBranchRepository,
     )
+    from backend.infrastructure.db.repositories.settings.installation_branch_unit_of_work import (
+        InstallationBranchUnitOfWork,
+    )
     from backend.infrastructure.db.repositories.settings.user_directory_repository import (
         SqliteUserDirectoryRepository,
     )
@@ -289,7 +292,8 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         set_user_active_uc=SetUserActiveUseCase(user_management_service, authorization),
         save_role_uc=SaveRoleUseCase(role_management_service, authorization),
         company_profile_service=company_profile_service,
-        set_installation_branch_uc=SetInstallationBranchUseCase(company_profile_service),
+        set_installation_branch_uc=SetInstallationBranchUseCase(
+            lambda: InstallationBranchUnitOfWork(connection), authorization),
         role_permission_matrix_query=RolePermissionMatrixQuery(connection),
         save_role_permissions_uc=SaveRolePermissionsUseCase(connection, authorization),
         test_integration_connection_uc=TestIntegrationConnectionUseCase(connection, secret_store),
