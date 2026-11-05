@@ -5,8 +5,10 @@ necesita), construido una vez por módulo; cada prueba trabaja sobre una copia e
 memoria (`sqlite3.Connection.backup`). Nunca se abre un `.db` real.
 
 Paso 1 del plan (T0): fija lo que se conserva y reproduce los defectos tal como
-estaban. Los del caso de uso (sin permiso, sin auditoría) se retiraron en el
-paso 4: sus reglas nuevas viven en `test_installation_branch_reanchor_use_case.py`.
+estaban. Los defectos se retiraron al corregirlos: los del caso de uso (sin
+permiso, sin auditoría) en el paso 4 —reglas nuevas en
+`test_installation_branch_reanchor_use_case.py`— y el fallback silencioso a la
+sucursal propia en el paso 5 —`test_station_without_anchor.py`—.
 """
 from __future__ import annotations
 
@@ -17,7 +19,6 @@ import pytest
 
 from backend.bootstrap.application_context_builder import ApplicationContextBuilder
 from backend.infrastructure.db.repositories.settings.installation_branch_repository import (
-    INSTALLATION_BRANCH_KEY,
     SqliteInstallationBranchRepository,
 )
 from backend.shared.ids import new_uuid
@@ -57,12 +58,6 @@ def _sucursal(conn, nombre: str, *, activa: int = 1) -> str:
                  (bid, nombre, activa))
     conn.commit()
     return bid
-
-
-def _ancla(conn) -> str | None:
-    fila = conn.execute("SELECT valor FROM configuraciones WHERE clave=?",
-                        (INSTALLATION_BRANCH_KEY,)).fetchone()
-    return str(fila[0]) if fila else None
 
 
 def _usuario(conn, rol: str, sucursal: str | None) -> str:
@@ -106,14 +101,3 @@ class TestSeConserva:
         dueno = _usuario(conn, "system_owner", propia)
         ctx = ApplicationContextBuilder(conn).build(_login(dueno, "system_owner", propia))
         assert (ctx.branch_id, ctx.branch_name) == anclada
-
-
-# ── defectos que corrige el ítem (comportamiento de hoy) ─────────────────────
-class TestDefectosActuales:
-    def test_without_anchor_the_session_silently_uses_the_users_branch(self, conn):
-        propia = _sucursal(conn, "Propia")
-        conn.execute("DELETE FROM configuraciones WHERE clave=?", (INSTALLATION_BRANCH_KEY,))
-        conn.commit()
-        cajero = _usuario(conn, "cajero", propia)
-        ctx = ApplicationContextBuilder(conn).build(_login(cajero, "cajero", propia))
-        assert ctx.branch_id == propia

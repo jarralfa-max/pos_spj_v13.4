@@ -19,7 +19,8 @@ adaptadores antes de que haya sesión sólo los dejaría esperando.
 SITIO DE LA SESIÓN (auditoría enterprise, Fase 2; N01) — la sesión opera el sitio
 anclado a ESTA estación (`sucursal_instalacion_id`), no la sucursal propia del
 usuario: antes un cajero de otra sucursal que entraba en esta caja vendía el
-inventario de la suya. Sólo sin ancla se usa la sucursal propia. El usuario
+inventario de la suya. Sin ancla no hay sesión operativa (SDLC-ARQ-TERM-002):
+sólo entra quien puede re-anclar, sin sucursal ni módulos operativos. El usuario
 necesita un rol cuyo ámbito cubra el sitio (`AccessScopeResolver`); si no, el
 inicio de sesión se rechaza (`SiteAccessDeniedError`). Los permisos y los roles
 son los que valen EN ese sitio, el alcance (`assigned_branch_ids`) son todos los
@@ -33,7 +34,12 @@ from backend.application.feature_flags.branch_feature_flags_query import (
 )
 from backend.application.security.access_scope import AccessScopeResolver
 from backend.application.security.permission_query_service import PermissionQueryService
-from backend.bootstrap.application_context_errors import SiteAccessDeniedError
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.bootstrap.application_context_errors import (
+    SiteAccessDeniedError,
+    StationNotAnchoredError,
+)
+from backend.bootstrap.permission_evaluator import PermissionEvaluator
 from backend.application.software_updates.installation import enabled_capabilities_for
 from backend.bootstrap.application_context import (
     ApplicationContext,
@@ -78,7 +84,7 @@ class ApplicationContextBuilder:
         permission_repo = SqlitePermissionRepository(self._conn)
         resolver = AccessScopeResolver(permission_repo)
 
-        site_id, site_name = self._session_site(credentials, branches)
+        site_id, site_name = self._session_site()
         if site_id and resolver.supports_scopes and not resolver.covers(credentials.id, site_id):
             raise SiteAccessDeniedError(site_name or site_id)
 
@@ -102,13 +108,17 @@ class ApplicationContextBuilder:
         else:
             assigned = frozenset(branches.assigned_branch_ids(credentials.id))
 
-        return ApplicationContext(
+        context = ApplicationContext(
             installation_id=installation.id if installation else "",
             company_id=(installation.company_id or "") if installation else "",
             branch_id=site_id,
             branch_name=site_name,
             assigned_branch_ids=frozenset(assigned),
-            site_capabilities=self._site_capabilities(site_id),
+            # Sin ancla, ningún módulo que exija capacidad del sitio (Ventas, Caja,
+            # Inventario, Compras, Finanzas…) se ofrece ni se concede: sesión de
+            # reparación (SDLC-ARQ-TERM-002).
+            site_capabilities=(self._site_capabilities(site_id) if site_id
+                               else frozenset()),
             workstation_id=session.workstation_id or default_workstation_id(),
             workstation_type=workstation_type,
             user_id=credentials.id,
@@ -119,14 +129,23 @@ class ApplicationContextBuilder:
             session_id=session.session_id,
             capabilities=enabled_capabilities_for(AppPaths.from_environment()),
         )
+        if not site_id and not PermissionEvaluator(context).has_permission(
+                ConfiguracionPermissions.ESTACION_REANCLAR):
+            raise StationNotAnchoredError()
+        return context
 
-    def _session_site(self, credentials, branches) -> tuple[str, str]:
-        """El sitio anclado a esta estación; sin ancla, la sucursal propia."""
+    def _session_site(self) -> tuple[str, str]:
+        """El sitio anclado a esta estación, o `("", "")` si no tiene ancla.
+
+        SDLC-ARQ-TERM-002: sin ancla ya NO se usa la sucursal propia del usuario
+        —eso cambiaba la sucursal de la estación en silencio al iniciar sesión—.
+        Sólo quien puede re-anclar entra, a una sesión sin sucursal ni módulos
+        operativos, para anclarla; los demás reciben `StationNotAnchoredError`.
+        """
         ancla = SqliteInstallationBranchRepository(self._conn).get()
         if ancla:
             return str(ancla[0]), str(ancla[1] or "")
-        propia = str(credentials.branch_id or "")
-        return propia, branches.name_for(propia)
+        return "", ""
 
     def _site_capabilities(self, site_id: str) -> frozenset[str] | None:
         """Capacidades de la unidad del sitio. `None` (no restringe) si la base no
