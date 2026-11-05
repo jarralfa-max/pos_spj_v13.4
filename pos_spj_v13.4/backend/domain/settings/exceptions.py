@@ -81,3 +81,23 @@ class ConfigurationSegregationOfDutiesError(ConfigurationDomainError):
     """A hot-authorization exception was requested with the same user as
     both requester and authorizer — a second, distinct pair of eyes is
     required (§59)."""
+
+
+# ── SDLC-ARQ-TERM-002 — re-anclar la sucursal de la estación ──────────────
+
+class InstallationBranchChangeRejectedError(ConfigurationDomainError):
+    """La estación no puede cambiar de sucursal ahora. `code` dice por qué:
+
+    - ``CENTRAL_APPROVAL_REQUIRED``: está vinculada al registro central; la
+      reasignación se hace allí.
+    - ``OPEN_CASH_SHIFT``: hay un turno de caja sin cerrar en otra sucursal.
+    - ``PENDING_SYNC``: hay hechos sin sincronizar con el central.
+    """
+
+    CENTRAL_APPROVAL_REQUIRED = "CENTRAL_APPROVAL_REQUIRED"
+    OPEN_CASH_SHIFT = "OPEN_CASH_SHIFT"
+    PENDING_SYNC = "PENDING_SYNC"
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
