@@ -8,6 +8,7 @@ from decimal import Decimal
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.blind_count_visibility import shift_has_open_blind_count
 from backend.application.cash_register.permissions import CashPermissions
+from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,7 +93,7 @@ class CashShiftQueryService:
         visibility = CashAmountVisibility(self._connection, self._authorization)
         rows = tuple(self._row_from_record(row, visibility, requester_user_id, branch_id)
                      for row in cursor.fetchall())
-        active_count = sum(1 for row in rows if row.status in {"OPEN", "SUSPENDED", "CLOSING"})
+        active_count = sum(1 for row in rows if CashShiftLifecyclePolicy.is_active(row.status))
         return CashShiftList(active_count=active_count, rows=rows)
 
     def _row_from_record(self, row, visibility=None, requester_user_id: str = "",

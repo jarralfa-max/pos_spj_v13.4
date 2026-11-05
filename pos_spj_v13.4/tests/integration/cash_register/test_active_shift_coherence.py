@@ -228,8 +228,8 @@ class ActiveShiftCoherenceTests(_ShiftHarness):
 
 
 class ActiveShiftDivergenceTests(_ShiftHarness):
-    """Divergencias del intent. Paso 1 del plan: fallan HOY
-    (`expectedFailure`); el paso que corrige cada una quita su marca."""
+    """Divergencias del intent. En el paso 1 del plan fallaban
+    (`expectedFailure`); los pasos 4-6 las corrigieron y quitaron la marca."""
 
     def _pos_problem(self):
         from frontend.desktop.modules.sales_pos.composition import _cash_shift_problem
@@ -262,7 +262,6 @@ class ActiveShiftDivergenceTests(_ShiftHarness):
         self._set_status(shift_id, "FORCE_CLOSED")
         self.assertIsNone(presenter.optional_active_shift_id())
 
-    @unittest.expectedFailure
     def test_cancelled_shift_is_final_for_organization(self):
         self._insert_shift(status="CANCELLED", opened_at=_NOW)
         self.assertEqual(SqliteOrgUnitRepository(self.db).open_cash_shifts(self.branch), 0)
