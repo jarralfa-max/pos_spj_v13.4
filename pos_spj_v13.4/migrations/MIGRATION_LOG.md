@@ -5,6 +5,25 @@ documentarse aquí antes del commit.
 
 ---
 
+## Configuración: autorización en backend de cada caso de uso de escritura (SDLC-ARQ-PERM-001, sin migración) — 2026-11-04
+
+Los 80 casos de uso de escritura de `backend/application/use_cases/configuracion/`,
+`SetInstallationBranchUseCase` y la prueba de impresión de `TicketDesignerService`
+verifican su permiso en backend con `ConfiguracionActionAuthorizer`
+(`backend/application/configuracion/authorization.py`): actor de la SESIÓN, un actor
+declarado distinto se niega, sin autorizador falla cerrado (`unwired()`). Antes sólo
+`ConfiguracionPresenter._authorize` lo hacía.
+
+**No agrega migración y no siembra permisos**: cada operación exige el mismo código
+`MODULO.accion` que ya exigía la pantalla (tabla congelada en
+`tests/unit/configuracion/test_configuracion_use_cases_backend_authorization.py`); roles,
+permisos y asignaciones existentes no cambian. El número reservado 358 queda libre.
+Las tablas de permiso por acción se movieron del presentador al módulo de cada caso de
+uso (una sola fuente). Reversa: revertir los commits del ítem. Detalle en
+`docs/sdlc/items/SDLC-ARQ-PERM-001/spec.md`.
+
+---
+
 ## Productos: códigos de catálogo automáticos y código de barras en el alta (PROD-23, sin migración) — 2026-10-22
 
 Categorías, marcas, atributos, opciones, especies, regiones y cortes: si el
