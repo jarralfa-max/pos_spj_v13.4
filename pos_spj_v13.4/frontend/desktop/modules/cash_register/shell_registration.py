@@ -12,14 +12,16 @@ an ongoing, deliberate design: ~15 optional service overrides via
 `getattr(composition_root, name, None)` (reuse a canonical singleton wired
 elsewhere if the container has one, else build fresh — the same pattern
 `purchasing`'s `logistics_service`/`logistics_queries` use, just with many
-more names), plus two genuine mutable cache slots
-(`active_cash_shift_id`/`active_cash_count_id`, written via `setattr` and
-read back both here and by `backend/infrastructure/desktop/cash_operational_context.py::DesktopCashOperationalContextResolver`,
-which also takes the same object explicitly).
+more names), plus mutable slots (`active_cash_count_id`,
+`active_cash_register_id`) written via `setattr` and read back by
+`backend/infrastructure/desktop/cash_operational_context.py::DesktopCashOperationalContextResolver`,
+which also takes the same object explicitly. The active SHIFT is never
+cached there: it is read from the database through `ActiveShiftResolver`
+(SDLC-ARQ-SHIFT-001).
 
 Rewriting that file to pure named parameters would be a large, higher-risk
 change to a big, already-tested file, and would have to invent a new home
-for the two cache slots. Instead: `build_cash_register_presenter()`/
+for those slots. Instead: `build_cash_register_presenter()`/
 `create_cash_register_view()` are used **unmodified** — this file's own
 `CashRegisterModuleActivator` never receives or touches the real
 container; it constructs `_CashRegisterCompositionStandIn` (a minimal,
@@ -86,9 +88,9 @@ class _CashRegisterCompositionStandIn:
     are set; every other attribute the factory's `getattr(..., None)`
     calls look for is simply absent, so each one falls back to building a
     fresh, real service internally — the same behavior a production
-    container with no explicit overrides configured would produce. The two
-    cache slots (`active_cash_shift_id`/`active_cash_count_id`) the
-    factory writes via `setattr` work correctly because this is a real,
+    container with no explicit overrides configured would produce. The
+    slots (`active_cash_count_id`/`active_cash_register_id`) the factory
+    writes via `setattr` work correctly because this is a real,
     plain, mutable object with the lifetime of one constructed view."""
 
     def __init__(self, *, connection, session_context=None) -> None:

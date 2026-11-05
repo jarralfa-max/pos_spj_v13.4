@@ -251,7 +251,6 @@ class ActiveShiftDivergenceTests(_ShiftHarness):
             self._pos_shift_id()
         self.assertEqual(caught.exception.shift_id, shift_id)
 
-    @unittest.expectedFailure
     def test_composition_root_holds_no_active_shift_cache(self):
         root = _Root()
         root.db = self.db

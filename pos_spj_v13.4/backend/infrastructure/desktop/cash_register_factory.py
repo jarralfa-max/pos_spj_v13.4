@@ -545,7 +545,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             actor_user_id=actor_user_id,
             operation_id=operation_id,
         )
-        setattr(composition_root, "active_cash_shift_id", result.entity_id)
+        # SDLC-ARQ-SHIFT-001: sin caché; el contexto lee el turno de la base.
         prepare_notifications_for_operation(operation_id)
         return result
 
