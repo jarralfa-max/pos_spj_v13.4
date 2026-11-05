@@ -5403,3 +5403,17 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Siembra `CONFIGURACION.usuario.asignaciones` para `system_owner` y `admin`.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
+
+### 357 — permiso para re-anclar la sucursal de la estación (2026-11-02, SDLC-ARQ-TERM-002)
+
+- Siembra `CONFIGURACION.estacion.reanclar` en `rol_permisos` para `system_owner` y `admin` (los roles
+  de acceso total; no amplía lo que nadie podía hacer). Ningún otro rol lo recibe de fábrica.
+- `SetInstallationBranchUseCase` lo exige ahora en backend; antes bastaba `CONFIGURACION.empresa.editar`
+  y sólo lo comprobaba la pantalla. El re-anclaje además se rechaza con turno de caja abierto, con
+  pendientes de sincronizar o si la estación está vinculada al registro central, y se audita en
+  `audit_logs` (`instalacion.reanclar`, aplicado o rechazado).
+- Sin cambios de esquema. Sólo agrega filas; idempotente. Reversa: borrar esas filas y la versión 357
+  de `schema_migrations`.
+- Probada sólo sobre bases creadas en un directorio temporal
+  (`tests/integration/configuracion/test_installation_branch_reanchor.py`).
+- Detalle: `docs/sdlc/items/SDLC-ARQ-TERM-002/spec.md`.

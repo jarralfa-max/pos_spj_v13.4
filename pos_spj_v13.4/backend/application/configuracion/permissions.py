@@ -22,6 +22,9 @@ class ConfiguracionPermissions:
     ESTACION_EDITAR = permission_code("CONFIGURACION", "estacion.editar")
     ESTACION_BLOQUEAR = permission_code("CONFIGURACION", "estacion.bloquear")
     ESTACION_RETIRAR = permission_code("CONFIGURACION", "estacion.retirar")
+    # Re-anclar ESTA estación a otra sucursal (SDLC-ARQ-TERM-002). Es más que
+    # editar la empresa: mueve ventas, caja e inventario de la estación.
+    ESTACION_REANCLAR = permission_code("CONFIGURACION", "estacion.reanclar")
     EMPRESA_VIEW = permission_code("CONFIGURACION", "empresa.ver")
     EMPRESA_EDITAR = permission_code("CONFIGURACION", "empresa.editar")
     SUCURSAL_VIEW = permission_code("CONFIGURACION", "sucursal.ver")
