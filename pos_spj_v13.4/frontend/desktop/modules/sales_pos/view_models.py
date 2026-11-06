@@ -26,6 +26,7 @@ class SalesPosCapabilities:
     sale_complete: bool = False
     sale_suspend: bool = False
     sale_resume: bool = False
+    sale_resume_foreign: bool = False
     sale_cancel: bool = False
     sale_return: bool = False
     sale_reverse: bool = False

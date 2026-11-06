@@ -5,6 +5,13 @@ documentarse aquí antes del commit.
 
 ---
 
+## 368 — permiso para reanudar la venta de otro cajero (SDLC-ARQ-SESS-003) — 2026-11-05
+
+Siembra `POS.venta.reanudar_ajena` para `system_owner`, `admin`, `gerente` y `supervisor` (si
+existe). El cajero NO lo recibe: reanuda las suyas y para las ajenas pide autorización. Sólo
+agrega, con `INSERT OR IGNORE`: no pisa lo otorgado o revocado. Sin cambio de esquema; ya existe
+`sales.cashier_user_id`, pero `SaleRepository.save` no lo actualizaba al reasignarlo.
+
 ## Configuración: autorización en backend de cada caso de uso de escritura (SDLC-ARQ-PERM-001, sin migración) — 2026-11-04
 
 Los 80 casos de uso de escritura de `backend/application/use_cases/configuracion/`,

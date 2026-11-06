@@ -398,6 +398,51 @@ def test_resuming_parks_the_current_sale_instead_of_losing_it(pos):
     assert pos._presenter.get_sale(second).status == "SUSPENDED"
 
 
+def _suspended_of_another_cashier(pos, conn):
+    pos._on_product_selected(_producto(pos, "Huacal"))
+    ajena = pos._sale_id
+    pos._on_suspend_requested()
+    conn.execute("UPDATE sales SET cashier_user_id=? WHERE id=?", (new_uuid(), ajena))
+    conn.commit()
+    pos.dialogs["resume"] = _stub(sale_id=ajena)
+    # El cajero de esta pantalla no puede tomar ventas ajenas por sí mismo.
+    pos._presenter.resume_needs_authorization = lambda sale: True
+    return ajena
+
+
+def test_cancelling_the_takeover_authorization_leaves_the_current_sale_alone(pos, conn):
+    """SDLC-ARQ-SESS-003: la autorización se pide antes de apartar la venta en
+    curso; cancelarla no deja nada a medias."""
+    ajena = _suspended_of_another_cashier(pos, conn)
+    pos._on_product_selected(_producto(pos, "Huacal"))
+    en_curso = pos._sale_id
+    pos.dialogs["resume_authorization"] = _stub(_accept=False, authorizer_user_id=None)
+
+    pos._on_resume_requested()
+
+    assert pos._sale_id == en_curso
+    assert pos._presenter.get_sale(en_curso).status != "SUSPENDED"
+    assert pos._presenter.get_sale(ajena).status == "SUSPENDED"
+
+
+def test_the_authorized_takeover_reaches_the_use_case(pos, conn):
+    from tests.integration._audit_trail_table import create_audit_logs_table
+    create_audit_logs_table(conn)
+    ajena = _suspended_of_another_cashier(pos, conn)
+    pos.dialogs["resume_authorization"] = _stub(
+        authorizer_user_id=pos._presenter.current_user_id(), reason="Cambio de turno")
+
+    pos._on_resume_requested()
+
+    # La sesión de esta pantalla tiene todo el vocabulario POS, así que el caso
+    # de uso la acepta por su permiso; lo que se prueba aquí es el cableado.
+    assert pos._sale_id == ajena
+    assert pos._presenter.get_sale(ajena).cashier_user_id == pos._presenter.current_user_id()
+    fila = conn.execute("SELECT detalles FROM audit_logs WHERE accion='SALE_RESUME_TRANSFERRED'"
+                        " AND entidad_id=?", (ajena,)).fetchone()
+    assert "Cambio de turno" in fila[0]
+
+
 # ── devolución (§43) ─────────────────────────────────────────────────────────
 
 def test_f10_opens_the_return_dialog_on_the_last_sale(pos):

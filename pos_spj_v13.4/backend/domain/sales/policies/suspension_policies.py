@@ -29,25 +29,30 @@ class SaleSuspensionPolicy:
 
 
 class SaleResumptionPolicy:
-    """§41: `allow_cross_workstation_resume`/`allow_cross_user_resume` are
-    configuration flags the caller resolves from ModuleSettingsService — this
-    policy only enforces them once given."""
+    """§41: `allow_cross_workstation_resume` is a configuration flag the
+    caller resolves from ModuleSettingsService — this policy only enforces it
+    once given.
+
+    SDLC-ARQ-SESS-003: una venta suspendida es de su cajero. Reanudar la de
+    otro no es configuración sino una excepción que el caso de uso autoriza
+    (permiso o autorización en caliente) antes de pasar
+    `allow_cross_user_resume=True`; por defecto se niega."""
 
     @staticmethod
     def ensure_can_resume(
         *, status: SaleStatus,
-        suspended_by_user_id: str, resuming_user_id: str,
+        owner_user_id: str, resuming_user_id: str,
         suspended_at_workstation_id: str, resuming_workstation_id: str,
-        allow_cross_user_resume: bool = True,
+        allow_cross_user_resume: bool = False,
         allow_cross_workstation_resume: bool = True,
     ) -> None:
         try:
             SaleLifecyclePolicy.ensure_transition(current=status, target=SaleStatus.ACTIVE)
         except SaleInvalidStateError as exc:
             raise SaleResumeNotAllowedError(str(exc)) from exc
-        if not allow_cross_user_resume and resuming_user_id != suspended_by_user_id:
+        if not allow_cross_user_resume and resuming_user_id != owner_user_id:
             raise SaleResumeNotAllowedError(
-                "Esta venta suspendida solo puede reanudarla quien la suspendió")
+                "Esta venta suspendida solo puede reanudarla el cajero que la atiende")
         if (not allow_cross_workstation_resume
                 and resuming_workstation_id != suspended_at_workstation_id):
             raise SaleResumeNotAllowedError(

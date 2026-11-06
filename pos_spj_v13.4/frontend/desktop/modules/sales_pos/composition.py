@@ -419,7 +419,8 @@ def build_sales_pos_presenter(
             auth, inventory_auth, authorizer_authorization=authorizer_auth,
             costs=pricing_client).execute), connection), connection, session_context),
         "suspend_sale": _h(SuspendSaleUseCase(auth, inventory_auth).execute),
-        "resume_sale": _h(ResumeSaleUseCase(auth).execute),
+        "resume_sale": _h(ResumeSaleUseCase(
+            auth, authorizer_authorization=authorizer_auth).execute),
         "cancel_sale": _after_commit(
             _h(CancelSaleUseCase(auth, inventory_auth, customer_authorization=customer_auth)
                .execute), connection),
