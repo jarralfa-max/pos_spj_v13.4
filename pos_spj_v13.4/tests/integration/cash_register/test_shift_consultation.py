@@ -212,3 +212,11 @@ def test_elegir_otro_turno_en_movimientos_cambia_a_consulta(cash, qapp):
     assert page.write_actions_enabled() is False
     page.select_shift(own)
     assert not page.is_consultation() and page.write_actions_enabled() is True
+
+
+def test_sin_alcance_en_la_sucursal_no_hay_consulta_ni_la_barra_se_cae(cash):
+    cash.open(cash.cajero)
+    cash.grants.by_user[cash.gerente] -= {P.ACCESS, P.VIEW_OWN_BRANCH}
+    presenter = cash.presenter(cash.gerente)
+    assert presenter.consultable_shifts() == ()
+    assert presenter.status_cards()["shift"] == "Sin turno activo"

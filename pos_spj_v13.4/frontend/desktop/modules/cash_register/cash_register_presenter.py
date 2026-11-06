@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from decimal import Decimal
 
+from backend.domain.cash_register.exceptions import CashPermissionDeniedError
 from frontend.desktop.modules.cash_register.capability_resolver import resolve_cash_capabilities
 from frontend.desktop.modules.cash_register.view_models import CashCapabilities
 
@@ -110,8 +111,8 @@ class CashRegisterPresenter:
         try:
             rows = service.list_active(branch_id=self.active_branch_id(),
                                        requester_user_id=self.actor_user_id())
-        except CashContextError:
-            return ()
+        except (CashContextError, CashPermissionDeniedError):
+            return ()      # sin sucursal o sin alcance en ella: no hay qué consultar
         own = self.optional_active_shift_id()
         return tuple(row for row in rows if row.id != own)
 
