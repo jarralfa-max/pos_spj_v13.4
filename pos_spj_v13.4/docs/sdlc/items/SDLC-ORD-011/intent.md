@@ -3,7 +3,7 @@
 - **Prioridad:** P3
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/refactor/ORD-30_validacion_final.md` → "Pendiente" §6 (motor de políticas de notificación configurable por sucursal, ORD-26, "si el negocio lo pide"). Re-verificado (`/sdlc-plan` Modo B, 2026-10-31).
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-ORD-006
 
 ## Problema

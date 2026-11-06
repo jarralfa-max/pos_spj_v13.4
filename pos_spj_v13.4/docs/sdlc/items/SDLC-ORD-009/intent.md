@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/refactor/ORD-30_validacion_final.md` → "Pendiente" §5 (verificación manual de la PWA en navegador o dispositivo y de las páginas en PyQt5 real) y `docs/WHATSAPP_DELIVERY_CLOSEOUT_STATUS.md` → "Recomendación" §3 (smoke E2E documentado por flujo: mostrador, reparto, programado, cotización→venta, ajuste fuera de tolerancia). Re-verificado (`/sdlc-plan` Modo B, 2026-10-31).
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-ORD-004 (sin descuento de inventario el smoke falla por diseño); para los flujos de WhatsApp, SDLC-WA-003 y SDLC-WA-005
 
 ## Problema
@@ -38,5 +38,5 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 `docs/refactor/ORD-30_validacion_final.md`; `docs/WHATSAPP_DELIVERY_CLOSEOUT_STATUS.md`; memoria Compras ("'no pasa nada' = feedback invisible, verificar UI con screenshot sobre copia de la base real"); SDLC-ARQ-TEST-001 (pruebas de aceptación de la arquitectura).
 
 ## Preguntas abiertas
-- ¿Hay un teléfono o dispositivo de repartidor disponible para la prueba, o basta un navegador móvil emulado?
-- ¿El canal WhatsApp está activo en alguna sucursal? Si no, ¿los flujos WA se dejan fuera del primer smoke? (Misma pregunta abierta de SDLC-WA-003.)
+- ¿Hay un teléfono o dispositivo de repartidor disponible para la prueba, o basta un navegador móvil emulado? navegador movil emulado
+- ¿El canal WhatsApp está activo en alguna sucursal? Si, ¿los flujos WA se dejan fuera del primer smoke? no

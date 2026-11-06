@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/activos.md` §4, §33 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-FIN-003
 
 ## Problema
@@ -36,4 +36,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - Memoria CRM-43 (ciclo de fondo y campana ya cableados)
 
 ## Preguntas abiertas
-- ¿La depreciación debe correr sola el día 1, o basta un aviso en la bandeja de Finanzas para que la corra una persona?
+- ¿La depreciación debe correr sola el día 1, o basta un aviso en la bandeja de Finanzas para que la corra una persona? sola en el dia 1

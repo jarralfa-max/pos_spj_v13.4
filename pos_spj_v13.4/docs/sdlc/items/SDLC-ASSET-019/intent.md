@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/activos.md` §4, §29, §54 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-ASSET-016
 
 ## Problema
@@ -36,4 +36,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - Memoria Compras: «construye consumidores antes que productores, detrás de cortes numerados» — revisar `event_handlers/` antes de crear
 
 ## Preguntas abiertas
-- ¿El costo de un servicio externo entra como factura de proveedor en Compras (CxP) o como solicitud de gasto en Finanzas? ¿Qué cuenta de gasto usa el mantenimiento interno?
+- ¿El costo de un servicio externo entra como factura de proveedor en Compras (CxP) o como solicitud de gasto en Finanzas? CxP ¿Qué cuenta de gasto usa el mantenimiento interno? 
