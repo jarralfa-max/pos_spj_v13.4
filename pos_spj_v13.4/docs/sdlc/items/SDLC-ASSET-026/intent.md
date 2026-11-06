@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/activos.md` §46–§48, §70 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-ASSET-024, SDLC-FIN-003, SDLC-ASSET-008
 
 ## Problema

@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/activos.md` §10–§15, §18, §88 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-ASSET-002, SDLC-ASSET-004, SDLC-ASSET-008, SDLC-ASSET-009
 
 ## Problema
@@ -39,4 +39,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - Memoria: `supplier_schema.py` no tiene mecanismo de ALTER — toda columna nueva necesita dos patas
 
 ## Preguntas abiertas
-- Formato del folio: ¿global (ACT-000001) o por sucursal (ACT-QRO-000234)? ¿Quién lo configura?
+- Formato del folio: ¿global (ACT-000001) o por sucursal (ACT-QRO-000234)? Por sucursal, ¿Quién lo configura?  gerente 

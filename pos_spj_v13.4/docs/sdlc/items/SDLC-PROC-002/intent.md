@@ -3,7 +3,7 @@
 - **Prioridad:** P0 (subida de P1 el 2026-10-31 por `inputs/correcciones.md` C-04)
 - **Nivel de riesgo:** T0 (subido de T1: la corrección define unidad base/inventariable por producto, área `inventory`)
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`); ampliado con `inputs/correcciones.md` C-04 (oleada 1)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-CORE-012
 
 ## Problema
@@ -39,4 +39,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 Auditoría 2026-10-26; `inputs/correcciones.md` C-04; SDLC-INV-002 (signo y suma del peso capturado); memoria «ERP search infrastructure» (`SEARCH_FAILED` vs `NO_RESULTS`, mismo patrón de error tragado).
 
 ## Preguntas abiertas
-- ¿Dónde se define hoy la unidad inventariable de un producto de peso variable (perfil de producto, maestro cárnico) y cuál manda si discrepan? Se medirá en Design; si no hay fuente única, se pregunta. · bloquea `/sdlc-design SDLC-PROC-002` solo si no hay fuente única
+- ¿Dónde se define hoy la unidad inventariable de un producto de peso variable (perfil de producto, maestro cárnico) y cuál manda si discrepan? perfil del producto. Se medirá en Design; si no hay fuente única, se pregunta. · bloquea `/sdlc-design SDLC-PROC-002` solo si no hay fuente única

@@ -3,7 +3,7 @@
 - **Prioridad:** P0
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 3 · Fase 4.4 · Fase 19 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 1.1 «Pago MP verificado…» (`defectuoso`) y «Referencia de pago única entre ventas» (`ausente`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -38,5 +38,5 @@ No desarrollar una aplicación paralela ni duplicar contextos, tablas, servicios
 SDLC-ARQ-IDEM-001 (operation_id por clic), SDLC-ARQ-IDEM-003 (DELETE+INSERT de hijos; pagos revertidos siguen CONFIRMED) — coordinar el índice con ambos.
 
 ## Preguntas abiertas
-- ¿La referencia también es obligatoria y única para Tarjeta (número de autorización) y Transferencia?
-- ¿Qué se hace con ventas históricas con referencia vacía o repetida (se miden sobre copia)?
+- ¿La referencia también es obligatoria y única para Tarjeta (número de autorización) y Transferencia? si 
+- ¿Qué se hace con ventas históricas con referencia vacía o repetida (se miden sobre copia)? no hay ventas en la bd

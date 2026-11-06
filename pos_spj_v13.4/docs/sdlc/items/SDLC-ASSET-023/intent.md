@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/activos.md` §30, §31, §36, §68 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-ASSET-011, SDLC-ASSET-008, SDLC-ASSET-024
 
 ## Problema
@@ -35,4 +35,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - ASSET-10
 
 ## Preguntas abiertas
-- ¿Una mejora capitalizada extiende la vida útil, aumenta la base, o ambas según el caso? ¿Quién aprueba en Finanzas?
+- ¿Una mejora capitalizada extiende la vida útil, aumenta la base, o ambas según el caso? ambas segun el caso ¿Quién aprueba en Finanzas? gerente 

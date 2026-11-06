@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 4.3 · Fase 11 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 3 «Estado de venta esperando pago» (`parcial`) y Fase 11 «Puntos sólo con pago confirmado» (`defectuoso`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PAY-007
 
 ## Problema
@@ -37,4 +37,4 @@ No desarrollar una aplicación paralela ni duplicar contextos, tablas, servicios
 Memoria SALES / ERP Fase 7 (reserva de inventario sólo en ventas suspendidas).
 
 ## Preguntas abiertas
-- ¿Qué se compromete mientras el pago está pendiente: inventario reservado sí, puntos y caja no?
+- ¿Qué se compromete mientras el pago está pendiente: inventario reservado sí, puntos y caja no? inventario en reserva, libera hasta confirmar pago, puntos y caja no
