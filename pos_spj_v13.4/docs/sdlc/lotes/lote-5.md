@@ -60,7 +60,7 @@ Desde `pos_spj_v13.4/`, con `QT_QPA_PLATFORM=offscreen`, sobre `374ccf98`:
 | `tests/integration/bootstrap` de cableado + `test_main_startup_gates`, Fidelidad y trinquete de cableado | 33 passed |
 | `tests/integration --collect-only` | 5949 pruebas, 0 errores |
 | `tests/test_*.py` restantes, antes del retiro | 774 failed, 158 passed, 14 skipped, 159 errors; base de la clasificación, no es un segmento de CI |
-| `tests/architecture` completo | **PENDIENTE**: se interrumpió dos veces por el límite de API |
+| `tests/architecture` completo | **22 failed, 879 passed, 1 skipped, 2 xfailed** en 37:39. Son las mismas 22 fallas de la línea base; ninguna nueva ni en archivos del lote |
 
 Una corrida de `tests/ui/shell` completa se detuvo a los 10 minutos sin fallos hasta ese punto; se reemplazó por `test_application_window.py` y `test_user_session_controls.py`, en verde. `tests/unit` e `integration` completos no se corrieron: sólo las áreas tocadas.
 
