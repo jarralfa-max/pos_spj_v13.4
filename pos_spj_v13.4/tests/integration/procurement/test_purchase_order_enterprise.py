@@ -80,8 +80,8 @@ def conn():
     seed_purchase_context(c)
     c.execute("CREATE TABLE sucursales(id TEXT PRIMARY KEY, nombre TEXT, activa INTEGER)")
     c.execute("INSERT INTO sucursales VALUES ('br-1','Centro',1)")
-    c.execute("CREATE TABLE usuarios(id TEXT PRIMARY KEY, nombre TEXT, sucursal_id TEXT)")
-    c.execute("INSERT INTO usuarios VALUES ('user-1','Ana Compras','br-1')")
+    c.execute("CREATE TABLE usuarios(id TEXT PRIMARY KEY, nombre TEXT, sucursal_id TEXT, rol TEXT)")
+    c.execute("INSERT INTO usuarios VALUES ('user-1','Ana Compras','br-1','compras')")
     c.execute("CREATE TABLE usuarios_sucursales (usuario_id TEXT, sucursal_id TEXT)")
     c.execute("INSERT INTO usuarios_sucursales VALUES ('user-1','br-1')")
     # FASE 8: la recolección en proveedor exige una de SUS bodegas.

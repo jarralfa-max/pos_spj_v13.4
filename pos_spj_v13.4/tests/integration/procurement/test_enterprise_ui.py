@@ -61,8 +61,8 @@ def conn():
     # `usuarios` hace falta desde que la sucursal se ELIGE: el alcance sale del
     # usuario, y sin esta tabla `branch_options()` devuelve vacío — que es el
     # fallo cerrado correcto, pero deja el combo sin nada que ofrecer.
-    c.execute("CREATE TABLE usuarios(id TEXT PRIMARY KEY, sucursal_id TEXT)")
-    c.execute("INSERT INTO usuarios VALUES ('user-1','br-1')")
+    c.execute("CREATE TABLE usuarios(id TEXT PRIMARY KEY, sucursal_id TEXT, rol TEXT)")
+    c.execute("INSERT INTO usuarios VALUES ('user-1','br-1','compras')")
     # FASE 5: la orden valida contra el maestro igual que la compra rápida
     # (producto activo, almacén de la sucursal). Antes estas pruebas creaban
     # órdenes con un producto y un almacén que no existían — el defecto, fijado
