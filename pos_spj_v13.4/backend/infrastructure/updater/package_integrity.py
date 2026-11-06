@@ -1,6 +1,6 @@
 """Size + SHA-256 of a package file — dependency-free on purpose: the external
-updater (a small single-file executable) re-checks the staged installer with
-this right before running it, without loading the cryptography stack."""
+updater checks with this the private copy of the installer it is about to run,
+against the size and hash of the signed manifest."""
 from __future__ import annotations
 
 import hashlib

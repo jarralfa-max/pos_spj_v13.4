@@ -1,10 +1,12 @@
 """Trust checks on an installer executable before it is run elevated.
 
-1. Authenticode — required whenever the RUNNING build is itself signed
+1. Authenticode — required whenever the INSTALLED build is signed
    (`build_info.json` → `"signed": true`, i.e. a production release): an
    installer it elevates must carry a valid signature from the same
-   publisher. A development build (unsigned) cannot demand what it does not
-   have; it logs the gap instead and relies on the manifest signature + hash.
+   publisher, meaning exactly the subject that signs the installed `SPJ.exe`.
+   That file sits in the installation folder, which only an administrator can
+   change. Without a publisher to compare with, nothing runs. An unsigned build
+   cannot demand what it does not have; `updater_main` decides what it may do.
    The check uses `Get-AuthenticodeSignature`; the file path travels in an
    environment variable and is never interpolated into the script text.
 
@@ -47,9 +49,11 @@ class AuthenticodeResult:
 
 
 class AuthenticodeVerifier:
-    def __init__(self, *, required: bool, expected_subject: str = "") -> None:
+    def __init__(self, *, required: bool, expected_subject: str = "",
+                 reference: Path | None = None) -> None:
         self._required = required
         self._expected_subject = expected_subject
+        self._reference = reference
 
     @property
     def required(self) -> bool:
@@ -64,10 +68,22 @@ class AuthenticodeVerifier:
             raise InstallerTrustError(
                 f"El instalador {Path(installer).name} no tiene una firma Authenticode válida "
                 f"({result.status}). No se ejecutará.")
-        if self._expected_subject and self._expected_subject not in result.subject:
+        expected = self._publisher()
+        if result.subject != expected:
             raise InstallerTrustError(
                 f"El instalador está firmado por «{result.subject}», no por el editor esperado.")
         return result
+
+    def _publisher(self) -> str:
+        expected = self._expected_subject
+        if not expected and self._reference is not None:
+            reference = self.inspect(self._reference)
+            expected = reference.subject if reference.valid else ""
+        if not expected:
+            raise InstallerTrustError(
+                "No se conoce el editor esperado: la instalación actual no tiene una firma "
+                "válida con que comparar. No se ejecutará ningún instalador.")
+        return expected
 
     @staticmethod
     def inspect(installer: Path) -> AuthenticodeResult:

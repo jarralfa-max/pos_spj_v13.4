@@ -4,8 +4,10 @@ Order, with what a failure at each step leaves behind:
 
 1. wait for the desktop process to exit, then take the database instance
    lock — failure: CANCELLED, nothing touched;
-2. re-verify the staged package (size, SHA-256, Authenticode when the build
-   is signed) — failure: CANCELLED;
+2. authorize the staged package: its hash comes from the signed manifest,
+   verified here, and the private copy that passes is the one that runs; then
+   Authenticode when the build is signed — failure: CANCELLED. The job file
+   proves nothing: every Windows user of the station can modify it;
 3. verified SQLite backup of the database (`pre-update-<version>`) —
    failure: CANCELLED;
 4. run the signed installer elevated (UAC) — non-zero exit: ROLLING_BACK
@@ -60,6 +62,11 @@ class TrustPort(Protocol):
     def check(self, installer: Path): ...
 
 
+class ReleaseAuthorityPort(Protocol):
+    def authorize(self, job: UpdateJob) -> Path: ...
+    def discard(self) -> None: ...
+
+
 class CachePort(Protocol):
     def installer_for(self, version: str): ...
 
@@ -78,7 +85,7 @@ class UpdateTransaction:
         backups_dir: Path, installer_runner: InstallerRunnerPort,
         installer_arguments: Callable[[UpdateJob, str], list[str]],
         self_test: SelfTestPort, trust: TrustPort, installer_cache: CachePort,
-        verify_package: Callable[[Path, int, str], None],
+        release_authority: ReleaseAuthorityPort,
         wait_for_exit: Callable[[int, float], bool],
         timeouts: TransactionTimeouts = TransactionTimeouts(),
     ) -> None:
@@ -91,7 +98,7 @@ class UpdateTransaction:
         self._self_test = self_test
         self._trust = trust
         self._cache = installer_cache
-        self._verify_package = verify_package
+        self._release_authority = release_authority
         self._wait_for_exit = wait_for_exit
         self._timeouts = timeouts
 
@@ -106,9 +113,8 @@ class UpdateTransaction:
                 UpdateJobState.CANCELLED,
                 "Otra instancia de SPJ sigue usando la base de datos; no se actualizó nada."))
         try:
-            installer = Path(job.installer_path)
             try:
-                self._verify_package(installer, job.installer_size, job.installer_sha256)
+                installer = self._release_authority.authorize(job)
                 self._trust.check(installer)
             except Exception as exc:
                 return self._save(job.transition(
@@ -168,6 +174,9 @@ class UpdateTransaction:
                       f"no la {job.to_version}.")
         return self._rollback(job, reason)
 
+    def discard_staged_installer(self) -> None:
+        self._release_authority.discard()
+
     # ── guided recovery (a person asked for it at startup) ────────────────
     def recover(self, job: UpdateJob) -> UpdateJob:
         """From NEEDS_RECOVERY: restore the pre-update backup, reinstall the
@@ -187,15 +196,19 @@ class UpdateTransaction:
                     problems.append(f"No se pudo restaurar la base: {exc}")
                 finally:
                     self._lock.release()
-        if not problems and job.previous_installer_path:
-            previous = Path(job.previous_installer_path)
+        if not problems:
+            # The job was read back from disk: the path written in it decides
+            # nothing. Only the admin-written cache names what may run elevated.
             try:
-                self._trust.check(previous)
-                code = self._runner.run(previous, self._arguments(job, str(previous)),
-                                        timeout_seconds=self._timeouts.installer_seconds)
-                if code != 0:
-                    problems.append(f"El instalador de la versión {job.from_version} "
-                                    f"terminó con código {code}.")
+                cached = self._cache.installer_for(job.from_version)
+                if cached:
+                    previous = Path(cached.path)
+                    self._trust.check(previous)
+                    code = self._runner.run(previous, self._arguments(job, str(previous)),
+                                            timeout_seconds=self._timeouts.installer_seconds)
+                    if code != 0:
+                        problems.append(f"El instalador de la versión {job.from_version} "
+                                        f"terminó con código {code}.")
             except Exception as exc:
                 problems.append(f"No se pudo reinstalar la versión {job.from_version}: {exc}")
         if not problems:

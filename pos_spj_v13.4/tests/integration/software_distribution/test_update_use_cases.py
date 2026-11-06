@@ -4,6 +4,7 @@ startup ingestion of the updater's journal."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 import shutil
 import sqlite3
 
@@ -141,6 +142,8 @@ def test_check_download_and_install_now(env):
     request = ScheduleUpdateInstallUseCase(deps).execute(InstallTiming.NOW)
     assert isinstance(request, LaunchRequest)
     assert request.job.state is UpdateJobState.STAGED and request.job.to_version == "13.5.0"
+    # SDLC-INST-001: el actualizador verifica este manifiesto, no los campos del job.
+    assert json.loads(request.job.signed_manifest)["payload"]["version"] == "13.5.0"
     assert request.job_path == env["paths"].update_job_path
     assert events(env)[-3:] == ["OFFERED", "DOWNLOADED", "SCHEDULED"]
     with pytest.raises(SoftwareUpdateError, match="Ya hay"):

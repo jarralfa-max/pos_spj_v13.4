@@ -5,7 +5,8 @@ installer → `spj_updater.exe` → elevated/per-user Inno run → self-test →
 COMPLETED or rollback. It writes the same `update_job.json` the in-app
 scheduler (`ScheduleUpdateInstallUseCase`) writes once a download is
 verified; manifest signing is out of scope here (it is covered by
-`tests/integration/software_distribution`).
+`tests/integration/software_distribution`), so it runs with `--dev-unsigned`,
+which only an unsigned build honours.
 
     python ci_stage_update.py --install-dir "C:\\Program Files\\SPJ\\SPJ ERP POS" \
         --installer build\\windows\\release\\SPJ-Setup-13.4.1-x64.exe \
@@ -64,7 +65,7 @@ def main(argv=None) -> int:
     command = [str(updater), "--mode", "install", "--job", str(store.path), "--wait-pid", "0",
                "--install-dir", str(paths.root), "--data-dir", str(paths.user_data_dir),
                "--installer-cache", str(paths.installer_cache_dir), "--headless",
-               "--no-relaunch"]
+               "--no-relaunch", "--dev-unsigned"]
     print(json.dumps({"job_path": str(store.path), "database": str(paths.database_path),
                       "command": command}))
     return 0

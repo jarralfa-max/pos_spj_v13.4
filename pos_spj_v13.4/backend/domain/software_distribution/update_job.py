@@ -129,6 +129,10 @@ class UpdateJob:
     scheduled_window: str = ""
     #: Set when the job is created by the in-app scheduler.
     created_at: str = ""
+    #: The signed manifest of this release, as received. The updater takes the
+    #: installer's hash from HERE after verifying the signature: this file sits
+    #: in a folder every Windows user can modify (SDLC-INST-001).
+    signed_manifest: str = ""
 
     def transition(self, target: UpdateJobState, detail: str = "", **changes: Any) -> "UpdateJob":
         if target not in _TRANSITIONS.get(self.state, frozenset()):

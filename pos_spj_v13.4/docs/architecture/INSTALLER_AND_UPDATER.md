@@ -66,7 +66,9 @@ login → window.
 4. **Hand-over**: the desktop stops background services, checkpoints the WAL, closes
    connections, releases the lock, starts a temporary copy of `spj_updater.exe` and quits.
 5. **Transaction** (external process, `update_transaction.py`): wait for exit → lock →
-   re-verify package (+ Authenticode when the build is signed) → verified backup
+   authorize package (hash from the signed manifest verified in the updater, on a private
+   copy that is the one run; + Authenticode from the same publisher as the installed `SPJ.exe`
+   when the build is signed) → verified backup
    `pre-update-<version>` → installer elevated through UAC (`/SILENT`) → `SPJ.exe --self-test`
    (migrations run here) must report the announced version → COMPLETED. Failure after the
    installer: restore the database (if migrations may have run) + reinstall the cached previous
@@ -107,6 +109,14 @@ No `os.system`/`shell=True`/`urlretrieve` in the updater; no byte copy of SQLite
 SHA-256 of an unauthenticated manifest is never trusted; trusted keys are code, not files;
 the external updater loads neither Qt nor the ERP; nothing downloaded runs inside the POS
 process; the only elevated program is the (signed) installer.
+
+`update_job.json` stays in the data folder, which every Windows user of the station can modify,
+so it proves nothing: the updater takes the hash from the signed manifest inside the job, refuses
+a manifest for another version or one not newer than the installed build, and on recovery runs
+only what the admin-written cache lists. The installed `build_info.json` decides the rules, not
+the command line. An unsigned machine-wide build cannot run elevated updates (use the manual
+Setup); `--dev-unsigned` (`SPJ_UPDATER_DEV_MODE=1`, or a source checkout) is the explicit
+development mode and means nothing on a signed build (SDLC-INST-001).
 
 ## Read-only bundled resources
 

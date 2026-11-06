@@ -23,6 +23,7 @@ from backend.infrastructure.runtime.instance_lock import InstanceLock
 from backend.infrastructure.updater.installer_trust import CachedInstaller
 from backend.infrastructure.updater.package_integrity import file_sha256, verify_file
 from backend.infrastructure.updater.process_control import InstallerNotStartedError
+from backend.infrastructure.updater.release_authority import DevelopmentReleaseAuthority
 from backend.infrastructure.updater.update_job_store import UpdateJobStore
 
 from ._helpers import count_sales, make_wal_database
@@ -117,7 +118,8 @@ def transaction(world, *, installer, self_test, cache_entry="previous", exits=Tr
         installer_runner=installer, installer_arguments=lambda job, path: ["/SILENT"],
         self_test=self_test, trust=AllowTrust(),
         installer_cache=Cache(world["previous"] if cache_entry == "previous" else None),
-        verify_package=verify_file, wait_for_exit=lambda pid, timeout: exits,
+        release_authority=DevelopmentReleaseAuthority(verify_file),
+        wait_for_exit=lambda pid, timeout: exits,
         timeouts=TransactionTimeouts(app_exit_seconds=0.1, lock_seconds=0.1),
     )
 

@@ -155,6 +155,7 @@ actualización desde la aplicación lo hace sola, la manual no.
 | --- | --- | --- |
 | «Actualización revertida» | Falló la instalación o la prueba de arranque; se restauró la base (si hacía falta) y se reinstaló la versión anterior. | Nada urgente. Envíe `<datos>\logs\updater.log` y `instalador-*.log`. |
 | «Actualización no aplicada» | No se llegó a instalar (UAC rechazado, SPJ abierto, paquete alterado, respaldo imposible). | Corrija la causa indicada y reintente. Los datos no cambiaron. |
+| «Actualización no aplicada: esta compilación no está firmada» | La instalación no es un build firmado: el actualizador no corre instaladores con permisos de administrador. | Actualice con el instalador a mano (Setup). Al abrir, SPJ respalda antes de migrar. |
 | «Se está instalando…» al abrir | El actualizador sigue trabajando. | Espere; SPJ se abrirá solo. |
 | Ventana «Recuperación» | La reversión automática no terminó (o el equipo se apagó a mitad). | Pulse «Recuperar»: restaura la base previa a la actualización y reinstala la versión anterior. Si vuelve a fallar, §6. |
 | «No se pudo respaldar la base de datos… No se migró nada» | Había migraciones pendientes (Setup manual o actualización) y el respaldo previo falló. | La base sigue intacta. Libere espacio o corrija los permisos de `<datos>\backups` y abra SPJ de nuevo. |
