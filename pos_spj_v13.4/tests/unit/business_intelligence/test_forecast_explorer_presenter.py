@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 
+from backend.application.analytics.access import BiAccess
 from backend.application.dto.charts.chart_data import ChartType
 from backend.domain.forecasting.enums import ForecastRunStatus
 from backend.domain.forecasting.value_objects.forecast_run import (
@@ -93,23 +94,23 @@ def conn():
 
 
 def test_search_products_degrades_gracefully_with_no_rows(conn):
-    presenter = ForecastExplorerPresenter(conn)
+    presenter = ForecastExplorerPresenter(conn, access=BiAccess.permissive_for_tests())
     assert presenter.search_products("res") == []
 
 
 def test_search_branches_degrades_gracefully_with_no_rows(conn):
-    presenter = ForecastExplorerPresenter(conn)
+    presenter = ForecastExplorerPresenter(conn, access=BiAccess.permissive_for_tests())
     assert presenter.search_branches("centro") == []
 
 
 def test_forecast_requires_a_product_id(conn):
-    presenter = ForecastExplorerPresenter(conn)
+    presenter = ForecastExplorerPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(ForecastUnavailableError):
         presenter.forecast(product_id="", branch_id=None, horizon_days=7)
 
 
 def test_forecast_requires_a_positive_horizon(conn):
-    presenter = ForecastExplorerPresenter(conn)
+    presenter = ForecastExplorerPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(ForecastUnavailableError):
         presenter.forecast(product_id="p1", branch_id=None, horizon_days=0)
 
@@ -121,7 +122,7 @@ def test_forecast_with_zero_sales_history_raises_a_readable_error_not_a_crash(co
     (`accuracy_metrics.wape`'s own domain rule, BI-10). The real
     `MetricInputError` this raises must surface as a readable
     `ForecastUnavailableError`, never an unhandled crash reaching the page."""
-    presenter = ForecastExplorerPresenter(conn)
+    presenter = ForecastExplorerPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(ForecastUnavailableError):
         presenter.forecast(product_id="p1", branch_id="b1", horizon_days=3)
 
@@ -139,7 +140,7 @@ def test_forecast_seeded_history_produces_a_stable_forecast(conn):
             (new_uuid(), sale_id, "p1", 5))
     conn.commit()
 
-    presenter = ForecastExplorerPresenter(conn)
+    presenter = ForecastExplorerPresenter(conn, access=BiAccess.permissive_for_tests())
     cards, chart = presenter.forecast(product_id="p1", branch_id="b1", horizon_days=3)
     assert len(chart.categories) == 3
     for value in chart.series[0].data:

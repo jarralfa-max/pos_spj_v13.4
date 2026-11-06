@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 
+from backend.application.analytics.access import BiAccess
 from backend.domain.decision_intelligence.enums import (
     BusinessRecommendationType,
     RecommendationStatus,
@@ -80,34 +81,34 @@ def _sale(conn, *, day, price, qty, product_id="p1", branch_id="b1"):
 
 
 def test_search_products_and_branches_degrade_gracefully_with_no_rows(conn):
-    presenter = PriceRecommendationPresenter(conn)
+    presenter = PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests())
     assert presenter.search_products("res") == []
     assert presenter.search_branches("centro") == []
 
 
 def test_generate_requires_a_product_id(conn):
-    presenter = PriceRecommendationPresenter(conn)
+    presenter = PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(RecommendationUnavailableError):
         presenter.generate(product_id="", branch_id="b1",
                             margin_review_threshold_pct=10.0, valid_for_days=30)
 
 
 def test_generate_requires_a_branch_id(conn):
-    presenter = PriceRecommendationPresenter(conn)
+    presenter = PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(RecommendationUnavailableError):
         presenter.generate(product_id="p1", branch_id="",
                             margin_review_threshold_pct=10.0, valid_for_days=30)
 
 
 def test_generate_requires_a_positive_validity_window(conn):
-    presenter = PriceRecommendationPresenter(conn)
+    presenter = PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(RecommendationUnavailableError):
         presenter.generate(product_id="p1", branch_id="b1",
                             margin_review_threshold_pct=10.0, valid_for_days=0)
 
 
 def test_generate_with_no_sales_history_raises_unavailable(conn):
-    presenter = PriceRecommendationPresenter(conn)
+    presenter = PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(RecommendationUnavailableError):
         presenter.generate(product_id="p1", branch_id="b1",
                             margin_review_threshold_pct=10.0, valid_for_days=30)
@@ -120,7 +121,7 @@ def test_generate_with_a_single_price_point_is_informational_only(conn):
     BusinessRecommendation (§39)."""
     _sale(conn, day="2026-01-01", price=10, qty=50)
     conn.commit()
-    presenter = PriceRecommendationPresenter(conn)
+    presenter = PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests())
     recommendation, price_rec, message = presenter.generate(
         product_id="p1", branch_id="b1", margin_review_threshold_pct=10.0, valid_for_days=30)
     assert recommendation is None
@@ -141,7 +142,7 @@ def test_generate_with_elastic_demand_history_produces_a_real_decrease_recommend
         _sale(conn, day=day, price=price, qty=qty)
     conn.commit()
 
-    presenter = PriceRecommendationPresenter(conn)
+    presenter = PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests())
     recommendation, price_rec, message = presenter.generate(
         product_id="p1", branch_id="b1", margin_review_threshold_pct=10.0, valid_for_days=30)
     assert message is None
@@ -159,14 +160,14 @@ def test_generate_with_elastic_demand_history_produces_a_real_decrease_recommend
 
 
 def test_apply_transition_rejects_an_invalid_jump(conn):
-    presenter = PriceRecommendationPresenter(conn)
+    presenter = PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests())
     rec = _recommendation()  # status=NEW
     with pytest.raises(RecommendationTransitionError):
         presenter.apply_transition(rec, "approve")  # NEW -> APPROVED is not allowed
 
 
 def test_apply_transition_rejects_an_unknown_action(conn):
-    presenter = PriceRecommendationPresenter(conn)
+    presenter = PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests())
     rec = _recommendation()
     with pytest.raises(RecommendationTransitionError):
         presenter.apply_transition(rec, "not_a_real_action")

@@ -8,6 +8,7 @@ import sqlite3
 import pytest
 from PyQt5.QtWidgets import QApplication
 
+from backend.application.analytics.access import BiAccess
 from frontend.desktop.components.search_selector import SearchOption
 from frontend.desktop.modules.business_intelligence.business_intelligence_routes import build_page
 from frontend.desktop.modules.business_intelligence.pages.pricing_scenario_page import (
@@ -46,14 +47,14 @@ def conn():
 
 
 def test_page_constructs_without_a_selected_product_or_branch(qapp, conn):
-    page = PricingScenarioPage(PricingScenarioPresenter(conn))
+    page = PricingScenarioPage(PricingScenarioPresenter(conn, access=BiAccess.permissive_for_tests()))
     assert page._product_id is None
     assert page._branch_id is None
     assert page.price_change_pct.value() == 0
 
 
 def test_selecting_a_product_and_branch_stores_their_ids(qapp, conn):
-    page = PricingScenarioPage(PricingScenarioPresenter(conn))
+    page = PricingScenarioPage(PricingScenarioPresenter(conn, access=BiAccess.permissive_for_tests()))
     page._select_product(SearchOption(id="p1", label="Res Molida"))
     page._select_branch(SearchOption(id="b1", label="Sucursal Centro"))
     assert page._product_id == "p1"
@@ -61,5 +62,5 @@ def test_selecting_a_product_and_branch_stores_their_ids(qapp, conn):
 
 
 def test_build_page_with_connection_returns_real_pricing_scenario_page(qapp, conn):
-    page = build_page("bi_scenarios", conn)
+    page = build_page("bi_scenarios", conn, access=BiAccess.permissive_for_tests())
     assert isinstance(page, PricingScenarioPage)

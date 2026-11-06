@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import pytest
 
+from backend.application.analytics.access import BiAccess
 from backend.domain.scenario_planning.value_objects.scenario import ScenarioResult
 from backend.shared.ids import new_uuid
 from frontend.desktop.modules.business_intelligence.presenters.pricing_scenario_presenter import (
@@ -85,31 +86,31 @@ def _sale(conn, *, day, price, qty, product_id="p1", branch_id="b1"):
 
 
 def test_search_products_and_branches_degrade_gracefully_with_no_rows(conn):
-    presenter = PricingScenarioPresenter(conn)
+    presenter = PricingScenarioPresenter(conn, access=BiAccess.permissive_for_tests())
     assert presenter.search_products("res") == []
     assert presenter.search_branches("centro") == []
 
 
 def test_simulate_requires_a_product_id(conn):
-    presenter = PricingScenarioPresenter(conn)
+    presenter = PricingScenarioPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(ScenarioUnavailableError):
         presenter.simulate(product_id="", branch_id="b1", price_change_pct=-10.0)
 
 
 def test_simulate_requires_a_branch_id(conn):
-    presenter = PricingScenarioPresenter(conn)
+    presenter = PricingScenarioPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(ScenarioUnavailableError):
         presenter.simulate(product_id="p1", branch_id="", price_change_pct=-10.0)
 
 
 def test_simulate_requires_a_nonzero_price_change(conn):
-    presenter = PricingScenarioPresenter(conn)
+    presenter = PricingScenarioPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(ScenarioUnavailableError):
         presenter.simulate(product_id="p1", branch_id="b1", price_change_pct=0.0)
 
 
 def test_simulate_with_no_sales_history_raises_unavailable(conn):
-    presenter = PricingScenarioPresenter(conn)
+    presenter = PricingScenarioPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(ScenarioUnavailableError):
         presenter.simulate(product_id="p1", branch_id="b1", price_change_pct=-10.0)
 
@@ -121,7 +122,7 @@ def test_simulate_with_a_single_price_point_raises_insufficient_elasticity(conn)
     error, not a stack trace."""
     _sale(conn, day="2026-01-01", price=10, qty=50)
     conn.commit()
-    presenter = PricingScenarioPresenter(conn)
+    presenter = PricingScenarioPresenter(conn, access=BiAccess.permissive_for_tests())
     with pytest.raises(ScenarioUnavailableError):
         presenter.simulate(product_id="p1", branch_id="b1", price_change_pct=-10.0)
 
@@ -137,7 +138,7 @@ def test_simulate_with_elastic_demand_history_produces_a_real_scenario_result(co
         _sale(conn, day=day, price=price, qty=qty)
     conn.commit()
 
-    presenter = PricingScenarioPresenter(conn)
+    presenter = PricingScenarioPresenter(conn, access=BiAccess.permissive_for_tests())
     result = presenter.simulate(product_id="p1", branch_id="b1", price_change_pct=-10.0)
     assert result.scenario_metrics["price"] == Decimal("16") * Decimal("0.9")
     assert result.baseline_metrics["price"] == Decimal("16")

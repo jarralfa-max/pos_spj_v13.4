@@ -20,7 +20,7 @@ from frontend.desktop.modules.business_intelligence.widgets import BusinessIntel
 
 class BusinessIntelligenceView(QWidget):
     def __init__(self, *, has_permission, badges=None, page_builder=None, parent=None,
-                 connection=None, branch_id: str | None = None,
+                 connection=None, access=None,
                  actor_user_id: str | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("businessIntelligenceModule")
@@ -32,7 +32,7 @@ class BusinessIntelligenceView(QWidget):
             self._page_builder = page_builder
         else:
             self._page_builder = lambda page_id: build_page(
-                page_id, connection, branch_id=branch_id, actor_user_id=actor_user_id)
+                page_id, connection, access=access, actor_user_id=actor_user_id)
         self._pages = {}
         self._active_route = None
 

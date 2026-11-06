@@ -27,7 +27,7 @@ def conn():
 
 
 def test_seccion_caja_ingresos_egresos_saldo(conn):
-    svc = BiDashboardService(BiDashboardQueryService(conn))
+    svc = BiDashboardService.permissive_for_tests(BiDashboardQueryService(conn))
     d = svc.section_data("caja", DashboardFilters(preset="month"))
     kpis = {k["title"]: k["value"] for k in d["kpis"]}
     assert kpis["Ingresos directos"] == 500.0
@@ -39,7 +39,7 @@ def test_settings_umbral_cambia_alertas(conn):
     settings = BiSettingsService()  # memoria
     # merma 0% (no hay merma) → sin alerta; bajamos umbral de margen para forzar
     settings.set("threshold_margen_bajo_pct", 90.0)   # margen real ~40% < 90 → alerta
-    svc = BiDashboardService(BiDashboardQueryService(conn), settings=settings)
+    svc = BiDashboardService.permissive_for_tests(BiDashboardQueryService(conn), settings=settings)
     pl = svc.build_dashboard(DashboardFilters(preset="month"))
     assert any(a["code"] == "margen_bajo" for a in pl.alerts)
 
@@ -59,7 +59,7 @@ def test_settings_persisten_en_store():
 
 
 def test_export_csv_incluye_meta_y_kpis(conn, tmp_path):
-    svc = BiDashboardService(BiDashboardQueryService(conn))
+    svc = BiDashboardService.permissive_for_tests(BiDashboardQueryService(conn))
     payload = svc.build_dashboard(DashboardFilters(preset="month")).to_dict()
     meta = {"usuario": "diego", "rango": "este mes", "sucursal": "San Bartolo"}
     ruta = str(tmp_path / "resumen.csv")
@@ -71,7 +71,7 @@ def test_export_csv_incluye_meta_y_kpis(conn, tmp_path):
 
 
 def test_export_xlsx_o_csv_fallback(conn, tmp_path):
-    svc = BiDashboardService(BiDashboardQueryService(conn))
+    svc = BiDashboardService.permissive_for_tests(BiDashboardQueryService(conn))
     payload = svc.build_dashboard(DashboardFilters(preset="month")).to_dict()
     escrito = BiExportService().export_summary(payload, {}, str(tmp_path / "r.xlsx"), fmt="xlsx")
     assert escrito.endswith((".xlsx", ".csv"))

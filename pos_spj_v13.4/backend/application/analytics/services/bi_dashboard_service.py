@@ -18,6 +18,7 @@ from backend.application.analytics.dto.bi_dashboard_dto import (
     Alert, ChartData, DashboardFilters, DashboardPayload, HighlightCard,
     Insight, KpiCard, Prediction, make_kpi,
 )
+from backend.domain.analytics.exceptions import AnalyticsPermissionDeniedError
 
 # Roles semánticos de color (la capa de presentación los resuelve desde los
 # design tokens globales — el backend no conoce hex).
@@ -45,15 +46,27 @@ SECTION_PERMISSION = {
 }
 
 
+def _deny_section(_permission: str) -> bool:
+    return False
+
+
+def _deny_branches(_filters: DashboardFilters) -> DashboardFilters:
+    raise AnalyticsPermissionDeniedError("Sin alcance de sucursales: no se consulta nada.")
+
+
 class BiDashboardService:
     def __init__(self, query_service, permission_checker=None, cache_ttl: int = 60,
-                 settings=None):
+                 settings=None, branch_scope=None):
         """query_service: BiDashboardQueryService.
-        permission_checker: callable(permission_key) -> bool (optional).
+        permission_checker: callable(permission_key) -> bool. Sin él no se concede
+        ninguna sección (SDLC-BI-001; antes, sin verificador, se permitía todo).
+        branch_scope: callable(DashboardFilters) -> DashboardFilters que acota a las
+        sucursales del usuario (`BiAccess.scope`). Sin él no se consulta nada.
         settings: BiSettingsService (optional); defaults used if None.
         """
         self._q = query_service
-        self._can = permission_checker or (lambda perm: True)
+        self._can = permission_checker or _deny_section
+        self._scope = branch_scope or _deny_branches
         self._ttl = cache_ttl
         self._cache: dict = {}
         self._cache_ts: dict = {}
@@ -62,10 +75,15 @@ class BiDashboardService:
             settings = BiSettingsService()
         self._settings = settings
 
+    @classmethod
+    def permissive_for_tests(cls, query_service, **kwargs) -> "BiDashboardService":
+        return cls(query_service, permission_checker=lambda _permission: True,
+                   branch_scope=lambda filters: filters, **kwargs)
+
     # ── Público ───────────────────────────────────────────────────────────────
 
     def build_dashboard(self, filters: DashboardFilters | None = None) -> DashboardPayload:
-        f = (filters or DashboardFilters()).resolved()
+        f = self._scope(filters or DashboardFilters()).resolved()
         key = str(f.to_dict())
         now = time.monotonic()
         if key in self._cache and now - self._cache_ts.get(key, 0) < self._ttl:
@@ -102,7 +120,10 @@ class BiDashboardService:
 
         Estructura estable: {section, title, kpis[], charts[], tables[]}.
         """
-        f = (filters or DashboardFilters()).resolved()
+        f = self._scope(filters or DashboardFilters()).resolved()
+        permission = SECTION_PERMISSION.get(section)
+        if permission is not None and not self._can(permission):
+            raise AnalyticsPermissionDeniedError(f"Sin permiso para la sección {section}.")
         builder = getattr(self, f"_section_{section}", None)
         if builder is None:
             return {"section": section, "title": section.title(),

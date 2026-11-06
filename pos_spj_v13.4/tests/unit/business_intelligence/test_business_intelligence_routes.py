@@ -1,5 +1,6 @@
 import pytest
 
+from backend.application.analytics.access import BiAccess
 from frontend.desktop.modules.business_intelligence.business_intelligence_routes import build_page
 from frontend.desktop.modules.business_intelligence.pages import BusinessIntelligencePlaceholderPage
 from PyQt5.QtWidgets import QApplication
@@ -47,10 +48,10 @@ def test_only_production_stays_a_placeholder_with_a_connection(qapp):
     import sqlite3
     conn = sqlite3.connect(":memory:")
     try:
-        assert isinstance(build_page("bi_production", conn),
+        assert isinstance(build_page("bi_production", conn, access=BiAccess.permissive_for_tests()),
                           BusinessIntelligencePlaceholderPage)
         for page_id in ("bi_pricing", "bi_branches"):
-            assert not isinstance(build_page(page_id, conn),
+            assert not isinstance(build_page(page_id, conn, access=BiAccess.permissive_for_tests()),
                                   BusinessIntelligencePlaceholderPage), (
                 f"{page_id} volvio a ser placeholder")
     finally:

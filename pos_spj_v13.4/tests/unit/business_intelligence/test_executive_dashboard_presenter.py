@@ -2,6 +2,7 @@ import sqlite3
 
 import pytest
 
+from backend.application.analytics.access import BiAccess
 from backend.application.dto.charts.chart_data import ChartType
 from frontend.desktop.modules.business_intelligence.presenters.executive_dashboard_presenter import (
     ExecutiveDashboardPresenter,
@@ -72,7 +73,7 @@ def test_presenter_degrades_gracefully_against_a_bare_connection(conn):
     """No schema at all — the underlying Bi*QueryServices already log and
     degrade to empty/zero results per-query (confirmed against real
     behavior, not assumed); the presenter must not crash on top of that."""
-    presenter = ExecutiveDashboardPresenter(conn)
+    presenter = ExecutiveDashboardPresenter(conn, access=BiAccess.permissive_for_tests())
     cards = presenter.kpi_cards()
     charts = presenter.charts()
     assert len(cards) <= 6
@@ -80,6 +81,6 @@ def test_presenter_degrades_gracefully_against_a_bare_connection(conn):
 
 
 def test_presenter_caps_kpis_at_six(conn):
-    presenter = ExecutiveDashboardPresenter(conn)
+    presenter = ExecutiveDashboardPresenter(conn, access=BiAccess.permissive_for_tests())
     cards = presenter.kpi_cards()
     assert len(cards) <= 6

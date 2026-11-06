@@ -44,6 +44,7 @@ import sqlite3
 import pytest
 from PyQt5.QtWidgets import QApplication
 
+from backend.application.analytics.access import build_bi_access
 from backend.application.analytics.permissions import AnalyticsPermissions
 from backend.shared.ids import new_uuid
 from frontend.desktop.components.dialogs import MessageDialog
@@ -207,7 +208,7 @@ def vistas(app):
         vista = BusinessIntelligenceView(
             has_permission=sidebar_permission_checker(sesion),
             connection=conn,
-            branch_id=sesion.active_branch_id,
+            access=build_bi_access(conn, sesion),
             actor_user_id=sesion.user_id,
         )
         creadas.append(vista)

@@ -26,6 +26,8 @@ from __future__ import annotations
 
 from datetime import date
 
+from backend.application.analytics.access import BiAccess
+from backend.domain.analytics.exceptions import AnalyticsPermissionDeniedError
 from backend.application.analytics.queries.bi_dashboard_query_service import (
     BiDashboardQueryService,
 )
@@ -80,7 +82,9 @@ def _map_forecast_chart(result) -> ChartDataDTO:
 
 
 class ForecastExplorerPresenter:
-    def __init__(self, connection, *, settings: BiSettingsService | None = None) -> None:
+    def __init__(self, connection, *, settings: BiSettingsService | None = None,
+                 access: BiAccess | None = None) -> None:
+        self._access = access or BiAccess()
         self._products = SearchInventoryManagedProductsQueryService(connection)
         self._dashboard_query_service = BiDashboardQueryService(connection)
         self._service = build_demand_planning_service(connection)
@@ -93,7 +97,7 @@ class ForecastExplorerPresenter:
         return [_product_option(dto) for dto in self._products.search(query=query)]
 
     def search_branches(self, query: str) -> list[SearchOption]:
-        branches = self._dashboard_query_service.filter_options().get("branches", [])
+        branches = self._access.scoped_branches(self._dashboard_query_service)
         needle = query.strip().lower()
         return [
             SearchOption(id=b["id"], label=b["nombre"])
@@ -107,6 +111,10 @@ class ForecastExplorerPresenter:
             raise ForecastUnavailableError("Selecciona un producto para generar el forecast.")
         if horizon_days <= 0:
             raise ForecastUnavailableError("El horizonte debe ser mayor a cero días.")
+        try:
+            branch_id = self._access.resolve_branch(branch_id or "")
+        except AnalyticsPermissionDeniedError as exc:
+            raise ForecastUnavailableError(str(exc)) from exc
         try:
             run, result = self._service.forecast_product_demand(
                 product_id=product_id, branch_id=branch_id or None,
