@@ -53,19 +53,19 @@ def _write(connection: sqlite3.Connection) -> None:
     connection.execute(
         "INSERT OR IGNORE INTO rol_permisos (id, rol_id, modulo, accion) VALUES (?, ?, ?, ?)",
         (_ID, _ID, _ID, _ID))
-    connection.execute("CREATE TABLE IF NOT EXISTS ci_marker_values (name TEXT PRIMARY KEY, v)")
-    connection.execute(f"INSERT OR REPLACE INTO ci_marker_values VALUES ('anchor', ({_ANCHOR}))")
-    connection.execute(
-        f"INSERT OR REPLACE INTO ci_marker_values VALUES ('permissions', ({_PERMISSION_COUNT}))")
+    connection.execute("DELETE FROM ci_marker WHERE v <> 'keep'")
+    connection.execute(f"INSERT INTO ci_marker SELECT 'anchor:' || ({_ANCHOR})")
+    connection.execute(f"INSERT INTO ci_marker SELECT 'permissions:' || ({_PERMISSION_COUNT})")
     connection.commit()
 
 
 def _missing(connection: sqlite3.Connection) -> list[str]:
     missing = [name for name, query in _PRESENT if connection.execute(query).fetchone() is None]
-    recorded = dict(connection.execute("SELECT name, v FROM ci_marker_values").fetchall())
+    recorded = dict(row[0].split(":", 1) for row in connection.execute(
+        "SELECT v FROM ci_marker WHERE v <> 'keep'"))
     if connection.execute(_ANCHOR).fetchone()[0] != recorded.get("anchor"):
         missing.append("ancla de sucursal")
-    if connection.execute(_PERMISSION_COUNT).fetchone()[0] < recorded.get("permissions", 0):
+    if connection.execute(_PERMISSION_COUNT).fetchone()[0] < int(recorded.get("permissions", 0)):
         missing.append("permisos (se perdieron filas)")
     return missing
 
