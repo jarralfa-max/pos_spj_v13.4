@@ -100,6 +100,21 @@ class CashRegisterPresenter:
         value = self._active_shift_provider()
         return str(value) if value else None
 
+    def consultable_shifts(self) -> tuple:
+        """Turnos activos de OTROS cajeros en la sucursal, para verlos sin
+        operarlos (SDLC-ARQ-SHIFT-002). No toca `active_shift_id`: quien sólo
+        consulta sigue sin turno y las acciones se lo siguen negando."""
+        service = self._query_services.get("shifts")
+        if service is None or not self.capabilities().shift_view:
+            return ()
+        try:
+            rows = service.list_active(branch_id=self.active_branch_id(),
+                                       requester_user_id=self.actor_user_id())
+        except CashContextError:
+            return ()
+        own = self.optional_active_shift_id()
+        return tuple(row for row in rows if row.id != own)
+
     def active_shift_id(self) -> str:
         return self._require(
             self._context_value("cash_shift_id") or self.optional_active_shift_id(),
@@ -272,6 +287,17 @@ class CashRegisterPresenter:
             return dict(provider(shift_ids)) if callable(provider) else {}
         except Exception:  # noqa: BLE001 - sin etiqueta, se muestra «Turno»
             return {}
+
+    def _shift_status(self) -> str:
+        own = self.optional_active_shift_id()
+        if own:
+            return self.shift_label(own)
+        consultable = self.consultable_shifts()
+        if len(consultable) == 1:
+            return f"Consulta · {self.shift_label(consultable[0].id)}"
+        if consultable:
+            return f"Consulta · {len(consultable)} turnos activos"
+        return "Sin turno activo"
 
     def shift_label(self, shift_id: str | None) -> str:
         if not shift_id:
@@ -706,8 +732,7 @@ class CashRegisterPresenter:
             except Exception:
                 alerts = 0
         return {
-            "shift": (self.shift_label(self.optional_active_shift_id())
-                      if self.optional_active_shift_id() else "Sin turno activo"),
+            "shift": self._shift_status(),
             "sync": sync_state,
             "alerts": alerts,
         }

@@ -45,6 +45,21 @@ class CashShiftQueryService:
         requester_user_id: str,
         limit: int = 100,
     ) -> CashShiftList:
+        rows = self._rows(branch_id=branch_id, requester_user_id=requester_user_id, limit=limit)
+        active_count = sum(1 for row in rows if CashShiftLifecyclePolicy.is_active(row.status))
+        return CashShiftList(active_count=active_count, rows=rows)
+
+    def list_active(self, *, branch_id: str,
+                    requester_user_id: str) -> tuple[CashShiftRow, ...]:
+        """Los turnos activos de cualquier caja de la sucursal, de cualquier
+        cajero, para CONSULTARLOS con `CAJA.turno.ver` (SDLC-ARQ-SHIFT-002).
+        Consultar no concede operar: las acciones siguen pidiendo su permiso o
+        la intervención (`shift_ownership.py`)."""
+        return self._rows(branch_id=branch_id, requester_user_id=requester_user_id,
+                          limit=500, active_only=True)
+
+    def _rows(self, *, branch_id: str, requester_user_id: str, limit: int,
+              active_only: bool = False) -> tuple[CashShiftRow, ...]:
         self._authorization.require(
             user_id=requester_user_id,
             permission_code=CashPermissions.SHIFT_VIEW,
@@ -58,6 +73,10 @@ class CashShiftQueryService:
             users_join = "LEFT JOIN usuarios u ON u.id=s.cashier_user_id"
             cashier_expr = "COALESCE(u.nombre,u.usuario,s.cashier_user_id)"
             cashier_group = "s.cashier_user_id,u.nombre,u.usuario"
+        status_filter, status_params = "", ()
+        if active_only:
+            status_params = CashShiftLifecyclePolicy.active_status_values()
+            status_filter = f"AND s.status IN ({','.join('?' for _ in status_params)})"
         cursor = self._connection.execute(
             f"""SELECT s.id,
                       COALESCE(r.name,''),
@@ -77,7 +96,7 @@ class CashShiftQueryService:
                JOIN pos_terminals t ON t.id=s.terminal_id
                {users_join}
                LEFT JOIN cash_ledger_entries l ON l.shift_id=s.id
-               WHERE s.branch_id=?
+               WHERE s.branch_id=? {status_filter}
                GROUP BY s.id,r.name,d.name,t.name,{cashier_group},s.status,
                         s.opening_amount,s.opened_at
                ORDER BY CASE s.status
@@ -87,14 +106,12 @@ class CashShiftQueryService:
                    ELSE 3 END,
                    s.opened_at DESC
                LIMIT ?""",
-            (branch_id, safe_limit),
+            (branch_id, *status_params, safe_limit),
         )
         from backend.application.cash_register.amount_visibility import CashAmountVisibility
         visibility = CashAmountVisibility(self._connection, self._authorization)
-        rows = tuple(self._row_from_record(row, visibility, requester_user_id, branch_id)
+        return tuple(self._row_from_record(row, visibility, requester_user_id, branch_id)
                      for row in cursor.fetchall())
-        active_count = sum(1 for row in rows if CashShiftLifecyclePolicy.is_active(row.status))
-        return CashShiftList(active_count=active_count, rows=rows)
 
     def _row_from_record(self, row, visibility=None, requester_user_id: str = "",
                          branch_id: str = "") -> CashShiftRow:
