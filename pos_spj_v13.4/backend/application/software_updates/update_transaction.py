@@ -8,7 +8,8 @@ Order, with what a failure at each step leaves behind:
    verified here, and the private copy that passes is the one that runs; then
    Authenticode when the build is signed — failure: CANCELLED. The job file
    proves nothing: every Windows user of the station can modify it;
-3. verified SQLite backup of the database (`pre-update-<version>`) —
+3. verified SQLite backup of the database (`pre-update-<version>`) and copy
+   of the station's configuration (`station-config-pre-update-<version>`) —
    failure: CANCELLED;
 4. run the signed installer elevated (UAC) — non-zero exit: ROLLING_BACK
    without touching the database (no migration ran);
@@ -17,9 +18,11 @@ Order, with what a failure at each step leaves behind:
    failure: ROLLING_BACK, and because migrations may have run the database
    is restored from step 3;
 6. rollback = restore the database (when needed) + reinstall the previous
-   version from the machine cache + self-test of the previous version →
-   ROLLED_BACK; if any of that fails → NEEDS_RECOVERY, and the desktop
-   blocks normal start and offers the restore.
+   version from the machine cache + restore the configuration + self-test of
+   the previous version → ROLLED_BACK; if any of that fails → NEEDS_RECOVERY,
+   and the desktop blocks normal start and offers the restore. A configuration
+   that cannot be restored is reported in the result, not NEEDS_RECOVERY: the
+   recovery would not fix it and the station would stay blocked.
 
 The job is persisted at every transition, so a power cut leaves the last
 reached state for the desktop to diagnose.
@@ -48,6 +51,11 @@ class Lock(Protocol):
 class BackupPort(Protocol):
     def create(self, source: Path, destination_dir: Path, *, label: str, quiescent: bool = True): ...
     def restore(self, backup_path: Path, target: Path): ...
+
+
+class ConfigBackupPort(Protocol):
+    def create(self, destination_dir: Path, *, label: str) -> Path: ...
+    def restore(self, snapshot: Path): ...
 
 
 class InstallerRunnerPort(Protocol):
@@ -82,7 +90,8 @@ class TransactionTimeouts:
 class UpdateTransaction:
     def __init__(
         self, *, job_store: JobStore, database_lock: Lock, backup: BackupPort,
-        backups_dir: Path, installer_runner: InstallerRunnerPort,
+        backups_dir: Path, config_backup: ConfigBackupPort,
+        installer_runner: InstallerRunnerPort,
         installer_arguments: Callable[[UpdateJob, str], list[str]],
         self_test: SelfTestPort, trust: TrustPort, installer_cache: CachePort,
         release_authority: ReleaseAuthorityPort,
@@ -93,6 +102,7 @@ class UpdateTransaction:
         self._lock = database_lock
         self._backup = backup
         self._backups_dir = Path(backups_dir)
+        self._config_backup = config_backup
         self._runner = installer_runner
         self._arguments = installer_arguments
         self._self_test = self_test
@@ -133,6 +143,13 @@ class UpdateTransaction:
                     return self._save(job.transition(
                         UpdateJobState.CANCELLED,
                         f"No se pudo respaldar la base de datos; no se actualizó nada: {exc}"))
+            try:
+                config_backup_path = str(self._config_backup.create(
+                    self._backups_dir, label=f"pre-update-{job.to_version}"))
+            except Exception as exc:
+                return self._save(job.transition(
+                    UpdateJobState.CANCELLED,
+                    f"No se pudo respaldar la configuración; no se actualizó nada: {exc}"))
 
             previous = ""
             try:
@@ -143,7 +160,8 @@ class UpdateTransaction:
 
             job = self._save(job.transition(
                 UpdateJobState.INSTALLING, f"Instalando la versión {job.to_version}.",
-                backup_path=backup_path, previous_installer_path=previous))
+                backup_path=backup_path, config_backup_path=config_backup_path,
+                previous_installer_path=previous))
             try:
                 code = self._runner.run(installer, self._arguments(job, str(installer)),
                                         timeout_seconds=self._timeouts.installer_seconds)
@@ -212,12 +230,13 @@ class UpdateTransaction:
             except Exception as exc:
                 problems.append(f"No se pudo reinstalar la versión {job.from_version}: {exc}")
         if not problems:
+            config_note = self._restore_configuration(job)
             report = self._self_test.run(timeout_seconds=self._timeouts.self_test_seconds)
             if report.ok:
                 return self._save(job.transition(
                     UpdateJobState.RECOVERED,
                     f"Recuperación terminada: arranca la versión {report.version}"
-                    + (" con la base restaurada." if job.backup_path else ".")))
+                    + (" con la base restaurada." if job.backup_path else ".") + config_note))
             problems.append(report.detail or "La aplicación sigue sin arrancar.")
         return self._save(job.annotate("Recuperación incompleta: " + " ".join(problems)))
 
@@ -251,6 +270,8 @@ class UpdateTransaction:
             except Exception as exc:
                 problems.append(f"No se pudo reinstalar la versión {job.from_version}: {exc}")
 
+        # After the reinstall, which writes the configuration again.
+        config_note = self._restore_configuration(job)
         if not problems:
             report = self._self_test.run(timeout_seconds=self._timeouts.self_test_seconds)
             if not (report.ok and report.version == job.from_version):
@@ -263,11 +284,25 @@ class UpdateTransaction:
         if problems:
             return self._save(job.transition(
                 UpdateJobState.NEEDS_RECOVERY,
-                f"{reason} La reversión automática no terminó: " + " ".join(problems)))
+                f"{reason} La reversión automática no terminó: " + " ".join(problems)
+                + config_note))
         return self._save(job.transition(
             UpdateJobState.ROLLED_BACK,
             f"{reason} Se volvió a la versión {job.from_version}"
-            + (" y se restauró la base de datos." if job.migrations_may_have_run else ".")))
+            + (" y se restauró la base de datos." if job.migrations_may_have_run else ".")
+            + config_note))
+
+    def _restore_configuration(self, job: UpdateJob) -> str:
+        """Empty when restored; otherwise a sentence for the job's history."""
+        if not job.config_backup_path:
+            return ""
+        try:
+            self._config_backup.restore(Path(job.config_backup_path))
+        except Exception as exc:
+            logger.warning("Configuración sin restaurar: %s", exc)
+            return (f" La configuración no se pudo restaurar desde {job.config_backup_path}: "
+                    f"{exc}.")
+        return ""
 
     def _save(self, job: UpdateJob) -> UpdateJob:
         logger.info("Actualización %s: %s — %s", job.job_id, job.state.value, job.last_detail)

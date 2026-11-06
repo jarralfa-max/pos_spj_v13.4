@@ -49,6 +49,7 @@ from backend.infrastructure.updater.process_control import (  # noqa: E402
     launch_detached,
     wait_for_process_exit,
 )
+from backend.infrastructure.updater.station_config_backup import StationConfigBackup  # noqa: E402
 from backend.infrastructure.updater.release_authority import (  # noqa: E402
     DevelopmentReleaseAuthority,
     RefusedReleaseAuthority,
@@ -131,6 +132,7 @@ def build_transaction(paths: AppPaths, job: UpdateJob, *, store: UpdateJobStore,
         database_lock=InstanceLock(database.with_name(database.name + ".lock")),
         backup=SQLiteBackupService(app_version=job.from_version),
         backups_dir=paths.backups_dir,
+        config_backup=StationConfigBackup(paths, restore_install_config=per_user),
         installer_runner=InstallerRunner(elevate=not per_user),
         installer_arguments=arguments,
         self_test=SelfTestProbe(app_command(paths)),

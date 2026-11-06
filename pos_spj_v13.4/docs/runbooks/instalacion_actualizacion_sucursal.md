@@ -82,6 +82,7 @@ Anote cualquier error en el registro `<datos>\logs\spj_pos.log` y envíelo antes
 | Programa | `C:\Program Files\SPJ\SPJ ERP POS` | Sí (lo reemplaza al actualizar) |
 | Base de datos | `<datos>\db\spj_pos_database.db` | **Nunca** |
 | Respaldos | `<datos>\backups` (`pre-update-…`, `pre-migration-…`, `pre-relocation-…`, con `.json`) | Nunca |
+| Configuración de la estación | `install_config.json` en la carpeta del programa; copia antes de cada actualización en `<datos>\backups\station-config-pre-update-…` | Al desinstalar se conserva, salvo que se pida borrarla |
 | Registros | `<datos>\logs` (`spj_pos.log`, `updater.log`, `instalador-….log`) | Nunca |
 | Imágenes y medios | `<datos>\imagenes_productos`, `<datos>\media` | Nunca |
 | WhatsApp local | `<datos>\whatsapp\whatsapp.env` y `conversations.db` | Nunca |
@@ -179,7 +180,10 @@ actualización desde la aplicación lo hace sola, la manual no.
 
 * **Reparar**: menú Inicio → SPJ → «Reparar SPJ ERP POS» (reinstala la versión actual sin tocar datos).
 * **Desinstalar**: «Aplicaciones instaladas» de Windows. Los datos se conservan siempre; bórrelos
-  a mano sólo si la caja se da de baja y ya tiene respaldo.
+  a mano sólo si la caja se da de baja y ya tiene respaldo. La configuración de la estación
+  también se conserva: el desinstalador pregunta (por omisión «No»); en silencio se borra sólo
+  con `/PURGECONFIG`. Al reinstalar en pantalla decide el asistente; una reinstalación silenciosa
+  sin `/TYPE`, `/COMPONENTS` ni `/DATASCOPE` conserva el perfil.
 
 ## 8. Servicio WhatsApp local (opcional)
 

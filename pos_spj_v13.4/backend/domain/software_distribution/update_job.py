@@ -122,6 +122,8 @@ class UpdateJob:
     offline: bool = False
     previous_installer_path: str = ""
     backup_path: str = ""
+    #: Folder with the station's configuration as it was before the update.
+    config_backup_path: str = ""
     state: UpdateJobState = UpdateJobState.STAGED
     history: tuple[UpdateJobStep, ...] = field(default_factory=tuple)
     migrations_may_have_run: bool = False

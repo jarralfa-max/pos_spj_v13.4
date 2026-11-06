@@ -78,6 +78,11 @@ login → window.
    backup `pre-migration-<version>` in `<data>\backups`; if it fails the start stops without
    migrating (SDLC-ARQ-INST-001). The self-test of an update takes it too, on top of
    `pre-update-<version>`: one more copy on disk in exchange for no exempt path.
+   Next to `pre-update-<version>` goes `station-config-pre-update-<version>/`
+   (`install_config.json`, `station_settings.json`, hashes in `snapshot.json`), restored on
+   rollback and recovery. Secrets are not copied. On a machine-wide install `install_config.json`
+   is not restored from that folder, which every user can modify: the elevated installer writes it
+   (SDLC-ARQ-INST-002).
 6. **Journal**: `update_job.json` is written at every transition; the desktop records the
    outcome in `software_update_events` on its next start (exactly once) and archives it.
    An interrupted updater is diagnosed at start (`UpdateStartupGate`); NEEDS_RECOVERY blocks

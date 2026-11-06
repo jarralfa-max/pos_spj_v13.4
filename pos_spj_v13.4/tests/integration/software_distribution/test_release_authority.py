@@ -167,6 +167,14 @@ class Allow:
         return None
 
 
+class ConfigBackup:
+    def create(self, destination_dir, *, label):
+        return Path(destination_dir) / label
+
+    def restore(self, snapshot):
+        return ()
+
+
 class Cache:
     def __init__(self, entry=None) -> None:
         self.entry = entry
@@ -183,7 +191,7 @@ def _transaction(tmp_path, authority, installer, cache=None) -> UpdateTransactio
         job_store=UpdateJobStore(tmp_path / "data" / "updater" / "update_job.json"),
         database_lock=InstanceLock(database.with_name(database.name + ".lock")),
         backup=SQLiteBackupService(), backups_dir=tmp_path / "data" / "backups",
-        installer_runner=installer,
+        config_backup=ConfigBackup(), installer_runner=installer,
         installer_arguments=lambda job, path: [], self_test=SelfTest(), trust=Allow(),
         installer_cache=cache or Cache(), release_authority=authority,
         wait_for_exit=lambda pid, timeout: True,

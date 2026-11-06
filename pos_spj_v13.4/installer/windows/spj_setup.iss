@@ -17,10 +17,16 @@
 ;   /DATASCOPE=machine|user   /CHANNEL=stable|pilot   /LEGACYDB=<path>
 ;   /SPJUPDATER=1  (set by the external updater: no launch at the end)
 ;   /CURRENTUSER   per-user install without administrator rights
+; And by the uninstaller:
+;   /PURGECONFIG   also delete install_config.json and the installed version
 ;
 ; Data is NEVER removed by uninstall, repair or upgrade: the database,
 ; backups, logs, images, secrets fallback and WhatsApp conversations live in
 ; the data folder (ProgramData or LocalAppData), not in {app}.
+;
+; install_config.json (profile, channel, hosts) also survives an uninstall
+; unless someone asks otherwise: on-screen answer or /PURGECONFIG. A silent
+; reinstall that chooses nothing (/TYPE, /COMPONENTS, /DATASCOPE) keeps it as is.
 
 #ifndef AppVersion
   #error "AppVersion no definido: use scripts/release/build_windows_release.py"
@@ -147,9 +153,6 @@ Filename: "{app}\spj_whatsapp.exe"; Parameters: "stop"; Flags: runhidden waitunt
 Filename: "{app}\spj_whatsapp.exe"; Parameters: "remove"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveWhatsApp"
 Filename: "{app}\spj_api.exe"; Parameters: "stop"; Flags: runhidden waituntilterminated; RunOnceId: "StopMobileAPI"
 Filename: "{app}\spj_api.exe"; Parameters: "remove"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveMobileAPI"
-
-[UninstallDelete]
-Type: files; Name: "{app}\install_config.json"
 
 [Code]
 var
@@ -313,7 +316,8 @@ begin
     conserva aunque el componente nuevo no venga marcado. }
   if WizardIsComponentSelected('modulos\orders_delivery') and
      not WizardIsComponentSelected('modulos\logistics') and
-     (GetPreviousData('CapabilityCatalog', '') = '') and IsUpgrade then
+     (GetPreviousData('CapabilityCatalog', '') = '') and IsUpgrade and
+     not RegValueExists(HKA, 'Software\SPJ\SPJ ERP POS', 'CapabilityCatalog') then
   begin
     if Result <> '' then Result := Result + ',';
     Result := Result + 'logistics';
@@ -336,12 +340,56 @@ begin
     Result := Trim(LegacyPage.Values[0]);
 end;
 
+function ExistingConfigValue(const Key, Default: String): String;
+{ Lee un texto del install_config.json que ya existe, escrito por este mismo
+  script: una clave por línea con el formato  "clave": "valor". }
+var
+  Raw: AnsiString;
+  Text: String;
+  P: Integer;
+begin
+  Result := Default;
+  if not LoadStringFromFile(ExpandConstant('{app}\install_config.json'), Raw) then
+    Exit;
+  Text := String(Raw);
+  P := Pos('"' + Key + '": "', Text);
+  if P = 0 then
+    Exit;
+  Text := Copy(Text, P + Length(Key) + 5, MaxInt);
+  P := Pos('"', Text);
+  if P > 1 then
+    Result := Copy(Text, 1, P - 1);
+end;
+
+function KeepConservedConfig: Boolean;
+{ Reinstalación silenciosa tras desinstalar, sin elegir nada: el perfil conservado
+  manda, porque los valores por omisión del asistente dejarían la estación con
+  menos módulos. En pantalla decide quien instala. }
+begin
+  Result := WizardSilent and (WizardForm.PrevAppDir = '') and
+            FileExists(ExpandConstant('{app}\install_config.json')) and
+            (ParamOr('TYPE', '') = '') and (ParamOr('COMPONENTS', '') = '') and
+            (ParamOr('DATASCOPE', '') = '');
+end;
+
+procedure RegisterInstallation(const Scope: String);
+begin
+  RegWriteStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'DataScope', Scope);
+  RegWriteStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'InstalledVersion', '{#AppVersion}');
+  RegWriteStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'CapabilityCatalog', '2');
+end;
+
 procedure WriteInstallConfig;
 var
   Scope, Channel, Legacy, Json: String;
 begin
   if IsMachineScope then Scope := 'machine' else Scope := 'user';
-  Channel := LowerCase(ParamOr('CHANNEL', '{#DefaultChannel}'));
+  if KeepConservedConfig then
+  begin
+    RegisterInstallation(Scope);
+    Exit;
+  end;
+  Channel := LowerCase(ParamOr('CHANNEL', ExistingConfigValue('update_channel', '{#DefaultChannel}')));
   if (Channel <> 'stable') and (Channel <> 'pilot') then Channel := 'stable';
   Legacy := LegacyDatabasePath;
   if Legacy <> '' then Legacy := '"' + JsonEscape(Legacy) + '"';
@@ -368,8 +416,7 @@ begin
   Json := Json + '"' + #13#10 + '}' + #13#10;
   if not SaveStringToFile(ExpandConstant('{app}\install_config.json'), Json, False) then
     RaiseException('No se pudo escribir install_config.json');
-  RegWriteStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'DataScope', Scope);
-  RegWriteStringValue(HKA, 'Software\SPJ\SPJ ERP POS', 'InstalledVersion', '{#AppVersion}');
+  RegisterInstallation(Scope);
 end;
 
 procedure WriteInstallerIndex;
@@ -457,11 +504,34 @@ begin
   end;
 end;
 
+function WantsConfigPurge: Boolean;
+{ Sólo a petición explícita: /PURGECONFIG en silencio; en pantalla, «No» por omisión. }
+var
+  I: Integer;
+begin
+  Result := False;
+  for I := 1 to ParamCount do
+    if CompareText(ParamStr(I), '/PURGECONFIG') = 0 then
+      Result := True;
+  if not Result and not UninstallSilent then
+    Result := MsgBox('¿Borrar también la configuración de esta estación (perfil, canal y ' +
+                     'servidores de actualización)? Si piensa reinstalar SPJ aquí, conteste No.',
+                     mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+end;
+
+procedure PurgeStationConfig;
+begin
+  DeleteFile(ExpandConstant('{app}\install_config.json'));
+  RemoveDir(ExpandConstant('{app}'));
+  RegDeleteValue(HKA, 'Software\SPJ\SPJ ERP POS', 'InstalledVersion');
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    RegDeleteValue(HKA, 'Software\SPJ\SPJ ERP POS', 'InstalledVersion');
+    if WantsConfigPurge then
+      PurgeStationConfig;
     if not UninstallSilent then
       MsgBox('SPJ se desinstaló. Sus datos (base de datos, respaldos, imágenes y registros) se ' +
            'conservaron en la carpeta de datos de SPJ. Bórrelos manualmente sólo si está seguro.',
