@@ -51,10 +51,9 @@ def test_es_admin_matches_application_context_is_admin():
     assert LegacySessionAdapter(_context(roles=("cajero",))).es_admin is False
 
 
-def test_es_gerente_matches_legacy_role_list():
-    assert LegacySessionAdapter(_context(roles=("gerente",))).es_gerente is True
-    assert LegacySessionAdapter(_context(roles=("gerente_rh",))).es_gerente is True
-    assert LegacySessionAdapter(_context(roles=("cajero",))).es_gerente is False
+def test_es_gerente_was_retired():
+    """SDLC-ARQ-PERM-004: otra lista de nombres que conceden, sin ningún lector."""
+    assert not hasattr(LegacySessionAdapter(_context(roles=("gerente",))), "es_gerente")
 
 
 def test_warehouse_fields_default_empty_not_invented():

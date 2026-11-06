@@ -5,6 +5,22 @@ documentarse aquí antes del commit.
 
 ---
 
+## Alcance y roles reservados, sin migración (SDLC-ARQ-PERM-002/003/004) — 2026-11-05
+
+- **PERM-003:** `BranchScopeQueryService` resuelve con `AccessScopeResolver`, el mismo de la
+  sesión. Cambia lo que ve un usuario: la asignación se SUMA a la sucursal propia (antes la
+  sustituía), cuentan las asignaciones de rol y la jerarquía, y un rol de toda la empresa alcanza
+  todas sin permiso inyectado (antes un administrador se quedaba en la suya en Compras, Precios y
+  Transferencias). `TransferSessionScopeChecker` niega sin sucursal salvo alcance global;
+  `TransferAuthorizationPolicy.require` sólo comprueba las patas que la operación declara.
+- **PERM-002:** `GrantScope` (`backend/application/security/grant_scope.py`): asignar, revocar y
+  editar excepciones exige que el alcance del actor cubra el ámbito y al usuario. Los rechazos se
+  anotan como `ROLE_ASSIGNMENT_DENIED` (`audit_logs`) y `ACTUALIZAR_PERMISOS_DENEGADO`
+  (`configuracion_audit_log`).
+- **PERM-004:** política del responsable fijada en pruebas: roles reservados y operación en
+  cualquier sucursal para dueño y cuentas de empresa. Por esa decisión NO hay migración que
+  convierta los nombres reservados en asignaciones. Se retira `es_gerente`, sin lectores.
+
 ## 368 — permiso para reanudar la venta de otro cajero (SDLC-ARQ-SESS-003) — 2026-11-05
 
 Siembra `POS.venta.reanudar_ajena` para `system_owner`, `admin`, `gerente` y `supervisor` (si
