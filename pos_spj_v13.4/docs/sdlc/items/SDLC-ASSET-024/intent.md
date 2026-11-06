@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/activos.md` §2, §7, §32–§35, §115 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-FIN-002, SDLC-ASSET-010
 
 ## Problema
@@ -37,4 +37,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - SDLC-ASSET-001
 
 ## Preguntas abiertas
-- Igual que en SDLC-UI-017: ¿el alta de un activo nace en Activos (y Finanzas solo lo reconoce) o se mantiene el alta en Finanzas y Activos la toma de ahí?
+- Igual que en SDLC-UI-017: ¿el alta de un activo nace en Activos (y Finanzas solo lo reconoce) o se mantiene el alta en Finanzas y Activos la toma de ahí? Nace en activos 

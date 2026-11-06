@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 12.1 · Fase 13.4 · Fase 18 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 12.1 «Token sólo en backend autorizado» (`defectuoso`), «Rotación / revocación» (`parcial`), «Código huérfano de credenciales» (`legacy`); 13.4 «Prueba de conexión real» (`parcial`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PAY-001
 
 ## Problema
@@ -39,4 +39,4 @@ No desarrollar una aplicación paralela ni duplicar contextos, tablas, servicios
 SDLC-ARQ-PERM-001, SDLC-ARQ-INST-003.
 
 ## Preguntas abiertas
-- ¿Se separan instancias sandbox y producción en la misma pantalla, y quién puede cambiar de ambiente?
+- ¿Se separan instancias sandbox y producción en la misma pantalla, y quién puede cambiar de ambiente? SI, SITEMAS (administrador)

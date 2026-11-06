@@ -3,7 +3,7 @@
 - **Prioridad:** P3
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/activos.md` §14, §16, §18, §27, §37, §41, §43, §44, §108 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -39,4 +39,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - ASSET-7/9/11/13 (septiembre)
 
 ## Preguntas abiertas
-- ¿Lista de tipos de archivo permitidos para documentos y fotos de activos, y tamaño máximo (hoy 25 MB fijos)?
+- ¿Lista de tipos de archivo permitidos para documentos y fotos de activos, y tamaño máximo (hoy 25 MB fijos)? 

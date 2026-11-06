@@ -3,7 +3,7 @@
 - **Prioridad:** P3
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/activos.md` §1, §5, §109 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-ASSET-002
 
 ## Problema
@@ -40,4 +40,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - ASSET-23 (reporte de disposición legacy, sin borrar)
 
 ## Preguntas abiertas
-- `tests/test_fase3_depreciacion.py` describe la lógica legacy prohibida (capitalizar por UPDATE, depreciación local): ¿se borra, o se rescatan los casos que describan comportamiento deseado como pruebas de Finanzas?
+- `tests/test_fase3_depreciacion.py` describe la lógica legacy prohibida (capitalizar por UPDATE, depreciación local): ¿se borra, o se rescatan los casos que describan comportamiento deseado como pruebas de Finanzas? borrar

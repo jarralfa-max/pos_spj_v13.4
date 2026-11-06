@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T2
 - **Origen:** `docs/WHATSAPP_DELIVERY_CLOSEOUT_STATUS.md` → "Pendiente de cierre 100%" y "Recomendación de último PR técnico" §1-2 (deep-link de la notificación al pedido exacto y su prueba de integración), re-verificado en código (`/sdlc-plan` Modo B, 2026-10-31)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema

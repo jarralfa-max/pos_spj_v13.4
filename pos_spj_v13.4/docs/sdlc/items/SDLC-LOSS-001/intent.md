@@ -3,7 +3,7 @@
 - **Prioridad:** P0
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -39,5 +39,5 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 Memoria: alcance por sucursal de Mermas (2026-09-17); permisos estándar `MODULO.accion`.
 
 ## Preguntas abiertas
-- ¿Umbral de monto a partir del cual la aprobación requiere gerente?
-- Revaluación: ¿ajuste por diferencia o reversa total + asiento nuevo?
+- ¿Umbral de monto a partir del cual la aprobación requiere gerente? mas del 5% del stock como inicio, pero debe ser ajustable 
+- Revaluación: ¿ajuste por diferencia o reversa total + asiento nuevo? reversa + asiento 
