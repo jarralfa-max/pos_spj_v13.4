@@ -1,79 +1,66 @@
-"""FASE 7.18 (ventas) — canonical sales persistence is UUIDv7-native.
+"""Las ventas nacen con identidad UUIDv7 (REGLA CERO), sin `lastrowid`.
 
-AppContainer wires ``SQLiteSalesRepository`` as ``sales_repo`` (the legacy
-``repositories.sales_repository.SalesRepository`` minted identity from
-``cursor.lastrowid``, which REGLA CERO forbids). These tests pin the canonical
-repo's contract: sale and line-item identities are fresh UUIDv7 TEXT strings,
-distinct from each other and from the operation_id, with no integer cast.
+SDLC-CORE-007: este archivo importaba `infrastructure.persistence.sqlite_sales_repository`,
+borrado en `a35b8bab`, y abortaba la colección de todo `tests/integration`. Mismo
+contrato, sobre el agregado canónico que sustituyó a ese repositorio: venta y línea
+con UUIDv7 propios, distintos entre sí y del `operation_id`, sin conversión a entero.
 """
 
 from __future__ import annotations
 
 import sqlite3
-import uuid
+from decimal import Decimal
 
 import pytest
 
-from infrastructure.persistence.sqlite_sales_repository import SQLiteSalesRepository
+from backend.application.sales.authorization import (
+    AllowAllSalesPermissionCheckerForTests,
+    SalesAuthorizationPolicy,
+)
+from backend.application.sales.use_cases.cart_use_cases import AddSaleLineUseCase, StartSaleUseCase
+from backend.infrastructure.db.repositories.sales.sale_repository import SaleRepository
+from backend.infrastructure.db.schema.sales_schema import create_sales_schema
+from backend.shared.ids import is_uuidv7, new_uuid
 
 
 @pytest.fixture
-def repo():
-    conn = sqlite3.connect(":memory:")
-    conn.row_factory = sqlite3.Row
-    conn.executescript(
-        """
-        CREATE TABLE ventas (
-            id TEXT PRIMARY KEY, folio TEXT, sucursal_id TEXT, usuario TEXT,
-            cliente_id TEXT, subtotal REAL, descuento REAL, total REAL,
-            forma_pago TEXT, efectivo_recibido REAL, operation_id TEXT,
-            observations TEXT, estado TEXT, fecha TEXT
-        );
-        CREATE TABLE detalles_venta (
-            id TEXT PRIMARY KEY, venta_id TEXT, producto_id TEXT, cantidad REAL,
-            precio_unitario REAL, subtotal REAL, costo_unitario_real REAL, descuento REAL
-        );
-        CREATE TABLE productos (id TEXT PRIMARY KEY, nombre TEXT);
-        """
-    )
-    conn.commit()
-    return SQLiteSalesRepository(conn)
+def conn():
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    create_sales_schema(c)
+    c.commit()
+    yield c
+    c.close()
 
 
-def test_create_sale_mints_uuid_not_lastrowid(repo):
-    branch = str(uuid.uuid4())
-    client = str(uuid.uuid4())
-    op_id = str(uuid.uuid4())
-    sale_id, folio = repo.create_sale(
-        branch_id=branch, user="ana", client_id=client, subtotal=100.0,
-        discount=0.0, total=100.0, payment_method="Efectivo", amount_paid=100.0,
-        operation_id=op_id, notes="POS",
-    )
-    assert uuid.UUID(sale_id)            # sale identity is a UUIDv7 string
-    assert sale_id != op_id              # entity_id != operation_id (rule 41)
-    row = repo.get_by_id(sale_id)
-    assert row is not None
-    assert row["id"] == sale_id
-    assert row["sucursal_id"] == branch  # branch FK stored as the UUID string
-    assert row["cliente_id"] == client
+def _venta(conn):
+    auth = SalesAuthorizationPolicy(AllowAllSalesPermissionCheckerForTests())
+    sucursal, cajero, operacion = new_uuid(), new_uuid(), new_uuid()
+    sale_id = StartSaleUseCase(auth).execute(
+        conn, branch_id=sucursal, cashier_user_id=cajero, operation_id=operacion,
+        actor_user_id=cajero).entity_id
+    return auth, sale_id, sucursal, cajero, operacion
 
 
-def test_save_sale_item_mints_distinct_uuid_ids(repo):
-    branch = str(uuid.uuid4())
-    sale_id, _ = repo.create_sale(
-        branch_id=branch, user="ana", client_id=None, subtotal=50.0, discount=0.0,
-        total=50.0, payment_method="Efectivo", amount_paid=50.0,
-        operation_id=str(uuid.uuid4()), notes="",
-    )
-    product_a = str(uuid.uuid4())
-    product_b = str(uuid.uuid4())
-    repo._conn.execute("INSERT INTO productos VALUES (?, 'A'), (?, 'B')", (product_a, product_b))
-    repo.save_sale_item(sale_id=sale_id, product_id=product_a, qty=2, unit_price=10.0, subtotal=20.0)
-    repo.save_sale_item(sale_id=sale_id, product_id=product_b, qty=3, unit_price=10.0, subtotal=30.0)
+def test_a_sale_is_born_with_its_own_uuidv7(conn):
+    _auth, sale_id, sucursal, _cajero, operacion = _venta(conn)
 
-    items = repo.get_items(sale_id)
-    assert len(items) == 2
-    ids = {it["id"] for it in items}
-    assert all(uuid.UUID(i) for i in ids)        # each line has its own UUIDv7
-    assert len(ids) == 2                          # distinct, not autoincrement collisions
-    assert {it["producto_id"] for it in items} == {product_a, product_b}
+    assert is_uuidv7(sale_id)
+    assert sale_id != operacion                 # entity_id != operation_id (regla 41)
+    venta = SaleRepository(conn).get(sale_id)
+    assert venta is not None and venta.id == sale_id
+    assert venta.branch_id == sucursal          # la sucursal viaja como UUID, sin cast
+
+
+def test_each_line_gets_its_own_uuidv7(conn):
+    auth, sale_id, _sucursal, cajero, _operacion = _venta(conn)
+    for _ in range(2):
+        AddSaleLineUseCase(auth).execute(
+            conn, sale_id=sale_id, product_id=new_uuid(), quantity=Decimal("1"),
+            unit_price=Decimal("10.00"), actor_user_id=cajero, operation_id=new_uuid())
+
+    lineas = SaleRepository(conn).get(sale_id).lines
+
+    identidades = {linea.id for linea in lineas}
+    assert len(identidades) == 2 and sale_id not in identidades
+    assert all(is_uuidv7(identidad) for identidad in identidades)
