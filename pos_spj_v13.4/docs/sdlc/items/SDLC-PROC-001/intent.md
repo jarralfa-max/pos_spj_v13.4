@@ -3,7 +3,7 @@
 - **Prioridad:** P0 (subida de P1 el 2026-10-31 por `inputs/correcciones.md` C-03)
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`); ampliado con `inputs/correcciones.md` C-03 (oleada 3: se diseña después de los ítems de arquitectura de idempotencia/outbox)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-TRF-001, SDLC-TRF-003, SDLC-PROC-002, SDLC-INV-003, SDLC-CORE-002, SDLC-ARQ-IDEM-005
 
 ## Problema

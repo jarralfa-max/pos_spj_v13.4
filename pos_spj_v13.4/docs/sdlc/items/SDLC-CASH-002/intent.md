@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -33,4 +33,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 CASH-26, FIN-ERP round 2.
 
 ## Preguntas abiertas
-- ¿Quién confirma el depósito (cajero, tesorería) y con qué evidencia?
+- ¿Quién confirma el depósito (cajero, tesorería) y con qué evidencia? tesoreia, ticket

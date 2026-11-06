@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/refactor/ORD-30_validacion_final.md` → "Pendiente" §4 (endpoint de ubicación GPS en la PWA, ORD-25), re-verificado en código (`/sdlc-plan` Modo B, 2026-10-31)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -39,5 +39,5 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 ORD-18 (`DeliveryEvidence`), ORD-25 (API + PWA); LOG-INT 2026-10-17 (PWA con jsQR y HTTPS autofirmado, memoria).
 
 ## Preguntas abiertas
-- ¿Qué evidencia exige el negocio en cada entrega: PIN, foto, firma, o solo en pedidos cobrados en efectivo?
-- ¿Se rastrea la posición del repartidor durante toda la ruta, o solo se registra al llegar o entregar? Esto afecta privacidad, batería y retención.
+- ¿Qué evidencia exige el negocio en cada entrega: PIN, foto, firma, o solo en pedidos cobrados en efectivo? PIN 4 digitos, si el monto es mayor a 500, valor configurable  
+- ¿Se rastrea la posición del repartidor durante toda la ruta, o solo se registra al llegar o entregar? Esto afecta privacidad, batería y retención. toda la ruta

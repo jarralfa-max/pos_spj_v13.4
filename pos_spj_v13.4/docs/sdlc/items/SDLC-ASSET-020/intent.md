@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/activos.md` §55 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-ASSET-016
 
 ## Problema
@@ -33,4 +33,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - SDLC-INV-003 (ubicación de stock por flujo)
 
 ## Preguntas abiertas
-- ¿Las refacciones salen de un almacén de mantenimiento propio o del almacén general de la sucursal?
+- ¿Las refacciones salen de un almacén de mantenimiento propio o del almacén general de la sucursal? almacen de mantenimiento 

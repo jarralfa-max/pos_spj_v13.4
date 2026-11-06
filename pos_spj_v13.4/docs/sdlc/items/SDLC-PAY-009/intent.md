@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 4.2 · Fase 5 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 4 «Cliente Orders API» (`ausente`) y «SDK mercadopago» (`legacy`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PAY-007, SDLC-PAY-022
 
 ## Problema
@@ -36,4 +36,4 @@ No desarrollar una aplicación paralela ni duplicar contextos, tablas, servicios
 Ninguno además de la matriz.
 
 ## Preguntas abiertas
-- ¿SDK oficial `mercadopago` o `httpx` directo?
+- ¿SDK oficial `mercadopago` o `httpx` directo? SDK oficial

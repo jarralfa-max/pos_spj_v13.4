@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/activos.md` §33, §46, §47 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -38,5 +38,6 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - Auditoría F19 (cuota del último mes) en `depreciation_policy.py`
 
 ## Preguntas abiertas
-- Si a la baja le faltan meses de depreciación: ¿se bloquea, o el caso de uso deprecia los meses faltantes antes de dar de baja?
+- Si a la baja le faltan meses de depreciación: ¿se bloquea, o el caso de uso deprecia los meses faltantes antes de dar de baja? depresia antes de dar de baja 
 - La regla actual «meses omitidos no se recuperan a mitad de vida; el último mes liquida» (`depreciation_policy.py:28-31`), ¿se mantiene o se prefiere recuperar en el siguiente periodo corrido?
+ se recupera en el siguiente periodo 
