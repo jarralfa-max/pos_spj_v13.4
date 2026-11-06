@@ -11,7 +11,10 @@ directly — see the SHELL-0 audit, `docs/refactor/application_bootstrap_audit.m
 
 `SchemaCompatibilityStep` (2026-10-14) sits between integrity and migrations:
 a database already migrated by a NEWER release stops the start instead of
-running this binary on a schema it does not know.
+running this binary on a schema it does not know. `PreMigrationBackupStep`
+(SDLC-ARQ-INST-001) sits right before the migrations: pending migrations on a
+database with data run only after a verified backup, whichever way the new
+binaries arrived (updater, manual Setup, «Reparar»).
 
 Reuses the exact `DatabaseIntegrityStep` → `DatabaseMigrationStep` →
 `SchemaValidationStep` → `InstallationStateStep` sequence from SHELL-3
@@ -45,6 +48,7 @@ from backend.bootstrap.steps.database_integrity_step import DatabaseIntegritySte
 from backend.bootstrap.steps.database_migration_step import DatabaseMigrationStep
 from backend.bootstrap.steps.foreign_key_enforcement_step import ForeignKeyEnforcementStep
 from backend.bootstrap.steps.installation_state_step import InstallationStateStep
+from backend.bootstrap.steps.pre_migration_backup_step import PreMigrationBackupStep
 from backend.bootstrap.steps.schema_compatibility_step import SchemaCompatibilityStep
 from backend.bootstrap.steps.schema_validation_step import SchemaValidationStep
 
@@ -53,6 +57,7 @@ def database_bootstrap_steps() -> list:
     return [
         DatabaseIntegrityStep(),
         SchemaCompatibilityStep(),
+        PreMigrationBackupStep(),
         DatabaseMigrationStep(),
         SchemaValidationStep(),
         ForeignKeyEnforcementStep(),
@@ -60,8 +65,13 @@ def database_bootstrap_steps() -> list:
     ]
 
 
-def run_database_bootstrap_sequence(db_path: str | Path) -> BootstrapResult:
+def run_database_bootstrap_sequence(
+    db_path: str | Path, *, backups_dir: str | Path | None = None,
+) -> BootstrapResult:
     """Run the canonical DB bootstrap sequence once.
+
+    `backups_dir` is where the pre-migration backup goes (the station's
+    `AppPaths.backups_dir`); without it, a `backups` folder beside the database.
 
     The returned `BootstrapResult.context.conn`, if not None, is a live
     connection the caller owns and must close before handing the same
@@ -84,4 +94,5 @@ def run_database_bootstrap_sequence(db_path: str | Path) -> BootstrapResult:
         database_bootstrap_steps(),
         health_check_runner=ApplicationHealthCheckRunner(default_health_checks()),
     )
-    return bootstrapper.bootstrap(BootstrapContext(db_path=Path(db_path)))
+    return bootstrapper.bootstrap(BootstrapContext(
+        db_path=Path(db_path), backups_dir=Path(backups_dir) if backups_dir else None))

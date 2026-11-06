@@ -71,6 +71,11 @@ login → window.
    (migrations run here) must report the announced version → COMPLETED. Failure after the
    installer: restore the database (if migrations may have run) + reinstall the cached previous
    installer + self-test → ROLLED_BACK; if that fails → NEEDS_RECOVERY.
+   Every start, whichever way the binaries arrived (updater, manual Setup, «Reparar»), runs
+   `PreMigrationBackupStep`: pending migrations on a database with data run only after a verified
+   backup `pre-migration-<version>` in `<data>\backups`; if it fails the start stops without
+   migrating (SDLC-ARQ-INST-001). The self-test of an update takes it too, on top of
+   `pre-update-<version>`: one more copy on disk in exchange for no exempt path.
 6. **Journal**: `update_job.json` is written at every transition; the desktop records the
    outcome in `software_update_events` on its next start (exactly once) and archives it.
    An interrupted updater is diagnosed at start (`UpdateStartupGate`); NEEDS_RECOVERY blocks

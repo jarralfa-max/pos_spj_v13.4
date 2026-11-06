@@ -5,7 +5,8 @@ and by the Windows CI job on a machine without Python. It runs EXACTLY the
 desktop's own start path up to the login, minus Qt:
 
     install_config.json → AppPaths → legacy relocation → instance lock →
-    integrity → schema compatibility → migrations → schema/UUID validation
+    integrity → schema compatibility → backup if migrations are pending →
+    migrations → schema/UUID validation
 
 and prints one JSON line:
 
@@ -55,7 +56,8 @@ def run_self_test(paths=None) -> dict:
             from backend.infrastructure.db.sqlite_backup import database_schema_version
 
             paths.database_dir.mkdir(parents=True, exist_ok=True)
-            result = run_database_bootstrap_sequence(paths.database_path)
+            result = run_database_bootstrap_sequence(paths.database_path,
+                                                     backups_dir=paths.backups_dir)
             connection = result.context.conn
             try:
                 if not result.success:

@@ -245,7 +245,8 @@ def _prepare_database() -> object:
     # "no such table" con la migración recién aplicada.
     set_db_path(DB_PATH)
 
-    result = run_database_bootstrap_sequence(DB_PATH)
+    result = run_database_bootstrap_sequence(
+        DB_PATH, backups_dir=PATHS.backups_dir if PATHS else None)
     if not result.success:
         failed = result.failed_step()
         detalle = failed.message if failed else "Fallo desconocido al preparar la base de datos."

@@ -81,7 +81,7 @@ Anote cualquier error en el registro `<datos>\logs\spj_pos.log` y envíelo antes
 | --- | --- | --- |
 | Programa | `C:\Program Files\SPJ\SPJ ERP POS` | Sí (lo reemplaza al actualizar) |
 | Base de datos | `<datos>\db\spj_pos_database.db` | **Nunca** |
-| Respaldos | `<datos>\backups` (`pre-update-…`, `pre-relocation-…`, con `.json`) | Nunca |
+| Respaldos | `<datos>\backups` (`pre-update-…`, `pre-migration-…`, `pre-relocation-…`, con `.json`) | Nunca |
 | Registros | `<datos>\logs` (`spj_pos.log`, `updater.log`, `instalador-….log`) | Nunca |
 | Imágenes y medios | `<datos>\imagenes_productos`, `<datos>\media` | Nunca |
 | WhatsApp local | `<datos>\whatsapp\whatsapp.env` y `conversations.db` | Nunca |
@@ -157,12 +157,15 @@ actualización desde la aplicación lo hace sola, la manual no.
 | «Actualización no aplicada» | No se llegó a instalar (UAC rechazado, SPJ abierto, paquete alterado, respaldo imposible). | Corrija la causa indicada y reintente. Los datos no cambiaron. |
 | «Se está instalando…» al abrir | El actualizador sigue trabajando. | Espere; SPJ se abrirá solo. |
 | Ventana «Recuperación» | La reversión automática no terminó (o el equipo se apagó a mitad). | Pulse «Recuperar»: restaura la base previa a la actualización y reinstala la versión anterior. Si vuelve a fallar, §6. |
+| «No se pudo respaldar la base de datos… No se migró nada» | Había migraciones pendientes (Setup manual o actualización) y el respaldo previo falló. | La base sigue intacta. Libere espacio o corrija los permisos de `<datos>\backups` y abra SPJ de nuevo. |
+| «El motor de migraciones falló… Respaldo previo: …» | Una migración falló al arrancar. | No siga trabajando. Restaure el respaldo `pre-migration-…` que indica el mensaje (§6) y reporte el error. |
 | «La base fue actualizada por una versión más nueva» | Se instaló un programa anterior sobre una base ya migrada. | Instale la versión nueva, o restaure el respaldo `pre-update-…` (§6) y luego la versión anterior. |
 
 ## 6. Restaurar un respaldo a mano
 
 1. Cierre SPJ (y el servicio WhatsApp local: `spj_whatsapp.exe stop` como administrador).
-2. En `<datos>\backups` elija el archivo (`…pre-update-<versión>-<fecha>.db`); su `.json` dice
+2. En `<datos>\backups` elija el archivo (`…pre-update-<versión>-<fecha>.db` o
+   `…pre-migration-<versión>-<fecha>.db`); su `.json` dice
    versión, esquema, filas por tabla y hash.
 3. Renombre la base actual a `spj_pos_database.db.antes-de-restaurar-<fecha>` y borre (o mueva)
    sus `-wal` y `-shm` si existen.

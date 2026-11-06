@@ -5403,3 +5403,12 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Siembra `CONFIGURACION.usuario.asignaciones` para `system_owner` y `admin`.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
+
+### Respaldo antes de migrar al arrancar (2026-11-05, SDLC-ARQ-INST-001, sin migración nueva)
+
+- Nuevo paso `PreMigrationBackupStep` entre `SchemaCompatibilityStep` y `DatabaseMigrationStep`.
+- Con migraciones pendientes y datos en la base toma un respaldo verificado
+  `pre-migration-<versión>` en `<datos>\backups` con `SQLiteBackupService`, el mismo del
+  actualizador. Si el respaldo falla, el arranque se detiene sin migrar.
+- Sin pendientes (por ejemplo «Reparar» de la misma versión) o con base nueva no respalda.
+- Si una migración falla, el mensaje de error indica la ruta del respaldo.

@@ -28,8 +28,11 @@ class DatabaseMigrationStep:
 
             migration_engine.up(context.conn)
         except Exception as exc:
+            message = f"El motor de migraciones falló: {exc}"
+            if context.pre_migration_backup is not None:
+                message += (" La base puede haber quedado a medio migrar. "
+                            f"Respaldo previo: {context.pre_migration_backup}")
             return BootstrapStepResult.fatal(
-                self.name, BootstrapFailureReason.SCHEMA_INCOMPLETE,
-                f"El motor de migraciones falló: {exc}", exception=exc,
+                self.name, BootstrapFailureReason.SCHEMA_INCOMPLETE, message, exception=exc,
             )
         return BootstrapStepResult.ok(self.name, "Migraciones aplicadas.")

@@ -16,7 +16,8 @@ def test_full_sequence_succeeds_against_a_fresh_database(tmp_path):
 
     assert result.success is True
     assert result.final_state is BootstrapState.RUNNING
-    assert len(result.step_results) == 6  # + schema_compatibility (INST-0), + llaves foráneas (Slice 0)
+    # + schema_compatibility (INST-0), + llaves foráneas (Slice 0), + respaldo (ARQ-INST-001)
+    assert len(result.step_results) == 7
     assert result.context.installation_status is ProvisioningStatus.UNINITIALIZED
     # R-02: la conexión que usa la app queda con llaves foráneas activas.
     assert result.context.conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
@@ -39,7 +40,7 @@ def test_migration_engine_failure_is_never_silently_swallowed(tmp_path, monkeypa
     assert failed is not None
     assert failed.step_name == "database_migration"
     # the schema/installation steps after it never ran
-    assert len(result.step_results) == 3  # integrity, schema_compatibility, migration
+    assert len(result.step_results) == 4  # integrity, compatibility, backup, migration
     result.context.conn.close()
 
 

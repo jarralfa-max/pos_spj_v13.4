@@ -71,7 +71,7 @@ def test_failed_migration_exits_before_setup_or_login(app_module, monkeypatch):
 
     failed_step = SimpleNamespace(step_name="migrations", message="migración 999 falló")
     monkeypatch.setattr(run_database_bootstrap, "run_database_bootstrap_sequence",
-                        lambda path: SimpleNamespace(
+                        lambda path, **kwargs: SimpleNamespace(
                             success=False, failed_step=lambda: failed_step,
                             context=SimpleNamespace(conn=None), warnings=()))
     import backend.infrastructure.db.connection as db_connection
