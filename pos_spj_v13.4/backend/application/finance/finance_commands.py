@@ -592,6 +592,12 @@ class FinanceCommandService:
             or self._today(), operation_id=new_uuid(), created_by=actor, **asset)
 
     @_dispatches
+    def complete_purchased_asset(self, asset_id: str, **data):
+        actor = self._actor(P.ASSET_MANAGE)
+        return self._uc["complete_purchased_asset"].execute(
+            self._conn(), asset_id=asset_id, operation_id=new_uuid(), completed_by=actor, **data)
+
+    @_dispatches
     def run_depreciation(self, year: int, month: int) -> list[str]:
         actor = self._actor(P.ASSET_DEPRECIATE)
         return self._uc["run_depreciation"].execute(

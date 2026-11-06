@@ -5403,3 +5403,16 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Siembra `CONFIGURACION.usuario.asignaciones` para `system_owner` y `admin`.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
+
+### 380 — folio de compra en el auxiliar de activos (2026-11-06, SDLC-FIN-002)
+
+- `fixed_assets.source_document_number`, nula. Sólo agrega.
+- Una compra con naturaleza `ASSET` deja el activo en `fixed_assets` en estado `DRAFT`, con vida
+  útil 0 (sin capturar), en la misma transacción que su asiento. Finanzas → Activos fijos →
+  «Completar datos» lo activa **sin asiento**: el costo ya lo reconoció Compras.
+- `CapitalizeAssetUseCase` rechaza un documento que ya esté en el auxiliar; antes duplicaba la CxP
+  o el pago. Un activo por documento: varias líneas `ASSET` de la misma compra quedan en un solo
+  registro hasta que SDLC-ASSET-024 consolide las identidades.
+- El cierre bloquea con activos comprados sin completar (`purchased_assets_completed`).
+- Devolución o reverso de Compras: baja el costo del activo, o lo cancela si llega a cero. Un
+  activo ya depreciado no se ajusta solo: se registra el error y requiere baja formal.

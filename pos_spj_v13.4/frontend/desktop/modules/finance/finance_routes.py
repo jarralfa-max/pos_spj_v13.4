@@ -159,6 +159,9 @@ from backend.application.use_cases.finance.reopen_fiscal_period_use_case import 
 from backend.application.use_cases.finance.reverse_journal_entry_use_case import (
     ReverseJournalEntryUseCase,
 )
+from backend.application.use_cases.finance.purchased_asset_use_case import (
+    CompletePurchasedAssetUseCase,
+)
 from backend.application.use_cases.finance.run_depreciation_use_case import (
     RunDepreciationUseCase,
 )
@@ -266,6 +269,7 @@ def build_use_cases(connection) -> dict:
         "cancel_expense": CancelExpenseUseCase(),
         "expense_rules": ManageExpenseRulesUseCase(),
         "capitalize_asset": CapitalizeAssetUseCase(),
+        "complete_purchased_asset": CompletePurchasedAssetUseCase(),
         "run_depreciation": RunDepreciationUseCase(),
         "dispose_asset": DisposeAssetUseCase(),
         "asset_status": ChangeAssetStatusUseCase(),
