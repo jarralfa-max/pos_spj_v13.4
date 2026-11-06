@@ -26,6 +26,7 @@ class TreasuryPage(FinancePage):
     header_actions = [
         ("Transferencia", P.TREASURY_TRANSFER, "_transfer", True),
         ("Movimiento bancario", P.TREASURY_MOVEMENT, "_movement", False),
+        ("Confirmar depósito", P.TREASURY_MOVEMENT, "_confirm_deposit", False),
         ("Nueva cuenta", P.TREASURY_MANAGE, "_create", False),
     ]
     row_actions = [
@@ -57,6 +58,15 @@ class TreasuryPage(FinancePage):
         ])
         if values:
             self.run(p.register_treasury_movement(**values))
+
+    def _confirm_deposit(self) -> None:
+        options = self._presenter.pending_cash_deposit_options()
+        values = ask(self, "Confirmar depósito de Caja", [
+            FieldSpec("deposit_id", "Depósito", "combo", required=True, options=options),
+            FieldSpec("ticket_reference", "Ticket del banco", required=True),
+        ])
+        if values:
+            self.run(self._presenter.confirm_cash_deposit(**values))
 
     def _create(self) -> None:
         p = self._presenter

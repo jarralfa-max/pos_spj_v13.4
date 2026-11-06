@@ -76,6 +76,9 @@ from backend.application.use_cases.finance.capitalize_asset_use_case import (
 from backend.application.use_cases.finance.close_fiscal_period_use_case import (
     CloseFiscalPeriodUseCase,
 )
+from backend.application.use_cases.finance.confirm_cash_deposit_use_case import (
+    ConfirmCashDepositUseCase,
+)
 from backend.application.use_cases.finance.create_account_use_case import CreateAccountUseCase
 from backend.application.use_cases.finance.create_budget_use_case import (
     CreateBudgetUseCase,
@@ -275,6 +278,7 @@ def build_use_cases(connection) -> dict:
         "taxes": ManageTaxConfigurationUseCase(),
         "currencies": ManageCurrencyUseCase(),
         "audit_export": RecordFinanceExportUseCase(),
+        "confirm_cash_deposit": ConfirmCashDepositUseCase(),
     }
 
 

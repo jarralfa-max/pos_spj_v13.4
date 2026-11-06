@@ -5420,3 +5420,9 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
   que desde hoy el Corte Z final sí exige. Nadie pierde lo que ya podía hacer.
 - Cada turno vivo recibe su fila ACTIVE en `cash_shift_assignments`, que nunca se había escrito.
 - Sólo agrega filas. Idempotente.
+
+### 360 — confirmación del depósito por Tesorería (2026-11-06, SDLC-CASH-002)
+
+- `cash_deposit_confirmations`: una por depósito (`deposit_id` único), con el ticket del banco,
+  quién confirmó y el `operation_id`. La escribe Tesorería (`FINANZAS.tesoreria.movimiento`).
+- Sólo agrega. Idempotente.

@@ -359,6 +359,7 @@ MIGRATIONS = [
     _Migration("353",  "migrations.standalone.353_user_role_assignments"),
     _Migration("358",  "migrations.standalone.358_cash_shift_version"),
     _Migration("359",  "migrations.standalone.359_cash_permissions_split"),
+    _Migration("360",  "migrations.standalone.360_cash_deposit_confirmations"),
 ]
 
 def _ensure_tracking_table(conn):

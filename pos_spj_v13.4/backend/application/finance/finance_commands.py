@@ -367,6 +367,13 @@ class FinanceCommandService:
             created_by=actor)
 
     @_dispatches
+    def confirm_cash_deposit(self, *, deposit_id: str, ticket_reference: str) -> str:
+        actor = self._actor(P.TREASURY_MOVEMENT)
+        return self._uc["confirm_cash_deposit"].execute(
+            self._conn(), deposit_id=deposit_id, ticket_reference=ticket_reference,
+            confirmed_by=actor, operation_id=new_uuid())
+
+    @_dispatches
     def treasury_movement(self, *, treasury_account_id: str, kind: TreasuryMovementKind,
                           amount: str, counterpart_account_id: str | None = None,
                           reference: str = "", description: str = "") -> str:

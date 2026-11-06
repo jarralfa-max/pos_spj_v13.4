@@ -51,6 +51,7 @@ from backend.application.cash_register.movement_reason_query_service import (
     CashMovementReasonQueryService,
 )
 from backend.application.cash_register.movement_use_cases import (
+    PrepareCashDepositUseCase,
     DeliverTreasuryHandoverUseCase,
     DisputeTreasuryHandoverUseCase,
     PrepareTreasuryHandoverUseCase,
@@ -418,6 +419,9 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         "cash_begin_shift_closing_uc": resolve_attr(
             "cash_begin_shift_closing_uc", lambda: BeginCashShiftClosingUseCase(authorization)
         ),
+        "cash_prepare_deposit_uc": resolve_attr(
+            "cash_prepare_deposit_uc", lambda: PrepareCashDepositUseCase(authorization)
+        ),
         "cash_reassign_shift_uc": resolve_attr(
             "cash_reassign_shift_uc", lambda: ReassignCashShiftUseCase(authorization)
         ),
@@ -603,6 +607,23 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         result = use_cases["cash_begin_shift_closing_uc"].execute(
             connection,
             shift_id=shift_id,
+            branch_id=branch_id,
+            actor_user_id=actor_user_id,
+            operation_id=operation_id,
+        )
+        prepare_notifications_for_operation(operation_id)
+        return result
+
+    def prepare_cash_deposit_handler(
+        *,
+        handover_id: str,
+        branch_id: str,
+        actor_user_id: str,
+    ):
+        operation_id = new_uuid()
+        result = use_cases["cash_prepare_deposit_uc"].execute(
+            connection,
+            handover_id=handover_id,
             branch_id=branch_id,
             actor_user_id=actor_user_id,
             operation_id=operation_id,
@@ -1355,6 +1376,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         "generate_z_cut": generate_z_cut_handler,
         "review_z_cut": review_z_cut_handler,
         "reassign_cash_shift": reassign_cash_shift_handler,
+        "prepare_cash_deposit": prepare_cash_deposit_handler,
         "print_z_cut": print_z_cut_handler,
         "notify_z_cut": notify_z_cut_handler,
         "set_cash_sync_connectivity": set_cash_sync_connectivity_handler,

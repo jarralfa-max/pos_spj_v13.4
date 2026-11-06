@@ -356,6 +356,13 @@ class CashRegisterPresenter:
             actor_user_id=self.actor_user_id(),
         )
 
+    def prepare_cash_deposit(self, *, handover_id: str):
+        handler = self._command_handlers.get("prepare_cash_deposit")
+        if handler is None:
+            raise CashContextError("Comando de deposito no disponible: preparar")
+        return handler(handover_id=handover_id, branch_id=self.active_branch_id(),
+                       actor_user_id=self.actor_user_id())
+
     def reassign_cash_shift(self, *, shift_id: str, new_cashier_user_id: str, reason: str):
         handler = self._command_handlers.get("reassign_cash_shift")
         if handler is None:

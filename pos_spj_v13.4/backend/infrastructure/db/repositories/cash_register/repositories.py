@@ -406,6 +406,21 @@ class CashDepositPreparationRepository(_Repository):
              operation_id, status, denominations_json, prepared_at),
         )
 
+    def _one(self, sql: str, params: tuple):
+        cursor = self.execute(sql, params)
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(zip((item[0] for item in cursor.description), row))
+
+    def get(self, deposit_id: str):
+        return self._one("SELECT * FROM cash_deposit_preparations WHERE id=?", (deposit_id,))
+
+    def find_by_handover(self, handover_id: str):
+        return self._one("SELECT * FROM cash_deposit_preparations WHERE handover_id=?",
+                         (handover_id,))
+
+
 
 class CashMovementReasonRepository(_Repository):
     def list_active(self, *, movement_type: str, occurred_at: str) -> list[dict]:
