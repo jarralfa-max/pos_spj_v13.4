@@ -5403,3 +5403,17 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Siembra `CONFIGURACION.usuario.asignaciones` para `system_owner` y `admin`.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
+
+### SDLC-WA-002 — firma de webhooks independiente de `APP_ENV` (2026-11-06, sin migración de esquema)
+
+- Cambio de comportamiento en `whatsapp_service/`: sin `WA_APP_SECRET` o `MP_WEBHOOK_SECRET` el
+  webhook responde 503 en cualquier entorno. Antes sólo pasaba con `APP_ENV=production`, y las
+  estaciones instaladas nunca lo fijan.
+- Aceptar sin firma exige `WA_ALLOW_UNSIGNED_WEBHOOKS` (`1`, `true`, `yes`), que se ignora en
+  producción y en estación instalada.
+- MercadoPago: la unidad de `ts` se deduce por magnitud (antes todo `ts` en segundos daba 403) y la
+  ventana se configura con `MP_SIGNATURE_MAX_AGE_SECONDS` (por defecto 300).
+- Salud: check nuevo `webhook_signature`. Arranque: una línea con `webhooks_sin_firma`.
+- **Acción operativa (D3=A):** una estación con el servicio local y sin `WA_APP_SECRET` deja de
+  recibir mensajes hasta configurarlo en el módulo WhatsApp. Va en la nota de release.
+- Reversa: revertir el commit.

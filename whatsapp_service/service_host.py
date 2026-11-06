@@ -17,7 +17,13 @@ Configuration — `<datos>/whatsapp/whatsapp.env` (loaded by
 
     WA_BIND_HOST=127.0.0.1   # 0.0.0.0 only behind a reverse proxy/tunnel
     WA_PORT=8000
+    APP_ENV=production
     WA_ACCESS_TOKEN=... WA_VERIFY_TOKEN=... WA_APP_SECRET=... (secrets)
+
+`WA_APP_SECRET` is mandatory to receive webhooks: without it every incoming
+message gets a 503. `WA_ALLOW_UNSIGNED_WEBHOOKS` is ignored on an installed
+station. With `APP_ENV=production` the ERP bridge also blocks SQLite writes,
+so it needs `ERP_API_URL` and `ERP_API_KEY`.
 
 The service needs the MACHINE data scope: as LocalSystem it cannot see a
 per-user data folder; the installer only offers the component then.

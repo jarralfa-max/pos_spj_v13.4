@@ -30,31 +30,37 @@ async def mp_notification(
     data_id: str = Query(None, alias="data.id"),
 ):
     """Recibe notificación de pago de MercadoPago."""
-    from whatsapp_service.config.settings import get_mp_webhook_secret, is_production
+    from whatsapp_service.config.settings import (
+        allow_unsigned_webhooks,
+        get_mp_signature_max_age_seconds,
+        get_mp_webhook_secret,
+        unsigned_webhook_rejection,
+    )
 
     body = await request.body()
     secret = get_mp_webhook_secret()
     if secret:
         x_signature = request.headers.get("x-signature", "")
         x_request_id = request.headers.get("x-request-id", "")
-        if not verify_mp_signature(x_signature, x_request_id, data_id, secret):
+        if not verify_mp_signature(
+            x_signature, x_request_id, data_id, secret,
+            max_age_seconds=get_mp_signature_max_age_seconds(),
+        ):
             client_host = request.client.host if request.client else "?"
-            logger.warning("Firma MercadoPago inválida desde %s", client_host)
+            logger.warning("Notificación MercadoPago rechazada desde %s", client_host)
             return Response(status_code=403)
-    elif is_production():
-        # WA-1 / S4: en producción, sin MP_WEBHOOK_SECRET no hay forma de
-        # verificar la notificación de pago — fail-closed en vez de aceptar
-        # sin firma (comportamiento anterior).
-        logger.error(
-            "MP_WEBHOOK_SECRET no configurado en producción; rechazando "
-            "notificación de MercadoPago (whatsapp_security_audit.md S4/S8)."
-        )
-        return Response(status_code=503)
-    else:
+    elif allow_unsigned_webhooks():
         logger.warning(
             "MP_WEBHOOK_SECRET no configurado; notificación de MercadoPago "
-            "aceptada sin validar firma (permitido solo fuera de producción)."
+            "aceptada sin firma por WA_ALLOW_UNSIGNED_WEBHOOKS (sólo máquina "
+            "de desarrollo)."
         )
+    else:
+        # WA-1 / S4, SDLC-WA-002: sin MP_WEBHOOK_SECRET no hay forma de
+        # verificar la notificación de pago. Fail-closed en cualquier entorno
+        # salvo el opt-in explícito de arriba.
+        logger.error(unsigned_webhook_rejection("MP_WEBHOOK_SECRET"))
+        return Response(status_code=503)
 
     try:
         data = loads_decimal(body) if body else {}
