@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -37,4 +37,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 Memoria SALES-23 (productos KG), SALES-AUD.
 
 ## Preguntas abiertas
-- ¿Regla de redondeo: por línea o sobre el total? ¿HALF_UP o bancario?
+- ¿Regla de redondeo: por línea o sobre el total? por linea ¿HALF_UP o bancario? HALF_UP

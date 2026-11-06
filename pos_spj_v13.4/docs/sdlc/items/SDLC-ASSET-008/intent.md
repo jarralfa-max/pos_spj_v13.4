@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/activos.md` §11, §20, §30, §48, §84 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -39,4 +39,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - ASSET-4/5/10/12 (septiembre)
 
 ## Preguntas abiertas
-- ¿Una transferencia ya en tránsito se puede cancelar (y qué pasa con el activo físico), o solo rechazar al recibir?
+- ¿Una transferencia ya en tránsito se puede cancelar (y qué pasa con el activo físico), o solo rechazar al recibir? solo rechazar al recibir, regresa a origen de donde salio

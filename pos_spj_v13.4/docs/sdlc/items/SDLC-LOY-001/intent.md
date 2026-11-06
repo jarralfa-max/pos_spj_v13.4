@@ -3,7 +3,7 @@
 - **Prioridad:** P3
 - **Nivel de riesgo:** T1
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -31,4 +31,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 LOY-29.
 
 ## Preguntas abiertas
-- ¿Se reconoce breakage contablemente?
+- ¿Se reconoce breakage contablemente? si

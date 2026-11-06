@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1 (la migración de esquema que requiere se trata como T0)
 - **Origen:** `inputs/correcciones.md` C-07 (oleada 4); auditoría `docs/audits/auditoria_integral_produccion_recepcion_transferencias_productos_precios_2026-10-26.md` §3 «P1 — Cambiar un único precio obliga a duplicar toda la lista»
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-SALES-001
 
 ## Problema
@@ -34,5 +34,5 @@ CLAUDE.md reglas 1-3 y 13; segregación de funciones de Precios (creador ≠ apr
 Memoria «Proveedores y Precios: capas de escritura» (migraciones 259/260/299: vocabulario `PRECIOS.<accion>`, autorizador en caliente, no activar lista vacía).
 
 ## Preguntas abiertas
-- ¿Una revisión de línea requiere aprobación de un segundo usuario (como la lista) o basta el permiso de editar precio? · bloquea `/sdlc-design SDLC-PRICE-001`
-- ¿Se permite programar una revisión con vigencia futura? · bloquea `/sdlc-design SDLC-PRICE-001`
+- ¿Una revisión de línea requiere aprobación de un segundo usuario (como la lista) o basta el permiso de editar precio? permiso de editar precio· bloquea `/sdlc-design SDLC-PRICE-001`
+- ¿Se permite programar una revisión con vigencia futura? si· bloquea `/sdlc-design SDLC-PRICE-001`

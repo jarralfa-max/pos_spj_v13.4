@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/activos.md` §22–§28, §66 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-ASSET-011, SDLC-ASSET-008
 
 ## Problema
@@ -37,4 +37,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - ASSET-6
 
 ## Preguntas abiertas
-- ¿Mantenimiento de equipos de Procesamiento Cárnico se migra a este modelo? (ver SDLC-ASSET-034)
+- ¿Mantenimiento de equipos de Procesamiento Cárnico se migra a este modelo? Si(ver SDLC-ASSET-034)

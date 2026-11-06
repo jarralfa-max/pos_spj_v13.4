@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -33,4 +33,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 Memoria: SALES/CRM transformaciones; REGLA CERO de `SPJ_REFACTOR_SKILL.md`.
 
 ## Preguntas abiertas
-- ¿Hay saldos vivos en `cuentas_por_cobrar` en la BD real? (se medirá sobre copia)
+- ¿Hay saldos vivos en `cuentas_por_cobrar` en la BD real? (se medirá sobre copia) No hay nada se puede borrar, estamos en desarrollo 

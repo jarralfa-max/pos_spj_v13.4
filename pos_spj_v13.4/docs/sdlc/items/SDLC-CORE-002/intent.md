@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -38,4 +38,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 REGLA CERO.
 
 ## Preguntas abiertas
-- Los ids derivados necesitan ser deterministas para idempotencia: ¿se acepta UUIDv5/v8 derivado del UUIDv7 padre, o se exige UUIDv7 persistido? (posible contradicción con la REGLA CERO)
+- Los ids derivados necesitan ser deterministas para idempotencia: ¿se acepta UUIDv5/v8 derivado del UUIDv7 padre, o se exige UUIDv7 persistido? se aceptan segun el caso

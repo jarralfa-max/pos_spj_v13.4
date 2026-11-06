@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 14 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 14 «Flujo de enlace alcanzable» (`defectuoso`), «Un solo intento por pedido» (`ausente`), «Estado de pago consultable por CRM» (`parcial`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PAY-014, SDLC-WA-003, SDLC-ORD-003
 
 ## Problema

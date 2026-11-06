@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 10.1 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 10.1 «Ciclo CAPTURED→…» (`ausente`) e «Importación verificable de liquidaciones» (`parcial`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PAY-018, SDLC-PAY-003
 
 ## Problema
@@ -35,4 +35,4 @@ No desarrollar una aplicación paralela ni duplicar contextos, tablas, servicios
 Ninguno además de la matriz.
 
 ## Preguntas abiertas
-- ¿Qué reporte de liquidación de MP usarán (CSV de «Dinero liberado», API de reportes) y quién lo descarga?
+- ¿Qué reporte de liquidación de MP usarán (CSV de «Dinero liberado», API de reportes) y quién lo descarga? CSV 

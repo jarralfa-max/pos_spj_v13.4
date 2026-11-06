@@ -3,7 +3,7 @@
 - **Prioridad:** P3
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/activos.md` §115 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-ASSET-016
 
 ## Problema
@@ -31,4 +31,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - Memoria PROC-AUD (Procesamiento Cárnico)
 
 ## Preguntas abiertas
-- ¿El mantenimiento de equipos de producción se muda a Activos, o Cárnico conserva el suyo y solo notifica a Activos?
+- ¿El mantenimiento de equipos de producción se muda a Activos, o Cárnico conserva el suyo y solo notifica a Activos? se muda

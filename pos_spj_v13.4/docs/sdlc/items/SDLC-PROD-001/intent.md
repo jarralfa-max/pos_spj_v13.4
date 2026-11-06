@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T2
 - **Origen:** `inputs/correcciones.md` C-11 (oleada 5); auditoría `docs/audits/auditoria_integral_produccion_recepcion_transferencias_productos_precios_2026-10-26.md` §3 «P2 — La UI de Productos separa reglas operativas y no indica ruta de precio»
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PRICE-001
 
 ## Problema
@@ -35,4 +35,4 @@ Precios es el único dueño del precio (no duplicar captura); CLAUDE.md regla 7;
 SDLC-UI-023, SDLC-UI-011 (`WizardPage` duplicado), SDLC-UI-002 (secciones de Productos); memoria PROD-21/22 (activación de producto con requisitos, migr. 324).
 
 ## Preguntas abiertas
-- ¿«Comercialización» debe bloquear la activación del producto si no tiene precio (requisito de activación, migr. 324) o solo avisar? · bloquea `/sdlc-design SDLC-PROD-001`
+- ¿«Comercialización» debe bloquear la activación del producto si no tiene precio (requisito de activación, migr. 324) o solo avisar? solo avisar · bloquea `/sdlc-design SDLC-PROD-001`

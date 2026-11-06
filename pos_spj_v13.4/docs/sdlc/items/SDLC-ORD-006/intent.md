@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** auditoría `docs/audits/DELIVERY_REFACTOR_AUDIT.md` (Riesgos detectados §7: "Reintentos inexistentes en notificaciones críticas"), re-verificado en el estrato canónico (`/sdlc-plan` Modo B, 2026-10-31)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -38,7 +38,7 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 ORD-23 y ORD-26 (`docs/refactor/ORD-23_*.md`, `ORD-26_*.md`); SDLC-ORD-002; SDLC-WA-006; PROD-22 (outbox de alertas WA de productos).
 
 ## Preguntas abiertas
-- ¿Se unifica sobre `whatsapp_outbox` o sobre el outbox de Pedidos? Decidirlo en Design junto con SDLC-ORD-002.
+- ¿Se unifica sobre `whatsapp_outbox` o sobre el outbox de Pedidos? Decidirlo en Design junto con SDLC-ORD-002. sobre whatsapp_outbox
 
 ## Ampliación 2026-11-01 (`/sdlc-plan arquitectura docs/sdlc/inputs/whatsapp.md`)
 Origen: `docs/sdlc/inputs/whatsapp.md` §50, §21; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`.

@@ -3,7 +3,7 @@
 - **Prioridad:** P0
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`); confirmado por `inputs/correcciones.md` C-05 (oleada 1)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-CORE-012
 
 ## Problema
@@ -41,4 +41,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 Auditoría integral 2026-10-26; memoria Fase 5 (mínimo con autorización, `AuthorizerPermissionChecker`); `inputs/correcciones.md` C-05.
 
 ## Preguntas abiertas
-- Ante falla del motor: ¿bloquear la línea o permitir catálogo con autorización de gerente? (misma pregunta que `inputs/correcciones.md` C-05)
+- Ante falla del motor: ¿bloquear la línea o permitir catálogo con autorización de gerente? con autorizacion  (misma pregunta que `inputs/correcciones.md` C-05)

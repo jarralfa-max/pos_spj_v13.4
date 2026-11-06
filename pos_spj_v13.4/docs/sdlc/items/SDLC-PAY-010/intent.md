@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 7 · Fase 16.3 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 7 «Endpoint webhook central», «Verificador de firma del backend», «Persistir antes de 200…» (`ausente` / `defectuoso`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PAY-007, SDLC-PAY-001, SDLC-WA-002
 
 ## Problema

@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/activos.md` §71–§82 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -38,4 +38,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - SDLC-ARQ-PERM-004 (el nombre del rol concede privilegios)
 
 ## Preguntas abiertas
-- ¿Qué roles existentes (gerente, cajero, administrador…) reciben qué permisos de Activos, y cuáles de los roles de §82 se crean?
+- ¿Qué roles existentes (gerente, cajero, administrador…) reciben qué permisos de Activos, y cuáles de los roles de §82 se crean? igual a Finanzas 

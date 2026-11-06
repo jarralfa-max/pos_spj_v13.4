@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** `inputs/correcciones.md` C-10 (oleada 5); auditoría `docs/audits/auditoria_integral_produccion_recepcion_transferencias_productos_precios_2026-10-26.md` §3 «P1 — Alertas de stock están implementadas, con alcance operativo que validar»
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-ARQ-PERM-003, SDLC-ARQ-PERM-005
 
 ## Problema
@@ -36,5 +36,5 @@ CLAUDE.md regla 13; una sola fuente de permisos (`InventoryScopePolicy`/resolved
 Memoria PROD-22 (outbox de alertas WA); memoria «Alcance por sucursal: dos reglas incompatibles»; SDLC-WA-005/006.
 
 ## Preguntas abiertas
-- ¿Qué permiso o rol RBAC define «recibe alertas de stock» (permiso nuevo `INVENTARIO.alertas.recibir` o responsables por almacén)? · bloquea `/sdlc-design SDLC-INV-008`
-- ¿Los teléfonos de WhatsApp se configuran por sucursal, por almacén o se toman del usuario destinatario? · bloquea `/sdlc-design SDLC-INV-008`
+- ¿Qué permiso o rol RBAC define «recibe alertas de stock» (permiso nuevo `INVENTARIO.alertas.recibir` o responsables por almacén)? responsables por almacen · bloquea `/sdlc-design SDLC-INV-008`
+- ¿Los teléfonos de WhatsApp se configuran por sucursal, por almacén o se toman del usuario destinatario? · bloquea `/sdlc-design SDLC-INV-008` del usuario destinatario 

@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 10 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 1.3 «Asiento balanceado de venta con procesador» (`parcial`) y «CxC al procesador alineada con tesorería» (`defectuoso`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -38,6 +38,6 @@ No desarrollar una aplicación paralela ni duplicar contextos, tablas, servicios
 Memoria FIN-ERP / `docs/refactor/finance_refactor_execution_plan.md` (perfiles contables).
 
 ## Preguntas abiertas
-- ¿Una cuenta de tesorería por cuenta cobradora MP y otra por adquirente de tarjeta, o una sola «procesadores»?
-- ¿La venta MP carga directo la cuenta del procesador o la 1120 hasta la liquidación?
-- ¿Cómo se reclasifica el saldo histórico de la 1120?
+- ¿Una cuenta de tesorería por cuenta cobradora MP y otra por adquirente de tarjeta, o una sola «procesadores»? una sola 
+- ¿La venta MP carga directo la cuenta del procesador o la 1120 hasta la liquidación? directo 
+- ¿Cómo se reclasifica el saldo histórico de la 1120? no hay datos 

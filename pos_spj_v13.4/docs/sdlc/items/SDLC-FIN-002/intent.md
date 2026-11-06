@@ -3,7 +3,7 @@
 - **Prioridad:** P0
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/activos.md` §2, §32, §52, §53 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -45,5 +45,5 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - SDLC-FIN-001 (handlers de compra recibida muertos, otro caso)
 
 ## Preguntas abiertas
-- ¿El alta en el auxiliar debe ser automática al reconocer la CxP (con datos mínimos: vida útil por categoría) o quedar «pendiente de capitalizar» hasta que alguien complete vida útil y categoría?
-- Si la medición en la copia de la BD encuentra compras ASSET ya asentadas sin auxiliar, ¿se regularizan con un alta sin origen de fondos o con un asiento de reclasificación?
+- ¿El alta en el auxiliar debe ser automática al reconocer la CxP (con datos mínimos: vida útil por categoría) o quedar «pendiente de capitalizar» hasta que alguien complete vida útil y categoría? automatica y actualizar hasta completar 
+- Si la medición en la copia de la BD encuentra compras ASSET ya asentadas sin auxiliar, ¿se regularizan con un alta sin origen de fondos o con un asiento de reclasificación? no hay nada en bd

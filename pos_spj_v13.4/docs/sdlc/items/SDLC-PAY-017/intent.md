@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 8 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 8 «Política offline…» (`defectuoso`) y «Coordinación central…» (`ausente`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PAY-008, SDLC-ARQ-HYB-002, SDLC-ARQ-HYB-001
 
 ## Problema
@@ -36,4 +36,4 @@ No desarrollar una aplicación paralela ni duplicar contextos, tablas, servicios
 SDLC-ARQ-HYB-001/002.
 
 ## Preguntas abiertas
-- ¿Se permite cobrar con Point si la caja no tiene internet pero la terminal sí (la orden la crea el backend)?
+- ¿Se permite cobrar con Point si la caja no tiene internet pero la terminal sí (la orden la crea el backend)? si, manualmente 

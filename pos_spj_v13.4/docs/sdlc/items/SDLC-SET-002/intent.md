@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-007
 
 ## Problema
@@ -34,4 +34,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 `docs/refactor/work_queue.json`: lotes CONFIGURACION-07-PERSISTENCE y CONFIGURACION-14-LEGACY_REMOVAL **PENDING** (este ítem los referencia, no los duplica); ORG-AUD.
 
 ## Preguntas abiertas
-- ¿Se ejecuta dentro del pipeline CONFIGURACION (lotes 07/14) o como ítem SDLC independiente?
+- ¿Se ejecuta dentro del pipeline CONFIGURACION (lotes 07/14) o como ítem SDLC independiente? dentro del pipeline

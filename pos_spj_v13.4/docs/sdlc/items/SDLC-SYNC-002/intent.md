@@ -3,7 +3,7 @@
 - **Prioridad:** P0
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-SYNC-001
 
 ## Problema
@@ -37,4 +37,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 Pipeline híbrido Slices 3-6.
 
 ## Preguntas abiertas
-- ¿Quién resuelve un conflicto (central, estación, humano) y con qué pantalla?
+- ¿Quién resuelve un conflicto (central, estación, humano) y con qué pantalla? estacion, en configuraciones/offline

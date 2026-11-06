@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/activos.md` §52 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-FIN-002, SDLC-ASSET-011
 
 ## Problema
@@ -33,4 +33,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - Memoria Compras PUR-AUD (eventos de compensación sin consumidor)
 
 ## Preguntas abiertas
-- ¿Una línea de compra con cantidad 5 genera 5 activos en borrador, o un borrador que se desdobla al capturar series?
+- ¿Una línea de compra con cantidad 5 genera 5 activos en borrador, o un borrador que se desdobla al capturar series? se desdobla al capturar series 

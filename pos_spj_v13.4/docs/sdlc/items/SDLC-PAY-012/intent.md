@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 4.1 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 4.1 «Terminales Point…» (`ausente`, sólo dominio de dispositivos))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PAY-009, SDLC-ARQ-TERM-001, SDLC-ARQ-HYB-001
 
 ## Problema
@@ -37,4 +37,4 @@ No desarrollar una aplicación paralela ni duplicar contextos, tablas, servicios
 SDLC-ARQ-TERM-001 (identidad de terminal fragmentada), SDLC-ARQ-HYB-001 (servicio local).
 
 ## Preguntas abiertas
-- ¿Cuántas Point Smart hay y en qué sucursales/cajas? ¿Ya están en modo PDV?
+- ¿Cuántas Point Smart hay y en qué sucursales/cajas? tengo una por sucursal¿Ya están en modo PDV? aun no 

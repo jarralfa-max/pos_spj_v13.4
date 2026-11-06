@@ -3,7 +3,7 @@
 - **Prioridad:** P0
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -37,4 +37,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 Memoria del proyecto: pipeline híbrido SQLite+PostgreSQL, Slices 0-6 (2026-10-23/25). Commit `41618203` ya tocó `schema_target()` del carril PG.
 
 ## Preguntas abiertas
-- ¿`354_device_enrollment` es parte del mismo slice que p006 o es un remanente a borrar?
+- ¿`354_device_enrollment` es parte del mismo slice que p006 o es un remanente a borrar? es parte del mismo 

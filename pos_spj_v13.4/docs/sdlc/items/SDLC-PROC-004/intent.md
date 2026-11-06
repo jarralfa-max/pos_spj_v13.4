@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T0
 - **Origen:** `inputs/correcciones.md` C-06 (oleada 3); auditoría `docs/audits/auditoria_integral_produccion_recepcion_transferencias_productos_precios_2026-10-26.md` §3 «P1 — Rendimiento estimado y calidad requieren política para venta y conciliación» y §4 (ejemplo de 100 kg)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PROC-001
 
 ## Problema
@@ -34,5 +34,5 @@ CLAUDE.md reglas 11-13 (diferencias de valuación con asiento balanceado vía `f
 Memoria PROC-AUD 32cfbf (pesos estimados introducidos con la migración 343); SDLC-PROC-003 (asiento de costo fallido).
 
 ## Preguntas abiertas
-- ¿Se permite vender cortes estimados antes de pesarlos? · bloquea `/sdlc-design SDLC-PROC-004`
-- Si se permite, ¿con qué tolerancia (porcentaje por corte, por lote o global) y quién la configura? · bloquea `/sdlc-design SDLC-PROC-004`
+- ¿Se permite vender cortes estimados antes de pesarlos? si · bloquea `/sdlc-design SDLC-PROC-004`
+- Si se permite, ¿con qué tolerancia (porcentaje por corte, por lote o global) y quién la configura? se configura en el perfil del prodcto · bloquea `/sdlc-design SDLC-PROC-004`

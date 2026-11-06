@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -35,4 +35,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 ORD-30, WA-22; `docs/audits/DELIVERY_REFACTOR_AUDIT.md` (§Fuentes duplicadas de verdad); CRM-21 (puente `clientes.id`/`customers.id`); SDLC-CRM-003.
 
 ## Preguntas abiertas
-- ¿Cuál pipeline de pedidos es el autoritativo?
+- ¿Cuál pipeline de pedidos es el autoritativo? El que este mas avanzado 

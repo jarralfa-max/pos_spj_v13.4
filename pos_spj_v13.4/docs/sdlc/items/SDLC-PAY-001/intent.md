@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T2
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 2 · Fase 18 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, sección Fase 16/17 «TRD, APPFLOW…» y Fase 18 «Instalador» (`ausente` / `no verificable`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -37,6 +37,6 @@ No desarrollar una aplicación paralela ni duplicar contextos, tablas, servicios
 `docs/sdlc/PLAN-MAESTRO.md` (línea D y decisión 1); SDLC-ARQ-HYB-001 (servicio local), SDLC-SYNC-005 (central).
 
 ## Preguntas abiertas
-- ¿Dónde vive el backend de pagos y el Access Token: PC anfitriona de sucursal (plan maestro, decisión 1), servidor central o, temporalmente, cada caja?
-- ¿Entrada pública de webhooks: ngrok, Cloudflare Tunnel o servidor central?
-- ¿Se usa Mercado Pago hoy en producción (POS manual y/o WhatsApp) y con cuántas cuentas cobradoras (una por empresa o por sucursal)?
+- ¿Dónde vive el backend de pagos y el Access Token: PC anfitriona de sucursal (plan maestro, decisión 1), servidor central o, temporalmente, cada caja? cada caja temporalmente,
+- ¿Entrada pública de webhooks: ngrok, Cloudflare Tunnel o servidor central? ngrok
+- ¿Se usa Mercado Pago hoy en producción (POS manual y/o WhatsApp) y con cuántas cuentas cobradoras (una por empresa o por sucursal)? se usa manuealmente y es una cuenta por empresa 

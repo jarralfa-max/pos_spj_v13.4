@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/refactor/ORD-30_validacion_final.md` → "Pendiente" §3 (selección real de producto en "Nuevo pedido"), re-verificado en código (`/sdlc-plan` Modo B, 2026-10-31)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -39,4 +39,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 `docs/refactor/ORD-28_ui_ux.md`; PASS 6 (`frontend/desktop/modules/orders_delivery/orders_delivery_routes.py:51-53`, "captura con búsqueda de producto, precio de Pricing y dirección"); SDLC-SALES-001; Fase 5 del pipeline ERP (mínimo con autorización).
 
 ## Preguntas abiertas
-- ¿Se elimina el diálogo y el botón lleva a la página "Nuevo pedido", o se conserva un alta rápida desde el listado con el mismo flujo?
+- ¿Se elimina el diálogo y el botón lleva a la página "Nuevo pedido", o se conserva un alta rápida desde el listado con el mismo flujo? se conserva 

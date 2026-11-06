@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/activos.md` §5, §12, §109 (`/sdlc-plan arquitectura`, 2026-10-29; matriz `docs/sdlc/arquitectura/matriz-activos.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -38,4 +38,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía el motor contable de Finanzas, r
 - Memoria: `assets` la leía Finanzas en septiembre; hoy ya no (barrido A/D)
 
 ## Preguntas abiertas
-- Si la copia de la BD real tiene filas en `activos` o `mantenimientos`: ¿se migran al EAM nuevo cuando exista (esperar a SDLC-ASSET-010), se migran a `fixed_assets`, o se archivan en un respaldo y se descartan?
+- Si la copia de la BD real tiene filas en `activos` o `mantenimientos`: ¿se migran al EAM nuevo cuando exista (esperar a SDLC-ASSET-010), se migran a `fixed_assets`, o se archivan en un respaldo y se descartan? EAM nuevo cuando exista

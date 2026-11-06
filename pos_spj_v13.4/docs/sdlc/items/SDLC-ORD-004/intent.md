@@ -3,7 +3,7 @@
 - **Prioridad:** P0
 - **Nivel de riesgo:** T0
 - **Origen:** auditoría `docs/audits/DELIVERY_REFACTOR_AUDIT.md` (Riesgos detectados §1: "Pedido entregado puede quedar sin commit de inventario") y `docs/refactor/ORD-30_validacion_final.md`, re-verificados en el estrato canónico `backend/*/orders_delivery` (`/sdlc-plan` Modo B, 2026-10-31)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -44,5 +44,5 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 `docs/refactor/ORD-8_inventario.md` (Commit pospuesto hasta ORD-10), `docs/refactor/ORD-22*` (Ventas/Finanzas); Fase 6 del pipeline de integración ERP (memoria: "el cobro no debe volver a descontar"); SDLC-INV-003 (ubicaciones distintas por flujo); SDLC-ORD-001.
 
 ## Preguntas abiertas
-- ¿El descuento debe ocurrir al **entregar/recoger** (`COMPLETED`) o al **despachar** (sale de la sucursal)? Hoy no ocurre en ninguno de los dos.
-- ¿Cuántas reservas `CONFIRMED` de pedidos completados hay en la base real? Hay que medirlo sobre una copia antes de diseñar el saneamiento.
+- ¿El descuento debe ocurrir al **entregar/recoger** (`COMPLETED`) o al **despachar** (sale de la sucursal)? Hoy no ocurre en ninguno de los dos. al despachar 
+- ¿Cuántas reservas `CONFIRMED` de pedidos completados hay en la base real? Hay que medirlo sobre una copia antes de diseñar el saneamiento. ni uno, estamos en desarrollo

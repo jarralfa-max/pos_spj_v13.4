@@ -3,7 +3,7 @@
 - **Prioridad:** P0
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -37,5 +37,5 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 Memoria: INV-25/INV-27; outbox de inventario sin drenar ya señalado en la memoria del corte del shell.
 
 ## Preguntas abiertas
-- ¿Las bajas por caducidad son merma (Mermas valúa y asienta) o ajuste de inventario directo?
+- ¿Las bajas por caducidad son merma (Mermas valúa y asienta) o ajuste de inventario directo? merma 
 - ¿Qué cuentas usa un ajuste positivo (sobrante)?

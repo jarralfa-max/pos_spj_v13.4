@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1
 - **Origen:** `inputs/correcciones.md` C-09 (oleada 2); auditoría `docs/audits/auditoria_integral_produccion_recepcion_transferencias_productos_precios_2026-10-26.md` §3 «P1 — La bandeja de Transferencias aún no incluye compras»
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-TRF-001, SDLC-TRF-003
 
 ## Problema
@@ -36,4 +36,4 @@ CLAUDE.md reglas 7 y 13 (UI sin SQL ni reglas); sin duplicar pantallas (memorias
 SDLC-LOG-001; memoria LOG-INT (módulo Logística, ciclo de transferencia); SDLC-UI-007 (densidad táctil en recepción).
 
 ## Preguntas abiertas
-- ¿En qué módulo vive la bandeja (Logística, Inventario o una entrada propia «Recepciones»)? ¿Desaparecen los accesos actuales de Compras y Transferencias o quedan como atajo? · bloquea `/sdlc-design SDLC-LOG-002`
+- ¿En qué módulo vive la bandeja (Logística, Inventario o una entrada propia «Recepciones»)? en logistica ¿Desaparecen los accesos actuales de Compras y Transferencias o quedan como atajo? atajos, tambien hacen recepciones· bloquea `/sdlc-design SDLC-LOG-002`

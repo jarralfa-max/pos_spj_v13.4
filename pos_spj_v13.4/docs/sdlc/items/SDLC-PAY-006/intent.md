@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T0
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 15 · Fase 9 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 1.2 «Reembolso a medio electrónico» (`defectuoso`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PAY-003
 
 ## Problema
@@ -39,4 +39,4 @@ No desarrollar una aplicación paralela ni duplicar contextos, tablas, servicios
 Memoria SALES-AUD V02/V03 (anulación de pagos en cobro).
 
 ## Preguntas abiertas
-- Mientras no exista la API: ¿quién confirma el reembolso hecho en el panel de Mercado Pago y con qué permiso?
+- Mientras no exista la API: ¿quién confirma el reembolso hecho en el panel de Mercado Pago y con qué permiso? cajero co su permiso y envia alerta a gerente 
