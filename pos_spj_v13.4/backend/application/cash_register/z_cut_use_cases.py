@@ -125,7 +125,8 @@ class GenerateZCutUseCase:
                         channels=decision.channels,
                         whatsapp_required="WHATSAPP" in decision.channels)
             closed_at = _now()
-            uow.shifts.close(shift_id=shift_id, z_cut_id=cut.id, closed_at=closed_at)
+            uow.shifts.close(shift_id=shift_id, z_cut_id=cut.id, closed_at=closed_at,
+                             expected_version=shift["version"])
             # Auditoría RRHH cebf67a HR-03/05: el turno se cierra con el Corte Z y
             # NADIE publicaba CASH_SHIFT_CLOSED, así que la asistencia nunca
             # registraba la salida. Se publica con el CAJERO del turno (no quien

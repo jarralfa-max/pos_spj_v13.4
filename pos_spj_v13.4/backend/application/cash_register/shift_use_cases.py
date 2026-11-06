@@ -9,7 +9,9 @@ from backend.application.cash_register.permissions import CashPermissions
 from backend.domain.cash_register.entities import CashLedgerEntry, CashShift
 from backend.domain.cash_register.enums import CashMovementDirection, CashMovementType, CashShiftStatus
 from backend.domain.cash_register.events import CashEvents, cash_event_payload
-from backend.domain.cash_register.exceptions import CashAuthorizationRequiredError, CashInvalidStateError
+from backend.domain.cash_register.exceptions import (
+    CashAuthorizationRequiredError, CashDuplicateOperationError, CashInvalidStateError,
+)
 from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
 from backend.domain.cash_register.policies.security_policies import CashLimitDecision, CashMonetaryLimitPolicy
 from backend.infrastructure.db.repositories.cash_register.unit_of_work import CashRegisterUnitOfWork
@@ -20,6 +22,7 @@ from backend.shared.ids import new_uuid
 class ShiftResult:
     entity_id: str
     message: str
+    idempotent: bool = False
 
 
 def _record(uow, event_name, *, operation_id, entity_id, branch_id,
@@ -56,6 +59,18 @@ class OpenCashShiftUseCase:
             raise CashAuthorizationRequiredError(
                 "El fondo inicial excede el umbral y requiere autorización independiente")
         with CashRegisterUnitOfWork(connection) as uow:
+            # SDLC-ARQ-SHIFT-004: reintentar la misma operación devuelve lo que
+            # ya se aplicó, antes de la regla "ya tiene turno".
+            prior = uow.shifts.find_by_opening_operation(operation_id)
+            if prior:
+                if (prior["branch_id"], prior["register_id"], prior["drawer_id"],
+                        prior["terminal_id"], prior["cashier_user_id"],
+                        Decimal(prior["opening_amount"])) != (
+                        branch_id, register_id, drawer_id, terminal_id, cashier_user_id,
+                        Decimal(opening_amount)):
+                    raise CashDuplicateOperationError(
+                        "Esa operación de apertura ya se usó con otros datos.")
+                return ShiftResult(prior["id"], "Turno abierto", True)
             register = uow.devices.get("register", register_id)
             drawer = uow.devices.get("drawer", drawer_id)
             terminal = uow.devices.get("terminal", terminal_id)
@@ -137,6 +152,8 @@ class _TransitionUseCase:
                 reason=reason,
             )
             uow.shifts.set_lifecycle(shift_id=shift_id, status=self.target_status.value,
+                                     expected_status=shift["status"],
+                                     expected_version=shift["version"],
                                      suspended_reason=reason.strip() or None)
             _record(uow, self.event_name, operation_id=operation_id,
                     entity_id=shift_id, branch_id=branch_id,

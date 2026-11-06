@@ -13,6 +13,7 @@ from backend.domain.cash_register.entities import (
     BlindCashCount, CashDifference, CashDrawer, CashHandover, CashLedgerEntry,
     CashRegister, CashShift, PosTerminal, XCut, ZCut,
 )
+from backend.domain.cash_register.exceptions import CashShiftConflictError
 from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
 from backend.shared.business_dates import local_business_date
 from backend.shared.ids import new_uuid
@@ -55,10 +56,26 @@ class CashShiftRepository(_Repository):
         columns = [item[0] for item in cursor.description]
         return dict(zip(columns, row))
 
-    def set_lifecycle(self, *, shift_id: str, status: str,
-                      suspended_reason: str | None = None) -> None:
-        self.execute("UPDATE cash_shifts SET status=?,suspended_reason=? WHERE id=?",
-                     (status, suspended_reason, shift_id))
+    def find_by_opening_operation(self, operation_id: str):
+        """El turno que abrió esa operación, en el estado que tenga hoy."""
+        cursor = self.execute(
+            "SELECT * FROM cash_shifts WHERE opening_operation_id=?", (operation_id,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(zip((item[0] for item in cursor.description), row))
+
+    def set_lifecycle(self, *, shift_id: str, status: str, expected_status: str,
+                      expected_version: int, suspended_reason: str | None = None) -> None:
+        """Compare-and-set sobre estado y versión (SDLC-ARQ-SHIFT-004): si el
+        turno ya no es el que se leyó, 0 filas y conflicto; nunca se pisa."""
+        cursor = self.execute(
+            """UPDATE cash_shifts SET status=?,suspended_reason=?,version=version+1
+            WHERE id=? AND status=? AND version=?""",
+            (status, suspended_reason, shift_id, expected_status, expected_version))
+        if cursor.rowcount != 1:
+            raise CashShiftConflictError(
+                "El turno cambió mientras operabas. Actualiza la pantalla e intenta de nuevo.")
 
     def find_active(self, *, cashier_user_id: str | None = None,
                     branch_id: str | None = None, column: str | None = None,
@@ -111,11 +128,12 @@ class CashShiftRepository(_Repository):
             params.append(str(business_date_until))
         return int(self.execute(sql, tuple(params)).fetchone()[0] or 0)
 
-    def close(self, *, shift_id: str, z_cut_id: str, closed_at: str) -> None:
+    def close(self, *, shift_id: str, z_cut_id: str, closed_at: str,
+              expected_version: int) -> None:
         cursor = self.execute(
-            """UPDATE cash_shifts SET status='CLOSED',z_cut_id=?,closed_at=?
-            WHERE id=? AND status='CLOSING' AND z_cut_id IS NULL""",
-            (z_cut_id, closed_at, shift_id))
+            """UPDATE cash_shifts SET status='CLOSED',z_cut_id=?,closed_at=?,version=version+1
+            WHERE id=? AND status='CLOSING' AND z_cut_id IS NULL AND version=?""",
+            (z_cut_id, closed_at, shift_id, expected_version))
         if cursor.rowcount != 1:
             raise RuntimeError("Shift is not ready for final closure")
 

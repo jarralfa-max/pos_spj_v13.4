@@ -51,6 +51,11 @@ class CashShiftClosingError(CashShiftNotOpenError):
     """El turno activo está en cierre: hay que terminarlo y abrir otro."""
 
 
+class CashShiftConflictError(CashInvalidStateError):
+    """El turno cambió entre leerlo y escribirlo: nada se escribió
+    (SDLC-ARQ-SHIFT-004). Quien lo recibe vuelve a consultar el turno."""
+
+
 class CashDuplicateOperationError(CashRegisterError):
     pass
 
