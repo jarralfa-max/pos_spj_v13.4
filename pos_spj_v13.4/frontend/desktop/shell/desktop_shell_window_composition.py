@@ -29,6 +29,7 @@ opinion on how it's produced.
 from __future__ import annotations
 
 from backend.bootstrap.application_context import ApplicationContext
+from backend.bootstrap.application_context_builder import ApplicationContextBuilder
 from backend.bootstrap.health.health_status import HealthReport
 from frontend.desktop.modules.business_intelligence.shell_registration import (
     BUSINESS_INTELLIGENCE_MODULE_ID,
@@ -114,6 +115,9 @@ from frontend.desktop.modules.transfers.shell_registration import (
     build_transfers_module_descriptor, build_transfers_route_definition,
 )
 from frontend.desktop.shell.application_shell.application_window import ApplicationWindow
+from frontend.desktop.shell.application_shell.installation_branch_follower import (
+    InstallationBranchFollower,
+)
 from frontend.desktop.shell.loading.dispatching_module_activator import DispatchingModuleActivator
 from frontend.desktop.shell.loading.module_loader import ModuleLoader
 from frontend.desktop.shell.modules.health_requirement import ModuleHealthEvaluator
@@ -333,11 +337,22 @@ def build_application_window(
     nav_items = NavigationItemRegistry()
     register_migrated_modules_navigation(nav_items)
 
+    # SDLC-SET-001: anclar la estación en Configuración mueve esta sesión.
+    branch_follower = InstallationBranchFollower(
+        context_service=ApplicationContextBuilder(connection).context_service(user_id=context.user_id),
+        session_context=session_context,
+        resolve_sidebar_items=lambda new_context: resolver.resolve(
+            context=new_context, health_report=health_report),
+    )
+
     dispatcher = DispatchingModuleActivator()
     for module_id, build_descriptor, build_route, activator_factory in _MIGRATED_MODULE_WIRINGS:
         modules.register(build_descriptor())
         routes.register(build_route())
-        dispatcher.register(module_id, activator_factory(connection, view_factories, session_context))
+        activator = activator_factory(connection, view_factories, session_context)
+        if module_id == CONFIGURACION_MODULE_ID:
+            activator.session_site_follower = branch_follower
+        dispatcher.register(module_id, activator)
 
     loader = ModuleLoader(module_registry=modules, activator=dispatcher)
     router = DesktopRouter(route_registry=routes, view_factory_registry=view_factories, initial_context=context)
@@ -353,4 +368,5 @@ def build_application_window(
     window = ApplicationWindow(router=router, sidebar=sidebar, module_loader=loader,
                                service_supervisor=supervisor)
     inbox_feed.attach(window.notification_drawer)
+    branch_follower.attach(window)
     return window

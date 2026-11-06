@@ -18,7 +18,8 @@ def build_page(page_id: str, presenter):
     return PAGE_CLASSES[page_id](presenter)
 
 
-def build_configuracion_view(*, connection, session_context, parent=None):
+def build_configuracion_view(*, connection, session_context, parent=None,
+                             session_site_follower=None):
     """La ÚNICA composición de Configuración: la usan la shell viva
     (`ConfiguracionModuleActivator`) y las pruebas.
 
@@ -309,6 +310,7 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         software_updates=SoftwareUpdatesPresenter(
             build_software_update_dependencies(connection, session_context=session),
             copy_file=copy_package_file, request_handoff=request_update_handoff),
+        session_site_follower=session_site_follower,
     )
 
     def has_permission(permission: str) -> bool:

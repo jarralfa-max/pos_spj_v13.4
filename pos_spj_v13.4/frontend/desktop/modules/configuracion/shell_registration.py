@@ -56,10 +56,14 @@ class ConfiguracionModuleActivator:
         self._connection = connection
         self._session_context = session_context
         self._view_factories = view_factory_registry
+        #: Lo asigna la composición del shell (SDLC-SET-001): la ventana que mueve
+        #: la sesión se crea después que los activadores.
+        self.session_site_follower: Optional[object] = None
 
     def activate(self, module: ModuleDescriptor) -> None:
         self._view_factories.register(CONFIGURACION_VIEW_FACTORY_ID, self._build_view)
 
     def _build_view(self) -> ConfiguracionView:
         return build_configuracion_view(
-            connection=self._connection, session_context=self._session_context)
+            connection=self._connection, session_context=self._session_context,
+            session_site_follower=self.session_site_follower)

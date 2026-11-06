@@ -400,16 +400,15 @@ class EmpresaPage(ConfiguracionWorkspacePage):
         if confirm != MessageDialog.Yes:
             return
         ok, message = self._presenter.set_installation_branch(branch_id)
-        (MessageDialog.information if ok else MessageDialog.warning)(self, "Sucursal de la instalación", message)
         if not ok:
+            MessageDialog.warning(self, "Sucursal de la instalación", message)
             return
         self._reload_installation_summary()
-        main_win = self.window()
-        if main_win is not None and hasattr(main_win, "aplicar_sucursal_activa"):
-            try:
-                main_win.aplicar_sucursal_activa(branch_id, branch_name)
-            except Exception:
-                pass
+        followed, session_message = self._presenter.follow_installation_branch(branch_id)
+        (MessageDialog.information if followed else MessageDialog.warning)(
+            self, "Sucursal de la instalación", f"{message}\n\n{session_message}")
+        if not followed:
+            self._presenter.end_session_after_anchor()
 
     def _selected_branch_id(self) -> str | None:
         row_id = self.table.selected_row_id() if self.table is not None else None

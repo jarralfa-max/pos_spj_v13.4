@@ -203,9 +203,12 @@ class ConfiguracionPresenter:
         import_display_media_uc=None, set_device_windows_printer_uc=None,
         authorization=None, audit_log_repository=None,
         address_search_factory=None, software_updates=None, ticket_designer=None,
-        org_structure=None, role_assignments=None,
+        org_structure=None, role_assignments=None, session_site_follower=None,
     ) -> None:
         self._query_service = query_service
+        #: Mueve la sesión abierta al anclar la estación (SDLC-SET-001). Sólo existe
+        #: dentro del shell vivo.
+        self._session_site_follower = session_site_follower
         #: Estructura organizacional (auditoría enterprise, Fase 1): servicio de
         #: aplicación que autoriza, abre la transacción y audita por su cuenta.
         self._org_structure = org_structure
@@ -1196,6 +1199,22 @@ class ConfiguracionPresenter:
         except Exception:
             logger.exception("ConfiguracionPresenter.set_installation_branch failed")
             return False, "Error inesperado; revise el log."
+
+    def follow_installation_branch(self, branch_id: str) -> tuple[bool, str]:
+        """Tras anclar: la sesión abierta pasa a esa sucursal (SDLC-SET-001).
+        `False` exige cerrar la sesión con `end_session_after_anchor()`."""
+        if self._session_site_follower is None:
+            return True, "Cierre sesión y vuelva a entrar para operar en esa sucursal."
+        try:
+            return self._session_site_follower.follow(branch_id)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.follow_installation_branch failed")
+            return False, ("No se pudo actualizar la sesión abierta.\n\n"
+                           "Hay que cerrar la sesión para continuar.")
+
+    def end_session_after_anchor(self) -> None:
+        if self._session_site_follower is not None:
+            self._session_site_follower.end_session()
 
     def _session_branch_id(self) -> str:
         return str(getattr(self._session, "active_branch_id", None) or "")
