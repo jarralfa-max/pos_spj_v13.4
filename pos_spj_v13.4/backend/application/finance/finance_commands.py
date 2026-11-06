@@ -616,13 +616,15 @@ class FinanceCommandService:
     def suspend_asset(self, asset_id: str, *, reason: str) -> None:
         actor = self._actor(P.ASSET_MANAGE)
         self._uc["asset_status"].suspend(self._conn(), asset_id=asset_id, reason=reason,
-                                         operation_id=new_uuid(), actor=actor)
+                                         operation_id=new_uuid(), actor=actor,
+                                         on_date=self._today())
 
     @_dispatches
     def resume_asset(self, asset_id: str) -> None:
         actor = self._actor(P.ASSET_MANAGE)
         self._uc["asset_status"].resume(self._conn(), asset_id=asset_id,
-                                        operation_id=new_uuid(), actor=actor)
+                                        operation_id=new_uuid(), actor=actor,
+                                        on_date=self._today())
 
     # ── configuración ────────────────────────────────────────────────────
     @_dispatches

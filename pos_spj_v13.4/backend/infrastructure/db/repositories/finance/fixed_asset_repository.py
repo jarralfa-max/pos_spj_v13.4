@@ -36,6 +36,8 @@ def _to_entity(row: dict) -> FixedAsset:
         disposal_journal_entry_id=row["disposal_journal_entry_id"],
         supplier_id=row["supplier_id"], source_document_id=row["source_document_id"],
         source_document_number=row["source_document_number"],
+        suspended_on=parse_date(row["suspended_on"]),
+        suspended_months=row["suspended_months"] or 0,
         project_id=row["project_id"],
         branch_id=row["branch_id"], cost_center_id=row["cost_center_id"],
         operation_id=row["operation_id"],
@@ -61,6 +63,8 @@ def _mutable(asset: FixedAsset) -> dict:
         "last_depreciated_period": asset.last_depreciated_period,
         "disposal_date": iso(asset.disposal_date),
         "disposal_journal_entry_id": asset.disposal_journal_entry_id,
+        "suspended_on": iso(asset.suspended_on),
+        "suspended_months": asset.suspended_months,
         "updated_at": asset.updated_at,
     }
 

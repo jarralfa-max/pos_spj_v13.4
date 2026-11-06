@@ -88,6 +88,8 @@ class FixedAsset:
     project_id: str | None = None
     status_reason: str | None = None
     source_document_number: str | None = None
+    suspended_on: date | None = None
+    suspended_months: int = 0                    # meses fuera de servicio ya cerrados
 
     def __post_init__(self) -> None:
         if self.accumulated_depreciation is None:
@@ -214,20 +216,27 @@ class FixedAsset:
                 self.residual_value = remaining
         self.updated_at = _utcnow()
 
-    def suspend(self, reason: str) -> None:
+    def suspend(self, reason: str, on_date: date | None = None) -> None:
         if self.status is not FixedAssetStatus.ACTIVE:
             raise AssetNotActiveError(f"Sólo se suspende un activo activo ({self.status.value})")
         if not (reason or "").strip():
             raise FinanceDomainError("Suspender un activo exige el motivo")
         self.status = FixedAssetStatus.SUSPENDED
         self.status_reason = reason.strip()
+        self.suspended_on = on_date
         self.updated_at = _utcnow()
 
-    def resume(self) -> None:
+    def resume(self, on_date: date | None = None) -> None:
+        """Los meses que pasó suspendido no se deprecian ni se recuperan después:
+        el mes de la suspensión cuenta como fuera de servicio, el de reanudar no."""
         if self.status is not FixedAssetStatus.SUSPENDED:
             raise FinanceDomainError(f"Sólo se reanuda un activo suspendido ({self.status.value})")
+        if self.suspended_on is not None and on_date is not None:
+            self.suspended_months += max(0, (on_date.year - self.suspended_on.year) * 12
+                                         + on_date.month - self.suspended_on.month)
         self.status = FixedAssetStatus.ACTIVE
         self.status_reason = None
+        self.suspended_on = None
         self.updated_at = _utcnow()
 
     def retire(self, status: FixedAssetStatus, retirement_date: date, journal_entry_id: str,

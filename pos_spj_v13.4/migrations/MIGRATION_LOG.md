@@ -5416,3 +5416,12 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - El cierre bloquea con activos comprados sin completar (`purchased_assets_completed`).
 - Devolución o reverso de Compras: baja el costo del activo, o lo cancela si llega a cero. Un
   activo ya depreciado no se ajusta solo: se registra el error y requiere baja formal.
+
+### 381 — meses fuera de servicio de un activo (2026-11-06, SDLC-FIN-003)
+
+- `fixed_assets.suspended_on` y `suspended_months`. Sólo agrega.
+- Los meses omitidos se recuperan en la siguiente corrida (`DepreciationPolicy`). Los suspendidos
+  no son omitidos: no se recuperan y alargan la vida en calendario. Un activo suspendido antes de
+  esta migración no tiene `suspended_on`, así que sus meses cuentan como omitidos al reanudarlo.
+- La baja deprecia lo que falte hasta el periodo anterior, como corrida registrada y en la misma
+  transacción. El asiento lleva la fecha de la baja.
