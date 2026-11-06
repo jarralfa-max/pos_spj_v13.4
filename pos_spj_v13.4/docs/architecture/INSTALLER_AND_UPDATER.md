@@ -115,6 +115,21 @@ SHA-256 of an unauthenticated manifest is never trusted; trusted keys are code, 
 the external updater loads neither Qt nor the ERP; nothing downloaded runs inside the POS
 process; the only elevated program is the (signed) installer.
 
+### Data folder ACL (machine scope)
+
+Stations have several Windows users and the application runs as each of them, so `Users` needs
+Modify wherever it works: `db`, `backups`, `logs`, `imagenes_productos`, `media`, `updater`,
+`whatsapp`, `secrets`, `mobile_api`, `logistics_photos` (`WritableDataFolders` in the installer).
+The root gets Read & Execute, also on upgrades (`ApplyDataFolderPermissions`, with `icacls`): a
+user can no longer rename or replace those folders. The creation right that `Users` inherits
+from `ProgramData` stays. A rollback to a version before this change widens the root again until
+the next install.
+
+**Limit that remains:** SQLite needs Modify on its folder, so any Windows user of the station
+can still edit `usuarios` or `rol_permisos` with an external tool. An ACL cannot prevent that
+while the application runs as the logged-in user; closing it needs a local service that owns the
+database, or a verifiable seal over the security tables (SDLC-INST-003).
+
 `update_job.json` stays in the data folder, which every Windows user of the station can modify,
 so it proves nothing: the updater takes the hash from the signed manifest inside the job, refuses
 a manifest for another version or one not newer than the installed build, and on recovery runs

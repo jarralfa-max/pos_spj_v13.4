@@ -196,6 +196,9 @@ jobs:
           if ($r.version -ne "${{ steps.version.outputs.version }}") { throw "Version instalada $($r.version)" }
           if ($r.detail -notmatch "RELOCATED") { throw "No se reubico la base legacy: $($r.detail)" }
           $db = "C:\ProgramData\SPJ\SPJ ERP POS\db\spj_pos_database.db"
+          $usersModify = { param($path) (Get-Acl $path).Access | Where-Object { $_.IdentityReference -match 'Users' -and $_.FileSystemRights -match 'Modify' } }
+          if (& $usersModify "C:\ProgramData\SPJ\SPJ ERP POS") { throw "La raiz de datos sigue con Modificar para Users" }
+          if (-not (& $usersModify "C:\ProgramData\SPJ\SPJ ERP POS\db")) { throw "Users sin Modificar en la carpeta de la base" }
           & $python $marker check $db; if ($LASTEXITCODE) { throw "La base reubicada perdio los datos" }
           if (Test-Path $legacy) { throw "La base legacy no se archivo" }
           if (-not (Get-ChildItem "C:\spj-legacy\pos_spj_v13.4\data" -Filter "*.relocated-*")) { throw "Falta el original archivado" }

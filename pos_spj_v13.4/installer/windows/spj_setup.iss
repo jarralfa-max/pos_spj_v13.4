@@ -121,8 +121,9 @@ Name: "mobile_api"; Description: "API y PWA de Logística para teléfonos (opcio
 Name: "desktopicon"; Description: "Crear acceso directo en el escritorio"; GroupDescription: "Accesos directos:"
 
 [Dirs]
-; Machine scope: every Windows user of the station must be able to write the data.
-Name: "{commonappdata}\SPJ\{#AppName}"; Permissions: users-modify; Check: IsMachineScope; Flags: uninsneveruninstall
+; Machine scope: every Windows user must be able to write where the application
+; works, not over the root (see ApplyDataFolderPermissions).
+Name: "{commonappdata}\SPJ\{#AppName}"; Check: IsMachineScope; Flags: uninsneveruninstall
 ; Rollback installers: written only by this (elevated) installer.
 Name: "{#InstallerCacheDir}"; Flags: uninsneveruninstall
 
@@ -484,6 +485,53 @@ begin
          ewWaitUntilTerminated, Code);
 end;
 
+function WritableDataFolders: TArrayOfString;
+{ Una por cada carpeta bajo la raíz de datos donde la aplicación escribe. Una
+  carpeta nueva se agrega aquí (test_data_folder_acl.py lo exige). }
+begin
+  SetArrayLength(Result, 10);
+  Result[0] := 'db';
+  Result[1] := 'backups';
+  Result[2] := 'logs';
+  Result[3] := 'imagenes_productos';
+  Result[4] := 'media';
+  Result[5] := 'updater';
+  Result[6] := 'whatsapp';
+  Result[7] := 'secrets';
+  Result[8] := 'mobile_api';
+  Result[9] := 'logistics_photos';
+end;
+
+procedure ApplyDataFolderPermissions;
+{ Modificar para Users sólo en las carpetas de trabajo; en la raíz, lectura. Va con
+  icacls y no con [Dirs], que sólo agrega permisos: una instalación anterior dejó
+  Modificar en la raíz. Primero las carpetas, porque hoy heredan el permiso de la
+  raíz: si alguna falla, la raíz no se toca y nadie pierde escritura. }
+var
+  Root, Icacls: String;
+  Folders: TArrayOfString;
+  I, Code: Integer;
+begin
+  if not IsMachineScope then
+    Exit;
+  Root := ExpandConstant('{commonappdata}\SPJ\{#AppName}');
+  Icacls := ExpandConstant('{sys}\icacls.exe');
+  Folders := WritableDataFolders;
+  for I := 0 to GetArrayLength(Folders) - 1 do
+  begin
+    ForceDirectories(Root + '\' + Folders[I]);
+    if not Exec(Icacls, '"' + Root + '\' + Folders[I] + '" /grant *S-1-5-32-545:(OI)(CI)M',
+                '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
+    begin
+      Log('Permisos de datos sin cambiar: falló ' + Folders[I] + ' (' + IntToStr(Code) + ').');
+      Exit;
+    end;
+  end;
+  if not Exec(Icacls, '"' + Root + '" /grant:r *S-1-5-32-545:(OI)(CI)(RX)',
+              '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
+    Log('No se redujo el permiso de la raíz de datos (' + IntToStr(Code) + ').');
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Code: Integer;
@@ -491,6 +539,7 @@ begin
   if CurStep = ssPostInstall then
   begin
     WriteInstallConfig;
+    ApplyDataFolderPermissions;
     WriteInstallerIndex;
     PruneInstallerCache;
     if not WizardIsComponentSelected('whatsapp_local') and

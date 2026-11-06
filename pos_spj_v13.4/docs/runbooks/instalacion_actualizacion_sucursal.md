@@ -90,6 +90,8 @@ Anote cualquier error en el registro `<datos>\logs\spj_pos.log` y envíelo antes
 | Instaladores para revertir | `C:\ProgramData\SPJ\Installers\SPJ ERP POS` | Sólo el instalador |
 
 `<datos>` = `C:\ProgramData\SPJ\SPJ ERP POS` o `%LOCALAPPDATA%\SPJ\SPJ ERP POS`.
+En `C:\ProgramData` todos los usuarios de Windows pueden modificar las carpetas de trabajo, no
+la raíz: una carpeta creada a mano en `<datos>` no recibe esos permisos.
 Configuración → Acerca de y actualizaciones muestra las rutas reales de esa estación.
 
 ## 3. Caja que ya usaba SPJ desde una carpeta (base anterior)
