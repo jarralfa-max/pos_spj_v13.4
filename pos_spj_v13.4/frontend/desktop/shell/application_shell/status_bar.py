@@ -21,8 +21,12 @@ class StatusBar(QStatusBar):
         self._connectivity_badge = StatusBadge("En línea", status="success")
         self._workstation_label = QLabel("")
         self._workstation_label.setObjectName("statusBarWorkstation")
+        #: Algo no quedó cableado al arrancar (SDLC-CORE-001).
+        self._integration_badge = StatusBadge("", status="warning")
+        self._integration_badge.setVisible(False)
 
         self.addWidget(self._connectivity_badge)
+        self.addPermanentWidget(self._integration_badge)
         self.addPermanentWidget(self._workstation_label)
         self.messageChanged.connect(self._sync_message_visibility)
 
@@ -51,6 +55,20 @@ class StatusBar(QStatusBar):
 
     def set_workstation(self, workstation_id: str, branch_name: str) -> None:
         self._workstation_label.setText(f"{branch_name} · {workstation_id}")
+
+    def set_integration_warning(self, warning: tuple[str, str]) -> None:
+        text, detail = warning
+        self._integration_badge.setText(text)
+        self._integration_badge.setToolTip(detail)
+        self._integration_badge.setVisible(bool(text))
+
+    @property
+    def integration_warning_text(self) -> str:
+        return self._integration_badge.text()
+
+    @property
+    def integration_warning_tooltip(self) -> str:
+        return self._integration_badge.toolTip()
 
     @property
     def connectivity_text(self) -> str:

@@ -18,10 +18,55 @@ ready and before any use case can publish a cross-context event.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
+from importlib import import_module
 
+from backend.bootstrap.health.health_status import HealthCheckResult, HealthStatus, worse_of
 from backend.shared.events.application_bus import get_bus
 
 logger = logging.getLogger("spj.bootstrap.event_wiring")
+
+
+#: Nombre de la comprobación de salud que informa fallas de este paso.
+WIRING_HEALTH_CHECK = "event_wiring"
+
+
+class WiringSummary(dict):
+    """Suscripciones por contexto, más lo que falló al arrancar (SDLC-CORE-001)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.failures: dict[str, str] = {}
+
+    def record_failure(self, step: str, exc: Exception) -> None:
+        self.failures[step] = str(exc) or type(exc).__name__
+        logger.error("cableado entre contextos fallido: %s", step, exc_info=exc,
+                     extra={"event": "event_wiring_failed", "wiring_step": step})
+
+
+def wiring_failures(summary) -> dict[str, str]:
+    """Paso → motivo. Vacío si todo quedó cableado."""
+    return dict(getattr(summary, "failures", {}))
+
+
+def with_wiring_health(report, failures: dict[str, str]):
+    """El reporte de salud del arranque, degradado si algo no quedó cableado."""
+    if report is None or not failures:
+        return report
+    check = HealthCheckResult(
+        WIRING_HEALTH_CHECK, HealthStatus.DEGRADED,
+        "Sin cablear: " + ", ".join(sorted(failures)))
+    return replace(report, checks=(*report.checks, check),
+                   overall_status=worse_of(report.overall_status, HealthStatus.DEGRADED))
+
+
+def wiring_warning(failures: dict[str, str]) -> tuple[str, str]:
+    """(texto, detalle) del aviso del shell; vacío si no hay fallas."""
+    if not failures:
+        return "", ""
+    return ("Integración entre módulos incompleta",
+            "Sin cablear: " + ", ".join(sorted(failures))
+            + ". Los movimientos quedan pendientes; avise a soporte y revise el log.")
 
 
 def wire_cross_context_events(connection) -> dict:
@@ -32,68 +77,65 @@ def wire_cross_context_events(connection) -> dict:
     (e.g. logistics needs a provisioned QR-signing secret) are deliberately
     left out here rather than wired with a fabricated one — see
     `backend/application/logistics/wiring.py::wire_logistics`.
+
+    SDLC-CORE-001: cada contexto se cablea por separado, importación incluida. La
+    falla de uno no apaga a los demás ni a los despachos de arranque; se registra
+    en `summary.failures` y el arranque la hace visible (`wiring_failures`).
     """
-    from backend.application.cash_register.finance_wiring import wire_cash_register
-    from backend.application.costing.wiring import wire_costing
-    from backend.application.pricing.integrations.wiring import wire_pricing
-    from backend.application.procurement.integrations.wiring import wire_procurement
-    from backend.application.sales.integrations.wiring import wire_sales
-    from backend.application.quality.wiring import wire_quality
-    from backend.application.customers.integrations.sales_wiring import wire_customers_sales
-    from backend.application.use_cases.hr.finance_wiring import (
-        dispatch_hr_outbox,
-        wire_hr_finance,
-    )
-    from backend.application.event_handlers.hr.cash_attendance_handlers import (
-        wire_cash_attendance,
-    )
-
-    from backend.application.finance.wiring import wire_finance
-    from backend.application.services.finance.finance_bootstrap import bootstrap_finance
-
     bus = get_bus()
+    summary = WiringSummary()
     # FIN-ERP (2026-10-22): el catálogo financiero (perfiles contables) se siembra
     # ANTES de despachar lo pendiente de Caja, Compras o RR. HH. Nunca impide el
     # arranque: sin él, esos eventos quedan pendientes y visibles.
     try:
+        from backend.application.services.finance.finance_bootstrap import bootstrap_finance
         bootstrap_finance(connection)
-    except Exception:
-        logger.exception("siembra inicial del catálogo financiero fallida")
-    summary = {
+    except Exception as exc:
+        summary.record_failure("finance_bootstrap", exc)
+
+    for context, module, function in (
         # La merma valuada llega al mayor (antes nadie la consumía).
-        "finance": wire_finance(bus, connection),
-        "procurement": wire_procurement(bus, connection),
+        ("finance", "backend.application.finance.wiring", "wire_finance"),
+        ("procurement", "backend.application.procurement.integrations.wiring", "wire_procurement"),
         # Fase 6 (2026-09-18): la venta completada llega a contabilidad.
-        "sales": wire_sales(bus, connection),
+        ("sales", "backend.application.sales.integrations.wiring", "wire_sales"),
         # CRM-43 (2026-10-08): la compra llega al expediente del cliente (número de
         # compras, última compra, etapa). Se cableaba en core/events, ya borrado.
-        "customers": wire_customers_sales(bus, connection),
+        ("customers", "backend.application.customers.integrations.sales_wiring",
+         "wire_customers_sales"),
         # CASH-26 (2026-10-07): el Corte Z y la custodia de Caja llegan a Finanzas.
-        "cash_register": wire_cash_register(bus, connection),
-        "pricing": wire_pricing(bus, connection),
+        ("cash_register", "backend.application.cash_register.finance_wiring", "wire_cash_register"),
+        ("pricing", "backend.application.pricing.integrations.wiring", "wire_pricing"),
         # Costos publica el costo real de lo producido (Precios ya lo escucha)
         # y el hecho contable de la producción, que aquí se entrega a Finanzas.
-        "costing": wire_costing(bus, connection),
+        ("costing", "backend.application.costing.wiring", "wire_costing"),
         # Calidad decide sobre lo producido; Procesamiento registra la decisión.
-        "quality": wire_quality(bus, connection),
-        "procurement_downstream_bridges": wire_procurement_downstream_bridges(bus, connection),
+        ("quality", "backend.application.quality.wiring", "wire_quality"),
+        ("procurement_downstream_bridges", __name__, "wire_procurement_downstream_bridges"),
         # Auditoría Finanzas F21 (2026-10-10): la nómina pagada llega al mayor.
-        "hr": wire_hr_finance(bus, connection),
+        ("hr", "backend.application.use_cases.hr.finance_wiring", "wire_hr_finance"),
         # Auditoría RRHH HR-03 (2026-10-14): apertura y cierre de caja registran
         # la asistencia del cajero (antes cero suscriptores).
-        "hr_attendance": wire_cash_attendance(bus, connection),
+        ("hr_attendance", "backend.application.event_handlers.hr.cash_attendance_handlers",
+         "wire_cash_attendance"),
         # Auditoría Fidelidad 968e0bc FID-04: lo vendido a crédito acumula al
         # cobrarse (antes nadie escuchaba COLLECTION_APPLIED).
-        "loyalty": _wire_loyalty(bus, connection),
-    }
+        ("loyalty", __name__, "_wire_loyalty"),
+    ):
+        try:
+            summary[context] = getattr(import_module(module), function)(bus, connection)
+        except Exception as exc:
+            summary[context] = {"count": 0}
+            summary.record_failure(context, exc)
     for context, result in summary.items():
         logger.info("cross-context wiring: %s -> %d subscriptions", context, result["count"])
     # Lo que RR. HH. dejó pendiente (p. ej. una nómina pagada con la app
     # cerrándose) se entrega al arrancar. Nunca impide el arranque.
     try:
+        from backend.application.use_cases.hr.finance_wiring import dispatch_hr_outbox
         dispatch_hr_outbox(connection, bus)
-    except Exception:
-        logger.exception("despacho inicial de hr_outbox fallido")
+    except Exception as exc:
+        summary.record_failure("hr_outbox", exc)
     # Compras (2026-10-15): lo que quedó pendiente (p. ej. las CxP de compras a
     # crédito regularizadas por la migración 340, o un cierre a media
     # operación) se entrega al arrancar, no hasta la siguiente operación.
@@ -102,28 +144,28 @@ def wire_cross_context_events(connection) -> dict:
             dispatch_procurement_outbox,
         )
         dispatch_procurement_outbox(connection, bus)
-    except Exception:
-        logger.exception("despacho inicial de procurement_outbox fallido")
+    except Exception as exc:
+        summary.record_failure("procurement_outbox", exc)
     # Caja (auditoría CJA-04, 2026-10-16): un Corte Z o una entrega de valores
     # que quedó sin llegar a Finanzas (la app se cerró tras el commit) se entrega
     # al arrancar; antes esperaba a la siguiente operación de Caja, sin plazo.
     try:
         from backend.application.cash_register.finance_wiring import dispatch_cash_outbox
         dispatch_cash_outbox(connection, bus)
-    except Exception:
-        logger.exception("despacho inicial de cash_outbox fallido")
+    except Exception as exc:
+        summary.record_failure("cash_outbox", exc)
     # Fidelidad (auditoría 968e0bc FID-10): lo que una venta dejó pendiente
     # (puntos, canje, vales) se entregaba sólo en la siguiente operación del POS.
     try:
         loyalty_sales_tick(connection, bus)
-    except Exception:
-        logger.exception("despacho inicial de ventas a Fidelidad fallido")
+    except Exception as exc:
+        summary.record_failure("loyalty_sales", exc)
     # Finanzas (FIN-ERP): merma valuada pendiente, vencimientos y finance_outbox.
     try:
         from backend.application.finance.wiring import finance_periodic_tick
         finance_periodic_tick(connection, bus)
-    except Exception:
-        logger.exception("ciclo inicial de Finanzas fallido")
+    except Exception as exc:
+        summary.record_failure("finance_cycle", exc)
     return summary
 
 
