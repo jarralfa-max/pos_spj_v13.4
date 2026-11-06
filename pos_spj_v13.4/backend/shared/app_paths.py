@@ -116,6 +116,12 @@ class AppPaths:
         return self.effective_layout == LAYOUT_INSTALLED
 
     @property
+    def machine_scope(self) -> bool:
+        """Installed for every Windows user of the station."""
+        return (self.is_installed and self.install_config is not None
+                and self.install_config.data_scope == DATA_SCOPE_MACHINE)
+
+    @property
     def root(self) -> Path:
         return (self.base_dir or _default_base_dir()).resolve()
 

@@ -1,13 +1,18 @@
 """EncryptedLocalSecretStore — SHELL-1 security foundation.
 
-Cross-platform fallback `SecretStoreGateway` for machines/tests where an OS
-credential vault isn't the primary target. Every secret value is encrypted
-at rest with Fernet (AES-128-CBC + HMAC); the Fernet master key itself is
-protected with Windows DPAPI when running on Windows (tied to the current
-Windows user, unrecoverable off-machine) and falls back to a
-restrictive-permission key file elsewhere, which is logged as a weaker
-posture — this store should be treated as the fallback, not the primary,
-outside Windows.
+`SecretStoreGateway` on a machine-wide installation, and the fallback elsewhere.
+Every secret value is encrypted at rest with Fernet (AES-128-CBC + HMAC); the
+Fernet master key itself is protected with Windows DPAPI:
+
+* machine-wide installation → `CRYPTPROTECT_LOCAL_MACHINE`. A station has several
+  Windows users (and a service account) that must read what another one saved, so
+  this protects the file against being copied to another machine, NOT against a
+  program run by a user of this machine;
+* per-user installation or development → tied to the current Windows user.
+
+On Windows without DPAPI this store fails closed: the key is never written, or
+read, in clear. A key an older build left in clear gets protected on first use.
+Outside Windows it is a restrictive-permission key file.
 
 The file only ever contains ciphertext plus non-sensitive metadata
 (reference id, rotation timestamp, status). The raw key never touches this
@@ -19,6 +24,7 @@ import json
 import logging
 import sys
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -29,17 +35,47 @@ from backend.shared.app_paths import AppPaths
 
 logger = logging.getLogger("spj.security.secrets")
 
+#: `CryptProtectData`: any user of this machine can decrypt.
+CRYPTPROTECT_LOCAL_MACHINE = 0x4
+_KEY_DESCRIPTION = "SPJ ERP secret store master key"
+
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def _require_dpapi():
+    try:
+        import win32crypt
+
+        return win32crypt
+    except ImportError as exc:
+        raise SecretStoreUnavailableError(
+            "pywin32 no está disponible: sin la protección de Windows no se usa la clave "
+            "maestra de los secretos."
+        ) from exc
+
+
+def _is_clear_key(blob: bytes) -> bool:
+    try:
+        Fernet(blob)
+    except ValueError:
+        return False
+    return True
+
+
 class EncryptedLocalSecretStore:
-    def __init__(self, *, app_paths: AppPaths | None = None, store_dir: Path | None = None) -> None:
-        base = store_dir or (app_paths or AppPaths.from_environment()).user_data_dir / "secrets"
+    def __init__(self, *, app_paths: AppPaths | None = None, store_dir: Path | None = None,
+                 machine_scope: bool | None = None) -> None:
+        paths = app_paths if app_paths is not None or store_dir is not None else (
+            AppPaths.from_environment())
+        base = store_dir or paths.user_data_dir / "secrets"
         base.mkdir(parents=True, exist_ok=True)
         self._store_path = base / "secret_store.enc.json"
         self._key_path = base / "master.key"
+        self._scope_path = base / "master.key.scope"
+        self._machine_scope = (machine_scope if machine_scope is not None
+                               else paths is not None and paths.machine_scope)
         self._fernet = Fernet(self._load_or_create_key())
 
     # ── SecretStoreGateway ──────────────────────────────────────────────────
@@ -150,34 +186,40 @@ class EncryptedLocalSecretStore:
 
     def _read_protected_key(self) -> bytes:
         blob = self._key_path.read_bytes()
-        if sys.platform == "win32":
-            try:
-                import win32crypt
-
-                _description, key = win32crypt.CryptUnprotectData(blob, None, None, None, 0)
+        if sys.platform != "win32":
+            return blob
+        win32crypt = _require_dpapi()
+        if _is_clear_key(blob):
+            logger.warning("Clave maestra en claro de una versión anterior: se protege.")
+            self._write_protected_key(blob)
+            return blob
+        try:
+            _description, key = win32crypt.CryptUnprotectData(blob, None, None, None, 0)
+        except Exception as exc:
+            if self._machine_scope and not self._read_store():
+                # Otro usuario de Windows la creó y no cifra nada: sobra.
+                key = Fernet.generate_key()
+                self._write_protected_key(key)
                 return key
-            except ImportError:
-                logger.warning(
-                    "pywin32 no disponible: leyendo la clave maestra sin DPAPI."
-                )
-                return blob
-        return blob
+            raise SecretStoreUnavailableError(
+                "No se pudo abrir la clave maestra: la protegió otro usuario de Windows. "
+                "Debe abrir SPJ una vez el usuario que guardó los secretos."
+            ) from exc
+        if self._machine_scope and not self._scope_path.exists():
+            self._write_protected_key(key)
+        return key
 
     def _write_protected_key(self, key: bytes) -> None:
         if sys.platform == "win32":
-            try:
-                import win32crypt
-
-                protected = win32crypt.CryptProtectData(
-                    key, "SPJ ERP secret store master key", None, None, None, 0
-                )
-                self._key_path.write_bytes(protected)
-                return
-            except ImportError:
-                logger.warning(
-                    "pywin32 no disponible: guardando la clave maestra sin DPAPI "
-                    "(protección reducida)."
-                )
+            flags = CRYPTPROTECT_LOCAL_MACHINE if self._machine_scope else 0
+            protected = _require_dpapi().CryptProtectData(
+                key, _KEY_DESCRIPTION, None, None, None, flags)
+            temporary = self._key_path.with_name(self._key_path.name + ".tmp")
+            temporary.write_bytes(protected)
+            os.replace(temporary, self._key_path)
+            if self._machine_scope:
+                self._scope_path.write_text("machine", encoding="utf-8")
+            return
         self._key_path.write_bytes(key)
         try:
             self._key_path.chmod(0o600)

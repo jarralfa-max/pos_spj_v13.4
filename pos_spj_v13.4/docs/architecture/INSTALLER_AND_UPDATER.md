@@ -130,6 +130,15 @@ can still edit `usuarios` or `rol_permisos` with an external tool. An ACL cannot
 while the application runs as the logged-in user; closing it needs a local service that owns the
 database, or a verifiable seal over the security tables (SDLC-INST-003).
 
+### Secrets by install mode
+
+A machine-wide install keeps secrets in `<data>\secrets` (`EncryptedLocalSecretStore`), master
+key under DPAPI `CRYPTPROTECT_LOCAL_MACHINE`, because stations have several Windows users plus a
+service account and Credential Manager is one vault per user. It protects against copying the
+folder to another machine, not against a program run by a local user. Each user's vault entries
+are copied once on first start and left in the vault. A per-user install keeps Credential
+Manager. Without DPAPI on Windows the store fails closed (SDLC-ARQ-INST-003).
+
 `update_job.json` stays in the data folder, which every Windows user of the station can modify,
 so it proves nothing: the updater takes the hash from the signed manifest inside the job, refuses
 a manifest for another version or one not newer than the installed build, and on recovery runs

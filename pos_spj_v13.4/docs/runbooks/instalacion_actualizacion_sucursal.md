@@ -86,7 +86,7 @@ Anote cualquier error en el registro `<datos>\logs\spj_pos.log` y envíelo antes
 | Registros | `<datos>\logs` (`spj_pos.log`, `updater.log`, `instalador-….log`) | Nunca |
 | Imágenes y medios | `<datos>\imagenes_productos`, `<datos>\media` | Nunca |
 | WhatsApp local | `<datos>\whatsapp\whatsapp.env` y `conversations.db` | Nunca |
-| Secretos | Administrador de credenciales de Windows (o `<datos>\secrets`) | Nunca |
+| Secretos | Instalación de máquina: `<datos>\secrets`, compartidos entre usuarios de Windows. Por usuario: Administrador de credenciales | Nunca |
 | Instaladores para revertir | `C:\ProgramData\SPJ\Installers\SPJ ERP POS` | Sólo el instalador |
 
 `<datos>` = `C:\ProgramData\SPJ\SPJ ERP POS` o `%LOCALAPPDATA%\SPJ\SPJ ERP POS`.
