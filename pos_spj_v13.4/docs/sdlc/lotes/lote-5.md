@@ -50,7 +50,19 @@ Ninguno quedó DESCARTADO, BLOQUEADO ni en ESPERA.
 
 ## Pruebas finales
 
-RESULTADOS_PENDIENTES
+Desde `pos_spj_v13.4/`, con `QT_QPA_PLATFORM=offscreen`, sobre `374ccf98`:
+
+| Corrida | Resultado |
+|---|---|
+| `python -m compileall -q .` | rc=0 |
+| Áreas tocadas y guardias (26 rutas: BI, bootstrap, Configuración, shell, CORE-012, arnés, sync central, guardias de permisos, cableado, esquema y diseño) | **586 passed, 4 failed**; los 4 son preexistentes, ver abajo |
+| `tests/integration/business_intelligence` | **58 passed, 8 failed**; los 8 son preexistentes |
+| `tests/integration/bootstrap` de cableado + `test_main_startup_gates`, Fidelidad y trinquete de cableado | 33 passed |
+| `tests/integration --collect-only` | 5949 pruebas, 0 errores |
+| `tests/test_*.py` restantes, antes del retiro | 774 failed, 158 passed, 14 skipped, 159 errors; base de la clasificación, no es un segmento de CI |
+| `tests/architecture` completo | **PENDIENTE**: se interrumpió dos veces por el límite de API |
+
+Una corrida de `tests/ui/shell` completa se detuvo a los 10 minutos sin fallos hasta ese punto; se reemplazó por `test_application_window.py` y `test_user_session_controls.py`, en verde. `tests/unit` e `integration` completos no se corrieron: sólo las áreas tocadas.
 
 ## Fallos preexistentes
 
@@ -59,4 +71,6 @@ Comparados contra `docs/sdlc/baseline/2026-10-28.md`:
 - `tests/integration/business_intelligence/test_every_bi_page_opens.py`: 8 fallos, los 8 por avisos `Unknown icon identifier` de los emoji de KPI y ninguno por consulta. Línea base: «avisos de iconos emoji en BI» (SDLC-CORE-011).
 - `tests/integration/test_bi_*.py`: `add_product` sobre la tabla retirada `productos` (SDLC-CORE-011).
 - `tests/architecture/test_no_entity_combo_mass_loading.py`: `pricing_dialogs.py:207`, ajeno al lote (SDLC-CORE-009).
-- `tests/unit/bootstrap/test_steps.py::test_application_paths_step_creates_directories`: falta el directorio `data` en este worktree; el lote no toca ese paso. No se confirmó contra la rama base.
+- `tests/architecture/test_design_system_guardrails.py` (2): deuda visual en CRM, Finanzas, Procesamiento y Precios, ninguna en archivos del lote (SDLC-CORE-009).
+- `tests/architecture/test_no_schema_changes_outside_migrations.py`: DDL en `backend/infrastructure/db/schema/` y `unit_repository.py`, ninguna en archivos del lote (SDLC-CORE-008).
+- `tests/unit/bootstrap/test_steps.py::test_application_paths_step_creates_directories` falló una vez en este worktree por falta del directorio `data` y pasó en la corrida final: no es defecto del lote.
