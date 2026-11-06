@@ -13,7 +13,9 @@ from backend.domain.cash_register.entities import (
     BlindCashCount, CashDifference, CashDrawer, CashHandover, CashLedgerEntry,
     CashRegister, CashShift, PosTerminal, XCut, ZCut,
 )
-from backend.domain.cash_register.exceptions import CashShiftConflictError
+from backend.domain.cash_register.exceptions import (
+    CashInvalidStateError, CashShiftConflictError,
+)
 from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
 from backend.shared.business_dates import local_business_date
 from backend.shared.ids import new_uuid
@@ -259,6 +261,13 @@ class CashAuditRepository(_Repository):
 
 class CashLedgerRepository(_Repository):
     def add(self, entry: CashLedgerEntry) -> None:
+        # SDLC-CASH-001: el corte de un turno cerrado ya se asentó; un movimiento
+        # posterior lo descuadraría sin que nadie lo vuelva a contar.
+        shift = self.execute("SELECT status FROM cash_shifts WHERE id=?",
+                             (entry.shift_id,)).fetchone()
+        if shift and CashShiftLifecyclePolicy.normalize(
+                shift[0]) in CashShiftLifecyclePolicy.FINAL_STATUSES:
+            raise CashInvalidStateError("El turno está cerrado: no admite movimientos")
         self.execute(
             """INSERT INTO cash_ledger_entries
             (id,shift_id,branch_id,movement_type,direction,amount,operation_id,

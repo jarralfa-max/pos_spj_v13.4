@@ -7,7 +7,9 @@ from decimal import Decimal, InvalidOperation
 from typing import Mapping, Sequence
 
 from backend.application.cash_register.active_shift_resolver import ActiveShiftResolver
-from backend.application.cash_register.ledger_use_cases import LedgerCommandResult
+from backend.application.cash_register.ledger_use_cases import (
+    LedgerCommandResult, _reconstruct_cash_balance,
+)
 from backend.application.cash_register.shift_use_cases import _record
 from backend.domain.cash_register.entities import CashLedgerEntry, PaymentRecord
 from backend.domain.cash_register.enums import (
@@ -229,19 +231,30 @@ class CashSalesIntegrationService:
             shift = uow.shifts.get(original["shift_id"])
             if not shift or shift["branch_id"] != branch_id:
                 raise CashInvalidStateError("El movimiento de venta no pertenece a la sucursal")
+            # SDLC-CASH-001: el efectivo sale del cajón de quien reversa, no del
+            # turno original (que quizá ya tuvo su Corte Z). `related_sale_id`
+            # hace que el Z de ESTE turno lo reste de sus ventas en efectivo: el
+            # cobro original no está en sus movimientos y sin él la caja
+            # registradora quedaría con residuo.
+            shift_id = ActiveShiftResolver(uow.connection).require_operable(
+                branch_id=branch_id, cashier_user_id=actor_user_id, purpose="refund").id
+            amount = Decimal(original["amount"])
+            if amount > _reconstruct_cash_balance(uow.ledger.list_for_shift(shift_id)):
+                raise CashInvalidStateError("No hay efectivo suficiente en el cajón para el reverso")
             entry = CashLedgerEntry.create(
-                shift_id=original["shift_id"], branch_id=branch_id,
+                shift_id=shift_id, branch_id=branch_id,
                 movement_type=CashMovementType.REVERSAL,
                 direction=CashMovementDirection.OUTFLOW,
-                amount=Decimal(original["amount"]), operation_id=operation_id,
+                amount=amount, operation_id=operation_id,
                 recorded_by=actor_user_id, concept=reason,
-                reference_id=sale_id, reversal_of_id=original["id"])
+                reference_id=sale_id, reversal_of_id=original["id"],
+                related_sale_id=sale_id)
             uow.ledger.add(entry)
             _record(uow, CashEvents.MOVEMENT_REVERSED, operation_id=operation_id,
                     entity_id=entry.id, branch_id=branch_id,
                     actor_user_id=actor_user_id, reason=reason,
-                    shift_id=original["shift_id"], reversal_of_id=original["id"],
-                    amount=str(entry.amount), sale_id=sale_id)
+                    shift_id=shift_id, original_shift_id=original["shift_id"],
+                    reversal_of_id=original["id"], amount=str(entry.amount), sale_id=sale_id)
         return LedgerCommandResult(entry.id, "Efectivo de venta compensado")
 
     cancel_sale = reverse_sale_cash
