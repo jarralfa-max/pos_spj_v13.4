@@ -5412,3 +5412,11 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Sólo agrega: ningún turno cambia de estado. Idempotente.
 - Junto con esto la UoW de Caja abre con `BEGIN IMMEDIATE` y abrir turno con un `operation_id`
   ya aplicado devuelve el turno original.
+
+### 359 — permisos de Caja separados y asignaciones de turno (2026-11-05, SDLC-ARQ-SHIFT-003)
+
+- Quien tenía `CAJA.turno.forzar_cierre` recibe `CAJA.turno.intervenir` y
+  `CAJA.movimiento.intervenir`; quien tenía `CAJA.corte_z.generar` recibe `CAJA.turno.cerrar`,
+  que desde hoy el Corte Z final sí exige. Nadie pierde lo que ya podía hacer.
+- Cada turno vivo recibe su fila ACTIVE en `cash_shift_assignments`, que nunca se había escrito.
+- Sólo agrega filas. Idempotente.

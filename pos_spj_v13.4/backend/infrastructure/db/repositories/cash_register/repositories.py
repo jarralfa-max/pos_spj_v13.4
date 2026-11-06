@@ -56,6 +56,32 @@ class CashShiftRepository(_Repository):
         columns = [item[0] for item in cursor.description]
         return dict(zip(columns, row))
 
+    def reassign(self, *, shift_id: str, new_cashier_user_id: str, expected_status: str,
+                 expected_version: int) -> None:
+        cursor = self.execute(
+            """UPDATE cash_shifts SET cashier_user_id=?,version=version+1
+            WHERE id=? AND status=? AND version=?""",
+            (new_cashier_user_id, shift_id, expected_status, expected_version))
+        if cursor.rowcount != 1:
+            raise CashShiftConflictError(
+                "El turno cambió mientras operabas. Actualiza la pantalla e intenta de nuevo.")
+
+    def add_assignment(self, *, shift_id: str, branch_id: str, register_id: str,
+                       drawer_id: str, terminal_id: str, cashier_user_id: str,
+                       assigned_by: str, assigned_at: str) -> None:
+        self.execute(
+            """INSERT INTO cash_shift_assignments
+            (id,shift_id,branch_id,register_id,drawer_id,terminal_id,cashier_user_id,
+             assigned_by,status,assigned_at)
+            VALUES (?,?,?,?,?,?,?,?,'ACTIVE',?)""",
+            (new_uuid(), shift_id, branch_id, register_id, drawer_id, terminal_id,
+             cashier_user_id, assigned_by, assigned_at))
+
+    def end_assignments(self, *, shift_id: str, status: str, ended_at: str) -> None:
+        self.execute(
+            """UPDATE cash_shift_assignments SET status=?,ended_at=?
+            WHERE shift_id=? AND status='ACTIVE'""", (status, ended_at, shift_id))
+
     def find_by_opening_operation(self, operation_id: str):
         """El turno que abrió esa operación, en el estado que tenga hoy."""
         cursor = self.execute(
@@ -216,6 +242,19 @@ class CashAuditRepository(_Repository):
             VALUES(?,?,?,?,?,?,?,?)""",
             (audit_id, action, actor_user_id, entity_id, branch_id,
              operation_id, reason, occurred_at))
+
+    def find(self, *, action: str, entity_id: str | None = None,
+             operation_id: str | None = None):
+        """El primer registro de esa acción sobre la entidad o la operación."""
+        column, value = (("entity_id", entity_id) if entity_id is not None
+                         else ("operation_id", operation_id))
+        cursor = self.execute(
+            f"SELECT * FROM cash_audit_log WHERE action=? AND {column}=?"
+            " ORDER BY occurred_at,id LIMIT 1", (action, value))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(zip((item[0] for item in cursor.description), row))
 
 
 class CashLedgerRepository(_Repository):

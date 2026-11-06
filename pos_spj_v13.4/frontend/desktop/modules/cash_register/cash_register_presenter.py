@@ -356,6 +356,18 @@ class CashRegisterPresenter:
             actor_user_id=self.actor_user_id(),
         )
 
+    def reassign_cash_shift(self, *, shift_id: str, new_cashier_user_id: str, reason: str):
+        handler = self._command_handlers.get("reassign_cash_shift")
+        if handler is None:
+            raise CashContextError("Comando de turno no disponible: entregar")
+        return handler(
+            shift_id=shift_id,
+            branch_id=self.active_branch_id(),
+            new_cashier_user_id=new_cashier_user_id,
+            actor_user_id=self.actor_user_id(),
+            reason=reason,
+        )
+
     def begin_cash_shift_closing(self, *, shift_id: str | None = None):
         handler = self._command_handlers.get("begin_cash_shift_closing")
         if handler is None:
@@ -501,6 +513,17 @@ class CashRegisterPresenter:
             shift_id=shift_id or self.active_shift_id(),
             branch_id=self.active_branch_id(),
             actor_user_id=self.actor_user_id(),
+        )
+
+    def review_z_cut(self, *, cut_id: str, note: str):
+        handler = self._command_handlers.get("review_z_cut")
+        if handler is None:
+            raise CashContextError("Comando de Corte Z no disponible: revisar")
+        return handler(
+            cut_id=cut_id,
+            branch_id=self.active_branch_id(),
+            actor_user_id=self.actor_user_id(),
+            note=note,
         )
 
     def print_z_cut(self, *, cut_id: str, reprint: bool = False,

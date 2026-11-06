@@ -42,6 +42,10 @@ class GenerateZCutUseCase:
         self._auth.require(user_id=actor_user_id,
                            permission_code=CashPermissions.Z_CUT_GENERATE,
                            branch_id=branch_id)
+        # SDLC-ARQ-SHIFT-003: el Z final cierra el turno, y eso es otro permiso.
+        self._auth.require(user_id=actor_user_id,
+                           permission_code=CashPermissions.SHIFT_CLOSE,
+                           branch_id=branch_id)
         with CashRegisterUnitOfWork(connection) as uow:
             prior = uow.cuts.get_by_operation(operation_id)
             if prior:
@@ -127,6 +131,7 @@ class GenerateZCutUseCase:
             closed_at = _now()
             uow.shifts.close(shift_id=shift_id, z_cut_id=cut.id, closed_at=closed_at,
                              expected_version=shift["version"])
+            uow.shifts.end_assignments(shift_id=shift_id, status="CLOSED", ended_at=closed_at)
             # Auditoría RRHH cebf67a HR-03/05: el turno se cierra con el Corte Z y
             # NADIE publicaba CASH_SHIFT_CLOSED, así que la asistencia nunca
             # registraba la salida. Se publica con el CAJERO del turno (no quien
@@ -150,6 +155,34 @@ class GenerateZCutUseCase:
                     notification_required=True, snapshot=snapshot)
         return ZCutResult(cut.id, cut.document_number,
                           difference.id if difference else None)
+
+
+class ReviewZCutUseCase:
+    """Revisión del Corte Z ya cerrado. Es opcional (decisión 2026-11-02: no es
+    paso obligatorio antes de cerrar): nada espera por ella y no cambia el
+    corte; deja quién lo revisó y qué anotó (SDLC-ARQ-SHIFT-003)."""
+
+    def __init__(self, authorization: CashAuthorizationPolicy) -> None:
+        self._auth = authorization
+
+    def execute(self, connection, *, cut_id: str, branch_id: str, actor_user_id: str,
+                operation_id: str, note: str) -> ZCutResult:
+        self._auth.require(user_id=actor_user_id,
+                           permission_code=CashPermissions.Z_CUT_REVIEW,
+                           branch_id=branch_id)
+        if not note.strip():
+            raise CashInvalidStateError("Anota qué se revisó del Corte Z")
+        with CashRegisterUnitOfWork(connection) as uow:
+            cut = uow.cuts.get(cut_id)
+            if not cut or cut["branch_id"] != branch_id or cut["cut_type"] != "Z":
+                raise CashInvalidStateError("Corte Z no encontrado en la sucursal")
+            if uow.audit.find(action=CashEvents.Z_CUT_REVIEWED, entity_id=cut_id):
+                return ZCutResult(cut_id, cut["document_number"], idempotent=True)
+            _record(uow, CashEvents.Z_CUT_REVIEWED, operation_id=operation_id,
+                    entity_id=cut_id, branch_id=branch_id, actor_user_id=actor_user_id,
+                    reason=note.strip(), shift_id=cut["shift_id"],
+                    document_number=cut["document_number"])
+        return ZCutResult(cut_id, cut["document_number"])
 
 
 class ZCutPrintGateway(Protocol):

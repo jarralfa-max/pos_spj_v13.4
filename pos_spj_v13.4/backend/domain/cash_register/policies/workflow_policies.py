@@ -39,6 +39,11 @@ class CashShiftLifecyclePolicy:
         CashShiftStatus.PENDING_REVIEW,
         CashShiftStatus.CLOSING,
     })
+    #: Un turno en cierre ya no cambia de manos: se termina y se abre otro.
+    REASSIGNABLE_STATUSES = frozenset({
+        CashShiftStatus.OPEN,
+        CashShiftStatus.SUSPENDED,
+    })
     FINAL_STATUSES = frozenset({
         CashShiftStatus.CLOSED,
         CashShiftStatus.FORCE_CLOSED,
@@ -84,6 +89,11 @@ class CashShiftLifecyclePolicy:
         if current is CashShiftStatus.SUSPENDED:
             return CashShiftOperability.MUST_RESUME
         return CashShiftOperability.MUST_OPEN_NEW
+
+    @classmethod
+    def ensure_reassignable(cls, status: CashShiftStatus | str) -> None:
+        if cls.normalize(status) not in cls.REASSIGNABLE_STATUSES:
+            raise CashInvalidStateError("Sólo se entrega un turno abierto o suspendido")
 
     @classmethod
     def ensure_operable(cls, status: CashShiftStatus | str) -> None:

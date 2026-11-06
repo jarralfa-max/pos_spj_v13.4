@@ -9,9 +9,11 @@ Regla única:
 
 * el titular del turno opera su turno;
 * intervenir el turno de otro cajero exige el permiso de intervención de esa
-  acción (supervisor: `CAJA.turno.forzar_cierre` para suspender/reanudar/
-  pre-cerrar, `CAJA.conteo.sobrescribir` para arquear un turno ajeno) y, para las
-  transiciones, un MOTIVO que queda en el evento;
+  acción y, para las transiciones, un MOTIVO que queda en el evento:
+  `CAJA.turno.intervenir` para suspender/reanudar/pre-cerrar,
+  `CAJA.movimiento.intervenir` para mover efectivo, `CAJA.turno.forzar_cierre`
+  para cerrarlo con su Corte Z y `CAJA.conteo.sobrescribir` para arquearlo
+  (permisos separados desde SDLC-ARQ-SHIFT-003);
 * abrir un turno a nombre de otro exige `CAJA.turno.reasignar`.
 """
 
