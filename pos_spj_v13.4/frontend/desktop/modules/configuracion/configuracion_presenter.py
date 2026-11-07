@@ -192,6 +192,7 @@ class ConfiguracionPresenter:
         change_density_profile_status_uc=None,
         create_appearance_preference_uc=None, change_appearance_preference_status_uc=None,
         create_cache_expiration_policy_uc=None, update_cache_expiration_policy_uc=None,
+        replication_conflict_query=None, resolve_replication_conflict_uc=None,
         change_cache_expiration_policy_status_uc=None,
         user_management_service=None, role_management_service=None,
         user_security_service=None,
@@ -294,6 +295,8 @@ class ConfiguracionPresenter:
         self._create_appearance_preference_uc = create_appearance_preference_uc
         self._change_appearance_preference_status_uc = change_appearance_preference_status_uc
         self._create_cache_expiration_policy_uc = create_cache_expiration_policy_uc
+        self._replication_conflict_query = replication_conflict_query
+        self._resolve_replication_conflict_uc = resolve_replication_conflict_uc
         self._update_cache_expiration_policy_uc = update_cache_expiration_policy_uc
         self._change_cache_expiration_policy_status_uc = change_cache_expiration_policy_status_uc
         self._user_management_service = user_management_service
@@ -390,6 +393,12 @@ class ConfiguracionPresenter:
     def list_offline_cache_entries(self):
         self._require_read(ConfiguracionPermissions.OFFLINE_VIEW)
         return self._query_service.list_offline_cache_entries()
+
+    def list_replication_conflicts(self):
+        self._require_read(ConfiguracionPermissions.OFFLINE_VIEW)
+        if self._replication_conflict_query is None:
+            return ()
+        return self._replication_conflict_query.pending()
 
     def list_users(self):
         self._require_read(ConfiguracionPermissions.USUARIOS_VIEW)
@@ -988,6 +997,23 @@ class ConfiguracionPresenter:
             return False, str(exc)
         except Exception:
             logger.exception("ConfiguracionPresenter.change_cache_expiration_policy_status failed")
+            return False, "Error inesperado; revise el log."
+
+    def resolve_replication_conflict(
+        self, *, envelope_id: str, strategy: str, reason: str,
+    ) -> tuple[bool, str]:
+        """El permiso, el motivo y la auditoría los decide el caso de uso."""
+        if self._resolve_replication_conflict_uc is None:
+            return False, "Resolución de conflictos no disponible."
+        try:
+            self._resolve_replication_conflict_uc.execute(
+                envelope_id=envelope_id, strategy=strategy, reason=reason,
+                actor=self._actor(), operation_id=new_uuid())
+            return True, "Conflicto resuelto."
+        except (ConfigurationDomainError, ValueError, LookupError) as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.resolve_replication_conflict failed")
             return False, "Error inesperado; revise el log."
 
     def create_user(

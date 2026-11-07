@@ -5434,3 +5434,13 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
   el carril no crea. Corre en el job `central-postgres`.
 - **No verificado aquí:** contra PostgreSQL real (`test_empty_central_accepts_a_station_and_a_device_enrollment`
   corre sólo con `SPJ_TEST_PG_DSN`, en CI).
+
+### Conflictos de replicación: DUPLICATE ya no oculta un CONFLICTO (2026-11-06, SDLC-SYNC-002, sin migración)
+
+- La ingesta central respondía DUPLICATE a un reenvío idéntico aunque el hecho estuviera guardado en
+  CONFLICTO; la estación lo marcaba SYNCED y la proyección, que sólo lee APPLIED, nunca lo veía.
+  Ahora responde CONFLICT con el código original. Bastaba perder un acuse: no hacía falta acción humana.
+- La estación lista sus conflictos y los resuelve en Configuración → Offline (decisión del responsable,
+  2026-11-05), con `CONFIGURACION.offline.gestionar`, motivo obligatorio y rastro en `audit_logs`
+  (`sincronizacion.conflicto.resolver`). Sin esquema nuevo: `replication_envelopes` ya tenía el estado.
+- La política de resolución por tipo de agregado sigue fuera (`docs/sdlc/items/SDLC-SYNC-002/intent.md`).

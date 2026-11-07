@@ -212,6 +212,11 @@ class PostgresCentralInboxRepository:
         fila = self._one("SELECT content_hash FROM sync_inbox WHERE event_id = %s", (event_id,))
         return None if fila is None else str(fila[0])
 
+    def fact_status(self, event_id: str) -> tuple[str, str | None] | None:
+        fila = self._one("SELECT status, error_code FROM sync_inbox WHERE event_id = %s",
+                         (event_id,))
+        return None if fila is None else (str(fila[0]), fila[1])
+
     def event_for_sequence(self, station_id: str, sequence_no: int) -> str | None:
         fila = self._one("SELECT event_id FROM sync_inbox WHERE station_id = %s"
                          " AND sequence_no = %s", (station_id, sequence_no))
