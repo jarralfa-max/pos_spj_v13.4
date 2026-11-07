@@ -32,12 +32,6 @@ from backend.infrastructure.printing.escpos import (
     sanitize_text,
 )
 
-#: Los códigos canónicos de pago (§31) en el idioma del ticket.
-PAYMENT_LABELS = {
-    "CASH": "Efectivo", "CARD": "Tarjeta", "TRANSFER": "Transferencia",
-    "CREDIT": "Credito", "MERCADO_PAGO": "Mercado Pago", "Mixto": "Mixto",
-}
-
 #: Caracteres por renglón con la fuente A estándar.
 COLUMNS_BY_PAPER_WIDTH_MM = {58: 32, 80: 48}
 

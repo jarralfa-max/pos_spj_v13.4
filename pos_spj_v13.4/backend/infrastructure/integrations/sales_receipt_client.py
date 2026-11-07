@@ -50,6 +50,17 @@ from backend.application.sales.dto import (
     SaleReceiptLineDTO,
 )
 from backend.domain.document_output.value_objects.loyalty_summary import LoyaltySummary
+from backend.domain.sales.enums import PaymentMethod
+from backend.domain.sales.policies.payment_policy import REFERENCE_REQUIRED_METHODS
+from backend.domain.sales.value_objects.sale_payment import mask_payment_reference
+
+
+def _masked_references(sale: SaleDTO) -> tuple[tuple[str, str], ...]:
+    """Lo que el ticket muestra de cada operación; el vale no: su referencia es
+    un id interno de Fidelidad."""
+    return tuple(
+        (p.method, mask_payment_reference(p.reference)) for p in sale.payments
+        if p.reference and PaymentMethod(p.method) in REFERENCE_REQUIRED_METHODS)
 
 
 class SalesReceiptClient:
@@ -80,6 +91,7 @@ class SalesReceiptClient:
             tax_total=sale.tax_total, total=sale.total, forma_pago=forma_pago,
             efectivo_recibido=efectivo,
             cambio=cambio if cambio is not None else max(Decimal("0"), efectivo - sale.total),
+            payment_references=_masked_references(sale),
         )
 
     @staticmethod
@@ -115,6 +127,7 @@ class SalesReceiptClient:
             subtotal=sale.gross_subtotal, discount_total=sale.discount_total,
             tax_total=sale.tax_total, total=sale.total, forma_pago=forma_pago,
             efectivo_recibido=efectivo, cambio=cambio,
+            payment_references=_masked_references(sale),
         )
 
     @staticmethod
@@ -147,6 +160,10 @@ class SalesReceiptClient:
                 "cambio": float(receipt.cambio),
             },
         }
+        if receipt.payment_references:
+            payload["pago"]["referencias"] = [
+                {"metodo": metodo, "referencia": referencia}
+                for metodo, referencia in receipt.payment_references]
         if loyalty is not None:
             payload["loyalty"] = {
                 "puntos_totales": loyalty.points_balance,

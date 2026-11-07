@@ -96,6 +96,8 @@ class SaleCompletedHandler(FinanceEventHandler):
             amount = Money.from_string(str(settlement["amount"]), currency)
             if amount.is_zero():
                 continue
+            # La operación del procesador en la línea: conciliación (SDLC-PAY-003).
+            ref = f" ref {settlement['reference']}" if settlement.get("reference") else ""
             if settlement_type is SettlementType.ON_CREDIT:
                 credit_amount = credit_amount.add(amount)
                 # El renglón por cobrar lleva al cliente (auxiliar de clientes y
@@ -108,10 +110,12 @@ class SaleCompletedHandler(FinanceEventHandler):
                                       debit=amount, description=f"Efectivo venta {folio}"))
             elif settlement_type is SettlementType.BANK_TRANSFER:
                 lines.append(LineSpec(profile.account_for("bank_account_id"),
-                                      debit=amount, description=f"Transferencia venta {folio}"))
+                                      debit=amount,
+                                      description=f"Transferencia venta {folio}{ref}"))
             elif settlement_type in (SettlementType.CARD, SettlementType.PAYMENT_PROCESSOR):
                 lines.append(LineSpec(profile.account_for("clearing_account_id"),
-                                      debit=amount, description=f"Tarjeta/procesador venta {folio}"))
+                                      debit=amount,
+                                      description=f"Tarjeta/procesador venta {folio}{ref}"))
             elif settlement_type in _INSTRUMENT_SETTLEMENTS:
                 line, obligation = self._instrument_settlement_line(
                     uow, settlement, settlement_type, amount, entry_date, folio, branch_id)
