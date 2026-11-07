@@ -134,7 +134,7 @@ responsable indicó que no hay datos; no hay copia en este worktree.
 |---|---|
 | `python -m compileall -q .` | rc=0 |
 | `tests/integration/finance tests/unit/finance tests/integration/hr tests/unit/hr tests/integration/procurement tests/integration/loyalty tests/integration/shell/test_hr_module_migration.py` | **963 passed** |
-| Guardias del área | **PENDIENTE** |
+| 10 archivos de guardias del área + `tests/integration/finance` (sobre `152a7b20`) | **2 failed, 372 passed** (16:55), ambos de línea base |
 | `tests/architecture` completo | **PENDIENTE** |
 | `tests/unit` e `integration` completos | **No corridos**: sólo las áreas tocadas |
 
@@ -142,5 +142,12 @@ Esas 963 se corrieron antes de `152a7b20`. Después de ese commit se repitió `t
 
 ## Fallos preexistentes
 
-Sin fallos en las áreas tocadas. La línea base (`docs/sdlc/baseline/2026-10-28.md`) registra 22 fallos de arquitectura; la
-comparación se anota aquí cuando termine la corrida completa.
+Sin fallos en unit e integración de las áreas tocadas. En las guardias fallan dos, ambos en la línea base
+(`docs/sdlc/baseline/2026-10-28.md`, SDLC-CORE-008):
+
+- `test_no_raw_sqlite_connect_outside_pool`: `finance_schema.py:955`. Es la línea 952 de la línea base, movida 3 líneas
+  por las columnas nuevas; este lote no agregó conexiones.
+- `test_clean_birth_guardrails.py::test_services_repositories_ui_do_not_create_schema`: la línea base lo atribuye a
+  `unit_repository.py`, que este lote no toca. La corrida no conservó el detalle; se confirma con la completa.
+
+La comparación contra los 22 fallos de arquitectura se anota aquí cuando termine la corrida completa.
