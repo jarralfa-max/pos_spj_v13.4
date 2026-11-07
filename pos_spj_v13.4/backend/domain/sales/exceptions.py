@@ -209,6 +209,18 @@ class PaymentExceedsBalanceError(SalesDomainError):
     sólo el efectivo admite cambio."""
 
 
+class PaymentReferenceRequiredError(SalesDomainError):
+    """Mercado Pago, Tarjeta y Transferencia se registran con su referencia."""
+
+
+class PaymentReferenceInvalidError(SalesDomainError):
+    """La referencia no tiene el formato de una operación de procesador."""
+
+
+class PaymentReferenceDuplicatedError(SalesDomainError):
+    """Esa referencia ya respalda otro pago no anulado (SDLC-PAY-002)."""
+
+
 class ReceiptPrintFailedError(SalesDomainError):
     """El ticket no se entregó a la impresora (sin impresora configurada,
     apagada, sin papel). La venta no cambia; el mensaje es para el cajero."""

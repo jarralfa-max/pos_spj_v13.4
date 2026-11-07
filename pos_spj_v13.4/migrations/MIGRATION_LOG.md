@@ -5403,3 +5403,15 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Siembra `CONFIGURACION.usuario.asignaciones` para `system_owner` y `admin`.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
+
+### 384 — referencia de pago única entre ventas (2026-11-06, SDLC-PAY-002)
+
+- Índice único parcial `uq_sale_payments_processor_reference` sobre método + `UPPER(TRIM(reference))`,
+  sólo para `MERCADO_PAGO`, `CARD` y `TRANSFER` con referencia (decisión del responsable 2026-11-05).
+- Compatible con el DELETE+INSERT del repositorio y con las anulaciones: un pago anulado, o el de una
+  venta cancelada, sale de `sale_payments` y libera la referencia.
+- El DDL vive en `create_payment_reference_index` y no en `create_sales_schema`: ese corre desde la 198,
+  antes del respaldo legacy de la 255, que podría traer repetidas.
+- Copia de la base real: 0 pagos, ninguna referencia vacía o repetida. Si otra instalación trae
+  duplicados no se tocan: el índice protege desde el último, se avisa en el log y el caso de uso sigue
+  revisando todo el historial.

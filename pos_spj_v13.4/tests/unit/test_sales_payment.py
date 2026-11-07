@@ -190,7 +190,7 @@ class TestRecordSalePaymentUseCase:
             actor_user_id=cashier, operation_id=new_uuid())
         result = RecordSalePaymentUseCase(auth).execute(
             conn, sale_id=sale_id, method="CARD", amount=Decimal("50.00"),
-            actor_user_id=cashier, operation_id=new_uuid())
+            actor_user_id=cashier, operation_id=new_uuid(), reference="AUT-0001")
         assert result.success is False
         assert result.error_code == "PERMISSION_DENIED"
 
@@ -290,7 +290,7 @@ class TestCompletionGoesThroughTheCanonicalCheckout:
             actor_user_id=cashier, operation_id=new_uuid())
         RecordSalePaymentUseCase(_allow_all_sales()).execute(
             conn, sale_id=sale_id, method="CARD", amount=Decimal("40.00"),
-            actor_user_id=cashier, operation_id=new_uuid())
+            actor_user_id=cashier, operation_id=new_uuid(), reference="AUT-0002")
         result = CheckoutSaleUseCase(_allow_all_sales(), settle_inventory=False, require_cash_shift=False).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
         assert result.success is True

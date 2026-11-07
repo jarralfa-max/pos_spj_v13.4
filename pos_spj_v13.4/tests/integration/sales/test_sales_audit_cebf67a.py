@@ -196,8 +196,8 @@ def test_v03_a_recorded_payment_can_be_voided_and_replaced(conn):
     assert voided.success, voided.message
     assert voided.data["refund"]["text"] == "Devuelve $100.00 en efectivo al cliente"
     assert presenter.get_sale(sale_id).total_paid == Decimal("0")
-    assert presenter.record_payment(sale_id=sale_id, method="CARD",
-                                    amount=Decimal("100.00")).success
+    assert presenter.record_payment(sale_id=sale_id, method="CARD", amount=Decimal("100.00"),
+                                    reference="AUT-78").success
     assert presenter.checkout_sale(sale_id=sale_id).success
 
 

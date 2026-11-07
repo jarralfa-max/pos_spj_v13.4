@@ -45,6 +45,9 @@ class Presenter:
     def payment_amount_problem(self, **kwargs):
         return None
 
+    def payment_reference_problem(self, **kwargs):
+        return None
+
     def voucher_balance(self, reference):
         return {"found": True, "balance": "40"}
 

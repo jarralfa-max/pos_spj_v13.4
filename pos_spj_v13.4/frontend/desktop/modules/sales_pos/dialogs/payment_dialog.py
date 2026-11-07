@@ -55,6 +55,13 @@ METHOD_LABELS = {
     "VOUCHER": "Vale / saldo a favor",
 }
 
+#: Qué número pide cada método; ahí la referencia es obligatoria y única.
+REFERENCE_PROMPTS = {
+    "CARD": "Número de autorización (obligatorio)",
+    "TRANSFER": "Clave de rastreo o folio (obligatorio)",
+    "MERCADO_PAGO": "Número de operación (obligatorio)",
+}
+
 
 class PaymentDialog(StandardDialog):
     from PyQt5.QtCore import pyqtSignal
@@ -191,9 +198,14 @@ class PaymentDialog(StandardDialog):
         remaining = self._remaining()
         self._amount.set_decimal_value(remaining if remaining > 0 else Decimal("0"))
         self._reference.setText("")
+        self._reference.setPlaceholderText(
+            REFERENCE_PROMPTS.get(method, "Referencia (opcional)"))
         if method == "MERCADO_PAGO":
-            self._show_hint("Mercado Pago: registra un pago ya confirmado (folio como "
-                            "referencia). La liga de cobro no se genera aquí.")
+            self._show_hint("Mercado Pago: registra un pago ya confirmado; captura su número "
+                            "de operación. La liga de cobro no se genera aquí.")
+        elif method in REFERENCE_PROMPTS:
+            self._show_hint(f"{METHOD_LABELS[method]}: captura la referencia de la operación; "
+                            "no se puede usar en dos pagos.")
         elif method == "CREDIT":
             self._show_hint("Crédito: se valida la línea del cliente al confirmar.")
         elif method == "VOUCHER":
@@ -275,6 +287,12 @@ class PaymentDialog(StandardDialog):
                     self._show_hint("El vale no tiene saldo.")
                     return
                 amount = min(amount, Decimal(str(saldo["balance"])))
+        problema = self._presenter.payment_reference_problem(
+            method=method, reference=reference,
+            taken=tuple((m, r) for m, _, r in self._lines))
+        if problema:
+            self._show_hint(problema)
+            return
         self._append_line(method, amount, reference)
         self._refresh_remaining()
         self._on_method_changed()

@@ -22,9 +22,11 @@ Never commits — SalesUnitOfWork owns the transaction boundary.
 from __future__ import annotations
 
 import json
+import sqlite3
 
 from backend.domain.sales.entities import Sale, SaleInvoiceRequest, SaleLine
 from backend.domain.sales.enums import InvoiceStatus, PaymentMethod, SaleStatus
+from backend.domain.sales.exceptions import PaymentReferenceDuplicatedError
 from backend.domain.sales.value_objects.quantity import Quantity
 from backend.domain.sales.value_objects.sale_payment import SalePayment, SalePaymentVoid
 from backend.domain.sales.value_objects.sale_coupon import SaleCoupon
@@ -36,6 +38,7 @@ from backend.infrastructure.db.repositories.sales.base import (
     enum_value,
     to_decimal,
 )
+from backend.infrastructure.db.schema.sales_schema import PAYMENT_REFERENCE_INDEX
 
 
 def _snapshot_to_json(snapshot) -> str:
@@ -50,6 +53,15 @@ def _snapshot_from_json(raw: str | None) -> dict:
 
 
 class SaleRepository(SalesRepositoryBase):
+    def find_live_payment_reference(self, *, method: str, reference: str) -> str | None:
+        """Folio (o id) de la venta con un pago vivo de ese método y referencia.
+        Misma normalización que `uq_sale_payments_processor_reference`."""
+        return self._scalar(
+            "SELECT COALESCE(s.sale_number, p.sale_id) FROM sale_payments p"
+            " LEFT JOIN sales s ON s.id = p.sale_id"
+            " WHERE p.method=? AND UPPER(TRIM(p.reference))=UPPER(TRIM(?)) LIMIT 1",
+            (method, reference))
+
     def save(self, sale: Sale) -> None:
         self._execute(
             """
@@ -127,18 +139,25 @@ class SaleRepository(SalesRepositoryBase):
             )
         self._execute("DELETE FROM sale_payments WHERE sale_id=?", (sale.id,))
         for payment in sale.payments:
-            self._execute(
-                """
-                INSERT INTO sale_payments (
-                    id, sale_id, method, amount, reference, captured_by_user_id, captured_at
-                ) VALUES (?,?,?,?,?,?,?)
-                """,
-                (
-                    payment.id, payment.sale_id, enum_value(payment.method),
-                    dec_str(payment.amount), payment.reference,
-                    payment.captured_by_user_id, payment.captured_at,
-                ),
-            )
+            try:
+                self._execute(
+                    """
+                    INSERT INTO sale_payments (
+                        id, sale_id, method, amount, reference, captured_by_user_id, captured_at
+                    ) VALUES (?,?,?,?,?,?,?)
+                    """,
+                    (
+                        payment.id, payment.sale_id, enum_value(payment.method),
+                        dec_str(payment.amount), payment.reference,
+                        payment.captured_by_user_id, payment.captured_at,
+                    ),
+                )
+            except sqlite3.IntegrityError as exc:
+                if PAYMENT_REFERENCE_INDEX not in str(exc):
+                    raise
+                raise PaymentReferenceDuplicatedError(
+                    f"La referencia {payment.reference} ya está registrada en otra venta: un "
+                    "mismo pago no puede respaldar dos cobros.") from exc
         # Pagos anulados (auditoría V02): sólo se agregan, nunca se reescriben.
         for void in sale.voided_payments:
             self._execute(
