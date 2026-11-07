@@ -5425,3 +5425,9 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
   esta migración no tiene `suspended_on`, así que sus meses cuentan como omitidos al reanudarlo.
 - La baja deprecia lo que falte hasta el periodo anterior, como corrida registrada y en la misma
   transacción. El asiento lleva la fecha de la baja.
+
+### Sin migración — depreciación automática (2026-11-06, SDLC-FIN-004)
+
+- `finance_periodic_tick` corre la depreciación del mes que terminó desde el día 1. Reemplaza el
+  job mensual del legacy (`accrual_depreciacion_mensual`). Sin esquema nuevo: la idempotencia es
+  el `operation_id` derivado del periodo, sobre `depreciation_runs.operation_id` (UNIQUE).
