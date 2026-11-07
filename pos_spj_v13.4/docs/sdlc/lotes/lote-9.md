@@ -55,7 +55,7 @@ Todas corridas con `PYTHONPATH` al worktree y `ERP_DB_PATH` a una base vacía en
 | `tests/test_wa_phase9_regression.py` | 1 failed, 4 passed | 1 failed, 4 passed |
 | `tests/architecture/test_whatsapp_runtime_imports.py` y `tests/integration/test_whatsapp_startup_regression.py` | 1 falla en el baseline | 1 failed, 4 passed |
 | `python -m compileall -q .` desde `pos_spj_v13.4/`, y `compileall` de `whatsapp_service/` | — | Código 0 en ambos |
-| `tests/architecture` completo | 22 fallas en `docs/sdlc/baseline/2026-10-28.md` | **PENDIENTE** |
+| `tests/architecture` completo | 22 failed, 879 passed, 1 skipped, 2 xfailed (plan, B3) | 22 failed, 879 passed, 1 skipped, 2 xfailed |
 
 La única diferencia en `whatsapp_service/tests` es la falla que se corrigió, `test_webhook_accepts_valid_signature_and_ignores_non_payment_action`. No hay fallas nuevas.
 
