@@ -179,10 +179,10 @@ class PostgresCentralInboxRepository:
     def add_device_event(self, *, station_id, invitation_id, event, actor_station, actor_user,
                          detail, now: datetime) -> None:
         import json
-        self._exec("INSERT INTO central_device_events (station_id, invitation_id, event,"
+        self._exec("INSERT INTO central_device_events (id, station_id, invitation_id, event,"
                    " actor_station, actor_user, detail, occurred_at)"
-                   " VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s)",
-                   (station_id, invitation_id, event, actor_station, actor_user,
+                   " VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb,%s)",
+                   (new_uuid(), station_id, invitation_id, event, actor_station, actor_user,
                     json.dumps(dict(detail), default=str), now))
 
     def device_events(self, station_id: str) -> list[Mapping[str, Any]]:

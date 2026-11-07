@@ -5417,3 +5417,20 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Probada sólo sobre bases creadas en un directorio temporal
   (`tests/integration/configuracion/test_installation_branch_reanchor.py`).
 - Detalle: `docs/sdlc/items/SDLC-ARQ-TERM-002/spec.md`.
+
+### p006 y 354 — aprovisionamiento de equipos, ya registrados (2026-11-06, SDLC-SYNC-001)
+
+- `p006_device_provisioning` existía pero no estaba en `PG_MIGRATIONS`, y el repositorio central ya
+  seleccionaba sus columnas: en un central migrado desde cero cada `/api/v1/sync/events` fallaba con
+  columna inexistente. Se registra.
+- Como p006 nunca corrió en ningún central, se corrige en sitio: `central_device_events.id` pasa de
+  `BIGSERIAL` a `UUID` (contrato del carril: sin identidades del servidor). El id lo genera
+  `add_device_event` con `new_uuid()`; `ORDER BY occurred_at, id` sigue valiendo con UUIDv7.
+- `354_device_enrollment` se registra en el carril SQLite: es del mismo slice que p006 (decisión del
+  responsable, 2026-11-05). Sólo agrega una tabla vacía y es idempotente; las bases que ya están en
+  357 la reciben al siguiente arranque, porque el motor revisa versión por versión.
+- Guardia nueva: `tests/unit/central_pg/test_postgres_lane_contract.py` falla si un
+  `migrations/pg/p*.py` queda fuera de `PG_MIGRATIONS` o si el repositorio selecciona una columna que
+  el carril no crea. Corre en el job `central-postgres`.
+- **No verificado aquí:** contra PostgreSQL real (`test_empty_central_accepts_a_station_and_a_device_enrollment`
+  corre sólo con `SPJ_TEST_PG_DSN`, en CI).
