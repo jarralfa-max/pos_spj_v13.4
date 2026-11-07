@@ -10,15 +10,10 @@ Every use case:
   (LOY-3/LOY-4) — the DB constraint remains the real safety net;
 - computes the account's balance via `LoyaltyBalancePolicy.balance()`
   (LOY-2) fresh from the ledger on every call — never a cached figure;
-- shapes its `LOYALTY_POINTS_ISSUED` event payload to match the fields
-  Finance's already-built `LoyaltyPointsIssuedHandler._handle()` expects
-  (`loyalty_transaction_id`, `estimated_fair_value`, `currency_code`,
-  `customer_id`, `program_id`, `expires_at`) — LOY-0's own "highest value"
-  finding. This does NOT mean the event is actually consumed yet: no
-  dispatcher/bridge calls the Finance handler from this outbox (same
-  confirmed-dead-code gap as every other bounded context's own outbox in
-  this repo) — only the payload SHAPE is forward-compatible, wiring the
-  real call is a future phase's job.
+- publishes `LOYALTY_POINTS_ISSUED` with `loyalty_transaction_id`,
+  `estimated_fair_value`, `currency_code`, `customer_id`, `program_id` and
+  `expires_at`. Finance does not consume this event: its entries come from
+  `loyalty/integrations/finance_posting.py`, which reads the ledger.
 """
 
 from __future__ import annotations

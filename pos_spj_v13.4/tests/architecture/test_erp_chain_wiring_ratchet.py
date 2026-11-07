@@ -88,25 +88,8 @@ DARK_HANDLERS = frozenset({
     # RRHH
     "CashShiftClosedAttendanceHandler",
     "CashShiftOpenedAttendanceHandler",
-    # Finanzas — instrumentos comerciales
-    "CouponExpiredHandler",
-    "CouponIssuedHandler",
-    "CouponRedeemedHandler",
-    "GiftCardRedeemedHandler",
-    "GiftCardRefundedHandler",
-    "GiftCardSoldHandler",
-    "StoredValueAdjustedHandler",
-    "VoucherExpiredHandler",
-    "VoucherIssuedHandler",
-    "VoucherRedeemedHandler",
-    # Finanzas — fidelidad
-    "LoyaltyPointsExpiredHandler",
-    "LoyaltyPointsRedeemedHandler",
-    "LoyaltyRewardGrantedHandler",
-    "LoyaltyTransactionReversedHandler",
     # Finanzas — operación
     "InventoryAdjustmentHandler",
-    "PurchaseReceivedHandler",
 })
 
 #: Funciones de cableado que existen y que nadie llama. Mismo trinquete: llamar
@@ -152,6 +135,17 @@ def _named_outside_its_own_file(nombre: str, origen: str) -> list[str]:
 
 
 # ── el trinquete ────────────────────────────────────────────────────────────
+def test_finance_keeps_one_implementation_per_instrument_rule():
+    """SDLC-FIN-001: la ruta viva es el puente de Fidelidad (que lee los libros)
+    y los puentes de Compras. Un manejador por evento repetía esas reglas y
+    conectarlo asentaría doble."""
+    prefijos = ("coupon_", "gift_card_", "voucher_", "stored_value_", "loyalty_",
+                "purchase_received_", "instrument_event_")
+    duplicados = sorted(path.name for path in (_HANDLERS_DIR / "finance").glob("*.py")
+                        if path.name.startswith(prefijos))
+    assert not duplicados, "Reglas contables duplicadas:\n  " + "\n  ".join(duplicados)
+
+
 def test_connecting_a_handler_removes_it_from_the_dark_list():
     """Conectar uno y no anotarlo deja la lista mintiendo.
 
