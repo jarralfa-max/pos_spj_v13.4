@@ -40,6 +40,7 @@ from backend.bootstrap.application_context_errors import (
     StationNotAnchoredError,
 )
 from backend.bootstrap.permission_evaluator import PermissionEvaluator
+from backend.bootstrap.terminal_identity import register_terminal
 from backend.application.software_updates.installation import enabled_capabilities_for
 from backend.bootstrap.application_context import (
     ApplicationContext,
@@ -108,6 +109,8 @@ class ApplicationContextBuilder:
         else:
             assigned = frozenset(branches.assigned_branch_ids(credentials.id))
 
+        terminal_id = register_terminal(self._conn, branch_id=site_id,
+                                        workstation_type=workstation_type)
         context = ApplicationContext(
             installation_id=installation.id if installation else "",
             company_id=(installation.company_id or "") if installation else "",
@@ -119,7 +122,10 @@ class ApplicationContextBuilder:
             # reparación (SDLC-ARQ-TERM-002).
             site_capabilities=(self._site_capabilities(site_id) if site_id
                                else frozenset()),
-            workstation_id=session.workstation_id or default_workstation_id(),
+            # Id persistente de la terminal, no el hostname (SDLC-ARQ-TERM-001).
+            # `default_workstation_id()` sólo queda para bases sin el registro.
+            workstation_id=(session.workstation_id or terminal_id
+                            or default_workstation_id()),
             workstation_type=workstation_type,
             user_id=credentials.id,
             user_name=credentials.full_name or credentials.username,

@@ -42,6 +42,7 @@ from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from backend.bootstrap.application_context import ApplicationContext
 from backend.bootstrap.permission_evaluator import PermissionEvaluator
+from backend.bootstrap.terminal_identity import terminal_label
 from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.components.standard_window import StandardWindow
 from frontend.desktop.components.side_nav import SideNav
@@ -171,7 +172,8 @@ class ApplicationWindow(StandardWindow):
 
     def _apply_context(self, context: ApplicationContext) -> None:
         self.top_bar.set_context(context)
-        self.status_bar.set_workstation(context.workstation_id, context.branch_name)
+        self.status_bar.set_workstation(terminal_label(context.workstation_id),
+                                        context.branch_name)
         self.status_bar.set_offline_status(context.offline_status)
         settings_route = self._router.route_registry.get("configuracion.workspace")
         allowed = settings_route is not None and (

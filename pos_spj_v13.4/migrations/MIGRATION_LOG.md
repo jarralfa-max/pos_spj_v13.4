@@ -5444,3 +5444,15 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
   2026-11-05), con `CONFIGURACION.offline.gestionar`, motivo obligatorio y rastro en `audit_logs`
   (`sincronizacion.conflicto.resolver`). Sin esquema nuevo: `replication_envelopes` ya tenía el estado.
 - La política de resolución por tipo de agregado sigue fuera (`docs/sdlc/items/SDLC-SYNC-002/intent.md`).
+
+### 392 — identidad persistente de la terminal (2026-11-06, SDLC-ARQ-TERM-001, parcial)
+
+- `workstations` es la fuente canónica (decisión 2026-11-02). `configuraciones.terminal_instalacion_id`
+  guarda el UUIDv7 de esta máquina; el hostname queda como dato descriptivo en `device_identifier`.
+- Agrega `workstations.schema_version` y `protocol_version`. `create_workstation_schema` no cambia: una
+  migración ya distribuida no cambia de cuerpo, así que las columnas las pone sólo la 392.
+- Adopta la fila que ya represente a esta máquina (por nombre, o la única activa sin máquina); nunca
+  una que nombre a otra.
+- `software_station_settings` deja de usar el hostname como llave: se mueve al id de la terminal.
+- **Pendiente, no hecho:** retirar `pos_terminals`, que sigue siendo padre por FK de `cash_shifts` y
+  `cash_shift_assignments`; ver `docs/sdlc/lotes/lote-8.md`.

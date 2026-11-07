@@ -16,7 +16,8 @@ from backend.infrastructure.db.repositories.settings.installation_branch_reposit
 from backend.shared.ids import new_uuid
 
 #: Motor de replicación (pendientes de sincronizar) y el sembrado del permiso.
-MIGRACIONES = ("350_replication_engine", "357_seed_installation_reanchor_permission")
+MIGRACIONES = ("350_replication_engine", "357_seed_installation_reanchor_permission",
+               "392_terminal_identity")
 
 
 def build_template() -> sqlite3.Connection:
