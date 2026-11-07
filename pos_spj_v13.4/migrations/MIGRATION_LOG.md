@@ -5447,3 +5447,12 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
   contables sin consumidor.
 - Probada en memoria sobre el catálogo sembrado; no se corrió sobre una copia de la base real.
 - Pruebas: `tests/integration/test_orders_delivery_driver_cash_finance.py`.
+
+### SDLC-ORD-005 — "Nuevo pedido" es un solo flujo (2026-11-06, sin migración)
+
+- El alta rápida de "Todos los pedidos" se conserva (decisión del responsable) y ahora envuelve
+  `NewOrderPage`: búsqueda de producto, precio de Pricing y dirección, con `CaptureOrderUseCase`. Ya
+  no pide el UUID del producto ni un precio libre.
+- `CreateCustomerOrderUseCase` respeta el precio de la línea y deja de estar expuesto a la UI: sólo
+  lo llama la conversión de una cotización. El caso de uso no cambia, para no perder ese flujo.
+- Pruebas: `tests/integration/orders_delivery/test_new_order_dialog.py`.

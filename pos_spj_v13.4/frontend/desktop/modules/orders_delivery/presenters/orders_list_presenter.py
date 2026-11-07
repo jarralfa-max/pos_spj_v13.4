@@ -11,8 +11,9 @@ precedent this docstring cited was about query SERVICES, and this file is not
 one. `test_no_sql_in_frontend` caught it the moment that guardrail stopped
 scanning deleted folders and started looking at the real UI.
 
-Order creation already went through `CreateCustomerOrderUseCase` and is
-unchanged. This presenter now holds no SQL at all.
+This presenter holds no SQL at all. Creating an order is the same flow as the
+"Nuevo pedido" page (`NewOrderPresenter`, SDLC-ORD-005): the use case that respects
+a line's price is for quoted prices only, so no screen may reach it.
 """
 
 from __future__ import annotations
@@ -24,10 +25,9 @@ from backend.application.orders_delivery.authorization import OrdersDeliveryAuth
 from backend.application.orders_delivery.queries.orders_list_query_service import (
     OrdersListQueryService,
 )
-from backend.application.orders_delivery.use_cases.order_capture_use_cases import (
-    CreateCustomerOrderUseCase,
+from frontend.desktop.modules.orders_delivery.presenters.new_order_presenter import (
+    NewOrderPresenter,
 )
-from backend.shared.ids import new_uuid
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,21 +39,19 @@ class OrdersTableModel:
 
 class OrdersListPresenter:
     def __init__(self, connection, *, branch_id: str, actor_user_id: str, page_size: int = 50,
-                 authorization: OrdersDeliveryAuthorizationPolicy | None = None) -> None:
+                 authorization: OrdersDeliveryAuthorizationPolicy | None = None,
+                 customer_lookup=None) -> None:
         self._conn = connection
         self._branch_id = branch_id
         self._actor_user_id = actor_user_id
         self._page_size = page_size
         self._authorization = authorization
+        self._customer_lookup = customer_lookup
 
-    def create_order(self, dialog_data: dict) -> tuple[bool, str]:
-        result = CreateCustomerOrderUseCase(self._authorization).execute(
-            self._conn, branch_id=self._branch_id, channel=dialog_data["channel"],
-            order_type="STANDARD", fulfillment_type=dialog_data["fulfillment_type"],
-            lines=dialog_data["lines"], actor_user_id=self._actor_user_id,
-            operation_id=new_uuid(), contact_name=dialog_data.get("contact_name"),
-            contact_phone=dialog_data.get("contact_phone"))
-        return result.success, result.message
+    def new_order_presenter(self) -> NewOrderPresenter:
+        return NewOrderPresenter(
+            self._conn, branch_id=self._branch_id, actor_user_id=self._actor_user_id,
+            authorization=self._authorization, customer_lookup=self._customer_lookup)
 
     def orders(self, *, query: str = "", status: str | None = None, page: int = 0) -> OrdersTableModel:
         """La consulta la hace `OrdersListQueryService`; aqui solo se da formato.
