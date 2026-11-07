@@ -1,17 +1,25 @@
 """Driver settlement use cases (master prompt §46). `CreateDriverSettlementUseCase`
-gathers every `DriverCashCollection` currently `PENDING_SETTLEMENT` for the
-driver, reconciles them into one `DriverSettlement`, and marks each included
-collection `SETTLED` in the same transaction — a collection is never left
-"pending settlement" while already claimed by a settlement.
+gathers every collected `DriverCashCollection` for the driver, reconciles them
+into one `DriverSettlement`, and marks each included collection `SETTLED` in the
+same transaction — a collection is never left "pending settlement" while already
+claimed by a settlement. Nothing else moves a collection to `PENDING_SETTLEMENT`,
+so a just-collected one has to be picked up here too (SDLC-ORD-001): otherwise no
+driver could ever be settled.
 """
 
 from __future__ import annotations
+
+from decimal import Decimal
 
 from backend.application.orders_delivery.audit import OrdersDeliveryAuditActions
 from backend.application.orders_delivery.permissions import OrdersDeliveryPermissions
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
-from backend.domain.orders_delivery.enums import CollectionStatus, SettlementStatus
+from backend.domain.orders_delivery.enums import (
+    CollectionPaymentMethod,
+    CollectionStatus,
+    SettlementStatus,
+)
 from backend.domain.orders_delivery.events import DeliveryEvents
 from backend.domain.orders_delivery.exceptions import (
     OrdersDeliveryDomainError,
@@ -33,14 +41,19 @@ class CreateDriverSettlementUseCase(_OrdersDeliveryBaseUseCase):
             return fail_from_domain_error(exc, operation_id=operation_id)
 
         with OrdersDeliveryUnitOfWork(connection) as uow:
-            pending = uow.cash_collections.list_for_driver(
-                driver_id, status=CollectionStatus.PENDING_SETTLEMENT)
+            pending = [
+                collection
+                for status in (CollectionStatus.PENDING_SETTLEMENT, CollectionStatus.COLLECTED,
+                               CollectionStatus.PARTIALLY_COLLECTED)
+                for collection in uow.cash_collections.list_for_driver(driver_id, status=status)]
             try:
                 settlement = DriverSettlement.create(
                     driver_id=driver_id, branch_id=branch_id, collections=pending)
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             for collection in pending:
+                if collection.status != CollectionStatus.PENDING_SETTLEMENT:
+                    collection.mark_pending_settlement()
                 collection.mark_settled()
                 uow.cash_collections.save(collection)
             uow.settlements.save(settlement)
@@ -121,9 +134,16 @@ class CloseDriverSettlementUseCase(_OrdersDeliveryBaseUseCase):
             except OrdersDeliveryDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.settlements.save(settlement)
+            # Finanzas sólo mueve el EFECTIVO: lo cobrado con tarjeta o
+            # transferencia nunca quedó en manos del repartidor.
+            efectivo = [
+                cobro for cobro in map(uow.cash_collections.get, settlement.collection_ids)
+                if cobro is not None and cobro.payment_method == CollectionPaymentMethod.CASH]
             self._emit_delivery(
                 uow, DeliveryEvents.DRIVER_SETTLEMENT_CLOSED, entity_id=settlement.id,
                 operation_id=operation_id, branch_id=settlement.branch_id,
-                actor_user_id=actor_user_id)
+                actor_user_id=actor_user_id, driver_id=settlement.driver_id,
+                cash_expected=str(sum((c.expected_amount for c in efectivo), Decimal("0"))),
+                cash_collected=str(sum((c.collected_amount for c in efectivo), Decimal("0"))))
         return OrderResult.ok(
             "Liquidación cerrada", entity_id=settlement.id, operation_id=operation_id)

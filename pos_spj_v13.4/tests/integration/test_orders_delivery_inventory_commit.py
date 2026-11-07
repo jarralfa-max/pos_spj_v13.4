@@ -74,7 +74,7 @@ from backend.infrastructure.integrations.orders_delivery_inventory_client import
 from backend.shared.ids import new_uuid
 from tests.integration._audit_trail_table import create_audit_logs_table
 from tests.integration._delivery_address import give_delivery_address
-from tests.integration._pos_ready import create_cash_schema
+from tests.integration._pos_ready import create_cash_schema, open_cash_shift
 
 
 class _NoOpWhatsApp:
@@ -185,8 +185,11 @@ def _pedido_mostrador(conn, *, branch_id, product_id, requested="1", prepared="1
 
 
 def _cobrar(conn, order_id):
+    cajero = new_uuid()
+    open_cash_shift(conn, branch_id=CustomerOrderRepository(conn).get(order_id).branch_id,
+                    cashier_user_id=cajero)
     proyeccion = ProjectOrderToSaleUseCase(_auth()).execute(
-        conn, order_id=order_id, cashier_user_id=new_uuid(), actor_user_id=new_uuid(),
+        conn, order_id=order_id, cashier_user_id=cajero, actor_user_id=new_uuid(),
         operation_id=new_uuid(), sales_authorization=_sales_auth())
     assert proyeccion.success, proyeccion.message
     total = conn.execute("SELECT total FROM sales WHERE id=?",

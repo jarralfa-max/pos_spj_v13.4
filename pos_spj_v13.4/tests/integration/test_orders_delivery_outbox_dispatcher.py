@@ -28,7 +28,8 @@ class _FakeBus:
         self.published: list[tuple[str, dict]] = []
         self._fail_events = fail_events or set()
 
-    def publish(self, event_type: str, payload: dict, async_: bool = False) -> None:
+    def publish(self, event_type: str, payload: dict, async_: bool = False,
+                strict: bool = False) -> None:
         if event_type in self._fail_events:
             raise RuntimeError("bus unavailable")
         self.published.append((event_type, payload))
@@ -65,7 +66,8 @@ class TestDispatchSuccess:
 
         stats = dispatch_orders_delivery_outbox(conn, bus)
 
-        assert stats == {"pending": 1, "dispatched": 1, "failed": 0}
+        assert stats == {"pending": 1, "dispatched": 1, "failed": 0,
+                         "without_consumer": 0}
         assert len(bus.published) == 1
         event_type, payload = bus.published[0]
         assert event_type == OrderEvents.CREATED
@@ -83,18 +85,18 @@ class TestDispatchSuccess:
 
         stats = dispatch_orders_delivery_outbox(conn, bus)
 
-        assert stats == {"pending": 0, "dispatched": 0, "failed": 0}
+        assert stats == {"pending": 0, "dispatched": 0, "failed": 0,
+                         "without_consumer": 0}
         assert len(bus.published) == 1
 
     def test_no_handlers_registered_is_not_a_failure(self, conn):
-        """`EventBus.publish(strict=False)` just logs when nobody is
-        listening — every ORD event has zero real subscribers so far, and
-        that must still count as a successful dispatch, not a retry."""
+        """Un evento sin impacto contable y sin suscriptores cuenta como
+        despachado, no como reintento."""
         order_id = _enqueue_order_created(conn)
 
         class _RealShapedBus:
-            def publish(self, event_type, payload, async_=False):
-                return None  # no handlers registered => no-op, no raise
+            def publish(self, event_type, payload, async_=False, strict=False):
+                return 0  # no handlers registered => no-op, no raise
 
         stats = dispatch_orders_delivery_outbox(conn, _RealShapedBus())
 
@@ -138,7 +140,8 @@ class TestDispatchFailureRetry:
 
         stats = dispatch_orders_delivery_outbox(conn, bus)
 
-        assert stats == {"pending": 1, "dispatched": 0, "failed": 1}
+        assert stats == {"pending": 1, "dispatched": 0, "failed": 1,
+                         "without_consumer": 0}
         row = conn.execute(
             "SELECT status, retries, next_retry_at FROM orders_delivery_outbox").fetchone()
         assert row[0] == "PENDING"
@@ -151,7 +154,8 @@ class TestDispatchFailureRetry:
 
         stats = dispatch_orders_delivery_outbox(conn, _FakeBus())
 
-        assert stats == {"pending": 0, "dispatched": 0, "failed": 0}
+        assert stats == {"pending": 0, "dispatched": 0, "failed": 0,
+                         "without_consumer": 0}
 
     def test_exhausting_max_attempts_moves_to_dead_letter(self, conn):
         _enqueue_order_created(conn)
@@ -174,7 +178,8 @@ class TestDispatchFailureRetry:
 
         stats = dispatch_orders_delivery_outbox(conn, bus)
 
-        assert stats == {"pending": 1, "dispatched": 0, "failed": 1}
+        assert stats == {"pending": 1, "dispatched": 0, "failed": 1,
+                         "without_consumer": 0}
         assert bus.published == []
         row = conn.execute("SELECT status FROM orders_delivery_outbox").fetchone()
         assert row[0] == "PENDING"

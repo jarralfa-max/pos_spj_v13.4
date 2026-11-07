@@ -51,7 +51,7 @@ from backend.infrastructure.db.repositories.orders_delivery.customer_order_repos
 from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
 from backend.infrastructure.db.schema.orders_delivery_schema import create_orders_delivery_schema
 from backend.infrastructure.db.schema.sales_schema import create_sales_schema
-from tests.integration._pos_ready import create_cash_schema
+from tests.integration._pos_ready import create_cash_schema, open_cash_shift
 from backend.shared.ids import new_uuid
 from tests.integration._audit_trail_table import create_audit_logs_table
 
@@ -126,8 +126,13 @@ def _ready_pickup_order(conn) -> tuple[str, str]:
 
 
 def _project(conn, order_id: str) -> str:
+    """El cajero tiene turno: desde SDLC-ORD-001 un cobro en efectivo sin turno
+    no se completa."""
+    cashier_user_id = new_uuid()
+    branch_id = CustomerOrderRepository(conn).get(order_id).branch_id
+    open_cash_shift(conn, branch_id=branch_id, cashier_user_id=cashier_user_id)
     result = ProjectOrderToSaleUseCase(_allow_all()).execute(
-        conn, order_id=order_id, cashier_user_id=new_uuid(), actor_user_id=new_uuid(),
+        conn, order_id=order_id, cashier_user_id=cashier_user_id, actor_user_id=new_uuid(),
         operation_id=new_uuid(), sales_authorization=_sales_allow_all())
     assert result.success, result.message
     return result.data["sale_id"]

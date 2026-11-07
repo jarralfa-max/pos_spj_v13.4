@@ -5423,3 +5423,27 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
   (2026-11-05: «ni uno, estamos en desarrollo»). Si apareciera una, `restore_order` suelta la
   retención al reversar.
 - Pruebas: `tests/integration/test_orders_delivery_inventory_commit.py`.
+
+### 388 — efectivo en poder de repartidores (SDLC-ORD-001, 2026-11-06)
+
+- Cuenta `1104 Efectivo en poder de repartidores` y perfil `DRIVER_CASH`, en `finance_bootstrap` y,
+  para una base ya sembrada, en la migración 388. El responsable confirmó que lleva cuenta propia.
+- Cobro y liquidación ya tienen consumidor en Finanzas (`driver_cash_handlers.py`):
+  - venta: Dr caja registradora / Cr ingresos;
+  - cobro: Dr 1104 / Cr caja registradora;
+  - liquidación: Dr caja general / Cr 1104, y la diferencia contra la caja registradora, a faltantes o
+    sobrantes.
+- Sólo el efectivo genera custodia. Un cobro `MIXED` no se asienta: no guarda qué parte fue efectivo.
+- `CheckoutSaleUseCase(cash_custody=...)`: en Pedidos, Caja corre en la transacción de la venta y su
+  falla detiene el cobro. Desaparece `cash_effects_error`. El efectivo de un cobro a domicilio
+  (`"DRIVER"`) no pasa por Caja; el efectivo en sucursal (`"DRAWER"`) exige turno; lo demás sólo pasa
+  por Caja si hay turno.
+- `record_payment` no vuelve a pagar una venta ya pagada: es el reintento de un cobro que falló al
+  completarse.
+- `CreateDriverSettlementUseCase` toma también los cobros `COLLECTED` y `PARTIALLY_COLLECTED`: nada
+  en producción los pasaba a `PENDING_SETTLEMENT`, así que ningún repartidor podía liquidarse.
+- `wire_orders_delivery`, despacho al arrancar y tarea periódica `orders_delivery.outbox`. El
+  despachador publica en modo estricto, confirma fila por fila y deja pendientes los eventos
+  contables sin consumidor.
+- Probada en memoria sobre el catálogo sembrado; no se corrió sobre una copia de la base real.
+- Pruebas: `tests/integration/test_orders_delivery_driver_cash_finance.py`.

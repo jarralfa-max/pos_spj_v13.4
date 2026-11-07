@@ -256,6 +256,13 @@ def _build_background_services(*, context: ApplicationContext, connection):
     supervisor.bind("loyalty.sales_events", PeriodicTaskService(
         _loyalty_sales_tick(connection), interval_ms=LOYALTY_SALES_INTERVAL_MS,
         name="ventas a Fidelidad"))
+    # SDLC-ORD-001: cobros y liquidaciones de repartidor hacia Finanzas.
+    registry.register(BackgroundServiceDescriptor(
+        "orders_delivery.outbox", "Entrega de Pedidos a Finanzas",
+        module_id="orders_delivery"))
+    supervisor.bind("orders_delivery.outbox", PeriodicTaskService(
+        _orders_delivery_outbox_tick(connection), interval_ms=CASH_OUTBOX_INTERVAL_MS,
+        name="cola de Pedidos a Finanzas"))
     registry.register(BackgroundServiceDescriptor(
         "finance.cycle", "Merma, vencimientos y eventos de Finanzas", module_id="finance"))
     supervisor.bind("finance.cycle", PeriodicTaskService(
@@ -278,6 +285,15 @@ def _cash_outbox_tick(connection):
         from backend.application.cash_register.finance_wiring import dispatch_cash_outbox
         from backend.shared.events.application_bus import get_bus
         return dispatch_cash_outbox(connection, get_bus())
+    return tick
+
+
+def _orders_delivery_outbox_tick(connection):
+    """Reintenta la cola de Pedidos (idempotente por evento)."""
+    def tick():
+        from backend.bootstrap.wiring.event_wiring import orders_delivery_tick
+        from backend.shared.events.application_bus import get_bus
+        return orders_delivery_tick(connection, get_bus())
     return tick
 
 
