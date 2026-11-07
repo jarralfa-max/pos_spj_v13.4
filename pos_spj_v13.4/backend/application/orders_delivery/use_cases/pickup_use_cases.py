@@ -19,6 +19,9 @@ from backend.domain.orders_delivery.exceptions import OrderNotFoundError, Orders
 from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import (
     OrdersDeliveryUnitOfWork,
 )
+from backend.infrastructure.integrations.orders_delivery_inventory_client import (
+    OrdersDeliveryInventoryClient,
+)
 from backend.infrastructure.integrations.orders_delivery_whatsapp_client import (
     OrdersDeliveryWhatsAppClient,
 )
@@ -87,7 +90,12 @@ class CompletePickupUseCase(_OrdersDeliveryBaseUseCase):
                     OrderNotFoundError(f"Pedido {order_id} no existe"), operation_id=operation_id)
             try:
                 order.complete_pickup(presented_code=presented_code)
+                # En mostrador no hay despacho: la mercancía sale de la sucursal
+                # al entregarla (SDLC-ORD-004).
+                OrdersDeliveryInventoryClient(connection, branch_id=order.branch_id).commit_order(
+                    order, operation_id=operation_id, actor_user_id=actor_user_id)
             except OrdersDeliveryDomainError as exc:
+                uow.rollback()
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.orders.save(order)
             self._audit(

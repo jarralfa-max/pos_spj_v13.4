@@ -65,6 +65,9 @@ from backend.domain.orders_delivery.policies.order_payment_policy import OrderPa
 from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import (
     OrdersDeliveryUnitOfWork,
 )
+from backend.infrastructure.integrations.orders_delivery_inventory_client import (
+    OrdersDeliveryInventoryClient,
+)
 from backend.infrastructure.integrations.orders_delivery_sales_client import (
     OrdersDeliverySalesClient,
 )
@@ -238,10 +241,16 @@ class ReverseCustomerOrderUseCase(_OrdersDeliveryBaseUseCase):
 
         client = OrdersDeliverySalesClient(
             connection, branch_id=order.branch_id, sales_authorization=sales_authorization)
+        inventory = OrdersDeliveryInventoryClient(connection, branch_id=order.branch_id)
         try:
+            # La mercancía la sacó Pedidos, así que la devuelve Pedidos, dentro
+            # de la transacción del reverso de la venta (SDLC-ORD-004).
             client.refund(
                 sale_id=sale_id, reason=reason, actor_user_id=actor_user_id,
-                authorizer_user_id=authorizer_user_id, operation_id=operation_id)
+                authorizer_user_id=authorizer_user_id, operation_id=operation_id,
+                restore_inventory=lambda: inventory.restore_order(
+                    order, operation_id=operation_id, actor_user_id=actor_user_id,
+                    reason_code="ORDER_REVERSAL"))
         except OrdersDeliveryDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
 

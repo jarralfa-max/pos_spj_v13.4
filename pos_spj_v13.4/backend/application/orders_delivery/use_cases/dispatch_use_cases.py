@@ -28,6 +28,9 @@ from backend.domain.orders_delivery.value_objects.delivery_evidence import Deliv
 from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import (
     OrdersDeliveryUnitOfWork,
 )
+from backend.infrastructure.integrations.orders_delivery_inventory_client import (
+    OrdersDeliveryInventoryClient,
+)
 from backend.infrastructure.integrations.orders_delivery_internal_notifier import (
     OrdersDeliveryInternalNotifier,
 )
@@ -82,7 +85,13 @@ class DispatchDeliveryJobUseCase(_OrdersDeliveryBaseUseCase):
                 job.mark_ready_to_dispatch()
                 job.dispatch()
                 order.mark_dispatched()
+                # La mercancía sale de la sucursal aquí (SDLC-ORD-004, decisión
+                # del responsable: «al despachar»), en esta misma transacción:
+                # sin descuento no hay despacho.
+                OrdersDeliveryInventoryClient(connection, branch_id=order.branch_id).commit_order(
+                    order, operation_id=operation_id, actor_user_id=actor_user_id)
             except OrdersDeliveryDomainError as exc:
+                uow.rollback()
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.delivery_jobs.save(job)
             uow.orders.save(order)

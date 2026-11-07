@@ -5403,3 +5403,23 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Siembra `CONFIGURACION.usuario.asignaciones` para `system_owner` y `admin`.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
+
+### SDLC-ORD-004 — un pedido descuenta inventario al salir de la sucursal (2026-11-06, sin migración)
+
+- Decisión del responsable: «al despachar». En mostrador no hay despacho: la mercancía sale al
+  entregarla, en `CompletePickupUseCase`.
+- `OrdersDeliveryInventoryClient.commit_order` registra un `SALE_ISSUE` con
+  `source_module="orders_delivery"` y cumple las reservas, en la transacción del despacho o la
+  entrega. `restore_order` devuelve lo que el libro dice que está fuera, a su lote y ubicación, en
+  `ReturnToBranchUseCase` y en `ReverseCustomerOrderUseCase`.
+- `ReverseSaleUseCase` acepta `inventory_return`: Pedidos devuelve dentro de la transacción del
+  reverso, y Ventas ya no repone lo que nunca sacó.
+- Pedidos reserva con `ReserveStockForCustomerOrderUseCase`, por línea, del almacén de venta y de los
+  saldos reales con lote y ubicación. La reserva anterior buscaba un saldo sin lote ni ubicación, que
+  ningún flujo llena y que ningún movimiento puede descontar. `inventory_reservation_id` guarda ahora
+  el id de la línea.
+- `ORDERS_DELIVERY_GRANT` gana `MOVEMENT_CREATE`.
+- Saneamiento: sin migración. El responsable midió cero reservas `CONFIRMED` de pedidos completados
+  (2026-11-05: «ni uno, estamos en desarrollo»). Si apareciera una, `restore_order` suelta la
+  retención al reversar.
+- Pruebas: `tests/integration/test_orders_delivery_inventory_commit.py`.

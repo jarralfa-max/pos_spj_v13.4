@@ -45,7 +45,11 @@ from backend.application.sales.use_cases.checkout_use_cases import CheckoutSaleU
 from backend.application.sales.use_cases.lifecycle_use_cases import BeginSaleCheckoutUseCase
 from backend.application.sales.use_cases.payment_use_cases import RecordSalePaymentUseCase
 from backend.application.sales.use_cases.return_use_cases import ReverseSaleUseCase
-from backend.domain.orders_delivery.exceptions import SaleProjectionFailedError
+from backend.domain.orders_delivery.exceptions import (
+    OrdersDeliveryDomainError,
+    SaleProjectionFailedError,
+)
+from backend.domain.sales.exceptions import InventoryReservationFailedError
 from backend.shared.ids import new_uuid
 
 
@@ -130,9 +134,10 @@ class OrdersDeliverySalesClient:
         side effects. A Caja-effect failure is logged by `CheckoutSaleUseCase`
         itself and never un-completes the sale; it is not this client's job
         to second-guess that."""
-        # Pedidos descuenta inventario por su propio cliente (ORD-8) y el
-        # efectivo lo liquida el repartidor, no un turno de mostrador: el
-        # cobro no debe volver a descontar ni exigir turno (Fase 6).
+        # Pedidos descuenta inventario por su propio cliente al despachar o
+        # entregar (SDLC-ORD-004) y el efectivo lo liquida el repartidor, no un
+        # turno de mostrador: el cobro no debe volver a descontar ni exigir
+        # turno (Fase 6).
         result = CheckoutSaleUseCase(
             self._auth, settle_inventory=False, require_cash_shift=False).execute(
             self._connection, sale_id=sale_id, actor_user_id=actor_user_id,
@@ -142,16 +147,24 @@ class OrdersDeliverySalesClient:
 
     def refund(
         self, *, sale_id: str, reason: str, actor_user_id: str, authorizer_user_id: str,
-        operation_id: str,
+        operation_id: str, restore_inventory,
     ) -> None:
         """A CustomerOrder has no per-line return tracking of its own, so a
         refund always reverses the WHOLE linked Sale (`ReverseSaleUseCase`,
-        which itself restores inventory and reverses Caja effects) — never a
-        partial `ReturnSaleLineUseCase`. `authorizer_user_id` flows straight
+        which reverses Caja effects) — never a partial
+        `ReturnSaleLineUseCase`. Inventory is NOT restored by Sales here: Sales
+        never issued it. `restore_inventory` takes back what Pedidos issued,
+        inside the reversal's own transaction. `authorizer_user_id` flows straight
         into Sales' own hot-authorization (`SalesAuthorizationPolicy.
         authorize_exception`, requiring a distinct approver) — this client
         does not additionally gate on an Orders/Delivery-side authorizer."""
-        result = ReverseSaleUseCase(self._auth).execute(
+        def _restore() -> None:
+            try:
+                restore_inventory()
+            except OrdersDeliveryDomainError as exc:
+                raise InventoryReservationFailedError(str(exc)) from exc
+
+        result = ReverseSaleUseCase(self._auth, inventory_return=_restore).execute(
             self._connection, sale_id=sale_id, reason=reason, actor_user_id=actor_user_id,
             authorizer_user_id=authorizer_user_id, operation_id=operation_id)
         if not result.success:

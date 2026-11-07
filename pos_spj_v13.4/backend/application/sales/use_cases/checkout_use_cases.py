@@ -49,8 +49,9 @@ Una venta normal de 2 Pollos quedaba COMPLETED por $200 y:
    `backend/application/sales/integrations/` lo entrega a `SaleCompletedHandler`.
 
 `settle_inventory`/`require_cash_shift` existen para Pedidos/Delivery, que
-descuenta por su propio cliente de inventario (ORD-8) y liquida el efectivo con
-el repartidor, no con un turno de mostrador. El mostrador usa ambos en True.
+descuenta por su propio cliente de inventario al despachar o entregar
+(SDLC-ORD-004) y liquida el efectivo con el repartidor, no con un turno de
+mostrador. El mostrador usa ambos en True.
 """
 
 from __future__ import annotations
