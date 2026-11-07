@@ -119,7 +119,7 @@ class FinancePresenter:
         return value
 
     # ── comandos ─────────────────────────────────────────────────────────
-    def _command(self, name: str, *args, done: str = "Operación registrada.",
+    def _command(self, name: str, /, *args, done: str = "Operación registrada.",
                  **kwargs) -> tuple[bool, str]:
         if self._commands is None:
             return False, "Finanzas no tiene servicio de comandos autorizado; operación rechazada."

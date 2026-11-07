@@ -326,6 +326,72 @@ class TestMigracion380:
         assert "380" in {m.version for m in MIGRATIONS}
 
 
+class TestPantalla:
+    """Sin Qt: el formulario se declara y aquí se intercepta el diálogo."""
+
+    def _presenter(self, conn):
+        from types import SimpleNamespace
+
+        from backend.application.finance.permissions import FinancePermissions
+        from frontend.desktop.modules.finance.finance_routes import build_finance_presenter
+
+        granted = {FinancePermissions.VIEW, FinancePermissions.ASSET_MANAGE}
+        session = SimpleNamespace(user_id=new_uuid(), is_active=True, active_branch_id="b1",
+                                  tiene_permiso=lambda code: code in granted)
+        return build_finance_presenter(conn, session)
+
+    def test_presenter_lists_and_completes_the_pending_asset(self, bootstrapped_conn):
+        ProcurementPayableBridgeHandler(bootstrapped_conn).handle(_credit_payload())
+        asset = _assets(bootstrapped_conn)[0]
+        presenter = self._presenter(bootstrapped_conn)
+        assert presenter.asset_status(asset.id) == "DRAFT"
+        assert presenter.pending_asset(asset.id)["source_document_number"] == "F-100"
+        ok, message = presenter.complete_purchased_asset(asset.id, name="Horno")
+        assert ok and "falta la vida útil" in message
+        ok, message = presenter.complete_purchased_asset(
+            asset.id, useful_life_months=24, capitalization_date=date(2026, 7, 16))
+        assert ok and "ya deprecia" in message
+        assert presenter.asset_status(asset.id) == "ACTIVE"
+
+    def test_manual_capitalization_reaches_the_use_case(self, bootstrapped_conn):
+        """``name`` es un dato del activo: chocaba con el parámetro de ``_command``
+        y «Capitalizar activo» reventaba con TypeError antes de llegar al caso de uso."""
+        bank = treasury(bootstrapped_conn, TreasuryAccountType.BANK).id
+        fund(bootstrapped_conn, bank, "5000.00")
+        presenter = self._presenter(bootstrapped_conn)
+        ok, message = presenter.capitalize_asset(
+            name="Vitrina", acquisition_cost="1000.00", useful_life_months=10,
+            capitalization_date=date(2026, 7, 16), paid_from_treasury_account_id=bank)
+        assert ok, message
+
+    def test_form_offers_what_the_purchase_left_pending(self, bootstrapped_conn, monkeypatch):
+        from types import SimpleNamespace
+
+        from frontend.desktop.modules.finance.pages import fixed_assets_page as page
+
+        ProcurementPayableBridgeHandler(bootstrapped_conn).handle(_credit_payload())
+        asset = _assets(bootstrapped_conn)[0]
+        captured = {}
+
+        def fake_ask(_parent, _title, fields, **_kwargs):
+            captured.update({spec.key: spec for spec in fields})
+            return {"name": "Horno", "asset_code": "", "asset_category_id": None,
+                    "residual_value": "0.00", "useful_life_months": 24,
+                    "capitalization_date": date(2026, 7, 20), "project_id": None}
+
+        monkeypatch.setattr(page, "ask", fake_ask)
+        results = []
+        fake_page = SimpleNamespace(_presenter=self._presenter(bootstrapped_conn),
+                                    selected_id=lambda: asset.id, run=results.append)
+        page.FixedAssetsPage._complete(fake_page)
+        assert captured["capitalization_date"].default == date(2026, 7, 16)
+        assert captured["source_document_number"].default == "F-100"
+        assert results[0][0] is True, results[0]
+        stored = _assets(bootstrapped_conn)[0]
+        assert stored.status is FixedAssetStatus.ACTIVE
+        assert stored.capitalization_date == date(2026, 7, 20)
+
+
 class TestComando:
     def test_completing_requires_the_asset_permission(self, bootstrapped_conn):
         from backend.application.finance.authorization import (
