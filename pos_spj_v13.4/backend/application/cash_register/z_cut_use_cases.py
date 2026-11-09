@@ -10,7 +10,7 @@ from typing import Protocol
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.permissions import CashPermissions
 from backend.application.cash_register.shift_use_cases import _record
-from backend.application.cash_register.x_cut_use_cases import _snapshot
+from backend.application.cash_register.x_cut_use_cases import _payment_snapshot, _snapshot
 from backend.domain.cash_register.entities import CashDifference, ZCut
 from backend.domain.cash_register.difference_policy import CashDifferencePolicy
 from backend.domain.cash_register.events import CashEvents
@@ -69,6 +69,7 @@ class GenerateZCutUseCase:
             if not count:
                 raise CashInvalidStateError("Se requiere un conteo ciego confirmado y no utilizado")
             expected, snapshot = _snapshot(uow.ledger.list_for_shift(shift_id))
+            snapshot.update(_payment_snapshot(uow, shift_id))
             counted = Decimal(count["total_counted"])
             difference_amount = counted - expected
             snapshot.update({
