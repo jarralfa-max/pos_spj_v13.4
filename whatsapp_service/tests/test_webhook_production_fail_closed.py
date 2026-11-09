@@ -156,6 +156,7 @@ def test_whatsapp_webhook_with_opt_in_reaches_the_router(meta, caplog, monkeypat
 def test_mercadopago_webhook_with_opt_in_queries_the_payment(mp, caplog, monkeypatch):
     """SDLC-WA-002, criterio 3: pasa de la firma y llega a la API de pagos."""
     monkeypatch.setenv("WA_ALLOW_UNSIGNED_WEBHOOKS", "1")
+    monkeypatch.setattr(mp_webhook, "_erp_bridge", object())
     with caplog.at_level(logging.WARNING, logger="wa.webhook.mp"):
         mp.post("/webhook/mercadopago", json=_MP_PAYMENT)
     assert _ForbiddenHttpClient.constructed == 1
@@ -233,7 +234,7 @@ def test_mercadopago_webhook_rejects_when_secret_missing_in_production(monkeypat
 
     resp = client.post(
         "/webhook/mercadopago",
-        json={"action": "payment.updated", "data": {"id": "1"}},
+        json={"action": "application.deauthorized", "data": {"id": "1"}},
     )
 
     assert resp.status_code == 503
@@ -249,7 +250,7 @@ def test_mercadopago_webhook_allows_with_warning_outside_production(monkeypatch)
 
     resp = client.post(
         "/webhook/mercadopago",
-        json={"action": "payment.updated", "data": {"id": "1"}},
+        json={"action": "application.deauthorized", "data": {"id": "1"}},
     )
 
     assert resp.status_code == 200

@@ -184,7 +184,7 @@ def test_webhook_accepts_valid_signature_and_ignores_non_payment_action(app_clie
         "/webhook/mercadopago",
         params={"data.id": "123456789"},
         headers={"x-signature": sig, "x-request-id": "req-1"},
-        json={"action": "payment.updated", "data": {"id": "123456789"}},
+        json={"action": "application.deauthorized", "data": {"id": "123456789"}},
     )
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
@@ -195,7 +195,7 @@ def test_webhook_falls_back_to_unsigned_when_secret_not_configured(app_client, m
     monkeypatch.setenv("WA_ALLOW_UNSIGNED_WEBHOOKS", "1")
     resp = app_client.post(
         "/webhook/mercadopago",
-        json={"action": "payment.updated", "data": {"id": "123456789"}},
+        json={"action": "application.deauthorized", "data": {"id": "123456789"}},
     )
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
@@ -206,7 +206,7 @@ def test_webhook_rejects_unsigned_when_secret_not_configured_without_opt_in(app_
     monkeypatch.setattr("whatsapp_service.config.settings.get_mp_webhook_secret", lambda: "")
     resp = app_client.post(
         "/webhook/mercadopago",
-        json={"action": "payment.updated", "data": {"id": "123456789"}},
+        json={"action": "application.deauthorized", "data": {"id": "123456789"}},
     )
     assert resp.status_code == 503
 
@@ -216,7 +216,7 @@ def test_webhook_uses_the_configured_replay_window(app_client, monkeypatch):
     monkeypatch.setattr("whatsapp_service.config.settings.get_mp_webhook_secret", lambda: SECRET)
     old_ts = str(int(time.time()) - 600)
     sig = _sign("123456789", "req-1", old_ts)
-    body = {"action": "payment.updated", "data": {"id": "123456789"}}
+    body = {"action": "application.deauthorized", "data": {"id": "123456789"}}
     request = {
         "params": {"data.id": "123456789"},
         "headers": {"x-signature": sig, "x-request-id": "req-1"},

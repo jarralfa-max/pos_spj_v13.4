@@ -5417,3 +5417,22 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - **Acción operativa (D3=A):** una estación con el servicio local y sin `WA_APP_SECRET` deja de
   recibir mensajes hasta configurarlo en el módulo WhatsApp. Va en la nota de release.
 - Reversa: revertir el commit.
+
+### 374 — bandeja de pagos de MercadoPago sin asignar (2026-11-09, SDLC-WA-001)
+
+- `whatsapp_unmatched_payments`, en el esquema del canal (`whatsapp_schema.py`). La crean esta
+  migración y también `migrate_channel_schema` al arrancar el microservicio.
+  - Guarda id UUIDv7, proveedor e id del pago (únicos juntos), referencia externa, monto en TEXT,
+    moneda, estado, motivo, alta y resolución.
+- Webhook (`whatsapp_service/webhook/mercadopago.py`):
+  - procesa `payment.created` y `payment.updated` si el pago consultado está `approved`;
+  - casa por la venta de `external_reference`, que debe estar `pendiente_wa` y coincidir en
+    teléfono, en moneda MXN y en el monto exacto del total;
+  - ya no busca por sufijo de teléfono;
+  - aplica cada pago una sola vez por su id;
+  - avisa al cliente y emite eventos sólo después del match;
+  - lo que no casa va a la bandeja;
+  - responde 5xx cuando no guardó nada, para que el proveedor reintente.
+- Probada en una base temporal: dos corridas idempotentes. **No** se probó sobre una copia de la
+  base real.
+- Reversa: revertir el commit. La tabla nueva sólo agrega.
