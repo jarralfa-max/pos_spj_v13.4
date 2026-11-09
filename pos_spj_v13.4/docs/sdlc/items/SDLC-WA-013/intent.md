@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §10, §11 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -39,4 +39,4 @@ Operación multi-sucursal: pedidos asignados a una sucursal inexistente o equivo
 WA-2 (memoria).
 
 ## Preguntas abiertas
-- Con número global: ¿la sucursal se toma de la última compra del cliente, de su dirección, o se le pregunta siempre?
+- Con número global: ¿la sucursal se toma de la última compra del cliente, de su dirección, o se le pregunta siempre? se pregunta 

@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-003
 
 ## Problema
