@@ -223,3 +223,38 @@ def test_out_of_order_facts_wait_for_their_dependency_and_never_regress(conectar
                     (perfil,))
         assert cur.fetchone()[0] == Decimal("5000.00")
     pg.close()
+
+
+# ── SDLC-ARQ-SYNC-001: dos estaciones sobre lo mismo, PostgreSQL real ────────
+def test_two_stations_double_shift_and_oversell_are_open_conflicts(conectar):
+    from backend.application.sync.central_projection import CentralProjector
+    from backend.application.sync.station_admin import CentralStationAdmin
+    from backend.infrastructure.central.projection_repository import (
+        PostgresCentralProjectionRepository,
+    )
+    from backend.infrastructure.central.sync_inbox_repository import (
+        PostgresCentralInboxRepository,
+    )
+
+    pg = conectar()
+    admin = CentralStationAdmin(PostgresCentralInboxRepository(pg))
+    sucursal = new_uuid()
+    a = admin.register(station_id=new_uuid(), branch_id=sucursal).station_id
+    b = admin.register(station_id=new_uuid(), branch_id=sucursal).station_id
+    caja, almacen, producto = new_uuid(), new_uuid(), new_uuid()
+    for estacion in (a, b):
+        _inbox(pg, estacion, sucursal, tipo="CASH_SHIFT_OPENED", agregado=new_uuid(),
+               tipo_agregado="cash_register.cash", version=1, secuencia=1,
+               payload={"opening_amount": "500.00", "register_id": caja})
+    for estacion, delta, secuencia in ((a, "5", 2), (a, "-4", 3), (b, "-3", 2)):
+        _inbox(pg, estacion, sucursal, tipo="INVENTORY_MOVEMENT_POSTED", agregado=new_uuid(),
+               tipo_agregado="inventory.stock", version=1, secuencia=secuencia,
+               payload={"warehouse_id": almacen, "movement_type": "SALE",
+                        "effects": [{"product_id": producto, "quantity_delta": delta,
+                                     "weight_delta": "0"}]})
+    assert CentralProjector(PostgresCentralProjectionRepository(pg)).run_once().errors == 0
+    with pg.cursor() as cur:
+        cur.execute("SELECT kind, status FROM sync_conflicts ORDER BY kind")
+        assert cur.fetchall() == [("CROSS_STATION_OVERSELL", "OPEN"),
+                                  ("DOUBLE_OPEN_SHIFT", "OPEN")]
+    pg.close()

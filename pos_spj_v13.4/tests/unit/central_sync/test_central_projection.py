@@ -200,6 +200,15 @@ class _Memoria:
     def add_stock_movement(self, rows):
         self.movimientos.setdefault(rows["movement"]["movement_id"], rows)
 
+    def stock_position(self, *, product_id, warehouse_id):
+        return Decimal("0"), []     # una sola estación: nunca hay sobreventa entre cajas
+
+    def overlapping_open_shifts(self, *, register_id, shift_id, opened_at):
+        return []
+
+    def add_conflict(self, *, event_id, kind, details):
+        raise AssertionError(f"conflicto inesperado {kind}")
+
     def commit(self):
         self.commits += 1
 

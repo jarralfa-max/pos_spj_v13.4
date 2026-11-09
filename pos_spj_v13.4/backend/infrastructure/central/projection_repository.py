@@ -4,8 +4,12 @@ CONFLICT DO NOTHING`): reproyectar nunca duplica una venta ni un movimiento."""
 
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
+from decimal import Decimal
 from typing import Any, Mapping
+
+from backend.shared.ids import new_uuid
 
 
 class PostgresCentralProjectionRepository:
@@ -114,7 +118,38 @@ class PostgresCentralProjectionRepository:
                  e["warehouse_id"], e["location_id"], e["inventory_status"],
                  e["quantity_delta"], e["weight_delta"]))
 
+    def stock_position(self, *, product_id: str,
+                       warehouse_id: str) -> tuple[Decimal, list[str]]:
+        """Existencia central del producto en el almacén y qué estaciones la movieron."""
+        with self._conn.cursor() as cur:
+            cur.execute(
+                """SELECT COALESCE(SUM(e.quantity_delta), 0),
+                          COALESCE(array_agg(DISTINCT i.station_id), '{}')
+                   FROM central_stock_effects e
+                   JOIN central_stock_movements m ON m.movement_id = e.movement_id
+                   JOIN sync_inbox i ON i.event_id = m.event_id
+                   WHERE e.product_id = %s AND e.warehouse_id = %s""",
+                (product_id, warehouse_id))
+            saldo, estaciones = cur.fetchone()
+        return Decimal(saldo), sorted(str(e) for e in (estaciones or ()))
+
+    def add_conflict(self, *, event_id: str, kind: str, details: Mapping[str, Any]) -> None:
+        """Conflicto visible en `sync_conflicts` (OPEN). Lo resuelve una persona."""
+        self._exec("INSERT INTO sync_conflicts (id, event_id, kind, details, created_at)"
+                   " VALUES (%s, %s, %s, %s::jsonb, now())",
+                   (new_uuid(), event_id, kind, json.dumps(dict(details), default=str)))
+
     # ── Caja (Slice 6) ──────────────────────────────────────────────────
+    def overlapping_open_shifts(self, *, register_id: str, shift_id: str,
+                                opened_at) -> list[Mapping[str, Any]]:
+        """Otros turnos de la misma caja que no se habían cerrado cuando éste abrió."""
+        with self._conn.cursor() as cur:
+            cur.execute("SELECT shift_id, station_id FROM central_cash_shifts"
+                        " WHERE register_id = %s AND shift_id <> %s"
+                        " AND (closed_at IS NULL OR closed_at > %s)",
+                        (register_id, shift_id, opened_at))
+            return [{"shift_id": str(f[0]), "station_id": str(f[1])} for f in cur.fetchall()]
+
     def open_cash_shift(self, row: dict) -> None:
         self._exec(
             """INSERT INTO central_cash_shifts (shift_id, event_id, branch_id, station_id,

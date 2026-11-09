@@ -5470,3 +5470,16 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
   (SDLC-ARQ-SYNC-001).
 - **No verificado aquí:** el SQL de PostgreSQL (`pending_facts`, `last_projected_event`); su prueba
   corre en el job `central-postgres`.
+
+### Conflictos entre estaciones en el central (2026-11-09, SDLC-ARQ-SYNC-001, parcial, sin migración)
+
+- La proyección registra en `sync_conflicts` (OPEN) dos invariantes:
+  - `DOUBLE_OPEN_SHIFT`: dos turnos sin cerrar en la misma caja;
+  - `CROSS_STATION_OVERSELL`: una salida deja negativa una existencia que movieron dos o más estaciones.
+- El hecho se proyecta igual: detectar no decide quién gana.
+- La autoridad del inventario es la estación (decisión 2026-11-02), así que la sobreventa se detecta y
+  no se previene.
+- **Pendiente:** la matriz de autoridad por entidad (sin aprobar) y la detección de versiones
+  concurrentes de agregados compartidos, que depende de esa matriz. `sync_aggregate_heads` sigue
+  quedándose con la última estación.
+- **No verificado aquí:** el SQL de PostgreSQL; su prueba corre en el job `central-postgres`.

@@ -27,6 +27,16 @@ Hechos fuera de orden (SDLC-SYNC-003):
   el último proyectado del mismo agregado y la misma estación: queda SKIPPED
   `SUPERSEDED`. Las versiones de dos estaciones distintas no se comparan entre sí;
   detectar esa concurrencia es SDLC-ARQ-SYNC-001.
+
+Conflictos entre estaciones (SDLC-ARQ-SYNC-001), que quedan OPEN en
+`sync_conflicts`. Detectar no decide quién gana: el hecho se proyecta igual.
+
+* `DOUBLE_OPEN_SHIFT`: un turno se abre en una caja que ya tiene otro sin cerrar
+  (§8 de los requisitos: sin turnos duplicados).
+* `CROSS_STATION_OVERSELL`: una salida deja negativa la existencia de un producto
+  en un almacén que movieron dos o más estaciones. La autoridad del inventario es
+  la estación (decisión 2026-11-02), así que se detecta, no se previene. Que una
+  sola estación quede en negativo es su propia política, no un conflicto.
 """
 
 from __future__ import annotations
@@ -340,6 +350,11 @@ class CentralProjectionRepository(Protocol):
     def set_sale_status(self, *, sale_id: str, status: str, event_id: str) -> bool: ...
     def add_sale_return(self, row: dict) -> None: ...
     def add_stock_movement(self, rows: dict) -> None: ...
+    def stock_position(self, *, product_id: str,
+                       warehouse_id: str) -> tuple[Decimal, list[str]]: ...
+    def overlapping_open_shifts(self, *, register_id: str, shift_id: str,
+                                opened_at: Any) -> list[Mapping[str, Any]]: ...
+    def add_conflict(self, *, event_id: str, kind: str, details: Mapping[str, Any]) -> None: ...
     def open_cash_shift(self, row: dict) -> None: ...
     def close_cash_shift(self, *, shift_id: str, closed_at: Any,
                          z_cut_id: str | None) -> bool: ...
@@ -368,10 +383,10 @@ class CentralProjector:
             "SALE_CANCELLED": lambda f: self._sale_status(f, "CANCELLED"),
             "SALE_REVERSED": lambda f: self._sale_status(f, "REVERSED"),
             "SALE_RETURNED": lambda f: self._repo.add_sale_return(sale_return_row(f)),
-            "INVENTORY_MOVEMENT_POSTED": lambda f: self._repo.add_stock_movement(stock_rows(f)),
-            "INVENTORY_MOVEMENT_REVERSED": lambda f: self._repo.add_stock_movement(stock_rows(f)),
+            "INVENTORY_MOVEMENT_POSTED": self._stock,
+            "INVENTORY_MOVEMENT_REVERSED": self._stock,
             # Slice 6
-            "CASH_SHIFT_OPENED": lambda f: self._repo.open_cash_shift(cash_shift_row(f)),
+            "CASH_SHIFT_OPENED": self._open_shift,
             "CASH_SHIFT_CLOSED": self._close_shift,
             "CASH_SHIFT_FORCE_CLOSED": self._close_shift,
             "CASH_MOVEMENT_RECORDED": lambda f: self._repo.add_cash_movement(cash_movement_row(f)),
@@ -385,6 +400,36 @@ class CentralProjector:
             **{evento: self._loyalty for evento in _LOYALTY_LEDGER},
             **{evento: self._org_unit for evento in ORG_UNIT_EVENTS},
         }
+
+    def _stock(self, fact) -> None:
+        filas = stock_rows(fact)
+        self._repo.add_stock_movement(filas)
+        salidas = sorted({(e["product_id"], e["warehouse_id"]) for e in filas["effects"]
+                          if e["quantity_delta"] < 0})
+        for producto, almacen in salidas:
+            saldo, estaciones = self._repo.stock_position(product_id=producto,
+                                                          warehouse_id=almacen)
+            if saldo < 0 and len(set(estaciones)) > 1:
+                self._repo.add_conflict(
+                    event_id=fact["event_id"], kind="CROSS_STATION_OVERSELL",
+                    details={"product_id": producto, "warehouse_id": almacen,
+                             "balance": str(saldo), "stations": sorted(set(estaciones))})
+
+    def _open_shift(self, fact) -> None:
+        fila = cash_shift_row(fact)
+        self._repo.open_cash_shift(fila)
+        if not fila["register_id"]:
+            return
+        otros = self._repo.overlapping_open_shifts(
+            register_id=fila["register_id"], shift_id=fila["shift_id"],
+            opened_at=fila["opened_at"])
+        if otros:
+            self._repo.add_conflict(
+                event_id=fact["event_id"], kind="DOUBLE_OPEN_SHIFT",
+                details={"register_id": fila["register_id"], "shift_id": fila["shift_id"],
+                         "other_shift_ids": sorted(str(o["shift_id"]) for o in otros),
+                         "stations": sorted({str(fila["station_id"]),
+                                             *(str(o["station_id"]) for o in otros)})})
 
     def _sale_status(self, fact, status: str) -> None:
         if not self._repo.set_sale_status(sale_id=fact["aggregate_id"], status=status,
