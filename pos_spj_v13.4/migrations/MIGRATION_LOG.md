@@ -5456,3 +5456,13 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - `CreateCustomerOrderUseCase` respeta el precio de la línea y deja de estar expuesto a la UI: sólo
   lo llama la conversión de una cotización. El caso de uso no cambia, para no perder ese flujo.
 - Pruebas: `tests/integration/orders_delivery/test_new_order_dialog.py`.
+
+### SDLC-ORD-002 — outbox drenados o declarados sólo-replicación (2026-11-06, sin migración)
+
+- `orders_delivery_outbox` ya se drena al arrancar y periódicamente (commit de SDLC-ORD-001).
+- Se midió con el cableado real que `crm_outbox`, `customer_outbox`, `quote_outbox`,
+  `loyalty_cards_outbox`, `sweepstakes_outbox`, `customer_service_outbox` y `customer_privacy_outbox`
+  no tienen ningún suscriptor local. Quedan declarados como `REPLICATION_ONLY_OUTBOXES` en
+  `backend/infrastructure/sync/replication_sources.py`: la replicación es su único lector.
+- `tests/integration/bootstrap/test_outbox_drain_coverage.py` falla si alguien suscribe uno de sus
+  eventos sin construirle despachador.
