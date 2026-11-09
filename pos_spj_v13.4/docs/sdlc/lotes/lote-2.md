@@ -135,7 +135,7 @@ responsable indicó que no hay datos; no hay copia en este worktree.
 | `python -m compileall -q .` | rc=0 |
 | `tests/integration/finance tests/unit/finance tests/integration/hr tests/unit/hr tests/integration/procurement tests/integration/loyalty tests/integration/shell/test_hr_module_migration.py` | **963 passed** |
 | 10 archivos de guardias del área + `tests/integration/finance` (sobre `152a7b20`) | **2 failed, 372 passed** (16:55), ambos de línea base |
-| `tests/architecture` completo | **PENDIENTE** |
+| `tests/architecture` completo (sobre `2f6da855`) | **22 failed, 880 passed, 1 skipped, 2 xfailed** (35:32) |
 | `tests/unit` e `integration` completos | **No corridos**: sólo las áreas tocadas |
 
 Esas 963 se corrieron antes de `152a7b20`. Después de ese commit se repitió `tests/integration/finance` (fila de guardias).
@@ -148,6 +148,7 @@ Sin fallos en unit e integración de las áreas tocadas. En las guardias fallan 
 - `test_no_raw_sqlite_connect_outside_pool`: `finance_schema.py:955`. Es la línea 952 de la línea base, movida 3 líneas
   por las columnas nuevas; este lote no agregó conexiones.
 - `test_clean_birth_guardrails.py::test_services_repositories_ui_do_not_create_schema`: la línea base lo atribuye a
-  `unit_repository.py`, que este lote no toca. La corrida no conservó el detalle; se confirma con la completa.
+  `unit_repository.py`, que este lote no toca.
 
-La comparación contra los 22 fallos de arquitectura se anota aquí cuando termine la corrida completa.
+`tests/architecture` completo: los mismos 22 fallos de la línea base, prueba por prueba (SDLC-CORE-008, CORE-009 y
+WA-005), y ninguno nuevo. Pasan 880 frente a 879: la diferencia es la guardia nueva de FIN-001.
