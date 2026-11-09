@@ -170,7 +170,7 @@ class _Memoria:
         self.hechos, self.registro, self.ventas, self.movimientos = list(hechos), {}, {}, {}
         self.commits = 0
 
-    def pending_facts(self, *, projector, limit):
+    def pending_facts(self, *, projector, limit, retry_errors=False):
         return [h for h in self.hechos if (h["event_id"], projector) not in self.registro][:limit]
 
     @contextmanager
@@ -191,6 +191,8 @@ class _Memoria:
     def set_sale_status(self, *, sale_id, status, event_id):
         if sale_id in self.ventas:
             self.ventas[sale_id]["sale"]["status"] = status
+            return True
+        return False
 
     def add_sale_return(self, row):
         pass

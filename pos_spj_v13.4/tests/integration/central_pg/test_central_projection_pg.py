@@ -158,3 +158,68 @@ def test_sales_and_inventory_from_the_till_to_central_projections(conectar):
         assert cur.fetchone()[0] == 3
     pg.close()
     caja.close()
+
+
+# ── SDLC-SYNC-003: hechos fuera de orden sobre PostgreSQL real ───────────────
+def _inbox(pg, estacion, sucursal, *, tipo, agregado, tipo_agregado, version, secuencia,
+           payload):
+    evento = new_uuid()
+    with pg.cursor() as cur:
+        cur.execute(
+            """INSERT INTO sync_inbox (event_id, station_id, sequence_no, content_hash,
+               envelope_version, event_type, schema_version, aggregate_type, aggregate_id,
+               aggregate_version, branch_id, operation_id, occurred_at, payload, status)
+               VALUES (%s,%s,%s,%s,1,%s,1,%s,%s,%s,%s,%s,%s,%s,'APPLIED')""",
+            (evento, estacion, secuencia, "c" * 64, tipo, tipo_agregado, agregado, version,
+             sucursal, new_uuid(), T0, json.dumps(payload)))
+    pg.commit()
+    return evento
+
+
+def test_out_of_order_facts_wait_for_their_dependency_and_never_regress(conectar):
+    from backend.application.sync.central_projection import CentralProjector
+    from backend.application.sync.station_admin import CentralStationAdmin
+    from backend.infrastructure.central.projection_repository import (
+        PostgresCentralProjectionRepository,
+    )
+    from backend.infrastructure.central.sync_inbox_repository import (
+        PostgresCentralInboxRepository,
+    )
+
+    pg = conectar()
+    emitida = CentralStationAdmin(PostgresCentralInboxRepository(pg)).register(
+        station_id=new_uuid(), branch_id=new_uuid())
+    est, suc = emitida.station_id, emitida.branch_id
+    proyector = CentralProjector(PostgresCentralProjectionRepository(pg))
+
+    venta = new_uuid()
+    cancelacion = _inbox(pg, est, suc, tipo="SALE_CANCELLED", agregado=venta,
+                         tipo_agregado="sales.sale", version=2, secuencia=1, payload={})
+    proyector.run_once()
+    with pg.cursor() as cur:
+        cur.execute("SELECT status, error FROM central_projection_log WHERE event_id=%s",
+                    (cancelacion,))
+        estado, motivo = cur.fetchone()
+    assert estado == "ERROR" and motivo.startswith("DEPENDENCY_MISSING")
+    _inbox(pg, est, suc, tipo="SALE_COMPLETED", agregado=venta, tipo_agregado="sales.sale",
+           version=1, secuencia=2, payload={"total": "10.00", "lines": [], "payments": []})
+    proyector.run_once()
+    with pg.cursor() as cur:
+        cur.execute("SELECT status FROM central_sales WHERE sale_id=%s", (venta,))
+        assert cur.fetchone()[0] == "CANCELLED"
+
+    perfil = new_uuid()
+    credito = {"profile_id": perfil, "customer_id": new_uuid()}
+    _inbox(pg, est, suc, tipo="CUSTOMER_CREDIT_LIMIT_UPDATED", agregado=perfil,
+           tipo_agregado="customer_credit.credit_account", version=2, secuencia=3,
+           payload={**credito, "credit_limit": "5000.00"})
+    proyector.run_once()
+    _inbox(pg, est, suc, tipo="CUSTOMER_CREDIT_LIMIT_UPDATED", agregado=perfil,
+           tipo_agregado="customer_credit.credit_account", version=1, secuencia=4,
+           payload={**credito, "credit_limit": "1000.00"})
+    assert proyector.run_once().skipped == 1
+    with pg.cursor() as cur:
+        cur.execute("SELECT credit_limit FROM central_credit_accounts WHERE profile_id=%s",
+                    (perfil,))
+        assert cur.fetchone()[0] == Decimal("5000.00")
+    pg.close()

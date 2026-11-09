@@ -13,6 +13,20 @@ ya decidió y dejó en el libro de hechos.
 Cada hecho se proyecta UNA vez (registro por hecho y proyector); un hecho que
 falla queda en ERROR con su motivo y no traba a los siguientes. Los traductores
 de abajo son funciones puras (hecho → renglones): se prueban sin base.
+
+Hechos fuera de orden (SDLC-SYNC-003):
+
+* el que necesita otro que aún no llega (una reversa antes que su movimiento, una
+  cancelación antes que su venta, un cierre antes que su apertura) queda en ERROR
+  `DEPENDENCY_MISSING` y se reintenta solo en cada corrida, al final del lote,
+  hasta que llega su dependencia. Un UPDATE que no tocó ninguna fila ya no se
+  registra como OK;
+* cualquier otro ERROR se reintenta a pedido (`run_once(retry_errors=True)`,
+  `scripts/central_stations.py project --retry-errors`);
+* crédito, puntos y unidades organizacionales no aceptan un hecho más viejo que
+  el último proyectado del mismo agregado y la misma estación: queda SKIPPED
+  `SUPERSEDED`. Las versiones de dos estaciones distintas no se comparan entre sí;
+  detectar esa concurrencia es SDLC-ARQ-SYNC-001.
 """
 
 from __future__ import annotations
@@ -29,6 +43,24 @@ PROJECTOR = "central_v1"
 
 class ProjectionError(ValueError):
     """El hecho no trae lo que la proyección necesita."""
+
+
+DEPENDENCY_MISSING = "DEPENDENCY_MISSING"
+SUPERSEDED = "SUPERSEDED"
+
+
+class ProjectionDependencyMissing(ProjectionError):
+    """Falta el hecho del que éste depende; se reintenta cuando llegue."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(f"{DEPENDENCY_MISSING}: {message}")
+
+
+class ProjectionSuperseded(ProjectionError):
+    """Ya se proyectó una versión más nueva del mismo agregado."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(f"{SUPERSEDED}: {message}")
 
 
 def _dec(valor: Any, campo: str) -> Decimal:
@@ -160,7 +192,7 @@ def cash_movement_row(fact: Mapping[str, Any]) -> dict:
 def cash_reversal_row(fact: Mapping[str, Any], original_signed: Decimal | None) -> dict:
     p = fact["payload"]
     if original_signed is None:
-        raise ProjectionError("La reversa llegó antes que su movimiento original")
+        raise ProjectionDependencyMissing("la reversa llegó antes que su movimiento original")
     importe = abs(_dec(p.get("amount"), "amount"))
     signo = Decimal("-1") if original_signed > 0 else Decimal("1")
     return {"movement_id": fact["aggregate_id"], "event_id": fact["event_id"],
@@ -299,15 +331,18 @@ def org_unit_row(fact: Mapping[str, Any]) -> dict:
 
 # ── ciclo de proyección ──────────────────────────────────────────────────────
 class CentralProjectionRepository(Protocol):
-    def pending_facts(self, *, projector: str, limit: int) -> list[Mapping[str, Any]]: ...
+    def pending_facts(self, *, projector: str, limit: int,
+                      retry_errors: bool = False) -> list[Mapping[str, Any]]: ...
+    def last_projected_event(self, kind: str, key: str) -> Mapping[str, Any] | None: ...
     def savepoint(self): ...
     def log(self, *, event_id: str, projector: str, status: str, error: str | None) -> None: ...
     def upsert_sale(self, rows: dict) -> None: ...
-    def set_sale_status(self, *, sale_id: str, status: str, event_id: str) -> None: ...
+    def set_sale_status(self, *, sale_id: str, status: str, event_id: str) -> bool: ...
     def add_sale_return(self, row: dict) -> None: ...
     def add_stock_movement(self, rows: dict) -> None: ...
     def open_cash_shift(self, row: dict) -> None: ...
-    def close_cash_shift(self, *, shift_id: str, closed_at: Any, z_cut_id: str | None) -> None: ...
+    def close_cash_shift(self, *, shift_id: str, closed_at: Any,
+                         z_cut_id: str | None) -> bool: ...
     def add_cash_movement(self, row: dict) -> None: ...
     def cash_movement_signed(self, movement_id: str) -> Decimal | None: ...
     def add_cash_cut(self, row: dict) -> None: ...
@@ -330,10 +365,8 @@ class CentralProjector:
         self._repo = repository
         self._handlers: dict[str, Callable[[Mapping[str, Any]], None]] = {
             "SALE_COMPLETED": lambda f: self._repo.upsert_sale(sale_rows(f)),
-            "SALE_CANCELLED": lambda f: self._repo.set_sale_status(
-                sale_id=f["aggregate_id"], status="CANCELLED", event_id=f["event_id"]),
-            "SALE_REVERSED": lambda f: self._repo.set_sale_status(
-                sale_id=f["aggregate_id"], status="REVERSED", event_id=f["event_id"]),
+            "SALE_CANCELLED": lambda f: self._sale_status(f, "CANCELLED"),
+            "SALE_REVERSED": lambda f: self._sale_status(f, "REVERSED"),
             "SALE_RETURNED": lambda f: self._repo.add_sale_return(sale_return_row(f)),
             "INVENTORY_MOVEMENT_POSTED": lambda f: self._repo.add_stock_movement(stock_rows(f)),
             "INVENTORY_MOVEMENT_REVERSED": lambda f: self._repo.add_stock_movement(stock_rows(f)),
@@ -348,23 +381,57 @@ class CentralProjector:
             "CASH_Z_CUT_GENERATED": lambda f: self._repo.add_cash_cut(cash_cut_row(f)),
             "JOURNAL_ENTRY_POSTED": lambda f: self._repo.add_journal_entry(journal_rows(f)),
             "JOURNAL_ENTRY_REVERSED": lambda f: self._repo.add_journal_entry(journal_rows(f)),
-            **{evento: (lambda f: self._repo.upsert_credit_account(credit_account_row(f)))
-               for evento in _CREDIT_STATUS},
-            **{evento: (lambda f: self._repo.upsert_loyalty_transaction(
-                loyalty_transaction_row(f))) for evento in _LOYALTY_LEDGER},
-            **{evento: (lambda f: self._repo.upsert_org_unit(org_unit_row(f)))
-               for evento in ORG_UNIT_EVENTS},
+            **{evento: self._credit for evento in _CREDIT_STATUS},
+            **{evento: self._loyalty for evento in _LOYALTY_LEDGER},
+            **{evento: self._org_unit for evento in ORG_UNIT_EVENTS},
         }
+
+    def _sale_status(self, fact, status: str) -> None:
+        if not self._repo.set_sale_status(sale_id=fact["aggregate_id"], status=status,
+                                          event_id=fact["event_id"]):
+            raise ProjectionDependencyMissing(f"la venta {fact['aggregate_id']} no está proyectada")
 
     def _close_shift(self, fact) -> None:
         p = fact["payload"]
-        self._repo.close_cash_shift(shift_id=p.get("shift_id") or fact["aggregate_id"],
-                                    closed_at=p.get("closed_at") or fact["occurred_at"],
-                                    z_cut_id=p.get("z_cut_id"))
+        turno = p.get("shift_id") or fact["aggregate_id"]
+        if not self._repo.close_cash_shift(shift_id=turno,
+                                           closed_at=p.get("closed_at") or fact["occurred_at"],
+                                           z_cut_id=p.get("z_cut_id")):
+            raise ProjectionDependencyMissing(f"el turno {turno} no está proyectado")
 
-    def run_once(self, *, limit: int = 500) -> ProjectionRun:
+    def _in_order(self, kind: str, key: str, fact) -> None:
+        """Un hecho más viejo del MISMO agregado y la MISMA estación no pisa al
+        último proyectado. Sin versión o de otra estación, no hay orden aquí."""
+        version = fact.get("aggregate_version")
+        previo = self._repo.last_projected_event(kind, str(key))
+        if previo is None or version is None:
+            return
+        mismo = (str(previo["station_id"]) == str(fact["station_id"])
+                 and str(previo["aggregate_type"]) == str(fact.get("aggregate_type"))
+                 and str(previo["aggregate_id"]) == str(fact["aggregate_id"]))
+        if mismo and int(previo["aggregate_version"]) >= int(version):
+            raise ProjectionSuperseded(
+                f"versión {version} ≤ {previo['aggregate_version']} ya proyectada")
+
+    def _credit(self, fact) -> None:
+        fila = credit_account_row(fact)
+        self._in_order("credit_account", fila["profile_id"], fact)
+        self._repo.upsert_credit_account(fila)
+
+    def _loyalty(self, fact) -> None:
+        fila = loyalty_transaction_row(fact)
+        self._in_order("loyalty_transaction", fila["transaction_id"], fact)
+        self._repo.upsert_loyalty_transaction(fila)
+
+    def _org_unit(self, fact) -> None:
+        fila = org_unit_row(fact)
+        self._in_order("org_unit", fila["unit_id"], fact)
+        self._repo.upsert_org_unit(fila)
+
+    def run_once(self, *, limit: int = 500, retry_errors: bool = False) -> ProjectionRun:
         hechos = proyectados = saltados = errores = 0
-        for hecho in self._repo.pending_facts(projector=PROJECTOR, limit=limit):
+        for hecho in self._repo.pending_facts(projector=PROJECTOR, limit=limit,
+                                              retry_errors=retry_errors):
             hechos += 1
             manejador = self._handlers.get(hecho["event_type"])
             if manejador is None:
@@ -378,6 +445,16 @@ class CentralProjector:
                     self._repo.log(event_id=hecho["event_id"], projector=PROJECTOR,
                                    status="OK", error=None)
                 proyectados += 1
+            except ProjectionSuperseded as exc:
+                self._repo.log(event_id=hecho["event_id"], projector=PROJECTOR,
+                               status="SKIPPED", error=str(exc)[:500])
+                saltados += 1
+            except ProjectionDependencyMissing as exc:
+                # El motivo EMPIEZA con DEPENDENCY_MISSING: así lo reconoce
+                # `pending_facts` para reintentarlo en la siguiente corrida.
+                self._repo.log(event_id=hecho["event_id"], projector=PROJECTOR,
+                               status="ERROR", error=str(exc)[:500])
+                errores += 1
             except Exception as exc:   # visible y sin trabar a los siguientes
                 logger.warning("proyección: %s %s falló: %s", hecho["event_type"],
                                hecho["event_id"], exc)
@@ -388,7 +465,8 @@ class CentralProjector:
         return ProjectionRun(proyectados, saltados, errores)
 
 
-__all__ = ["CentralProjectionRepository", "CentralProjector", "PROJECTOR", "ProjectionError",
+__all__ = ["CentralProjectionRepository", "CentralProjector", "DEPENDENCY_MISSING", "PROJECTOR",
+           "ProjectionDependencyMissing", "ProjectionError", "ProjectionSuperseded", "SUPERSEDED",
            "ProjectionRun", "cash_cut_row", "cash_movement_row", "cash_reversal_row",
            "ORG_UNIT_EVENTS", "cash_shift_row", "credit_account_row", "journal_rows",
            "loyalty_transaction_row", "org_unit_row",

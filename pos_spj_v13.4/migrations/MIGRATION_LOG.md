@@ -5456,3 +5456,17 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - `software_station_settings` deja de usar el hostname como llave: se mueve al id de la terminal.
 - **Pendiente, no hecho:** retirar `pos_terminals`, que sigue siendo padre por FK de `cash_shifts` y
   `cash_shift_assignments`; ver `docs/sdlc/lotes/lote-8.md`.
+
+### Proyección central fuera de orden (2026-11-09, SDLC-SYNC-003, sin migración)
+
+- Un hecho que depende de otro que aún no llega queda en ERROR `DEPENDENCY_MISSING` y se reintenta solo,
+  al final de cada lote. Pasa con una reversa de caja antes que su movimiento y con una cancelación o
+  reversa de venta antes que la venta. También con un cierre de turno antes que la apertura.
+  `set_sale_status` y `close_cash_shift` dicen ahora si tocaron una fila: con 0 filas ya no se registra OK.
+- Otros ERROR se reintentan a pedido: `scripts/central_stations.py project --retry-errors`.
+- Crédito, puntos y unidades organizacionales: un hecho más viejo del mismo agregado y la misma estación
+  queda SKIPPED `SUPERSEDED`. La versión se lee del `sync_inbox` del último hecho aplicado
+  (`last_event_id`), sin columnas nuevas. Entre estaciones distintas no hay orden comparable
+  (SDLC-ARQ-SYNC-001).
+- **No verificado aquí:** el SQL de PostgreSQL (`pending_facts`, `last_projected_event`); su prueba
+  corre en el job `central-postgres`.
