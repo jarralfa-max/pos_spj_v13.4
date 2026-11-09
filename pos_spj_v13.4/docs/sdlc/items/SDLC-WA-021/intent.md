@@ -3,7 +3,7 @@
 - **Prioridad:** P0
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §31, §33, §34 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-003
 
 ## Problema
@@ -39,4 +39,4 @@ Dinero: se cobra o se promete un precio distinto al vigente; existencia sobreven
 SDLC-WA-003; SDLC-ORD-003 (pipeline de pedidos autoritativo).
 
 ## Preguntas abiertas
-- Depende de la respuesta abierta de SDLC-ORD-003/SDLC-WA-003: ¿el pedido de WhatsApp nace en `customer_orders` (Orders/Delivery) o en `ventas` estado `pendiente_wa`?
+- Depende de la respuesta abierta de SDLC-ORD-003/SDLC-WA-003: ¿el pedido de WhatsApp nace en `customer_orders` (Orders/Delivery) o en `ventas` estado `pendiente_wa`? costumer_orders

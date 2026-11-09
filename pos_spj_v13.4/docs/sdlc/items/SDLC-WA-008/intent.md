@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §23 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -39,4 +39,4 @@ Seguridad: tokens de cobro y de canal legibles por cualquiera con acceso al arch
 WA-1 (memoria); SDLC-ARQ-INST-003; SDLC-SEC-006.
 
 ## Preguntas abiertas
-- ¿Alguna instalación usa hoy `configuraciones.wa_*` o tokens en `whatsapp_numeros`? Si sí, se necesita migrarlos al almacén antes de retirar el respaldo.
+- ¿Alguna instalación usa hoy `configuraciones.wa_*` o tokens en `whatsapp_numeros`? no,  Si sí, se necesita migrarlos al almacén antes de retirar el respaldo. 
