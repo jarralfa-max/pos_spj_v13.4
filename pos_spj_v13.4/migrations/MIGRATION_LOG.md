@@ -5466,3 +5466,10 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
   `backend/infrastructure/sync/replication_sources.py`: la replicación es su único lector.
 - `tests/integration/bootstrap/test_outbox_drain_coverage.py` falla si alguien suscribe uno de sus
   eventos sin construirle despachador.
+
+### SDLC-ORD-003 — pipeline autoritativo de pedidos (2026-11-06, sin migración)
+
+- Decisión según la regla del responsable («el más avanzado»): `customer_orders` y `quotes`. La
+  evidencia y el plan de corte están en `docs/sdlc/items/SDLC-ORD-003/decision.md`.
+- Guardia: `tests/architecture/test_orders_single_pipeline_ratchet.py`. No permite lectores ni
+  escritores nuevos de `delivery_orders` o `pendiente_wa` en el ERP, y la lista sólo puede encogerse.
