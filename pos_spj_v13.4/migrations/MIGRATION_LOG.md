@@ -5473,3 +5473,18 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
   evidencia y el plan de corte están en `docs/sdlc/items/SDLC-ORD-003/decision.md`.
 - Guardia: `tests/architecture/test_orders_single_pipeline_ratchet.py`. No permite lectores ni
   escritores nuevos de `delivery_orders` o `pendiente_wa` en el ERP, y la lista sólo puede encogerse.
+
+### SDLC-ORD-006 — avisos al cliente de Pedidos con reintento (2026-11-06, sin migración)
+
+- Los avisos "va en camino", "entregado", "no pudimos entregar", "listo para recoger", "requiere tu
+  aprobación" y su reenvío quedan en `whatsapp_outbox` dentro de la transacción del hecho
+  (decisión del responsable: esa cola). Son idempotentes por `operation_id`, con
+  `payload_json.source="orders_delivery"`. `OrdersDeliveryNoticeOutbox` los intenta en cuanto
+  confirma la transacción.
+- La tarea de fondo `orders_delivery.customer_notices` reintenta con espera creciente. Al quinto intento
+  el aviso pasa a `DEAD_LETTER` y llega a gerencia de la sucursal con el tipo `aviso_cliente_fallido`
+  (en `DELIVERY_ALERT_TYPES`).
+- La alerta interna de entrega fallida se escribe en la transacción del intento.
+- Riesgo declarado: hoy ningún proceso del microservicio drena `whatsapp_outbox` (SDLC-WA-006). Si
+  empieza a hacerlo, hay que retirar este drenado para no enviar dos veces (SDLC-WA-037).
+- Pruebas: `tests/integration/test_orders_delivery_notice_retry.py`.

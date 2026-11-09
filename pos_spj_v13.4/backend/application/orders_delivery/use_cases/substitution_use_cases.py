@@ -20,6 +20,9 @@ from backend.domain.orders_delivery.exceptions import OrderNotFoundError, Orders
 from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import (
     OrdersDeliveryUnitOfWork,
 )
+from backend.infrastructure.integrations.orders_delivery_notice_outbox import (
+    OrdersDeliveryNoticeOutbox,
+)
 from backend.infrastructure.integrations.orders_delivery_whatsapp_client import (
     OrdersDeliveryWhatsAppClient,
 )
@@ -63,14 +66,15 @@ class ProposeSubstitutionUseCase(_OrdersDeliveryBaseUseCase):
                 entity_id=order.id, operation_id=operation_id, branch_id=order.branch_id,
                 actor_user_id=actor_user_id, line_id=line_id,
                 substitute_product_id=substitute_product_id)
-
-        notification_sent = False
-        try:
-            notification_sent = self._whatsapp.notify_customer_approval_required(
-                phone=order.contact_phone or "", order_number=order.order_number or order.id,
+            # El aviso queda en cola en la misma transacción (SDLC-ORD-006).
+            avisos = OrdersDeliveryNoticeOutbox(connection, whatsapp=self._whatsapp)
+            aviso = avisos.enqueue(
+                route="approval", phone=order.contact_phone or "", operation_id=operation_id,
+                branch_id=order.branch_id, order_id=order.id,
+                order_number=order.order_number or order.id,
                 reason=f"sustitución de producto ({reason})")
-        except Exception as exc:  # noqa: BLE001 - never fail the proposal over a notification
-            logger.warning("Notificación de aprobación no enviada para pedido %s: %s", order.id, exc)
+
+        notification_sent = avisos.deliver(aviso)
         return OrderResult.ok(
             "Sustitución propuesta", entity_id=order.id, operation_id=operation_id,
             order=CustomerOrderDTO.from_entity(order), notification_sent=notification_sent)

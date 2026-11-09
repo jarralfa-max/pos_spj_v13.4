@@ -23,6 +23,9 @@ from backend.domain.orders_delivery.exceptions import (
 from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import (
     OrdersDeliveryUnitOfWork,
 )
+from backend.infrastructure.integrations.orders_delivery_notice_outbox import (
+    OrdersDeliveryNoticeOutbox,
+)
 from backend.infrastructure.integrations.orders_delivery_whatsapp_client import (
     OrdersDeliveryWhatsAppClient,
 )
@@ -55,15 +58,19 @@ class ResendCustomerApprovalNotificationUseCase(_OrdersDeliveryBaseUseCase):
                 line for line in order.lines
                 if line.status == OrderLineStatus.PENDING_CUSTOMER_APPROVAL]
 
-        reasons = [
-            f"sustitución de producto ({line.substitution_reason or 'sin motivo'})"
-            if line.substitute_product_id else "ajuste de peso fuera de tolerancia"
-            for line in pending_lines
-        ]
-        reason = "; ".join(reasons) or "ajuste pendiente de tu aprobación"
-        notification_sent = self._whatsapp.notify_customer_approval_required(
-            phone=order.contact_phone or "", order_number=order.order_number or order.id,
-            reason=reason)
+            reasons = [
+                f"sustitución de producto ({line.substitution_reason or 'sin motivo'})"
+                if line.substitute_product_id else "ajuste de peso fuera de tolerancia"
+                for line in pending_lines
+            ]
+            reason = "; ".join(reasons) or "ajuste pendiente de tu aprobación"
+            # También el reenvío queda en cola y se reintenta (SDLC-ORD-006).
+            avisos = OrdersDeliveryNoticeOutbox(connection, whatsapp=self._whatsapp)
+            aviso = avisos.enqueue(
+                route="approval", phone=order.contact_phone or "", operation_id=operation_id,
+                branch_id=order.branch_id, order_id=order.id,
+                order_number=order.order_number or order.id, reason=reason)
+        notification_sent = avisos.deliver(aviso)
         return OrderResult.ok(
             "Notificación reenviada" if notification_sent else "No se pudo reenviar la notificación",
             entity_id=order.id, operation_id=operation_id,

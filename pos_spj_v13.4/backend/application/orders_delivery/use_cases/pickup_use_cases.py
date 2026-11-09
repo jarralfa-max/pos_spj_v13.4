@@ -22,6 +22,9 @@ from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import 
 from backend.infrastructure.integrations.orders_delivery_inventory_client import (
     OrdersDeliveryInventoryClient,
 )
+from backend.infrastructure.integrations.orders_delivery_notice_outbox import (
+    OrdersDeliveryNoticeOutbox,
+)
 from backend.infrastructure.integrations.orders_delivery_whatsapp_client import (
     OrdersDeliveryWhatsAppClient,
 )
@@ -62,13 +65,14 @@ class MarkReadyForPickupUseCase(_OrdersDeliveryBaseUseCase):
             self._audit(
                 uow, OrdersDeliveryAuditActions.ORDER_READY_FOR_PICKUP, entity="CustomerOrder", entity_id=order.id,
                 branch_id=order.branch_id, actor_user_id=actor_user_id, operation_id=operation_id)
+            # El aviso queda en cola en la misma transacción (SDLC-ORD-006).
+            avisos = OrdersDeliveryNoticeOutbox(connection, whatsapp=self._whatsapp)
+            aviso = avisos.enqueue(
+                route="pedido_listo", phone=order.contact_phone or "",
+                operation_id=operation_id, branch_id=order.branch_id, order_id=order.id,
+                order_number=order.order_number or order.id)
 
-        notification_sent = False
-        try:
-            notification_sent = self._whatsapp.notify_ready_for_pickup(
-                phone=order.contact_phone or "", order_number=order.order_number or order.id)
-        except Exception as exc:  # noqa: BLE001 - never fail "ready" over a notification
-            logger.warning("Notificación de pedido listo no enviada para %s: %s", order.id, exc)
+        notification_sent = avisos.deliver(aviso)
         return OrderResult.ok(
             "Pedido listo para recoger", entity_id=order.id, operation_id=operation_id,
             order=CustomerOrderDTO.from_entity(order), verification_code=code,

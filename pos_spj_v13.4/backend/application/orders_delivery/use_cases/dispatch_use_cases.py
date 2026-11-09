@@ -34,6 +34,9 @@ from backend.infrastructure.integrations.orders_delivery_inventory_client import
 from backend.infrastructure.integrations.orders_delivery_internal_notifier import (
     OrdersDeliveryInternalNotifier,
 )
+from backend.infrastructure.integrations.orders_delivery_notice_outbox import (
+    OrdersDeliveryNoticeOutbox,
+)
 from backend.infrastructure.integrations.orders_delivery_whatsapp_client import (
     OrdersDeliveryWhatsAppClient,
 )
@@ -41,16 +44,18 @@ from backend.infrastructure.integrations.orders_delivery_whatsapp_client import 
 logger = logging.getLogger("spj.orders_delivery.dispatch")
 
 
-def _notify_customer(whatsapp: OrdersDeliveryWhatsAppClient, order, event_name: str) -> bool:
+def _queue_customer_notice(outbox: OrdersDeliveryNoticeOutbox, order, event_name: str,
+                           operation_id: str):
+    """El aviso queda en `whatsapp_outbox` en la transacción del hecho
+    (SDLC-ORD-006). Antes era una sola llamada: si fallaba, se perdía."""
     message = DeliveryNotificationPolicy.customer_message(
         event_name, order_number=order.order_number or order.id)
     if message is None:
-        return False
-    try:
-        return whatsapp.send_message(phone=order.contact_phone or "", message=message)
-    except Exception as exc:  # noqa: BLE001 - never fail the operation over a notification
-        logger.warning("Notificación de cliente no enviada para pedido %s: %s", order.id, exc)
-        return False
+        return None
+    return outbox.enqueue(
+        route="send", phone=order.contact_phone or "", operation_id=operation_id,
+        branch_id=order.branch_id, order_id=order.id,
+        order_number=order.order_number or order.id, message=message)
 
 
 class DispatchDeliveryJobUseCase(_OrdersDeliveryBaseUseCase):
@@ -98,8 +103,11 @@ class DispatchDeliveryJobUseCase(_OrdersDeliveryBaseUseCase):
             self._emit_delivery(
                 uow, DeliveryEvents.DISPATCHED, entity_id=job.id, operation_id=operation_id,
                 branch_id=job.branch_id, actor_user_id=actor_user_id, order_id=order.id)
+            avisos = OrdersDeliveryNoticeOutbox(connection, whatsapp=self._whatsapp)
+            aviso = _queue_customer_notice(avisos, order, DeliveryEvents.DISPATCHED,
+                                           operation_id)
 
-        notification_sent = _notify_customer(self._whatsapp, order, DeliveryEvents.DISPATCHED)
+        notification_sent = avisos.deliver(aviso)
         return OrderResult.ok(
             "Pedido despachado", entity_id=job.id, operation_id=operation_id,
             delivery_job=DeliveryJobDTO.from_entity(job), order=CustomerOrderDTO.from_entity(order),
@@ -216,22 +224,22 @@ class RecordDeliveryAttemptUseCase(_OrdersDeliveryBaseUseCase):
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.delivery_jobs.save(job)
             uow.orders.save(order)
+            event_name = DeliveryEvents.COMPLETED if successful else DeliveryEvents.FAILED
             self._emit_delivery(
-                uow, DeliveryEvents.COMPLETED if successful else DeliveryEvents.FAILED,
-                entity_id=job.id, operation_id=operation_id, branch_id=job.branch_id,
-                actor_user_id=actor_user_id)
-        event_name = DeliveryEvents.COMPLETED if successful else DeliveryEvents.FAILED
-        notification_sent = _notify_customer(self._whatsapp, order, event_name)
-        if not successful and DeliveryNotificationPolicy.requires_internal_alert(event_name):
-            try:
+                uow, event_name, entity_id=job.id, operation_id=operation_id,
+                branch_id=job.branch_id, actor_user_id=actor_user_id)
+            avisos = OrdersDeliveryNoticeOutbox(connection, whatsapp=self._whatsapp)
+            aviso = _queue_customer_notice(avisos, order, event_name, operation_id)
+            if not successful and DeliveryNotificationPolicy.requires_internal_alert(event_name):
+                # En la misma transacción que el intento (SDLC-ORD-006): la alerta
+                # es una fila de la bandeja, no una llamada que pueda perderse.
                 self._internal_notifier_factory(connection).notify_roles(
                     roles=("admin", "gerente"), branch_id=job.branch_id,
                     tipo=DELIVERY_FAILED_ALERT_TYPE,
                     titulo=f"Entrega fallida — pedido {order.order_number or order.id}",
                     cuerpo=failure_reason or "Sin motivo especificado",
                     datos={"delivery_job_id": job.id, "order_id": order.id})
-            except Exception as exc:  # noqa: BLE001 - never fail the attempt over an alert
-                logger.warning("Alerta interna no enviada para job %s: %s", job.id, exc)
+        notification_sent = avisos.deliver(aviso)
         return OrderResult.ok(
             "Intento de entrega registrado", entity_id=job.id, operation_id=operation_id,
             delivery_job=DeliveryJobDTO.from_entity(job),

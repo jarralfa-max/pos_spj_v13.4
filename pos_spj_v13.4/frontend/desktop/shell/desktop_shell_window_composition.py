@@ -263,6 +263,13 @@ def _build_background_services(*, context: ApplicationContext, connection):
     supervisor.bind("orders_delivery.outbox", PeriodicTaskService(
         _orders_delivery_outbox_tick(connection), interval_ms=CASH_OUTBOX_INTERVAL_MS,
         name="cola de Pedidos a Finanzas"))
+    # SDLC-ORD-006: avisos al cliente de Pedidos que WhatsApp no recibió.
+    registry.register(BackgroundServiceDescriptor(
+        "orders_delivery.customer_notices", "Reintento de avisos de Pedidos por WhatsApp",
+        module_id="orders_delivery"))
+    supervisor.bind("orders_delivery.customer_notices", PeriodicTaskService(
+        _orders_delivery_notices_tick(connection), interval_ms=PRODUCTS_WHATSAPP_OUTBOX_INTERVAL_MS,
+        name="avisos de Pedidos por WhatsApp"))
     registry.register(BackgroundServiceDescriptor(
         "finance.cycle", "Merma, vencimientos y eventos de Finanzas", module_id="finance"))
     supervisor.bind("finance.cycle", PeriodicTaskService(
@@ -294,6 +301,16 @@ def _orders_delivery_outbox_tick(connection):
         from backend.bootstrap.wiring.event_wiring import orders_delivery_tick
         from backend.shared.events.application_bus import get_bus
         return orders_delivery_tick(connection, get_bus())
+    return tick
+
+
+def _orders_delivery_notices_tick(connection):
+    """Reintenta los avisos al cliente de Pedidos (idempotente por mensaje)."""
+    def tick():
+        from backend.infrastructure.integrations.orders_delivery_notice_outbox import (
+            OrdersDeliveryNoticeOutbox,
+        )
+        return OrdersDeliveryNoticeOutbox(connection).drain()
     return tick
 
 
