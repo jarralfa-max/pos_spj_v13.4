@@ -10,7 +10,7 @@ Asiento de la devolución (uno por devolución, idempotente por `return_id`):
     Dr ingreso        (bruto proporcional - IVA)
     Dr IVA trasladado (IVA proporcional)
       Cr descuento    (la parte del descuento a nivel venta que se devuelve)
-      Cr efectivo / banco / tarjeta-procesador / CxC   (por método de reembolso)
+      Cr efectivo / banco / cuenta de procesadores / CxC   (por método de reembolso)
 
 y, si salió con costo, la reversa del costo de venta:
 
@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from backend.application.event_handlers.finance.handler_base import FinanceEventHandler
 from backend.application.services.finance.posting_engine import PostingEngine
+from backend.application.services.finance.treasury_resolution import processor_ledger_account_id
 from backend.domain.finance.entities.financial_document import FinancialDocument
 from backend.domain.finance.enums import (
     FinancialDocumentType,
@@ -41,8 +42,9 @@ from backend.shared.ids import new_uuid
 _ACCOUNT_BY_SETTLEMENT = {
     SettlementType.CASH: ("cash_account_id", "Reembolso en efectivo"),
     SettlementType.BANK_TRANSFER: ("bank_account_id", "Reembolso por transferencia"),
-    SettlementType.CARD: ("clearing_account_id", "Reembolso a tarjeta"),
-    SettlementType.PAYMENT_PROCESSOR: ("clearing_account_id", "Reembolso por procesador"),
+    # Sin rol de perfil: el mismo espejo que recibió la venta (SDLC-PAY-004).
+    SettlementType.CARD: (None, "Reembolso a tarjeta"),
+    SettlementType.PAYMENT_PROCESSOR: (None, "Reembolso por procesador"),
     SettlementType.ON_CREDIT: ("receivable_account_id", "Nota de crédito"),
 }
 
@@ -105,7 +107,9 @@ class SaleReturnedHandler(FinanceEventHandler):
             if tipo not in _ACCOUNT_BY_SETTLEMENT:
                 raise FinanceDomainError(f"Reembolso por {tipo.value} no soportado")
             role, texto = _ACCOUNT_BY_SETTLEMENT[tipo]
-            lines.append(LineSpec(profile.account_for(role), credit=importe,
+            account_id = (profile.account_for(role) if role
+                          else processor_ledger_account_id(uow, branch_id=branch_id))
+            lines.append(LineSpec(account_id, credit=importe,
                                   description=f"{texto} {folio}"))
             if tipo is SettlementType.ON_CREDIT:
                 credito = credito.add(importe)

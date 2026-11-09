@@ -5415,3 +5415,12 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Copia de la base real: 0 pagos, ninguna referencia vacía o repetida. Si otra instalación trae
   duplicados no se tocan: el índice protege desde el último, se avisa en el log y el caso de uso sigue
   revisando todo el historial.
+
+### 385 — una sola cuenta de procesadores (2026-11-06, SDLC-PAY-004)
+
+- Decisión del responsable: una cuenta de tesorería para Mercado Pago y tarjetas, con espejo en la
+  1115, y la venta carga directo a ella. Ventas, devoluciones y compras resuelven el espejo en
+  `treasury_resolution.py`; el rol `clearing_account_id` del perfil `SALE` ya no se usa para cobros.
+- Sólo renombra la cuenta sembrada («Procesador de tarjetas»).
+- La 1120 no se reclasifica: decisión del responsable y 0 renglones contables en la copia de la base
+  real. Con renglones en otra instalación, avisa en el log y no mueve nada.
