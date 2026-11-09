@@ -206,6 +206,12 @@ La tabla siguiente especifica el flujo exacto para cada módulo operativo. Colum
 
 ### 4.3 MercadoPago
 
+> **Actualización 2026-11-09 (SDLC-PAY-001/004).** La tabla de abajo es la del flujo legacy, ya
+> eliminado. Hoy la venta con Mercado Pago o tarjeta carga **directo** la cuenta de tesorería única de
+> procesadores (espejo 1115), no la 1120 ni bancos. La línea lleva `ref <operación>`. Las compras y las
+> devoluciones usan el mismo espejo (`treasury_resolution.py`). Las comisiones y la liquidación son
+> PAY-018 y PAY-019. Diseño: `MERCADO_PAGO_INTEGRATION_TRD.md`.
+
 | Atributo | Valor |
 |----------|-------|
 | **Trigger event** | `SALE_ITEMS_PROCESS` (creación del link de pago) |
