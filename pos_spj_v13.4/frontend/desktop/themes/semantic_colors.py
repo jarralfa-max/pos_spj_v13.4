@@ -9,7 +9,7 @@ adds accessible categorical/sequential colors for multi-series charts.
 from __future__ import annotations
 
 from frontend.desktop.themes.brand_palette import BrandColors, BrandScale
-from frontend.desktop.themes.color_utils import lighten
+from frontend.desktop.themes.color_utils import lighten, tone
 
 
 class Light:
@@ -38,11 +38,13 @@ class Light:
     SUCCESS_DEFAULT = "#2F7A44"
     SUCCESS_SUBTLE = "#E3F1E6"
     SUCCESS_BORDER = "#8FC7A0"
+    SUCCESS = SUCCESS_DEFAULT
 
     # warning (amber-earth, NOT gold — gold fails AA as text)
     WARNING_DEFAULT = "#9A5B12"
     WARNING_SUBTLE = "#FBEED8"
     WARNING_BORDER = "#E0B074"
+    WARNING = WARNING_DEFAULT
 
     # danger (red)
     DANGER_DEFAULT = BrandColors.TRADITIONAL_RED
@@ -55,6 +57,7 @@ class Light:
     INFO_DEFAULT = "#1F6470"
     INFO_SUBTLE = "#DEEEF1"
     INFO_BORDER = "#8FBFC7"
+    INFO = INFO_DEFAULT
 
     # surfaces
     BACKGROUND = BrandColors.WARM_WHITE
@@ -74,6 +77,7 @@ class Light:
     BORDER_DEFAULT = "#DAD0C1"
     BORDER_SUBTLE = "#E9E1D4"
     BORDER_STRONG = "#8A7A5C"
+    BORDER = BORDER_DEFAULT
     INPUT_BORDER = BORDER_STRONG
 
     # interaction
@@ -89,43 +93,54 @@ class Light:
 
 
 class Dark:
-    PRIMARY = BrandColors.FOREST_GREEN
-    ACCENT = BrandColors.PREMIUM_GOLD
-    DANGER = BrandColors.TRADITIONAL_RED
+    """Dark theme derived from the JUANIS bases — no hand-written hex.
+
+    ``tone(base, lightness, saturation)`` keeps the brand hue and lifts it for a
+    dark surface; functional hues (success/warning/info) start from their Light
+    counterpart so both themes share one meaning per hue.
+    """
+
+    # brand anchors, tuned for dark surfaces (raw brand fails contrast here)
+    PRIMARY_DEFAULT = tone(BrandColors.FOREST_GREEN, 0.50, 0.29)
+    ACCENT_DEFAULT = tone(BrandColors.PREMIUM_GOLD, 0.66, 0.55)
+    DANGER_DEFAULT = tone(BrandColors.TRADITIONAL_RED, 0.65, 0.65)
+    PRIMARY = PRIMARY_DEFAULT
+    ACCENT = ACCENT_DEFAULT
+    DANGER = DANGER_DEFAULT
     WARM_SURFACE = BrandColors.WARM_WHITE
     EARTH_NEUTRAL = BrandColors.CHARCOAL
 
     # primary (lightened green for contrast on dark)
-    PRIMARY_DEFAULT = "#5AA377"
-    PRIMARY_HOVER = "#6BB588"
-    PRIMARY_PRESSED = "#529970"
-    PRIMARY_SUBTLE = "#1B2C24"
-    PRIMARY_BORDER = "#3B5A49"
+    PRIMARY_HOVER = tone(BrandColors.FOREST_GREEN, 0.56, 0.33)
+    PRIMARY_PRESSED = tone(BrandColors.FOREST_GREEN, 0.46, 0.30)
+    PRIMARY_SUBTLE = tone(BrandColors.FOREST_GREEN, 0.14, 0.24)
+    PRIMARY_BORDER = tone(BrandColors.FOREST_GREEN, 0.29, 0.21)
 
     # accent (gold adjusted for dark)
-    ACCENT_DEFAULT = "#D8B879"
-    ACCENT_HOVER = "#E4C88E"
-    ACCENT_PRESSED = "#C4A464"
-    ACCENT_SUBTLE = "#2C2618"
-    ACCENT_TEXT = "#E1C48A"
+    ACCENT_HOVER = tone(BrandColors.PREMIUM_GOLD, 0.73, 0.61)
+    ACCENT_PRESSED = tone(BrandColors.PREMIUM_GOLD, 0.58, 0.45)
+    ACCENT_SUBTLE = tone(BrandColors.PREMIUM_GOLD, 0.13, 0.29)
+    ACCENT_TEXT = tone(BrandColors.PREMIUM_GOLD, 0.71, 0.59)
 
-    SUCCESS_DEFAULT = "#5CB878"
-    SUCCESS_SUBTLE = "#17281D"
-    SUCCESS_BORDER = "#3E6B4E"
+    SUCCESS_DEFAULT = tone(Light.SUCCESS_DEFAULT, 0.54, 0.39)
+    SUCCESS_SUBTLE = tone(Light.SUCCESS_DEFAULT, 0.12, 0.27)
+    SUCCESS_BORDER = tone(Light.SUCCESS_DEFAULT, 0.33, 0.27)
+    SUCCESS = SUCCESS_DEFAULT
 
-    WARNING_DEFAULT = "#E0A45A"
-    WARNING_SUBTLE = "#2C2214"
-    WARNING_BORDER = "#6B5330"
+    WARNING_DEFAULT = tone(Light.WARNING_DEFAULT, 0.62, 0.68)
+    WARNING_SUBTLE = tone(Light.WARNING_DEFAULT, 0.13, 0.38)
+    WARNING_BORDER = tone(Light.WARNING_DEFAULT, 0.30, 0.38)
+    WARNING = WARNING_DEFAULT
 
-    DANGER_DEFAULT = "#E0716D"
-    DANGER_HOVER = "#EA8783"
-    DANGER_PRESSED = "#D96965"
-    DANGER_SUBTLE = "#2C1917"
-    DANGER_BORDER = "#6B3936"
+    DANGER_HOVER = tone(BrandColors.TRADITIONAL_RED, 0.72, 0.71)
+    DANGER_PRESSED = tone(BrandColors.TRADITIONAL_RED, 0.62, 0.60)
+    DANGER_SUBTLE = tone(BrandColors.TRADITIONAL_RED, 0.13, 0.31)
+    DANGER_BORDER = tone(BrandColors.TRADITIONAL_RED, 0.32, 0.33)
 
-    INFO_DEFAULT = "#5FB2C0"
-    INFO_SUBTLE = "#152628"
-    INFO_BORDER = "#356068"
+    INFO_DEFAULT = tone(Light.INFO_DEFAULT, 0.56, 0.43)
+    INFO_SUBTLE = tone(Light.INFO_DEFAULT, 0.12, 0.31)
+    INFO_BORDER = tone(Light.INFO_DEFAULT, 0.31, 0.32)
+    INFO = INFO_DEFAULT
 
     # surfaces (near-black green → elevated)
     BACKGROUND = BrandScale.CHARCOAL_800
@@ -133,25 +148,26 @@ class Dark:
     SURFACE_ELEVATED = BrandScale.CHARCOAL_400
     SURFACE_MUTED = BrandScale.CHARCOAL_700
 
-    # text
-    TEXT_PRIMARY = "#F1E9DA"
-    TEXT_SECONDARY = "#C8BCA6"
-    TEXT_MUTED = "#9E947F"
-    TEXT_INVERSE = "#182420"
-    TEXT_DISABLED = "#6C6555"
+    # text (warm, gold-hued neutrals)
+    TEXT_PRIMARY = tone(BrandColors.PREMIUM_GOLD, 0.90, 0.45)
+    TEXT_SECONDARY = tone(BrandColors.PREMIUM_GOLD, 0.72, 0.24)
+    TEXT_MUTED = tone(BrandColors.PREMIUM_GOLD, 0.56, 0.14)
+    TEXT_INVERSE = tone(BrandColors.FOREST_GREEN, 0.12, 0.20)
+    TEXT_DISABLED = tone(BrandColors.PREMIUM_GOLD, 0.38, 0.12)
 
-    BORDER_DEFAULT = "#3A4A42"
-    BORDER_SUBTLE = "#2A3831"
-    BORDER_STRONG = "#788D80"
+    BORDER_DEFAULT = tone(BrandColors.FOREST_GREEN, 0.26, 0.12)
+    BORDER_SUBTLE = tone(BrandColors.FOREST_GREEN, 0.19, 0.14)
+    BORDER_STRONG = tone(BrandColors.FOREST_GREEN, 0.51, 0.08)
+    BORDER = BORDER_DEFAULT
     INPUT_BORDER = BORDER_STRONG
 
-    FOCUS_RING = "#D8B879"
-    SELECTION = "#233A2E"
-    DISABLED_BACKGROUND = "#1C2622"
-    DISABLED_BORDER = "#33403A"
+    FOCUS_RING = ACCENT_DEFAULT
+    SELECTION = tone(BrandColors.FOREST_GREEN, 0.18, 0.25)
+    DISABLED_BACKGROUND = tone(BrandColors.FOREST_GREEN, 0.13, 0.15)
+    DISABLED_BORDER = tone(BrandColors.FOREST_GREEN, 0.23, 0.11)
 
-    TOOLTIP_BACKGROUND = "#0B100D"
-    TOOLTIP_TEXT = "#F1E9DA"
+    TOOLTIP_BACKGROUND = tone(BrandColors.FOREST_GREEN, 0.05, 0.19)
+    TOOLTIP_TEXT = TEXT_PRIMARY
 
 
 class SemanticColors:
@@ -190,10 +206,10 @@ class ChartPalette:
         BrandScale.GREEN_300, BrandScale.GREEN_600,
     )
     STATUS = {
-        "success": "#2F7A44",
-        "warning": "#9A5B12",
-        "danger": BrandColors.TRADITIONAL_RED,
-        "info": "#1F6470",
+        "success": Light.SUCCESS,
+        "warning": Light.WARNING,
+        "danger": Light.DANGER_DEFAULT,
+        "info": Light.INFO,
         "neutral": BrandColors.CHARCOAL,
     }
     FINANCIAL = (BrandColors.FOREST_GREEN, BrandColors.TRADITIONAL_RED,
@@ -202,3 +218,37 @@ class ChartPalette:
                  BrandColors.TRADITIONAL_RED)
     PRODUCTION = (BrandColors.CHARCOAL, BrandColors.PREMIUM_GOLD,
                   BrandColors.FOREST_GREEN)
+
+    @classmethod
+    def for_theme(cls, theme: str):
+        """``ChartPalette.for_theme("dark")`` → series legible on dark surfaces."""
+        return DarkChartPalette if str(theme).lower() == "dark" else cls
+
+
+class DarkChartPalette(ChartPalette):
+    """Series for the dark theme: every color reaches ≥ 3:1 against the dark
+    surface and background (the light palette includes the charcoal surface
+    itself and the forest green, both invisible there)."""
+
+    CATEGORICAL = (
+        Dark.PRIMARY_DEFAULT,
+        Dark.ACCENT_DEFAULT,
+        Dark.DANGER_DEFAULT,
+        Dark.INFO_DEFAULT,
+        Dark.TEXT_SECONDARY,                              # neutral (was charcoal)
+        tone(ChartPalette.CATEGORICAL[5], 0.78, 0.45),   # sage green
+        tone(ChartPalette.CATEGORICAL[6], 0.45, 0.60),   # dark gold
+        tone(ChartPalette.CATEGORICAL[7], 0.68, 0.30),   # muted plum
+    )
+    SEQUENTIAL = tuple(reversed(ChartPalette.SEQUENTIAL))
+    STATUS = {
+        "success": Dark.SUCCESS,
+        "warning": Dark.WARNING,
+        "danger": Dark.DANGER_DEFAULT,
+        "info": Dark.INFO,
+        "neutral": Dark.TEXT_SECONDARY,
+    }
+    FINANCIAL = (Dark.PRIMARY_DEFAULT, Dark.DANGER_DEFAULT, Dark.ACCENT_DEFAULT)
+    INVENTORY = (Dark.INFO_DEFAULT, Dark.SUCCESS_DEFAULT, Dark.ACCENT_DEFAULT,
+                 Dark.DANGER_DEFAULT)
+    PRODUCTION = (Dark.TEXT_SECONDARY, Dark.ACCENT_DEFAULT, Dark.PRIMARY_DEFAULT)

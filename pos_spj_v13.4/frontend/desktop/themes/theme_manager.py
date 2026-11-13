@@ -109,6 +109,8 @@ class ThemeManager(QObject):
             (QPalette.ToolTipBase, colors.TOOLTIP_BACKGROUND),
             (QPalette.ToolTipText, colors.TOOLTIP_TEXT),
             (QPalette.PlaceholderText, colors.TEXT_MUTED),
+            # Painted frames (e.g. the loyalty card preview) draw with Mid.
+            (QPalette.Mid, colors.BORDER_STRONG),
         ):
             palette.setColor(role, QColor(color))
         palette.setColor(QPalette.Disabled, QPalette.Text, QColor(colors.TEXT_DISABLED))
