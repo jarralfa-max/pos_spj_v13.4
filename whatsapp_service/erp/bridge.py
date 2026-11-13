@@ -502,21 +502,11 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
 
         self.db.commit()
         if fecha_entrega:
-            try:
-                from core.services.scheduled_demand_service import ScheduledDemandService
-                ScheduledDemandService(self.db).register_scheduled_sale(
-                    # REGLA CERO: IDs UUIDv7 (str). El servicio los inserta tal
-                    # cual en columnas TEXT; el int() anterior rompía con UUID.
-                    sale_id=venta_id,
-                    branch_id=sucursal_id,
-                    customer_id=cliente_id or None,
-                    folio=folio,
-                    scheduled_at=str(fecha_entrega),
-                    items=items,
-                    source_channel="whatsapp",
-                )
-            except Exception as exc:
-                logger.warning("No se pudo registrar demanda programada para forecast: %s", exc)
+            # SDLC-WA-005: `core.services.scheduled_demand_service` se eliminó y
+            # el ERP no tiene sustituto; antes fallaba en silencio en cada pedido.
+            logger.warning(
+                "Pedido programado %s no registrado como demanda para el pronóstico: "
+                "el ERP no tiene servicio de demanda programada.", folio)
         self._notify_pos_new_order(
             venta_id=venta_id, folio=folio, total=total,
             cliente_id=cliente_id, sucursal_id=sucursal_id,
@@ -565,26 +555,8 @@ class ERPBridge(CustomerGateway, OrderGateway, QuoteGateway,
                     direccion=direccion,
                     items=items or [],
                 )
-            # Optional desktop-notification service (ERP process friendly)
-            try:
-                from core.services.desktop_notification_service import DesktopNotificationService
-                dns = DesktopNotificationService(self.db)
-                if fecha_entrega:
-                    dns.notify_scheduled_order(
-                        branch_id=int(sucursal_id),
-                        sale_id=int(venta_id),
-                        folio=folio,
-                        scheduled_at=fecha_entrega,
-                    )
-                else:
-                    dns.notify_new_order(
-                        branch_id=int(sucursal_id),
-                        sale_id=int(venta_id),
-                        folio=folio,
-                        total=to_decimal(total or 0),
-                    )
-            except Exception:
-                pass
+            # SDLC-WA-005: el aviso opcional por `core.services.desktop_notification_service`
+            # se quitó: el paquete ya no existe y el aviso al POS es la bandeja de arriba.
         except Exception as exc:
             logger.warning("No se pudo notificar pedido WA al ERP: %s", exc)
 

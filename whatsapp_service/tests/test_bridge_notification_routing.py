@@ -50,7 +50,10 @@ def test_notify_pos_new_order_routes_scheduled_vs_immediate(tmp_path):
     assert calls["immediate"] == 1
 
 
-def test_notify_pos_new_order_also_calls_desktop_notification_service(tmp_path):
+def test_notify_pos_new_order_does_not_depend_on_removed_core_package(tmp_path):
+    """SDLC-WA-005: el aviso opcional por `core.services.desktop_notification_service`
+    se quitó porque el paquete ya no existe; la bandeja del POS sigue recibiendo
+    ambos avisos."""
     bridge = ERPBridge(_db_path(tmp_path))
 
     calls = {"new": 0, "scheduled": 0}
@@ -60,35 +63,24 @@ def test_notify_pos_new_order_also_calls_desktop_notification_service(tmp_path):
             pass
 
         def notify_scheduled_whatsapp_order(self, **kwargs):
-            pass
+            calls["scheduled"] += 1
 
         def notify_new_whatsapp_order(self, **kwargs):
-            pass
-
-    class DummyDesktopSvc:
-        def __init__(self, _db):
-            pass
-
-        def notify_new_order(self, **kwargs):
             calls["new"] += 1
-            return True
 
-        def notify_scheduled_order(self, **kwargs):
-            calls["scheduled"] += 1
-            return True
-
-    with patch("whatsapp_service.erp.pos_notifier.POSNotifier", DummyNotifier), \
-         patch("core.services.desktop_notification_service.DesktopNotificationService", DummyDesktopSvc):
+    with patch("whatsapp_service.erp.pos_notifier.POSNotifier", DummyNotifier):
         bridge._notify_pos_new_order(
-            venta_id=10, folio="WA-10", total=100,
-            cliente_id=1, sucursal_id=1, tipo_entrega="domicilio",
+            venta_id="v-10", folio="WA-10", total=100,
+            cliente_id="c-1", sucursal_id="s-1", tipo_entrega="domicilio",
             direccion="Calle", items=[], fecha_entrega=""
         )
         bridge._notify_pos_new_order(
-            venta_id=11, folio="WA-11", total=120,
-            cliente_id=1, sucursal_id=1, tipo_entrega="domicilio",
+            venta_id="v-11", folio="WA-11", total=120,
+            cliente_id="c-1", sucursal_id="s-1", tipo_entrega="domicilio",
             direccion="Calle", items=[], fecha_entrega="2026-06-01 10:00:00"
         )
 
     assert calls["new"] == 1
     assert calls["scheduled"] == 1
+    import sys
+    assert not any(name == "core" or name.startswith("core.") for name in sys.modules)
