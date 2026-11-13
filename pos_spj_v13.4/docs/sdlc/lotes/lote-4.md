@@ -177,7 +177,24 @@ Las dos están registradas en `migrations/engine.py` y documentadas en `MIGRATIO
 
 ## Pruebas
 
-RESULTADOS_PRUEBAS
+Corridas desde `pos_spj_v13.4/` con `QT_QPA_PLATFORM=offscreen -p no:cacheprovider`. Las comparé contra
+`docs/sdlc/baseline/2026-10-28.md`.
+
+| Corrida | Resultado |
+|---|---|
+| `python -m compileall -q .` | rc=0. Una primera corrida con `timeout 400` cortó en rc=124; sin ese límite dio rc=0 |
+| Pruebas nuevas de los ítems (PAY-002 a PAY-005), solas | Todas pasan |
+| Unitarias del área: `tests/unit/cash_register`, `tests/unit/finance`, `tests/finance`, `tests/unit/test_sales_*.py`, `tests/unit/test_pos_checkout_dialogs.py` | **636 passed, 2 failed**, ambos preexistentes (abajo) |
+| Integración del área: `tests/integration/sales`, `cash_register` y `finance`, `test_sales_pos_checkout_end_to_end`, `test_sales_checkout_settles_everything`, `test_orders_delivery_sales_finance_use_cases`, `procurement/test_immediate_payment_bridge`, `tests/e2e/test_cash_sale_refund_flow.py`, `tests/migrations` | **580 passed, 2 failed**, ambos preexistentes (`sucursal_id`) |
+| Guardias de arquitectura del área (52 archivos): `test_cash_*`, `test_finance_*`, `test_sales_*`, `test_no_monetary_float`, `test_no_monetary_real_schema`, `test_dialogs_capture_only`, `test_erp_chain_wiring_ratchet`, `test_caja_canonical_route`, `test_no_schema_changes_outside_migrations`, `test_clean_birth_guardrails` | **197 passed, 2 failed**, ambos preexistentes (SDLC-CORE-008). En `sales_schema.py` siguen los mismos 9 `CREATE TABLE` que la rama base; el índice de la 384 es `CREATE UNIQUE INDEX` |
+| Motor de migraciones (`engine.up`) sobre una copia temporal de la base real | Aplica 384 y 385; `foreign_key_check` queda vacío |
+| **`tests/architecture` completo** | **PENDIENTE: no se corrió**. Por instrucción del coordinador se usaron sólo las guardias del área |
+
+Los dos fallos unitarios preexistentes:
+
+- `test_sales_pos_visual_validation.py::…::test_checkout_width_is_identical_at_both_resolutions`
+  (`518 == 520`). Falla igual con los archivos de la rama base; es el flaky de geometría SDLC-UI-031.
+- `test_pos_checkout_dialogs.py::test_reintentar_el_cobro_no_duplica_pagos` (SDLC-CORE-010).
 
 ## Choques previsibles con otros lotes
 
