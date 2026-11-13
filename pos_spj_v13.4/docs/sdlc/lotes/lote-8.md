@@ -9,8 +9,8 @@ Rama `fix/lote-8`, salida de `sdlc/sdlc-arq-term-002` (47d0a83f) más las aproba
 | SDLC-SYNC-001 | **LISTO**, con lo de PostgreSQL real sin verificar aquí | bf331f72 |
 | SDLC-SYNC-002 | **LISTO**, con lo de PostgreSQL real sin verificar aquí | f6e725f2 |
 | SDLC-ARQ-TERM-001 | **BLOQUEADO** en parte: identidad y sesión hechas; retirar los registros duplicados, no | c9151d46 |
-| SDLC-ARQ-SYNC-001 | **ESPERA**: depende de SDLC-SYNC-003 (y de la parte pendiente de TERM-001) | — |
-| SDLC-SYNC-003 | Saltado por encargo: intent en borrador | — |
+| SDLC-SYNC-003 | **LISTO**, con lo de PostgreSQL real sin verificar aquí (aprobado 2026-11-09, traído con 500a3822) | e25ebfc2 |
+| SDLC-ARQ-SYNC-001 | **BLOQUEADO** en parte: detección de turno doble y sobreventa hecha; matriz de autoridad y versiones concurrentes, no | bff88a3e |
 
 ## SDLC-ARQ-TERM-002 — verificado, sin defectos
 
@@ -123,6 +123,65 @@ migraciones. No se hizo, y el objetivo «caja usa ese id» sigue sin cumplirse.
   al entrar es SDLC-ARQ-TERM-003.
 - La preferencia del menú lateral se reinicia una vez, porque su llave incluye el id de la terminal.
 
+## SDLC-SYNC-003 — la proyección central no pierde hechos fuera de orden
+
+- **Dependencias:** un hecho que depende de otro aún no proyectado queda en ERROR `DEPENDENCY_MISSING`.
+  Casos: la reversa de caja antes que su movimiento, la cancelación o reversa antes que su venta, el
+  cierre antes que la apertura del turno. Se reintenta solo en cada corrida, al final del lote, para que
+  su dependencia se proyecte antes. `set_sale_status` y `close_cash_shift` devuelven si tocaron una fila:
+  con 0 filas ya no hay OK.
+- **Otros ERROR:** se reintentan a pedido con `run_once(retry_errors=True)` o
+  `scripts/central_stations.py project --retry-errors`.
+- **Orden del agregado:** en crédito, puntos y unidades organizacionales, un hecho más viejo del mismo
+  agregado y la misma estación queda SKIPPED `SUPERSEDED`. La versión previa se lee del `sync_inbox`
+  del último hecho aplicado (`last_event_id`), así que no hubo migración.
+- **Unidades organizacionales:** entre estaciones distintas sigue rigiendo `updated_at`, el reloj de la
+  estación. Dos estaciones no tienen versiones comparables; eso es de ARQ-SYNC-001.
+- **Pruebas:**
+  - `tests/unit/central_sync/test_central_projection_retry.py`: 10 pruebas; fallaban 8 antes del arreglo.
+  - `tests/integration/central_pg/test_central_projection_pg.py::test_out_of_order_facts_wait_for_their_dependency_and_never_regress`
+    (PostgreSQL real, **sin verificar aquí**).
+- **Fuera:** el retroceso de `advance_head` sólo ocurre entre estaciones distintas y nadie lee
+  `sync_aggregate_heads`; queda con la matriz de ARQ-SYNC-001.
+
+## SDLC-ARQ-SYNC-001 — conflictos entre estaciones, en parte
+
+**Hecho (bff88a3e).** La proyección registra conflictos OPEN en `sync_conflicts`. El hecho se proyecta
+igual, porque detectar no decide quién gana:
+
+- `DOUBLE_OPEN_SHIFT`: un turno abre en una caja que ya tiene otro sin cerrar (§8). El cruce es
+  simétrico, así que no depende de qué turno llegue primero.
+- `CROSS_STATION_OVERSELL`: una salida deja negativa la existencia de un producto en un almacén que
+  movieron dos o más estaciones. La autoridad del inventario es la estación (decisión 2026-11-02), así
+  que se detecta y no se previene. Una sola estación en negativo es su propia política.
+
+**Pruebas:**
+- `tests/unit/central_sync/test_central_cross_station_conflicts.py`: 7 pruebas, dos estaciones
+  simuladas; fallaban las 2 de detección antes del arreglo.
+- `tests/integration/central_pg/test_central_projection_pg.py::test_two_stations_double_shift_and_oversell_are_open_conflicts`
+  (PostgreSQL real, **sin verificar aquí**).
+
+**Por qué queda BLOQUEADO:**
+
+1. **Matriz de autoridad:** el objetivo pide una matriz por entidad y tipo de operación **aprobada**, y
+   sólo está decidida la del inventario. Pregunta: ¿quién manda en turno y caja, contabilidad, crédito,
+   puntos, clientes y unidades organizacionales: estación, servicio local o central? ¿Cuáles admiten
+   varios escritores? Propuesta para discutir, no aplicada:
+   - turno y caja: la estación que abrió el turno;
+   - contabilidad: central;
+   - crédito y puntos: central, cualquier estación propone;
+   - unidades organizacionales: central.
+2. **Versiones concurrentes de agregados compartidos:** no se detectan. Sin la matriz no se sabe qué
+   agregados admiten varios escritores legítimos; el crédito lo cobra cualquier caja, por ejemplo.
+   `sync_aggregate_heads` sigue quedándose con la última estación.
+3. **Turno doble por cajón:** no se detecta, porque `central_cash_shifts` no guarda `drawer_id` y
+   hacerlo pide un cambio de esquema central.
+
+**Ruido conocido:**
+- Un cierre de turno que llega tarde produce un `DOUBLE_OPEN_SHIFT` falso, que queda OPEN.
+- Cada salida adicional sobre una existencia ya negativa abre otro `CROSS_STATION_OVERSELL`.
+- Resolver conflictos centrales es SDLC-ARQ-SYNC-002.
+
 ## Migraciones
 
 | Migración | Qué hace | Probada en |
@@ -131,11 +190,36 @@ migraciones. No se hizo, y el objetivo «caja usa ese id» sigue sin cumplirse.
 | `354` (registrada) | Tabla `device_enrollment`, vacía | Prueba de registro |
 | `392` (nueva) | Identidad de terminal y columnas de versión | Bases en memoria, idempotente |
 
-No se usaron 393–395. Ninguna se probó sobre una copia de la base real.
+SYNC-003 y ARQ-SYNC-001 no necesitaron migración. No se usaron 393–395. Ninguna migración se probó
+sobre una copia de la base real.
 
 ## Resultados de pruebas
 
-RESULTADOS_PENDIENTES
+Corrido en Windows, Python 3.13, `QT_QPA_PLATFORM=offscreen`, desde `pos_spj_v13.4/`. La máquina
+estaba compartida con las guardias de otros lotes, así que hubo corridas largas que se cortaron por tiempo.
+
+| Bloque | Resultado | HEAD |
+|---|---|---|
+| `python -m compileall -q .` | ✅ rc=0 | bff88a3e |
+| `tests/unit/{central_pg,central_sync,configuracion,offline,software_distribution}`, `test_offline_page.py`, `tests/integration/{central_pg,central_sync,sync}`, `test_cash_offline_sync.py` | ✅ 306 passed, 5 skipped (los de PostgreSQL real) | bff88a3e |
+| Identidad y re-anclaje (`test_terminal_identity`, `test_station_without_anchor`, `test_installation_branch_*`, `test_reanchor_permission_seed`) | ✅ 58 passed | bff88a3e |
+| Ventas suspendidas y báscula (`tests/unit tests/integration/sales -k "suspend or suspended or scale"`) | ✅ 115 passed | bff88a3e |
+| `tests/integration/configuracion` (completo) + `bootstrap`, `security`, `customer_display`, `software_distribution` | ✅ 313 passed, en c9151d46 (antes de SYNC-003 y ARQ-SYNC-001, que no tocan esas áreas). En bff88a3e la corrida de `configuracion` se cortó a los 590 s sin resumen y la de los demás quedó **pendiente** | c9151d46 |
+| `tests/ui/shell/test_status_bar.py`, `test_application_window.py`, `test_desktop_shell_composition_end_to_end.py`, `test_schema_versions.py` | ✅ 41 passed | c9151d46 |
+| Guardias del área (`test_configuracion_*` ×5, `test_clean_birth_guardrails`, `test_cash_offline_first_boundary`, `test_cash_sync_ui_wiring`, `test_no_schema*`, `test_no_raw_sqlite*`, `test_no_legacy_imports`, `test_uuidv7_cutover_protection`) | ⚠️ 76 passed, 5 failed, todas preexistentes (ver abajo) | bff88a3e |
+| `tests/architecture` completo | **pendiente**: no se corrió, por instrucción del coordinador | — |
+| Pruebas contra PostgreSQL real (`tests/integration/central_pg/*`) | **sin verificar**: aquí no hay PostgreSQL ni `psycopg`; corren en el job `central-postgres` | — |
+
+Las 5 guardias que fallan coinciden con la línea base `docs/sdlc/baseline/2026-10-28.md`:
+
+- `test_clean_birth_guardrails`: `unit_repository.py`.
+- `test_no_legacy_imports`: 4 imports en 4 archivos.
+- `test_no_raw_sqlite_connect`: `finance_schema.py`.
+- `test_uuidv7_cutover_protection`: `legacy_id` 2 → 7.
+- `test_no_schema_changes_outside_migrations`: aquí lista 41 archivos de `backend/infrastructure/db/schema/`
+  con «allowed 0» (en la línea base eran 2). Parece un problema de coincidencia de rutas de la lista
+  blanca en este worktree. Este lote no toca ningún archivo de `db/schema/` ni de `tests/architecture/`
+  (`git diff --stat` vacío), así que no lo causa; tampoco se verificó más allá.
 
 ## Fallos preexistentes
 
