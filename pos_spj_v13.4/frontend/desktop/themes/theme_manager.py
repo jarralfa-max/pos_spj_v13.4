@@ -19,6 +19,14 @@ from frontend.desktop.themes.semantic_colors import SemanticColors
 from frontend.desktop.themes.tokens import normalize_density, density_metrics
 
 VALID_THEMES = ("light", "dark")
+#: Per-terminal appearance store, inside the station data root (SDLC-UI-007).
+TERMINAL_SETTINGS_FILENAME = "terminal_appearance.ini"
+
+
+def _has_touchscreen() -> bool:
+    from PyQt5.QtGui import QTouchDevice
+
+    return any(device.type() == QTouchDevice.TouchScreen for device in QTouchDevice.devices())
 
 
 def _normalize_theme(theme) -> str:
@@ -39,9 +47,15 @@ class ThemeManager(QObject):
     density_changed = pyqtSignal(str)
     _instance: "ThemeManager | None" = None
 
-    def __init__(self, settings=None) -> None:
+    def __init__(self, settings=None, *, terminal_settings=None, touch_probe=None) -> None:
         super().__init__()
+        # Theme is a Windows-user preference; density belongs to the terminal
+        # (owner decision SDLC-UI-007, 2026-11-02). An injected ``settings``
+        # without a terminal store keeps both in that one store (tests).
         self._settings = settings
+        self._terminal_settings = terminal_settings
+        self._settings_injected = settings is not None
+        self._touch_probe = touch_probe or _has_touchscreen
         self._theme = "light"
         self._density = "comfortable"
         self._listeners: list[Callable[[str], None]] = []
@@ -63,25 +77,68 @@ class ThemeManager(QObject):
     def density(self) -> str:
         return self._density
 
-    def restore(self, app, *, settings=None) -> None:
+    def restore(self, app, *, settings=None, terminal_settings=None) -> None:
         """Restore terminal preferences before constructing login or shell.
 
-        An injected QSettings allows isolated INI files in tests. Runtime uses
-        the OS user/terminal store; no database or authenticated session is needed.
+        Injected QSettings allow isolated INI files in tests. At runtime the
+        theme comes from the Windows user store and the density from the
+        station data root (shared by every Windows user of a machine-scope
+        installation); no database or authenticated session is needed.
         """
         if settings is not None:
             self._settings = settings
+            self._settings_injected = True
+        if terminal_settings is not None:
+            self._terminal_settings = terminal_settings
         if self._settings is None:
             self._settings = QSettings("JUANIS", "SPJ")
         theme = self._settings.value("appearance/theme", "light")
-        density = self._settings.value("appearance/density", "comfortable")
-        self.apply(app, theme, density=density)
+        self.apply(app, theme, density=self._restored_density())
+
+    def _terminal_store(self):
+        if self._terminal_settings is None:
+            if self._settings_injected:
+                self._terminal_settings = self._settings
+            else:
+                self._terminal_settings = self._default_terminal_settings() or self._settings
+        return self._terminal_settings
+
+    def _restored_density(self) -> str:
+        terminal = self._terminal_store()
+        density = terminal.value("appearance/density", None) if terminal is not None else None
+        if density:
+            return density
+        # Unconfigured terminal: keep what this Windows user had chosen before
+        # density became per terminal, else TOUCH only on a touchscreen.
+        if terminal is not self._settings and self._settings is not None:
+            density = self._settings.value("appearance/density", None)
+        if density:
+            return density
+        try:
+            return "touch" if self._touch_probe() else "comfortable"
+        except Exception:
+            return "comfortable"
+
+    @staticmethod
+    def _default_terminal_settings():
+        """INI in the station data root; ``None`` when paths are unavailable."""
+        try:
+            from backend.shared.app_paths import AppPaths
+
+            folder = AppPaths.from_environment().user_data_dir
+            folder.mkdir(parents=True, exist_ok=True)
+            return QSettings(str(folder / TERMINAL_SETTINGS_FILENAME), QSettings.IniFormat)
+        except Exception:
+            return None
 
     def _persist(self) -> None:
         if self._settings is not None:
             self._settings.setValue("appearance/theme", self._theme)
-            self._settings.setValue("appearance/density", self._density)
+            terminal = self._terminal_store()
+            terminal.setValue("appearance/density", self._density)
             self._settings.sync()
+            if terminal is not self._settings:
+                terminal.sync()
 
     def colors(self):
         """Semantic token namespace for the current theme (for chart/HTML use)."""
