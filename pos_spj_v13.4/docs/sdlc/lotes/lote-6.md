@@ -103,10 +103,10 @@ Todas desde `pos_spj_v13.4/`, con `QT_QPA_PLATFORM=offscreen` y `-p no:cacheprov
 | Permisos y reversos: `test_permissions_audit_968e0bc.py`, guardias de autorización de Procesamiento, `test_sales_returns.py` | 80 passed |
 | Sincronización: `tests/unit/central_sync`, `test_org_closure.py` | 36 passed |
 | `tests/architecture/test_orders_single_pipeline_ratchet.py` | 2 passed |
-| `tests/architecture` completo | **pendiente**: se lanzó en segundo plano al cerrar el lote (ver la sección siguiente) |
+| `tests/architecture` completo | 22 failed, 881 passed, 1 skipped, 2 xfailed (1596 s) |
 
 ## Arquitectura completa
-PENDIENTE_ARQUITECTURA
+Resultado: **22 failed, 881 passed, 1 skipped, 2 xfailed**. La línea base del 2026-10-28 daba 22 failed y 879 passed; los 2 passed de más son la guardia nueva de SDLC-ORD-003. Los 18 archivos con fallas aparecen todos en la línea base. La comparación se hizo por archivo, no caso por caso. Hay un caso a revisar: `test_design_system_guardrails.py` (deuda visual) puede contar el diálogo nuevo de SDLC-ORD-005. **No se verificó** contra la rama base.
 
 ## Fallos preexistentes (no los causa este lote)
 - `tests/integration/test_sales_checkout_settles_everything.py`: 2 pruebas fallan con `no such column: sucursal_id`, igual en `5b4f4d5a` (verificado con stash). Es el grupo «fixtures sin `usuarios.sucursal_id`» de la línea base del 2026-10-28 (SDLC-CORE-011).
