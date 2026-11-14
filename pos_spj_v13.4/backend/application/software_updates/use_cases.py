@@ -185,6 +185,7 @@ class AvailableUpdate:
     manifest: ReleaseManifest
     downloaded: bool
     package_path: str
+    raw_manifest: bytes = b""
 
 
 class GetSoftwareStatusQuery:
@@ -261,7 +262,8 @@ def _load_offered(d: SoftwareUpdateDependencies) -> AvailableUpdate | None:
             downloaded = True
         except Exception:
             downloaded = False
-    return AvailableUpdate(manifest=manifest, downloaded=downloaded, package_path=str(package))
+    return AvailableUpdate(manifest=manifest, downloaded=downloaded, package_path=str(package),
+                           raw_manifest=authenticated.raw)
 
 
 # ── check ──────────────────────────────────────────────────────────────────
@@ -484,6 +486,7 @@ class ScheduleUpdateInstallUseCase:
                 d, manifest.channel).with_suffix(".offline").exists(),
             scheduled_window=window,
             created_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            signed_manifest=available.raw_manifest.decode("utf-8"),
         )
         d.job_store.save(job)
         d.event("SCHEDULED", operation_id=job.operation_id, job_id=job.job_id,

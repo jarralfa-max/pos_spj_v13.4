@@ -23,3 +23,7 @@ class BootstrapContext:
     conn: sqlite3.Connection | None = None
     installation_status: ProvisioningStatus | None = None
     extras: dict = field(default_factory=dict)
+    #: Dónde respaldar antes de migrar (`AppPaths.backups_dir` de la estación).
+    backups_dir: Path | None = None
+    #: Respaldo tomado en este arranque, si había migraciones pendientes.
+    pre_migration_backup: Path | None = None

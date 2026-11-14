@@ -3,7 +3,8 @@
 Started by the desktop (`update_launcher.py`) from a temporary copy, AFTER the
 desktop has written the job and while it is closing. Never imports Qt or the
 ERP: only the job journal, the SQLite backup, the instance lock, the package
-check and process control. Modes:
+check and process control, plus the signed manifest and its embedded keys
+(`release_authority.py`), which is what proves which installer may run. Modes:
 
 * ``install`` — run `UpdateTransaction.run` for the staged job;
 * ``recover`` — run `UpdateTransaction.recover` for a NEEDS_RECOVERY job
@@ -14,7 +15,11 @@ desktop is what explains the result and offers recovery).
 
     spj_updater.exe --mode install --job <update_job.json> --wait-pid <pid>
                     --install-dir <dir> --data-dir <dir> --installer-cache <dir>
-                    [--require-signature]
+                    [--require-signature] [--dev-unsigned]
+
+The signature rules come from the INSTALLED build (`build_info.json` in the
+installation folder), not from these arguments: `--dev-unsigned` means nothing
+on a signed build.
 """
 from __future__ import annotations
 
@@ -44,8 +49,17 @@ from backend.infrastructure.updater.process_control import (  # noqa: E402
     launch_detached,
     wait_for_process_exit,
 )
+from backend.infrastructure.updater.station_config_backup import StationConfigBackup  # noqa: E402
+from backend.infrastructure.updater.release_authority import (  # noqa: E402
+    DevelopmentReleaseAuthority,
+    RefusedReleaseAuthority,
+    SignedReleaseAuthority,
+)
+from backend.infrastructure.updater.trusted_keys import embedded_keyring  # noqa: E402
 from backend.infrastructure.updater.update_job_store import UpdateJobStore  # noqa: E402
+from backend.infrastructure.updater.update_manifest import SignedManifestReader  # noqa: E402
 from backend.shared.app_paths import AppPaths  # noqa: E402
+from backend.shared.app_version import BuildMetadata, build_metadata  # noqa: E402
 
 logger = logging.getLogger("spj.updater")
 
@@ -63,6 +77,8 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--data-dir", type=Path)
     parser.add_argument("--installer-cache", type=Path)
     parser.add_argument("--require-signature", action="store_true")
+    parser.add_argument("--dev-unsigned", action="store_true",
+                        help="Development only; ignored on a signed build.")
     parser.add_argument("--no-relaunch", action="store_true")
     parser.add_argument("--headless", action="store_true")
     return parser.parse_args(argv)
@@ -74,13 +90,37 @@ def app_command(paths: AppPaths) -> list[str]:
     return [sys.executable, str(paths.root / "main.py")]
 
 
+def installed_build(paths: AppPaths) -> BuildMetadata:
+    """`build_info.json` of the installation. PyInstaller keeps it in `_internal`."""
+    build = build_metadata(paths.root / "_internal")
+    return build if not build.source_checkout else build_metadata(paths.root)
+
+
+def _is_per_user(paths: AppPaths) -> bool:
+    return paths.install_config is not None and paths.install_config.install_mode == "user"
+
+
+def build_release_authority(paths: AppPaths, *, dev_unsigned: bool):
+    build = installed_build(paths)
+    if not build.signed:
+        if dev_unsigned:
+            logger.warning("Modo desarrollo: instalador verificado sólo contra el job.")
+            return DevelopmentReleaseAuthority(verify_file)
+        if not _is_per_user(paths):
+            return RefusedReleaseAuthority(
+                "Esta compilación no está firmada: no puede instalar actualizaciones con "
+                "permisos de administrador. Actualice con el instalador a mano.")
+    return SignedReleaseAuthority(SignedManifestReader(embedded_keyring()),
+                                  installed_version=build.version)
+
+
 def build_transaction(paths: AppPaths, job: UpdateJob, *, store: UpdateJobStore,
-                      require_signature: bool) -> UpdateTransaction:
+                      require_signature: bool, dev_unsigned: bool = False) -> UpdateTransaction:
     database = Path(job.database_path)
     logs = paths.logs_dir
     logs.mkdir(parents=True, exist_ok=True)
 
-    per_user = paths.install_config is not None and paths.install_config.install_mode == "user"
+    per_user = _is_per_user(paths)
 
     def arguments(current: UpdateJob, installer: str) -> list[str]:
         name = Path(installer).stem
@@ -92,12 +132,14 @@ def build_transaction(paths: AppPaths, job: UpdateJob, *, store: UpdateJobStore,
         database_lock=InstanceLock(database.with_name(database.name + ".lock")),
         backup=SQLiteBackupService(app_version=job.from_version),
         backups_dir=paths.backups_dir,
+        config_backup=StationConfigBackup(paths, restore_install_config=per_user),
         installer_runner=InstallerRunner(elevate=not per_user),
         installer_arguments=arguments,
         self_test=SelfTestProbe(app_command(paths)),
-        trust=AuthenticodeVerifier(required=require_signature),
+        trust=AuthenticodeVerifier(required=require_signature or installed_build(paths).signed,
+                                   reference=paths.root / "SPJ.exe"),
         installer_cache=InstallerCache(paths.installer_cache_dir),
-        verify_package=verify_file,
+        release_authority=build_release_authority(paths, dev_unsigned=dev_unsigned),
         wait_for_exit=lambda pid, timeout: wait_for_process_exit(pid, timeout_seconds=timeout),
     )
 
@@ -121,7 +163,8 @@ def run(args: argparse.Namespace) -> int:
             logger.error("No existe el trabajo de actualización %s", args.job)
             return EXIT_FAILED
         transaction = build_transaction(paths, job, store=store,
-                                        require_signature=args.require_signature)
+                                        require_signature=args.require_signature,
+                                        dev_unsigned=args.dev_unsigned)
         status = _StatusWindow.create(enabled=not args.headless, job=job, store=store)
         outcome: dict[str, UpdateJob] = {}
 
@@ -138,6 +181,7 @@ def run(args: argparse.Namespace) -> int:
                 logger.exception("Fallo inesperado del actualizador")
                 outcome["job"] = store.load() or job
             finally:
+                transaction.discard_staged_installer()
                 status.finish()
 
         worker = threading.Thread(target=work, name="spj-update", daemon=False)

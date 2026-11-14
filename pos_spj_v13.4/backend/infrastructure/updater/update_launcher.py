@@ -15,6 +15,9 @@ import tempfile
 from backend.application.software_updates.installation import SoftwareInstallation
 from backend.infrastructure.updater.process_control import launch_detached
 
+#: An unsigned build updates only when someone asks for it explicitly.
+DEV_MODE_VARIABLE = "SPJ_UPDATER_DEV_MODE"
+
 
 class UpdaterLaunchError(RuntimeError):
     pass
@@ -43,6 +46,8 @@ class ExternalUpdaterLauncher:
         ]
         if installation.build.signed:
             command.append("--require-signature")
+        if not paths.is_installed or os.environ.get(DEV_MODE_VARIABLE) == "1":
+            command.append("--dev-unsigned")  # the updater ignores it on a signed build
         return command
 
     def launch(self, *, job_path: Path, wait_pid: int | None = None, mode: str = "install") -> int:

@@ -4,7 +4,7 @@
 | --- | --- |
 | `spj.spec` | PyInstaller one-folder: `SPJ.exe` (escritorio) + `spj_whatsapp.exe` (servicio WhatsApp local opcional), un solo `_internal`. |
 | `spj_updater.spec` | PyInstaller single-file: `spj_updater.exe`, el actualizador externo (sin Qt ni ERP). |
-| `spj_setup.iss` | Inno Setup 6: AppId fijo, perfiles, ubicación de datos, base anterior, caché de reversión, servicio WhatsApp, desinstalación que conserva datos. |
+| `spj_setup.iss` | Inno Setup 6: AppId fijo, perfiles, ubicación de datos, base anterior, caché de reversión, servicio WhatsApp, desinstalación que conserva datos y configuración (`/PURGECONFIG` la borra). |
 | `requirements-release.txt` | Entorno de build FIJADO (versiones exactas, incluido PyInstaller). |
 | `examples/manifest.example.json` | Forma del manifiesto firmado (sin firma válida, sin secretos). |
 

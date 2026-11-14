@@ -5,8 +5,9 @@ Single file on purpose: the desktop copies it to a private temporary folder
 and runs the copy, so the installer can replace everything in the
 installation folder while the updater waits. It bundles only what the
 transaction needs (job journal, SQLite backup, instance lock, package check,
-process control) and Tkinter for the small "Actualizando SPJ" window — no Qt,
-no ERP modules, no cryptography (`test_external_updater_does_not_load_qt_or_the_erp`).
+process control, signed-manifest verification, which needs `cryptography`) and
+Tkinter for the small "Actualizando SPJ" window — no Qt, no ERP modules
+(`test_external_updater_does_not_load_qt_or_the_erp`).
 """
 import os
 from pathlib import Path
@@ -22,8 +23,7 @@ updater = Analysis(
     [str(PACKAGE_ROOT / "backend" / "infrastructure" / "updater" / "updater_main.py")],
     pathex=[str(PACKAGE_ROOT)],
     hiddenimports=[],
-    excludes=["PyQt5", "frontend", "cryptography", "numpy", "pandas", "scipy",
-              "pytest", "_pytest"],
+    excludes=["PyQt5", "frontend", "numpy", "pandas", "scipy", "pytest", "_pytest"],
     noarchive=False,
 )
 pyz = PYZ(updater.pure)

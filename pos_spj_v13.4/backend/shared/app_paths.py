@@ -21,7 +21,9 @@ Two layouts:
   root chosen at install time:
 
     - ``machine`` scope → `%PROGRAMDATA%/SPJ/SPJ ERP POS` (shared by every
-      Windows user of the station; the installer grants them modify rights);
+      Windows user of the station; the installer grants them modify rights on
+      each working folder, not on the root, so a new folder under the root
+      must be added to `WritableDataFolders` in `spj_setup.iss`);
     - ``user`` scope → `%LOCALAPPDATA%/SPJ/SPJ ERP POS` (not roaming: a
       SQLite file must not travel with a roaming profile).
 
@@ -112,6 +114,12 @@ class AppPaths:
     @property
     def is_installed(self) -> bool:
         return self.effective_layout == LAYOUT_INSTALLED
+
+    @property
+    def machine_scope(self) -> bool:
+        """Installed for every Windows user of the station."""
+        return (self.is_installed and self.install_config is not None
+                and self.install_config.data_scope == DATA_SCOPE_MACHINE)
 
     @property
     def root(self) -> Path:
@@ -207,8 +215,8 @@ class AppPaths:
 
         On an installed Windows station it is MACHINE-wide and written ONLY by
         the elevated installer (it copies itself there), whatever the data
-        scope, and it is NOT under the data root (whose ACL lets every user
-        modify files): a user must not be able to replace an executable that a
+        scope, and it is NOT under the data root (whose working folders every
+        user can modify): a user must not be able to replace an executable that a
         rollback would later run with administrator rights. The updater only
         reads it, and checks each file against the admin-written
         `installers.json` before running it.

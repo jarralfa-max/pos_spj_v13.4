@@ -196,6 +196,9 @@ jobs:
           if ($r.version -ne "${{ steps.version.outputs.version }}") { throw "Version instalada $($r.version)" }
           if ($r.detail -notmatch "RELOCATED") { throw "No se reubico la base legacy: $($r.detail)" }
           $db = "C:\ProgramData\SPJ\SPJ ERP POS\db\spj_pos_database.db"
+          $usersModify = { param($path) (Get-Acl $path).Access | Where-Object { $_.IdentityReference -match 'Users' -and $_.FileSystemRights -match 'Modify' } }
+          if (& $usersModify "C:\ProgramData\SPJ\SPJ ERP POS") { throw "La raiz de datos sigue con Modificar para Users" }
+          if (-not (& $usersModify "C:\ProgramData\SPJ\SPJ ERP POS\db")) { throw "Users sin Modificar en la carpeta de la base" }
           & $python $marker check $db; if ($LASTEXITCODE) { throw "La base reubicada perdio los datos" }
           if (Test-Path $legacy) { throw "La base legacy no se archivo" }
           if (-not (Get-ChildItem "C:\spj-legacy\pos_spj_v13.4\data" -Filter "*.relocated-*")) { throw "Falta el original archivado" }
@@ -268,6 +271,7 @@ jobs:
           $r = Get-Content "$logs\self-test-v2.json" | ConvertFrom-Json
           if (-not $r.ok -or $r.version -ne $v2) { throw "Tras actualizar: ok=$($r.ok) version=$($r.version)" }
           if (-not (Get-ChildItem "C:\ProgramData\SPJ\SPJ ERP POS\backups" -Filter "*pre-update-$v2*.db")) { throw "Sin respaldo previo" }
+          if (-not (Get-ChildItem "C:\ProgramData\SPJ\SPJ ERP POS\backups" -Directory -Filter "station-config-pre-update-$v2*")) { throw "Sin respaldo de configuracion" }
           & $env:SPJ_PYTHON pos_spj_v13.4/scripts/release/ci_data_marker.py check $db; if ($LASTEXITCODE) { throw "La actualizacion perdio datos" }
           # Forced failure: the job announces a version the package does not
           # contain, so the self-test reports another version and the updater
@@ -311,6 +315,7 @@ jobs:
           Start-Process $uninstaller -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART") -Wait
           Start-Sleep -Seconds 5
           if (Test-Path "C:\Program Files\SPJ\SPJ ERP POS\SPJ.exe") { throw "La desinstalacion dejo SPJ.exe" }
+          if (-not (Test-Path "C:\Program Files\SPJ\SPJ ERP POS\install_config.json")) { throw "La desinstalacion borro la configuracion" }
           & $env:SPJ_PYTHON pos_spj_v13.4/scripts/release/ci_data_marker.py check "C:\ProgramData\SPJ\SPJ ERP POS\db\spj_pos_database.db"
           if ($LASTEXITCODE) { throw "La desinstalacion no conservo los datos" }
           "OK: desinstalacion con datos conservados" | Tee-Object build/windows/install-test/uninstall.txt

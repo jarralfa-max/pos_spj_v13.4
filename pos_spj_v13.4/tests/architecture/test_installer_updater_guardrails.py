@@ -107,7 +107,7 @@ def test_external_updater_does_not_load_qt_or_the_erp():
     script = (
         "import sys; sys.path.insert(0, %r); "
         "import backend.infrastructure.updater.updater_main; "
-        "bad = [m for m in sys.modules if m.startswith(('PyQt5', 'frontend', 'cryptography'))]; "
+        "bad = [m for m in sys.modules if m.startswith(('PyQt5', 'frontend'))]; "
         "print(','.join(bad))" % str(ROOT))
     completed = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
                                timeout=120)

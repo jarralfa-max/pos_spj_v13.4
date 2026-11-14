@@ -66,11 +66,23 @@ login → window.
 4. **Hand-over**: the desktop stops background services, checkpoints the WAL, closes
    connections, releases the lock, starts a temporary copy of `spj_updater.exe` and quits.
 5. **Transaction** (external process, `update_transaction.py`): wait for exit → lock →
-   re-verify package (+ Authenticode when the build is signed) → verified backup
+   authorize package (hash from the signed manifest verified in the updater, on a private
+   copy that is the one run; + Authenticode from the same publisher as the installed `SPJ.exe`
+   when the build is signed) → verified backup
    `pre-update-<version>` → installer elevated through UAC (`/SILENT`) → `SPJ.exe --self-test`
    (migrations run here) must report the announced version → COMPLETED. Failure after the
    installer: restore the database (if migrations may have run) + reinstall the cached previous
    installer + self-test → ROLLED_BACK; if that fails → NEEDS_RECOVERY.
+   Every start, whichever way the binaries arrived (updater, manual Setup, «Reparar»), runs
+   `PreMigrationBackupStep`: pending migrations on a database with data run only after a verified
+   backup `pre-migration-<version>` in `<data>\backups`; if it fails the start stops without
+   migrating (SDLC-ARQ-INST-001). The self-test of an update takes it too, on top of
+   `pre-update-<version>`: one more copy on disk in exchange for no exempt path.
+   Next to `pre-update-<version>` goes `station-config-pre-update-<version>/`
+   (`install_config.json`, `station_settings.json`, hashes in `snapshot.json`), restored on
+   rollback and recovery. Secrets are not copied. On a machine-wide install `install_config.json`
+   is not restored from that folder, which every user can modify: the elevated installer writes it
+   (SDLC-ARQ-INST-002).
 6. **Journal**: `update_job.json` is written at every transition; the desktop records the
    outcome in `software_update_events` on its next start (exactly once) and archives it.
    An interrupted updater is diagnosed at start (`UpdateStartupGate`); NEEDS_RECOVERY blocks
@@ -102,6 +114,38 @@ No `os.system`/`shell=True`/`urlretrieve` in the updater; no byte copy of SQLite
 SHA-256 of an unauthenticated manifest is never trusted; trusted keys are code, not files;
 the external updater loads neither Qt nor the ERP; nothing downloaded runs inside the POS
 process; the only elevated program is the (signed) installer.
+
+### Data folder ACL (machine scope)
+
+Stations have several Windows users and the application runs as each of them, so `Users` needs
+Modify wherever it works: `db`, `backups`, `logs`, `imagenes_productos`, `media`, `updater`,
+`whatsapp`, `secrets`, `mobile_api`, `logistics_photos` (`WritableDataFolders` in the installer).
+The root gets Read & Execute, also on upgrades (`ApplyDataFolderPermissions`, with `icacls`): a
+user can no longer rename or replace those folders. The creation right that `Users` inherits
+from `ProgramData` stays. A rollback to a version before this change widens the root again until
+the next install.
+
+**Limit that remains:** SQLite needs Modify on its folder, so any Windows user of the station
+can still edit `usuarios` or `rol_permisos` with an external tool. An ACL cannot prevent that
+while the application runs as the logged-in user; closing it needs a local service that owns the
+database, or a verifiable seal over the security tables (SDLC-INST-003).
+
+### Secrets by install mode
+
+A machine-wide install keeps secrets in `<data>\secrets` (`EncryptedLocalSecretStore`), master
+key under DPAPI `CRYPTPROTECT_LOCAL_MACHINE`, because stations have several Windows users plus a
+service account and Credential Manager is one vault per user. It protects against copying the
+folder to another machine, not against a program run by a local user. Each user's vault entries
+are copied once on first start and left in the vault. A per-user install keeps Credential
+Manager. Without DPAPI on Windows the store fails closed (SDLC-ARQ-INST-003).
+
+`update_job.json` stays in the data folder, which every Windows user of the station can modify,
+so it proves nothing: the updater takes the hash from the signed manifest inside the job, refuses
+a manifest for another version or one not newer than the installed build, and on recovery runs
+only what the admin-written cache lists. The installed `build_info.json` decides the rules, not
+the command line. An unsigned machine-wide build cannot run elevated updates (use the manual
+Setup); `--dev-unsigned` (`SPJ_UPDATER_DEV_MODE=1`, or a source checkout) is the explicit
+development mode and means nothing on a signed build (SDLC-INST-001).
 
 ## Read-only bundled resources
 

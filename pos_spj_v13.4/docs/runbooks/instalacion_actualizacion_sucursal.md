@@ -81,14 +81,17 @@ Anote cualquier error en el registro `<datos>\logs\spj_pos.log` y envíelo antes
 | --- | --- | --- |
 | Programa | `C:\Program Files\SPJ\SPJ ERP POS` | Sí (lo reemplaza al actualizar) |
 | Base de datos | `<datos>\db\spj_pos_database.db` | **Nunca** |
-| Respaldos | `<datos>\backups` (`pre-update-…`, `pre-relocation-…`, con `.json`) | Nunca |
+| Respaldos | `<datos>\backups` (`pre-update-…`, `pre-migration-…`, `pre-relocation-…`, con `.json`) | Nunca |
+| Configuración de la estación | `install_config.json` en la carpeta del programa; copia antes de cada actualización en `<datos>\backups\station-config-pre-update-…` | Al desinstalar se conserva, salvo que se pida borrarla |
 | Registros | `<datos>\logs` (`spj_pos.log`, `updater.log`, `instalador-….log`) | Nunca |
 | Imágenes y medios | `<datos>\imagenes_productos`, `<datos>\media` | Nunca |
 | WhatsApp local | `<datos>\whatsapp\whatsapp.env` y `conversations.db` | Nunca |
-| Secretos | Administrador de credenciales de Windows (o `<datos>\secrets`) | Nunca |
+| Secretos | Instalación de máquina: `<datos>\secrets`, compartidos entre usuarios de Windows. Por usuario: Administrador de credenciales | Nunca |
 | Instaladores para revertir | `C:\ProgramData\SPJ\Installers\SPJ ERP POS` | Sólo el instalador |
 
 `<datos>` = `C:\ProgramData\SPJ\SPJ ERP POS` o `%LOCALAPPDATA%\SPJ\SPJ ERP POS`.
+En `C:\ProgramData` todos los usuarios de Windows pueden modificar las carpetas de trabajo, no
+la raíz: una carpeta creada a mano en `<datos>` no recibe esos permisos.
 Configuración → Acerca de y actualizaciones muestra las rutas reales de esa estación.
 
 ## 3. Caja que ya usaba SPJ desde una carpeta (base anterior)
@@ -155,14 +158,18 @@ actualización desde la aplicación lo hace sola, la manual no.
 | --- | --- | --- |
 | «Actualización revertida» | Falló la instalación o la prueba de arranque; se restauró la base (si hacía falta) y se reinstaló la versión anterior. | Nada urgente. Envíe `<datos>\logs\updater.log` y `instalador-*.log`. |
 | «Actualización no aplicada» | No se llegó a instalar (UAC rechazado, SPJ abierto, paquete alterado, respaldo imposible). | Corrija la causa indicada y reintente. Los datos no cambiaron. |
+| «Actualización no aplicada: esta compilación no está firmada» | La instalación no es un build firmado: el actualizador no corre instaladores con permisos de administrador. | Actualice con el instalador a mano (Setup). Al abrir, SPJ respalda antes de migrar. |
 | «Se está instalando…» al abrir | El actualizador sigue trabajando. | Espere; SPJ se abrirá solo. |
 | Ventana «Recuperación» | La reversión automática no terminó (o el equipo se apagó a mitad). | Pulse «Recuperar»: restaura la base previa a la actualización y reinstala la versión anterior. Si vuelve a fallar, §6. |
+| «No se pudo respaldar la base de datos… No se migró nada» | Había migraciones pendientes (Setup manual o actualización) y el respaldo previo falló. | La base sigue intacta. Libere espacio o corrija los permisos de `<datos>\backups` y abra SPJ de nuevo. |
+| «El motor de migraciones falló… Respaldo previo: …» | Una migración falló al arrancar. | No siga trabajando. Restaure el respaldo `pre-migration-…` que indica el mensaje (§6) y reporte el error. |
 | «La base fue actualizada por una versión más nueva» | Se instaló un programa anterior sobre una base ya migrada. | Instale la versión nueva, o restaure el respaldo `pre-update-…` (§6) y luego la versión anterior. |
 
 ## 6. Restaurar un respaldo a mano
 
 1. Cierre SPJ (y el servicio WhatsApp local: `spj_whatsapp.exe stop` como administrador).
-2. En `<datos>\backups` elija el archivo (`…pre-update-<versión>-<fecha>.db`); su `.json` dice
+2. En `<datos>\backups` elija el archivo (`…pre-update-<versión>-<fecha>.db` o
+   `…pre-migration-<versión>-<fecha>.db`); su `.json` dice
    versión, esquema, filas por tabla y hash.
 3. Renombre la base actual a `spj_pos_database.db.antes-de-restaurar-<fecha>` y borre (o mueva)
    sus `-wal` y `-shm` si existen.
@@ -175,7 +182,10 @@ actualización desde la aplicación lo hace sola, la manual no.
 
 * **Reparar**: menú Inicio → SPJ → «Reparar SPJ ERP POS» (reinstala la versión actual sin tocar datos).
 * **Desinstalar**: «Aplicaciones instaladas» de Windows. Los datos se conservan siempre; bórrelos
-  a mano sólo si la caja se da de baja y ya tiene respaldo.
+  a mano sólo si la caja se da de baja y ya tiene respaldo. La configuración de la estación
+  también se conserva: el desinstalador pregunta (por omisión «No»); en silencio se borra sólo
+  con `/PURGECONFIG`. Al reinstalar en pantalla decide el asistente; una reinstalación silenciosa
+  sin `/TYPE`, `/COMPONENTS` ni `/DATASCOPE` conserva el perfil.
 
 ## 8. Servicio WhatsApp local (opcional)
 

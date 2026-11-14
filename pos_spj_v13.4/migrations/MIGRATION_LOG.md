@@ -5446,23 +5446,11 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
 
-### 384 — referencia de pago única entre ventas (2026-11-06, SDLC-PAY-002)
+### Respaldo antes de migrar al arrancar (2026-11-05, SDLC-ARQ-INST-001, sin migración nueva)
 
-- Índice único parcial `uq_sale_payments_processor_reference` sobre método + `UPPER(TRIM(reference))`,
-  sólo para `MERCADO_PAGO`, `CARD` y `TRANSFER` con referencia (decisión del responsable 2026-11-05).
-- Compatible con el DELETE+INSERT del repositorio y con las anulaciones: un pago anulado, o el de una
-  venta cancelada, sale de `sale_payments` y libera la referencia.
-- El DDL vive en `create_payment_reference_index` y no en `create_sales_schema`: ese corre desde la 198,
-  antes del respaldo legacy de la 255, que podría traer repetidas.
-- Copia de la base real: 0 pagos, ninguna referencia vacía o repetida. Si otra instalación trae
-  duplicados no se tocan: el índice protege desde el último, se avisa en el log y el caso de uso sigue
-  revisando todo el historial.
-
-### 385 — una sola cuenta de procesadores (2026-11-06, SDLC-PAY-004)
-
-- Decisión del responsable: una cuenta de tesorería para Mercado Pago y tarjetas, con espejo en la
-  1115, y la venta carga directo a ella. Ventas, devoluciones y compras resuelven el espejo en
-  `treasury_resolution.py`; el rol `clearing_account_id` del perfil `SALE` ya no se usa para cobros.
-- Sólo renombra la cuenta sembrada («Procesador de tarjetas»).
-- La 1120 no se reclasifica: decisión del responsable y 0 renglones contables en la copia de la base
-  real. Con renglones en otra instalación, avisa en el log y no mueve nada.
+- Nuevo paso `PreMigrationBackupStep` entre `SchemaCompatibilityStep` y `DatabaseMigrationStep`.
+- Con migraciones pendientes y datos en la base toma un respaldo verificado
+  `pre-migration-<versión>` en `<datos>\backups` con `SQLiteBackupService`, el mismo del
+  actualizador. Si el respaldo falla, el arranque se detiene sin migrar.
+- Sin pendientes (por ejemplo «Reparar» de la misma versión) o con base nueva no respalda.
+- Si una migración falla, el mensaje de error indica la ruta del respaldo.
