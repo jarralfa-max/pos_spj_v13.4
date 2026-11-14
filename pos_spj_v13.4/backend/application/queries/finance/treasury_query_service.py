@@ -61,6 +61,14 @@ class TreasuryQueryService(FinanceQueryServiceBase):
             account["restricted"] = bool(account["restricted"])
         return accounts
 
+    def pending_cash_deposits(self) -> list[dict]:
+        """Depósitos preparados por Caja que Tesorería aún no confirma."""
+        return self._query(
+            "SELECT d.id, d.amount, d.prepared_at FROM cash_deposit_preparations d"
+            " WHERE d.status<>'CANCELLED' AND NOT EXISTS ("
+            "  SELECT 1 FROM cash_deposit_confirmations c WHERE c.deposit_id=d.id)"
+            " ORDER BY d.prepared_at")
+
     def treasury_total(self) -> dict[str, str]:
         """Total por moneda contando cada espejo UNA vez (cuadra con el mayor)."""
         seen: set[tuple[str, str]] = set()

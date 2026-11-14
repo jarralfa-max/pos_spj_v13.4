@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §17, §20 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-002, SDLC-WA-006, SDLC-WA-016, SDLC-WA-048
 
 ## Problema
@@ -37,5 +37,5 @@ Todo lo construido en WA-1…20 (idempotencia, outbox, handoff, consentimiento c
 WA-6, WA-22 (memoria: "nada cableado al webhook vivo"); SDLC-WA-006.
 
 ## Preguntas abiertas
-- El corte del webhook y la eliminación del legacy (WA-21) quedaron diferidos por decisión del responsable desde WA-9. ¿El documento `inputs/whatsapp.md` ("no conservar dos webhooks") levanta esa decisión?
-- ¿Hay conversaciones reales en `conversations.db` que deban migrarse al corte, o se puede empezar limpio?
+- El corte del webhook y la eliminación del legacy (WA-21) quedaron diferidos por decisión del responsable desde WA-9. ¿El documento `inputs/whatsapp.md` ("no conservar dos webhooks") levanta esa decisión? si
+- ¿Hay conversaciones reales en `conversations.db` que deban migrarse al corte, o se puede empezar limpio? no

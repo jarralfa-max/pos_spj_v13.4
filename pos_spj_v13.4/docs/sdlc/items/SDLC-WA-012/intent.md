@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §12, §13 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema

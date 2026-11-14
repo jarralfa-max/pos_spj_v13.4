@@ -6,6 +6,8 @@ here + the palette/token files). Pure functions, no Qt, no I/O.
 
 from __future__ import annotations
 
+import colorsys
+
 RGB = tuple[int, int, int]
 
 
@@ -43,6 +45,19 @@ def lighten(color: str, amount: float) -> str:
 def darken(color: str, amount: float) -> str:
     """Move ``amount`` of the way toward black."""
     return mix(color, "#000000", amount)
+
+
+def tone(color: str, lightness: float, saturation: float) -> str:
+    """Keep the hue of ``color`` and set HLS ``lightness``/``saturation`` in [0,1].
+
+    Linear tints (``lighten``) wash a hue out toward gray; dark-theme tokens need
+    lighter variants that keep the brand hue saturated, so they use this.
+    """
+    r, g, b = hex_to_rgb(color)
+    hue, _, _ = colorsys.rgb_to_hls(r / 255.0, g / 255.0, b / 255.0)
+    l = max(0.0, min(1.0, lightness))
+    s = max(0.0, min(1.0, saturation))
+    return rgb_to_hex(tuple(c * 255.0 for c in colorsys.hls_to_rgb(hue, l, s)))
 
 
 def flatten_over(foreground: str, alpha: float, background: str) -> str:

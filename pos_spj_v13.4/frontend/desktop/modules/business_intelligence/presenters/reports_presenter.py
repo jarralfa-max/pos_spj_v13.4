@@ -31,6 +31,7 @@ from backend.application.analytics.queries.bi_dashboard_query_service import (
 )
 from backend.application.analytics.services.bi_dashboard_service import BiDashboardService
 from backend.application.analytics.services.bi_export_service import BiExportService
+from frontend.desktop.themes.web_tokens import document_palette
 
 #: The only report `BiExportService` can actually render today (§30 — one
 #: real catalog entry, not several fabricated ones).
@@ -52,7 +53,7 @@ class ReportsPresenter:
     def __init__(self, connection, *, actor_user_id: str | None = None) -> None:
         query_service = BiDashboardQueryService(connection)
         self._dashboard = BiDashboardService(query_service)
-        self._export = BiExportService()
+        self._export = BiExportService(document_colors=document_palette())
         self._actor_user_id = actor_user_id
 
     def list_reports(self) -> tuple[dict, ...]:

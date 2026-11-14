@@ -122,12 +122,11 @@ class SqliteStationUpdateRepository(SettingsRepositoryBase):
             " ORDER BY occurred_at DESC LIMIT ?", (workstation_key, int(limit)))
 
 
-#: Statuses of the canonical POS/cash tables that mean "someone is in the
-#: middle of it". Copied from the domain enums
-#: (`backend/domain/sales/enums.py::SaleStatus`,
-#: `backend/domain/cash_register/enums.py::CashShiftStatus`).
+#: Statuses of the canonical POS tables that mean "someone is in the middle
+#: of it" (`backend/domain/sales/enums.py::SaleStatus`). Cash cuts in progress
+#: come from `CashShiftLifecyclePolicy.closing_status_values()`, never a copied
+#: tuple (SDLC-ARQ-SHIFT-001).
 _PAYMENT_PENDING_STATUSES = ("CHECKOUT_PENDING", "PAYMENT_PENDING")
-_CASH_CUT_STATUSES = ("PENDING_COUNT", "COUNTING", "COUNTED", "PENDING_REVIEW", "CLOSING")
 _OUTBOX_PENDING_STATUSES = ("PENDING", "RETRY", "QUEUED", "FAILED")
 
 
@@ -157,9 +156,13 @@ class SqliteActiveOperationsProbe(SettingsRepositoryBase):
                 "SELECT COUNT(*) FROM sales WHERE status IN (?,?) AND created_at>=?",
                 (*_PAYMENT_PENDING_STATUSES, since))
         if self._has_table("cash_shifts"):
-            marks = ",".join("?" * len(_CASH_CUT_STATUSES))
+            from backend.domain.cash_register.policies.workflow_policies import (
+                CashShiftLifecyclePolicy,
+            )
+            closing = CashShiftLifecyclePolicy.closing_status_values()
+            marks = ",".join("?" * len(closing))
             cuts = self._count(
-                f"SELECT COUNT(*) FROM cash_shifts WHERE status IN ({marks})", _CASH_CUT_STATUSES)
+                f"SELECT COUNT(*) FROM cash_shifts WHERE status IN ({marks})", closing)
         for table in self._outbox_tables():
             marks = ",".join("?" * len(_OUTBOX_PENDING_STATUSES))
             outbox += self._count(

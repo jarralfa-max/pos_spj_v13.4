@@ -6,7 +6,10 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Mapping, Sequence
 
-from backend.application.cash_register.ledger_use_cases import LedgerCommandResult
+from backend.application.cash_register.active_shift_resolver import ActiveShiftResolver
+from backend.application.cash_register.ledger_use_cases import (
+    LedgerCommandResult, _reconstruct_cash_balance,
+)
 from backend.application.cash_register.shift_use_cases import _record
 from backend.domain.cash_register.entities import CashLedgerEntry, PaymentRecord
 from backend.domain.cash_register.enums import (
@@ -90,11 +93,10 @@ class CashSalesIntegrationService:
 
     def require_open_shift(self, connection, *, branch_id: str,
                            cashier_user_id: str) -> str:
-        shift = CashRegisterUnitOfWork(connection).shifts.find_open_for_cashier(
-            branch_id=branch_id, cashier_user_id=cashier_user_id)
-        if not shift:
-            raise CashInvalidStateError("La venta requiere un turno de caja abierto")
-        return shift["id"]
+        """El turno con el que se cobra, o `CashShiftNotOpenError` (suspendido
+        y en cierre con su subclase y el turno identificado)."""
+        return ActiveShiftResolver(connection).require_operable(
+            branch_id=branch_id, cashier_user_id=cashier_user_id, purpose="sale").id
 
     def record_completed_sale(self, connection, *, sale_id: str, branch_id: str,
                               cashier_user_id: str, operation_id: str,
@@ -152,18 +154,16 @@ class CashSalesIntegrationService:
                 "La liquidación de Caja debe coincidir con el total confirmado por Ventas"
             )
         with CashRegisterUnitOfWork(connection, owns_transaction=owns_transaction) as uow:
-            shift = uow.shifts.find_open_for_cashier(
-                branch_id=branch_id, cashier_user_id=cashier_user_id)
-            if not shift:
-                raise CashInvalidStateError("La venta requiere un turno de caja abierto")
+            shift_id = ActiveShiftResolver(uow.connection).require_operable(
+                branch_id=branch_id, cashier_user_id=cashier_user_id, purpose="sale").id
             prior_payment = uow.settlements.find_payment_record_for_sale(sale_id)
             prior = uow.ledger.find_sale_entry(sale_id)
             if prior_payment:
-                return SaleCashResult(shift["id"], prior["id"] if prior else None,
+                return SaleCashResult(shift_id, prior["id"] if prior else None,
                                       Decimal(prior["amount"]) if prior else Decimal("0"),
                                       True, prior_payment["id"])
             payment = PaymentRecord.create(
-                sale_id=sale_id, shift_id=shift["id"], branch_id=branch_id,
+                sale_id=sale_id, shift_id=shift_id, branch_id=branch_id,
                 amount_to_settle=expected_total, operation_id=operation_id,
                 recorded_by=cashier_user_id,
             )
@@ -196,7 +196,7 @@ class CashSalesIntegrationService:
             entry = None
             if cash_amount > 0:
                 entry = CashLedgerEntry.create(
-                    shift_id=shift["id"], branch_id=branch_id,
+                    shift_id=shift_id, branch_id=branch_id,
                     movement_type=CashMovementType.CASH_SALE,
                     direction=CashMovementDirection.INFLOW, amount=cash_amount,
                     operation_id=operation_id, recorded_by=cashier_user_id,
@@ -206,11 +206,11 @@ class CashSalesIntegrationService:
                 _record(uow, CashEvents.MOVEMENT_RECORDED, operation_id=operation_id,
                         entity_id=entry.id, branch_id=branch_id,
                         actor_user_id=cashier_user_id, reason=entry.concept,
-                        shift_id=shift["id"], movement_type=CashMovementType.CASH_SALE.value,
+                        shift_id=shift_id, movement_type=CashMovementType.CASH_SALE.value,
                         direction=CashMovementDirection.INFLOW.value,
                         amount=str(entry.amount), sale_id=sale_id,
                         payment_record_id=payment.id)
-        return SaleCashResult(shift["id"], entry.id if entry else None,
+        return SaleCashResult(shift_id, entry.id if entry else None,
                               cash_amount, payment_record_id=payment.id)
 
     def reverse_sale_cash(self, connection, *, sale_id: str, branch_id: str,
@@ -231,19 +231,30 @@ class CashSalesIntegrationService:
             shift = uow.shifts.get(original["shift_id"])
             if not shift or shift["branch_id"] != branch_id:
                 raise CashInvalidStateError("El movimiento de venta no pertenece a la sucursal")
+            # SDLC-CASH-001: el efectivo sale del cajón de quien reversa, no del
+            # turno original (que quizá ya tuvo su Corte Z). `related_sale_id`
+            # hace que el Z de ESTE turno lo reste de sus ventas en efectivo: el
+            # cobro original no está en sus movimientos y sin él la caja
+            # registradora quedaría con residuo.
+            shift_id = ActiveShiftResolver(uow.connection).require_operable(
+                branch_id=branch_id, cashier_user_id=actor_user_id, purpose="refund").id
+            amount = Decimal(original["amount"])
+            if amount > _reconstruct_cash_balance(uow.ledger.list_for_shift(shift_id)):
+                raise CashInvalidStateError("No hay efectivo suficiente en el cajón para el reverso")
             entry = CashLedgerEntry.create(
-                shift_id=original["shift_id"], branch_id=branch_id,
+                shift_id=shift_id, branch_id=branch_id,
                 movement_type=CashMovementType.REVERSAL,
                 direction=CashMovementDirection.OUTFLOW,
-                amount=Decimal(original["amount"]), operation_id=operation_id,
+                amount=amount, operation_id=operation_id,
                 recorded_by=actor_user_id, concept=reason,
-                reference_id=sale_id, reversal_of_id=original["id"])
+                reference_id=sale_id, reversal_of_id=original["id"],
+                related_sale_id=sale_id)
             uow.ledger.add(entry)
             _record(uow, CashEvents.MOVEMENT_REVERSED, operation_id=operation_id,
                     entity_id=entry.id, branch_id=branch_id,
                     actor_user_id=actor_user_id, reason=reason,
-                    shift_id=original["shift_id"], reversal_of_id=original["id"],
-                    amount=str(entry.amount), sale_id=sale_id)
+                    shift_id=shift_id, original_shift_id=original["shift_id"],
+                    reversal_of_id=original["id"], amount=str(entry.amount), sale_id=sale_id)
         return LedgerCommandResult(entry.id, "Efectivo de venta compensado")
 
     cancel_sale = reverse_sale_cash

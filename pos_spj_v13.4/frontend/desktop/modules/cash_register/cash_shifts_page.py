@@ -12,6 +12,7 @@ from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.modules.cash_register.cash_register_dialogs import (
+    CashShiftHandoverDialog,
     CashShiftOpeningDialog,
     SuspendCashShiftDialog,
 )
@@ -32,22 +33,25 @@ class CashShiftsPage(QWidget):
         suspend = create_secondary_button(self, "Suspender")
         resume = create_secondary_button(self, "Reanudar")
         prepare_close = create_secondary_button(self, "Cierre preliminar")
+        handover = create_secondary_button(self, "Entregar turno")
 
         open_shift.setEnabled(bool(capabilities.shift_open))
         suspend.setEnabled(bool(capabilities.shift_suspend))
         resume.setEnabled(bool(capabilities.shift_resume))
         prepare_close.setEnabled(bool(capabilities.shift_prepare_close))
+        handover.setEnabled(bool(capabilities.shift_reassign))
 
         open_shift.clicked.connect(self._request_open_shift)
         suspend.clicked.connect(self._request_suspend_shift)
         resume.clicked.connect(self._request_resume_shift)
         prepare_close.clicked.connect(self._request_prepare_close)
+        handover.clicked.connect(self._request_handover)
 
         root.addWidget(PageHeader(
             self,
             title="Apertura y turnos",
             subtitle="Apertura, fondo, asignacion activa, suspension, reanudacion y cierre preliminar.",
-            actions=[prepare_close, resume, suspend, open_shift],
+            actions=[handover, prepare_close, resume, suspend, open_shift],
         ))
         self._kpis = KPIBar(self)
         root.addWidget(self._kpis)
@@ -140,6 +144,28 @@ class CashShiftsPage(QWidget):
             empty_message="Selecciona el turno suspendido a reanudar.",
             success_message="Turno reanudado",
         )
+
+    def _request_handover(self) -> None:
+        shift_id = self._selected_or_active_shift_id()
+        if not shift_id:
+            self._show_error("Selecciona el turno a entregar.")
+            return
+        shift = self._rows_by_id.get(shift_id)
+        current = getattr(shift, "cashier_user_id", "")
+        dialog = CashShiftHandoverDialog(self, shift=shift, users=[
+            user for user in self._presenter.alert_user_options() if user.id != current])
+        if dialog.exec_() != dialog.Accepted:
+            return
+        value = dialog.result_value()
+        try:
+            result = self._presenter.reassign_cash_shift(
+                shift_id=shift_id, new_cashier_user_id=value.new_cashier_user_id,
+                reason=value.reason)
+        except (CashRegisterError, RuntimeError, ValueError) as exc:
+            self._show_error(user_facing_error(exc))
+            return
+        self._show_result(getattr(result, "message", "Turno entregado"))
+        self.refresh()
 
     def _request_prepare_close(self) -> None:
         self._transition_without_dialog(

@@ -3,7 +3,7 @@
 - **Prioridad:** P0
 - **Nivel de riesgo:** T0
 - **Origen:** `inputs/correcciones.md` C-02 (oleada 1); auditoría `docs/audits/auditoria_integral_produccion_recepcion_transferencias_productos_precios_2026-10-26.md` §3 «P0 — El almacén por defecto de la transferencia no alimenta el despiece directo»
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-CORE-012, SDLC-TRF-001
 
 ## Problema
@@ -35,5 +35,5 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 SDLC-INV-003 ya registraba este hallazgo dentro de su problema general (ubicaciones distintas por flujo); este ítem toma el caso transferencia → producción para la oleada 1 y debe usar el resolvedor único de INV-003 si llega antes. SDLC-ARQ-SCOPE-001 (almacenes acoplados a sucursal). Memoria LOG-INT.
 
 ## Preguntas abiertas
-- ¿El almacén por omisión al recibir una transferencia hacia una sucursal con despiece debe ser directamente `PRODUCTION`, o siempre recepción y luego movimiento interno? · bloquea `/sdlc-design SDLC-TRF-003`
-- ¿Quién autoriza el movimiento interno recepción → producción (el mismo que recibe, o un segundo usuario)? · bloquea `/sdlc-design SDLC-TRF-003`
+- ¿El almacén por omisión al recibir una transferencia hacia una sucursal con despiece debe ser directamente `PRODUCTION`, o siempre recepción y luego movimiento interno? directamente· bloquea `/sdlc-design SDLC-TRF-003`
+- ¿Quién autoriza el movimiento interno recepción → producción (el mismo que recibe, o un segundo usuario)? el que recibe · bloquea `/sdlc-design SDLC-TRF-003`

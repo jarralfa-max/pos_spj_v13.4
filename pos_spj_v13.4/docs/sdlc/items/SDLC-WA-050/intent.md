@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §74, §80, §81 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-019, SDLC-WA-021, SDLC-WA-028, SDLC-WA-029, SDLC-WA-035, SDLC-WA-037, SDLC-WA-049
 
 ## Problema
@@ -34,4 +34,4 @@ Dos arquitecturas en paralelo; cualquier arreglo hay que hacerlo dos veces.
 WA-21 (omitido por decisión del responsable); SDLC-WA-019.
 
 ## Preguntas abiertas
-- Misma decisión que SDLC-WA-019: ¿se levanta el diferimiento de WA-21?
+- Misma decisión que SDLC-WA-019: ¿se levanta el diferimiento de WA-21? elimina legacy

@@ -691,6 +691,15 @@ class FinancePresenter:
                              amount=amount, reference=reference,
                              done="Transferencia registrada y contabilizada.")
 
+    def pending_cash_deposit_options(self) -> list[Option]:
+        return [(row["id"], f"{row['prepared_at'][:10]} · {money_display(row['amount'])}")
+                for row in self._q["treasury"].pending_cash_deposits()]
+
+    def confirm_cash_deposit(self, *, deposit_id: str, ticket_reference: str) -> tuple[bool, str]:
+        return self._command("confirm_cash_deposit", deposit_id=deposit_id,
+                             ticket_reference=ticket_reference,
+                             done="Depósito confirmado y enviado a contabilidad.")
+
     def register_treasury_movement(self, **data) -> tuple[bool, str]:
         data["kind"] = TreasuryMovementKind(data["kind"])
         return self._command("treasury_movement", **data, done="Movimiento registrado.")

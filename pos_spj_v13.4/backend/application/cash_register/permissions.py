@@ -39,12 +39,16 @@ class CashPermissions:
     SHIFT_CLOSE = "CAJA.turno.cerrar"
     SHIFT_FORCE_CLOSE = "CAJA.turno.forzar_cierre"
     SHIFT_REASSIGN = "CAJA.turno.reasignar"
+    #: Suspender, reanudar o pre-cerrar el turno de OTRO cajero (SDLC-ARQ-SHIFT-003).
+    SHIFT_INTERVENE = "CAJA.turno.intervenir"
     MOVEMENT_VIEW = "CAJA.movimiento.ver"
     MOVEMENT_INCOME = "CAJA.movimiento.ingreso"
     MOVEMENT_WITHDRAWAL = "CAJA.movimiento.retiro"
     MOVEMENT_SAFE_DROP = "CAJA.movimiento.safe_drop"
     MOVEMENT_REVERSE = "CAJA.movimiento.reversar"
     MOVEMENT_AUTHORIZE_OVER_LIMIT = "CAJA.movimiento.autorizar_exceso"
+    #: Mover efectivo en el turno de OTRO cajero (SDLC-ARQ-SHIFT-003).
+    MOVEMENT_INTERVENE = "CAJA.movimiento.intervenir"
     BLIND_COUNT_VIEW = "CAJA.conteo.ver"
     BLIND_COUNT_START = "CAJA.conteo.iniciar"
     BLIND_COUNT_CAPTURE = "CAJA.conteo.capturar"

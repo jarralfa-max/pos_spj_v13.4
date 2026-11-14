@@ -11,6 +11,14 @@ class DeviceStatus(str, Enum):
 
 
 class CashShiftStatus(str, Enum):
+    """Hoy sólo se escriben OPEN, SUSPENDED, CLOSING y CLOSED. `OPENING`,
+    `PENDING_COUNT`, `COUNTING`, `COUNTED`, `PENDING_REVIEW`, `FORCE_CLOSED` y
+    `CANCELLED` son inalcanzables: no hay transición que llegue a ellos
+    (`CashShiftLifecyclePolicy.TRANSITIONS`). Se conservan porque el CHECK de
+    `cash_shifts` y los índices `ux_cash_shift_active_*` los nombran
+    (SDLC-ARQ-SHIFT-003). El conteo vive en `cash_counts` y revisar el Z es
+    posterior y opcional: ningún turno espera en `PENDING_REVIEW`."""
+
     OPENING = "OPENING"
     OPEN = "OPEN"
     SUSPENDED = "SUSPENDED"
@@ -22,6 +30,16 @@ class CashShiftStatus(str, Enum):
     CLOSED = "CLOSED"
     FORCE_CLOSED = "FORCE_CLOSED"
     CANCELLED = "CANCELLED"
+
+
+class CashShiftOperability(str, Enum):
+    """Qué puede hacer el cajero con su turno activo para cobrar o reembolsar
+    (SDLC-ARQ-SHIFT-001, decisión 2026-11-02: SUSPENDED se reanuda; CLOSING
+    no sirve, se abre un turno nuevo)."""
+
+    OPERABLE = "OPERABLE"
+    MUST_RESUME = "MUST_RESUME"
+    MUST_OPEN_NEW = "MUST_OPEN_NEW"
 
 
 class CashMovementDirection(str, Enum):

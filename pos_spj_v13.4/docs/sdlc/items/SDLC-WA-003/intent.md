@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-002
 
 ## Problema
@@ -39,7 +39,7 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 
 ## Preguntas abiertas
 - ¿El destino es la API REST del ERP (aún inexistente) o los casos de uso canónicos `customer_orders`/`quotes`?
-- ¿El canal WhatsApp está en uso hoy en alguna sucursal?
+- ¿El canal WhatsApp está en uso hoy en alguna sucursal? solo pruebas
 
 ## Ampliación 2026-11-01 (`/sdlc-plan arquitectura docs/sdlc/inputs/whatsapp.md`)
 Origen: `docs/sdlc/inputs/whatsapp.md` §34, §37, §52; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`.
