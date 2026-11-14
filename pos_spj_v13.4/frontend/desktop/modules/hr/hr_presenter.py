@@ -502,16 +502,23 @@ class HRPresenter:
             actor_user_id=self._actor(), payroll_run_id=payroll_run_id,
             payment_method=payment_method, payment_reference=payment_reference,
             operation_id=operation_id or new_uuid())
-        if result[0]:
-            # Auditoría Finanzas F21: PAYROLL_PAID se entrega a contabilidad en
-            # el acto; si falla queda pendiente con su error y se reintenta.
-            dispatcher = self._use_cases.get("dispatch_outbox")
-            if dispatcher is not None:
-                try:
-                    dispatcher()
-                except Exception:
-                    logger.exception("despacho de hr_outbox fallido")
+        if result[0] and not self._payroll_entry_delivered():
+            return True, (f"{result[1]}. El asiento contable quedó pendiente: "
+                          "se reintenta solo y Finanzas lo ve en el cierre del mes.")
         return result
+
+    def _payroll_entry_delivered(self) -> bool:
+        """Auditoría Finanzas F21: PAYROLL_PAID se entrega a contabilidad en el
+        acto; si falla queda pendiente con su error y el ciclo lo reintenta."""
+        dispatcher = self._use_cases.get("dispatch_outbox")
+        if dispatcher is None:
+            return True
+        try:
+            outcome = dispatcher()
+        except Exception:
+            logger.exception("despacho de hr_outbox fallido")
+            return False
+        return not (outcome["failed"] or outcome["without_consumer"])
 
     def cancel_payroll(self, payroll_run_id: str) -> tuple[bool, str]:
         return self._run(

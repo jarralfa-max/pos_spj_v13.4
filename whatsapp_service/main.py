@@ -79,6 +79,31 @@ def _assert_production_secrets_configured() -> None:
         )
 
 
+def _log_webhook_security_status() -> None:
+    """SDLC-WA-002: deja en el log de arranque si se aceptan webhooks sin firma."""
+    from whatsapp_service.config.settings import describe_webhook_security
+
+    status = describe_webhook_security()
+    allowed = status["unsigned_allowed"]
+    logger.log(
+        logging.WARNING if allowed else logging.INFO,
+        "Firma de webhooks: entorno=%s instalado=%s webhooks_sin_firma=%s",
+        status["env"],
+        "sí" if status["installed"] else "no",
+        "permitido" if allowed else "bloqueado",
+    )
+    if status["unrecognized_env_value"]:
+        logger.warning(
+            "APP_ENV/ENVIRONMENT con valor no reconocido (%r); se trata como %s.",
+            status["unrecognized_env_value"], status["env"],
+        )
+    if status["opt_in_ignored_reason"]:
+        logger.warning(
+            "WA_ALLOW_UNSIGNED_WEBHOOKS se ignoró por %s.",
+            status["opt_in_ignored_reason"],
+        )
+
+
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -89,6 +114,7 @@ async def lifespan(app: FastAPI):
     # WA-1: aborta el arranque en producción si faltan secretos críticos,
     # ANTES de tocar migraciones/DB/routers.
     _assert_production_secrets_configured()
+    _log_webhook_security_status()
 
     from whatsapp_service.config.settings import ERP_DB_PATH, CONTEXT_DB_PATH
 

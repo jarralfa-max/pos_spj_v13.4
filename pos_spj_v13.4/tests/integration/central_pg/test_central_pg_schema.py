@@ -170,3 +170,34 @@ def test_a_second_process_does_not_get_the_migration_lock(pg):
             cur.execute("SELECT pg_advisory_unlock(%s)", (engine.PG_MIGRATION_LOCK_KEY,))
         pg.commit()
         otra.close()
+
+
+def test_empty_central_accepts_a_station_and_a_device_enrollment(pg):
+    """SDLC-SYNC-001: un PostgreSQL vacío migrado con el carril responde lo que
+    `/api/v1/sync/events` y el alta de dispositivo consultan."""
+    from backend.application.sync.device_provisioning import DeviceProvisioningService
+    from backend.infrastructure.central.sync_inbox_repository import (
+        PostgresCentralInboxRepository,
+    )
+    from backend.shared.security.device_signature import generate_device_keypair
+
+    engine.up_postgresql(pg)
+    repositorio = PostgresCentralInboxRepository(pg)
+    administradora = _estacion(pg)
+    assert repositorio.get_station(administradora)["is_admin_station"] is False
+    with pg.cursor() as cur:
+        cur.execute("UPDATE sync_stations SET is_admin_station = TRUE WHERE id = %s",
+                    (administradora,))
+    pg.commit()
+
+    servicio = DeviceProvisioningService(repositorio)
+    actor = repositorio.get_station(administradora)
+    invitacion = servicio.create_invitation(branch_id=new_uuid(), workstation_type="POS",
+                                            actor_station=actor)
+    assert [i["id"] for i in servicio.list_invitations(actor_station=actor)] == [
+        invitacion.invitation_id]
+
+    _, llave_publica = generate_device_keypair()
+    vinculada = servicio.enroll(code=invitacion.code, public_key=llave_publica)
+    assert repositorio.get_station(vinculada.station_id)["status"] == "ACTIVE"
+    assert [e["event"] for e in servicio.history(vinculada.station_id, actor_station=actor)]

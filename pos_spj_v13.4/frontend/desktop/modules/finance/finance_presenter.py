@@ -119,7 +119,7 @@ class FinancePresenter:
         return value
 
     # ── comandos ─────────────────────────────────────────────────────────
-    def _command(self, name: str, *args, done: str = "Operación registrada.",
+    def _command(self, name: str, /, *args, done: str = "Operación registrada.",
                  **kwargs) -> tuple[bool, str]:
         if self._commands is None:
             return False, "Finanzas no tiene servicio de comandos autorizado; operación rechazada."
@@ -691,6 +691,15 @@ class FinancePresenter:
                              amount=amount, reference=reference,
                              done="Transferencia registrada y contabilizada.")
 
+    def pending_cash_deposit_options(self) -> list[Option]:
+        return [(row["id"], f"{row['prepared_at'][:10]} · {money_display(row['amount'])}")
+                for row in self._q["treasury"].pending_cash_deposits()]
+
+    def confirm_cash_deposit(self, *, deposit_id: str, ticket_reference: str) -> tuple[bool, str]:
+        return self._command("confirm_cash_deposit", deposit_id=deposit_id,
+                             ticket_reference=ticket_reference,
+                             done="Depósito confirmado y enviado a contabilidad.")
+
     def register_treasury_movement(self, **data) -> tuple[bool, str]:
         data["kind"] = TreasuryMovementKind(data["kind"])
         return self._command("treasury_movement", **data, done="Movimiento registrado.")
@@ -955,6 +964,9 @@ class FinancePresenter:
         return next((a["status"] for a in self._q["assets"].list_assets()
                      if a["id"] == asset_id), "")
 
+    def pending_asset(self, asset_id: str) -> dict:
+        return next((a for a in self._q["assets"].list_assets() if a["id"] == asset_id), {})
+
     def depreciation_runs(self) -> TableViewModel:
         rows, ids = [], []
         for r in self._q["assets"].depreciation_runs():
@@ -966,6 +978,13 @@ class FinancePresenter:
     def capitalize_asset(self, **data) -> tuple[bool, str]:
         return self._command("capitalize_asset", **data,
                              done=lambda a: f"Activo {a.name} capitalizado.")
+
+    def complete_purchased_asset(self, asset_id: str, **data) -> tuple[bool, str]:
+        return self._command(
+            "complete_purchased_asset", asset_id, **data,
+            done=lambda a: (f"Activo {a.name} en servicio; ya deprecia."
+                            if a.useful_life_months > 0 else
+                            f"Datos de {a.name} guardados; falta la vida útil para depreciar."))
 
     def run_depreciation(self, year: int, month: int) -> tuple[bool, str]:
         return self._command("run_depreciation", year, month,

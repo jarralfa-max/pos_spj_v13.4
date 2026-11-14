@@ -87,6 +87,9 @@ class FixedAsset:
     source_document_id: str | None = None
     project_id: str | None = None
     status_reason: str | None = None
+    source_document_number: str | None = None
+    suspended_on: date | None = None
+    suspended_months: int = 0                    # meses fuera de servicio ya cerrados
 
     def __post_init__(self) -> None:
         if self.accumulated_depreciation is None:
@@ -117,6 +120,26 @@ class FixedAsset:
             project_id=project_id, branch_id=branch_id, cost_center_id=cost_center_id,
         )
 
+    @classmethod
+    def from_recognized_purchase(cls, name: str, acquisition_cost: Money, operation_id: str, *,
+                                 asset_account_id: str, source_document_id: str,
+                                 source_document_number: str, acquisition_date: date,
+                                 supplier_id: str | None = None,
+                                 branch_id: str | None = None) -> "FixedAsset":
+        """Activo cuyo costo YA reconoció Compras. Nace en DRAFT y con vida útil 0
+        (sin capturar: nunca un número inventado). Su cuenta de activo es la que
+        Compras cargó, y no cambia: la baja debe acreditar esa misma cuenta."""
+        if not acquisition_cost.is_positive():
+            raise FinanceDomainError("El costo de adquisición debe ser mayor que cero")
+        return cls(
+            id=new_uuid(), name=name.strip(), acquisition_cost=acquisition_cost,
+            residual_value=Money.zero(acquisition_cost.currency_code), useful_life_months=0,
+            capitalization_date=None, operation_id=operation_id,
+            asset_account_id=asset_account_id, source_document_id=source_document_id,
+            source_document_number=source_document_number, acquisition_date=acquisition_date,
+            supplier_id=supplier_id, branch_id=branch_id,
+        )
+
     # ── ciclo de vida ────────────────────────────────────────────────────
     @property
     def in_service_date(self) -> date | None:
@@ -138,20 +161,82 @@ class FixedAsset:
         self.status = FixedAssetStatus.ACTIVE
         self.updated_at = _utcnow()
 
-    def suspend(self, reason: str) -> None:
+    def update_pending_data(self, *, name: str | None = None, asset_code: str | None = None,
+                            asset_category_id: str | None = None,
+                            residual_value: Money | None = None,
+                            useful_life_months: int | None = None,
+                            project_id: str | None = None,
+                            cost_center_id: str | None = None) -> None:
+        """Completa un activo reconocido por Compras; lo omitido no cambia."""
+        if self.status is not FixedAssetStatus.DRAFT:
+            raise FinanceDomainError(f"Este activo ya está {self.status.value}: "
+                                     "sus datos sólo se completan antes de activarlo")
+        if name is not None:
+            if not name.strip():
+                raise FinanceDomainError("El activo requiere nombre")
+            self.name = name.strip()
+        if residual_value is not None:
+            if residual_value.is_negative() or residual_value > self.acquisition_cost:
+                raise FinanceDomainError("El valor residual va de cero al costo de adquisición")
+            self.residual_value = residual_value
+        if useful_life_months is not None:
+            if useful_life_months <= 0:
+                raise FinanceDomainError("La vida útil debe ser mayor que cero")
+            self.useful_life_months = useful_life_months
+        if asset_code is not None:
+            self.asset_code = asset_code.strip().upper()
+        if asset_category_id is not None:
+            self.asset_category_id = asset_category_id
+        if project_id is not None:
+            self.project_id = project_id
+        if cost_center_id is not None:
+            self.cost_center_id = cost_center_id
+        self.updated_at = _utcnow()
+
+    def reverse_recognition(self, amount: Money, on_date: date, journal_entry_id: str,
+                            reason: str) -> None:
+        """Compras devolvió o revirtió lo reconocido: baja el costo; si llega a
+        cero el activo se cancela. Con depreciación corrida no aplica: esa parte
+        ya pasó por resultados y exige una baja formal."""
+        if self.status in RETIRED_STATUSES:
+            raise AssetNotActiveError(f"El activo ya está {self.status.value}")
+        if self.accumulated_depreciation.is_positive():
+            raise FinanceDomainError("El activo ya se depreció: requiere una baja formal")
+        remaining = self.acquisition_cost.subtract(amount)
+        if remaining.is_negative():
+            raise FinanceDomainError("El importe devuelto excede el costo del activo")
+        if remaining.is_zero():
+            self.status = FixedAssetStatus.WRITTEN_OFF
+            self.disposal_date = on_date
+            self.disposal_journal_entry_id = journal_entry_id
+            self.status_reason = (reason or "").strip() or None
+        else:
+            self.acquisition_cost = remaining
+            if self.residual_value > remaining:
+                self.residual_value = remaining
+        self.updated_at = _utcnow()
+
+    def suspend(self, reason: str, on_date: date | None = None) -> None:
         if self.status is not FixedAssetStatus.ACTIVE:
             raise AssetNotActiveError(f"Sólo se suspende un activo activo ({self.status.value})")
         if not (reason or "").strip():
             raise FinanceDomainError("Suspender un activo exige el motivo")
         self.status = FixedAssetStatus.SUSPENDED
         self.status_reason = reason.strip()
+        self.suspended_on = on_date
         self.updated_at = _utcnow()
 
-    def resume(self) -> None:
+    def resume(self, on_date: date | None = None) -> None:
+        """Los meses que pasó suspendido no se deprecian ni se recuperan después:
+        el mes de la suspensión cuenta como fuera de servicio, el de reanudar no."""
         if self.status is not FixedAssetStatus.SUSPENDED:
             raise FinanceDomainError(f"Sólo se reanuda un activo suspendido ({self.status.value})")
+        if self.suspended_on is not None and on_date is not None:
+            self.suspended_months += max(0, (on_date.year - self.suspended_on.year) * 12
+                                         + on_date.month - self.suspended_on.month)
         self.status = FixedAssetStatus.ACTIVE
         self.status_reason = None
+        self.suspended_on = None
         self.updated_at = _utcnow()
 
     def retire(self, status: FixedAssetStatus, retirement_date: date, journal_entry_id: str,

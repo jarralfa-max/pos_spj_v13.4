@@ -82,8 +82,9 @@ def test_pos_notifier_does_not_notify_other_branch_users():
 
     rows = db.execute("SELECT empleado_id, sucursal_id FROM notification_inbox ORDER BY empleado_id").fetchall()
     assert len(rows) == 1
-    assert rows[0]["empleado_id"] == 1
-    assert rows[0]["sucursal_id"] == 1
+    # SDLC-WA-005: la tabla de respaldo usa TEXT, como la real del ERP (041).
+    assert str(rows[0]["empleado_id"]) == "1"
+    assert str(rows[0]["sucursal_id"]) == "1"
 
 
 def test_scheduled_order_notification_uses_warning_and_canonical_event():

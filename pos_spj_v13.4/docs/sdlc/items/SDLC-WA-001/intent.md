@@ -3,7 +3,7 @@
 - **Prioridad:** P0
 - **Nivel de riesgo:** T1
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-002
 
 ## Problema
@@ -36,7 +36,7 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 `docs/refactor/WA-22_validacion_final.md` (gaps abiertos); `docs/audits/WHATSAPP_AUDIT.md`. Respetar los 3 shims de WhatsApp de CLAUDE.md regla 9.
 
 ## Preguntas abiertas
-- ¿Se usa MercadoPago en producción hoy, o el flujo está apagado?
+- ¿Se usa MercadoPago en producción hoy, o el flujo está apagado? esata apagado
 
 ## Ampliación 2026-10-29 (`/sdlc-plan arquitectura docs/sdlc/inputs/mercado-pago.md`)
 Origen: `docs/sdlc/inputs/mercado-pago.md` Fase 7; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md` (Fase 7 «Persistir antes de 200, dedup…», `defectuoso`, CRITICAL). Evidencia nueva, mismo archivo y mismo alcance:

@@ -162,7 +162,10 @@ def test_open_chart_rebuilds_html_theme_without_requerying_data(recording_web_ch
     assert view._web is web
     assert web.payloads[-1]["theme"]["name"] == "dark"
     assert web.payloads[-1]["theme"]["text"] != initial["theme"]["text"]
-    assert web.payloads[-1]["series"] == initial["series"]
+    # Same data, recolored from the dark palette (SDLC-UI-004): no re-query.
+    strip = lambda series: [{k: v for k, v in s.items() if k != "color"} for s in series]
+    assert strip(web.payloads[-1]["series"]) == strip(initial["series"])
+    assert web.payloads[-1]["series"][0]["color"] == ChartPalette.for_theme("dark").CATEGORICAL[0]
     assert web.payloads[-1]["categories"] == initial["categories"]
     chart_theme_manager.set_theme("light", app=app)
     assert len(web.payloads) == 3

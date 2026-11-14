@@ -5,7 +5,8 @@ MEDIDO 2026-10-10: ``PayPayrollRunUseCase`` encolaba PAYROLL_PAID en
 mano, pero nadie lo suscribía ni despachaba el outbox: una nómina pagada no
 llegaba al mayor por la ruta de producción. Mismo modelo que Caja
 (``cash_register/finance_wiring.py``): ``wire_hr_finance`` suscribe y
-``dispatch_hr_outbox`` entrega lo pendiente después de pagar y al arrancar.
+``dispatch_hr_outbox`` entrega lo pendiente después de pagar, al arrancar y en el
+ciclo periódico del shell (``hr.outbox``, SDLC-HR-002).
 
 Entrega observable: si Finanzas falla, el evento queda PENDIENTE con
 ``attempts`` y ``last_error``; tras ``MAX_ATTEMPTS`` deja de reintentarse en

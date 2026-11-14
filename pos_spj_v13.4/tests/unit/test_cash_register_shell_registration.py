@@ -55,12 +55,12 @@ def test_stand_in_only_exposes_db_and_session():
 
 
 def test_stand_in_supports_setattr_for_the_factorys_cache_slots():
-    # cash_register_factory.py writes active_cash_shift_id/active_cash_count_id
+    # cash_register_factory.py writes active_cash_count_id/active_cash_register_id
     # onto the composition root as a same-session cache — the stand-in must
     # be a plain mutable object, not something that rejects new attributes.
     stand_in = _CashRegisterCompositionStandIn(connection="conn")
-    stand_in.active_cash_shift_id = "shift-1"
-    assert stand_in.active_cash_shift_id == "shift-1"
+    stand_in.active_cash_count_id = "count-1"
+    assert stand_in.active_cash_count_id == "count-1"
 
 
 def test_activator_registers_the_view_factory_under_the_expected_id():

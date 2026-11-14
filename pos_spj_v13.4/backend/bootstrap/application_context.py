@@ -41,6 +41,8 @@ DEFAULT_CURRENCY = "MXN"
 
 
 def default_workstation_id() -> str:
+    """El NOMBRE de la máquina. Es dato descriptivo, no identidad: la identidad
+    de la terminal es `backend/bootstrap/terminal_identity.py`."""
     try:
         return socket.gethostname() or "unknown-workstation"
     except OSError:

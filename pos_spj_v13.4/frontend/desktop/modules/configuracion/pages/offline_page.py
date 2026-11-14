@@ -10,6 +10,10 @@ consumer exists in this repo (`sync/` is confirmed dead). Hand-authoring
 one via a form would not reflect any real workflow, so none was built —
 see `offline_management_use_cases.py`'s module docstring for the same
 reasoning on the application side.
+
+"Conflictos de sincronización" (SDLC-SYNC-002): hechos que el servidor central
+guardó en conflicto y no llegan a sus libros. Se resuelven aquí, en la estación
+(decisión del responsable, 2026-11-05), con motivo obligatorio.
 """
 from PyQt5.QtWidgets import QDialog, QHBoxLayout, QWidget
 
@@ -21,6 +25,7 @@ from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.configuracion.dialogs import (
     CacheExpirationPolicyCreateDialog,
     CacheExpirationPolicyEditDialog,
+    ResolveReplicationConflictDialog,
 )
 from frontend.desktop.themes.tokens import Spacing
 
@@ -37,6 +42,14 @@ _CACHE_EMPTY_MESSAGE = (
 )
 
 
+_CONFLICT_COLUMNS = [
+    ColumnSpec("Secuencia"), ColumnSpec("Contexto"), ColumnSpec("Evento"), ColumnSpec("Motivo"),
+    ColumnSpec("Creado"),
+]
+
+_CONFLICT_EMPTY_MESSAGE = "No hay conflictos de sincronización pendientes."
+
+
 def _button_row(parent, *buttons):
     row = QWidget(parent)
     layout = QHBoxLayout(row)
@@ -51,7 +64,8 @@ def _button_row(parent, *buttons):
 class OfflinePage(ConfiguracionWorkspacePage):
     page_id = "config_offline"
     title = "Offline"
-    subtitle = "Políticas de expiración de caché y diagnóstico de caché por estación."
+    subtitle = ("Políticas de expiración de caché, diagnóstico de caché por estación y "
+                "conflictos de sincronización.")
 
     def __init__(self, presenter, parent=None) -> None:
         super().__init__(presenter, parent)
@@ -73,11 +87,13 @@ class OfflinePage(ConfiguracionWorkspacePage):
 
         self._policies_by_id: dict = {}
         self._build_cache_card()
+        self._build_conflicts_card()
 
     def reload(self, search: str = "") -> None:
         super().reload(search)
         self._policies_by_id = {p.entity_id: p for p in self._presenter.list_cache_expiration_policies()}
         self._reload_cache_entries()
+        self._reload_conflicts()
 
     def _selected_policy_id(self) -> str | None:
         row_id = self.table.selected_row_id() if self.table is not None else None
@@ -148,6 +164,53 @@ class OfflinePage(ConfiguracionWorkspacePage):
             self.cache_empty = create_state_widget(ViewState.EMPTY, self.cache_card, message=_CACHE_EMPTY_MESSAGE)
             self.cache_card.add(self.cache_empty)
         self.cache_table.setVisible(bool(rows))
+
+    # ── Conflictos de sincronización (SDLC-SYNC-002) ───────────────────────
+
+    def _build_conflicts_card(self) -> None:
+        self.conflicts_card = SectionCard(self, title="Conflictos de sincronización")
+        self.conflicts_table = StandardTable(_CONFLICT_COLUMNS, self.conflicts_card)
+        self.conflicts_table.setAccessibleName("Conflictos de sincronización pendientes")
+        self.retry_conflict_button = create_secondary_button(self, "Reintentar")
+        self.accept_remote_button = create_warning_button(self, "Aceptar lo del servidor")
+        self.retry_conflict_button.clicked.connect(lambda: self._on_resolve_conflict("RETRY_LOCAL"))
+        self.accept_remote_button.clicked.connect(lambda: self._on_resolve_conflict("ACCEPT_REMOTE"))
+        self.conflicts_card.add(_button_row(self, self.retry_conflict_button, self.accept_remote_button))
+        self.conflicts_card.add(self.conflicts_table)
+        self.conflicts_empty = None
+        self.layout().addWidget(self.conflicts_card)
+        self._reload_conflicts()
+
+    def _reload_conflicts(self) -> None:
+        conflicts = self._presenter.list_replication_conflicts()
+        rows = [[str(c.sequence_no), c.source, c.event_type, c.error, c.created_at] for c in conflicts]
+        self.conflicts_table.load_rows(rows, row_ids=[c.envelope_id for c in conflicts])
+        if self.conflicts_empty is not None:
+            self.conflicts_empty.setParent(None)
+            self.conflicts_empty = None
+        if not rows:
+            self.conflicts_empty = create_state_widget(
+                ViewState.EMPTY, self.conflicts_card, message=_CONFLICT_EMPTY_MESSAGE)
+            self.conflicts_card.add(self.conflicts_empty)
+        self.conflicts_table.setVisible(bool(rows))
+        self.retry_conflict_button.setEnabled(bool(rows))
+        self.accept_remote_button.setEnabled(bool(rows))
+
+    def _on_resolve_conflict(self, strategy: str) -> None:
+        envelope_id = self.conflicts_table.selected_row_id()
+        if not envelope_id:
+            MessageDialog.warning(self, "Offline", "Selecciona un conflicto primero.")
+            return
+        title = ("Reintentar el envío" if strategy == "RETRY_LOCAL"
+                 else "Aceptar lo del servidor: este hecho no llegará a los libros centrales")
+        dialog = ResolveReplicationConflictDialog(self, title=title)
+        if dialog.exec_() != QDialog.Accepted:
+            return
+        ok, message = self._presenter.resolve_replication_conflict(
+            envelope_id=envelope_id, strategy=strategy, **dialog.values())
+        (MessageDialog.information if ok else MessageDialog.warning)(self, "Offline", message)
+        if ok:
+            self._reload_conflicts()
 
 
 __all__ = ["OfflinePage"]

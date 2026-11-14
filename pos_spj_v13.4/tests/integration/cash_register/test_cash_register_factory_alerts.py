@@ -37,7 +37,8 @@ class _Root:
     def __init__(self, db, session, shift_id):
         self.db = db
         self.session = session
-        self.active_cash_shift_id = shift_id
+        # SDLC-ARQ-SHIFT-001: el turno activo se lee de la base, no de aquí.
+        self.shift_id = shift_id
 
 
 class CashRegisterFactoryAlertTests(unittest.TestCase):

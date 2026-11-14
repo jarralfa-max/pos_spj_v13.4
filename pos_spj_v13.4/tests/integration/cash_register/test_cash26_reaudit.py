@@ -90,7 +90,9 @@ def _caja(conn, rol):
 
 class TestSeed306:
     def test_transcription_matches_cash_permissions(self):
-        assert {f"CAJA.{a}" for a in _306._TODAS} == ALL_CASH_PERMISSIONS
+        # Las posteriores a la foto de la 306 las concede la 359 (SDLC-ARQ-SHIFT-003).
+        posteriores = {"CAJA.turno.intervenir", "CAJA.movimiento.intervenir"}
+        assert {f"CAJA.{a}" for a in _306._TODAS} | posteriores == ALL_CASH_PERMISSIONS
 
     def test_owner_and_admin_get_everything(self, roles_db):
         _306.run(roles_db)

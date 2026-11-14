@@ -63,7 +63,11 @@ async def verify_webhook(
 @router.post("/webhook")
 async def receive_message(request: Request):
     """Recibe mensajes entrantes de WhatsApp."""
-    from whatsapp_service.config.settings import get_app_secret, is_production
+    from whatsapp_service.config.settings import (
+        allow_unsigned_webhooks,
+        get_app_secret,
+        unsigned_webhook_rejection,
+    )
     body = await request.body()
 
     app_secret = get_app_secret()
@@ -72,21 +76,17 @@ async def receive_message(request: Request):
         if not verify_signature(body, sig_header, app_secret):
             logger.warning("Firma HMAC inválida desde %s", request.client.host)
             return Response(status_code=403)
-    elif is_production():
-        # WA-1 / S4: en producción, sin WA_APP_SECRET no hay forma de
-        # verificar que el mensaje viene realmente de Meta — fail-closed en
-        # vez del fail-open anterior (mismo criterio que
-        # erp/bridge.py::_assert_sqlite_write_allowed aplicado aquí).
-        logger.error(
-            "WA_APP_SECRET no configurado en producción; rechazando webhook "
-            "entrante (whatsapp_security_audit.md S4/S8)."
-        )
-        return Response(status_code=503)
-    else:
+    elif allow_unsigned_webhooks():
         logger.warning(
-            "WA_APP_SECRET no configurado; verificación de firma omitida "
-            "(permitido solo fuera de producción, para desarrollo local)."
+            "WA_APP_SECRET no configurado; verificación de firma omitida por "
+            "WA_ALLOW_UNSIGNED_WEBHOOKS (sólo máquina de desarrollo)."
         )
+    else:
+        # WA-1 / S4, SDLC-WA-002: sin WA_APP_SECRET no hay forma de verificar
+        # que el mensaje viene realmente de Meta. Fail-closed en cualquier
+        # entorno salvo el opt-in explícito de arriba.
+        logger.error(unsigned_webhook_rejection("WA_APP_SECRET"))
+        return Response(status_code=503)
 
     # Nota (WA-1): a diferencia de MercadoPago, el esquema
     # X-Hub-Signature-256 de Meta no incluye un timestamp firmado, así que no

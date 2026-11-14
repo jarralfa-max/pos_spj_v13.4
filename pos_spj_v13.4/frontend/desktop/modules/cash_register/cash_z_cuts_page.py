@@ -11,7 +11,10 @@ from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
-from frontend.desktop.modules.cash_register.cash_register_dialogs import ReprintCashDocumentDialog
+from frontend.desktop.modules.cash_register.cash_register_dialogs import (
+    ReprintCashDocumentDialog,
+    ReviewZCutDialog,
+)
 from frontend.desktop.modules.cash_register.presentation import user_facing_error
 
 
@@ -25,8 +28,10 @@ class CashZCutsPage(QWidget):
         print_cut = create_secondary_button(self, "Imprimir")
         reprint = create_secondary_button(self, "Reimprimir")
         notify = create_secondary_button(self, "Notificar")
+        review = create_secondary_button(self, "Marcar revisado")
         caps = presenter.capabilities()
-        generate.setEnabled(bool(caps.z_cut_generate))
+        generate.setEnabled(bool(caps.z_cut_generate and caps.shift_close))
+        review.setEnabled(bool(caps.z_cut_review))
         print_cut.setEnabled(bool(caps.z_cut_print))
         reprint.setEnabled(bool(caps.z_cut_reprint))
         notify.setEnabled(bool(caps.notification_manage))
@@ -34,11 +39,12 @@ class CashZCutsPage(QWidget):
         print_cut.clicked.connect(self._print)
         reprint.clicked.connect(self._reprint)
         notify.clicked.connect(self._notify)
+        review.clicked.connect(self._review)
         root.addWidget(PageHeader(
             self,
             title="Corte Z",
             subtitle="Consolida conteo confirmado, calcula esperado, crea diferencia y cierra el turno.",
-            actions=[notify, reprint, print_cut, generate],
+            actions=[review, notify, reprint, print_cut, generate],
         ))
         self._kpis = KPIBar(self)
         root.addWidget(self._kpis)
@@ -110,6 +116,22 @@ class CashZCutsPage(QWidget):
             f"Corte Z {getattr(result, 'document_number', '')} generado y turno cerrado."
         )
         self.refresh()
+
+    def _review(self) -> None:
+        cut_id = self._selected_cut_id()
+        if not cut_id:
+            return
+        dialog = ReviewZCutDialog(self, document=self._rows_by_id.get(cut_id))
+        if dialog.exec_() != dialog.Accepted:
+            return
+        try:
+            result = self._presenter.review_z_cut(cut_id=cut_id,
+                                                  note=dialog.result_value().reason)
+        except (CashRegisterError, RuntimeError, ValueError) as exc:
+            self._show_error(user_facing_error(exc))
+            return
+        self._show_result("Este corte ya estaba revisado." if result.idempotent
+                          else f"Corte Z {result.document_number} revisado.")
 
     def _print(self) -> None:
         self._print_selected(reprint=False)

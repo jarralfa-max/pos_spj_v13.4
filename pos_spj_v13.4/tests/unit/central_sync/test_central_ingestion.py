@@ -147,6 +147,33 @@ def test_an_aggregate_version_regression_from_the_same_station_is_recorded(centr
     assert estados == ["APPLIED", "CONFLICT"] and repo.conflicts[-1]["kind"] == acuse.error_code
 
 
+def test_resending_a_stored_conflict_answers_conflict_not_duplicate(central):
+    """SDLC-SYNC-002: DUPLICATE significa «ya aplicado». Si el hecho quedó en
+    CONFLICTO, la estación lo marcaba SYNCED y la proyección nunca lo leía."""
+    repo, emitida = central
+    agregado = new_uuid()
+    _ingesta(repo, emitida, sobre(emitida.station_id, emitida.branch_id, secuencia=1,
+                                  agregado=agregado, version=2))
+    regresivo = sobre(emitida.station_id, emitida.branch_id, secuencia=2,
+                      agregado=agregado, version=1)
+    _ingesta(repo, emitida, regresivo)
+
+    acuse = _ingesta(repo, emitida, regresivo)[0]
+
+    assert acuse.outcome is ReplicationOutcome.CONFLICT
+    assert acuse.error_code == "AGGREGATE_VERSION_REGRESSION"
+    assert not acuse.outcome.settles
+    assert repo.facts[regresivo.event_id]["status"] == "CONFLICT"
+    assert len(repo.conflicts) == 1     # el reenvío no abre otro conflicto
+
+
+def test_resending_an_applied_fact_is_still_a_duplicate(central):
+    repo, emitida = central
+    aplicado = sobre(emitida.station_id, emitida.branch_id)
+    _ingesta(repo, emitida, aplicado)
+    assert _ingesta(repo, emitida, aplicado)[0].outcome is ReplicationOutcome.DUPLICATE
+
+
 def test_independent_versions_from_another_station_are_not_a_conflict(central):
     repo, emitida = central
     otra = CentralStationAdmin(repo).register(station_id=new_uuid(), branch_id=emitida.branch_id)

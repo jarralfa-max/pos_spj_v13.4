@@ -68,6 +68,7 @@ from frontend.desktop.auth.installation_status_dialogs import (
     InstallationLockedDialog,
     InstallationRecoveryRequiredDialog,
 )
+from backend.bootstrap.terminal_identity import current_terminal_id
 from frontend.desktop.auth.login_window import LoginWindow
 from frontend.desktop.provisioning.initial_setup_wizard import InitialSetupWizard
 from frontend.desktop.provisioning.provisioning_presenter import ProvisioningPresenter
@@ -115,7 +116,7 @@ def build_authentication_coordinator(
             begin_recovery_use_case=BeginAccountRecoveryUseCase(recovery_service),
             complete_recovery_use_case=CompleteAccountRecoveryUseCase(recovery_service),
             installation_summary_query=InstallationSummaryQueryService(connection),
-            workstation_id=workstation_id,
+            workstation_id=workstation_id or current_terminal_id(connection),
         )
 
     return AuthenticationCoordinator(

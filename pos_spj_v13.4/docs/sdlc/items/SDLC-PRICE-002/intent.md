@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1 (si el diseño confirma migración de `customer_price_list`, esa parte se trata como T0)
 - **Origen:** `inputs/correcciones.md` C-08 (oleada 4); auditoría `docs/audits/auditoria_integral_produccion_recepcion_transferencias_productos_precios_2026-10-26.md` §3 «P1 — Asignación de precios especiales por cliente ambigua»
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-PRICE-001, SDLC-ARQ-PERM-005
 
 ## Problema
@@ -36,6 +36,6 @@ CLAUDE.md reglas 1-3 y 13; `docs/skills/SPJ_REFACTOR_SKILL.md` REGLA CERO; permi
 SDLC-ARQ-PERM-005 (permisos con dimensión de recurso/condición); memoria «Proveedores y Precios» (otorgable ≠ otorgado: sembrar el permiso a los roles reales).
 
 ## Preguntas abiertas
-- ¿El precio por volumen reemplaza o complementa el precio negociado del cliente? · bloquea `/sdlc-design SDLC-PRICE-002`
-- ¿El descuento global se suma al precio de cliente? · bloquea `/sdlc-design SDLC-PRICE-002`
-- ¿Dónde se asigna: expediente del cliente (CRM) o Precios? (regla «el menú no repite el expediente») · bloquea `/sdlc-design SDLC-PRICE-002`
+- ¿El precio por volumen reemplaza o complementa el precio negociado del cliente? complementa· bloquea `/sdlc-design SDLC-PRICE-002`
+- ¿El descuento global se suma al precio de cliente? si· bloquea `/sdlc-design SDLC-PRICE-002`
+- ¿Dónde se asigna: expediente del cliente (CRM) o Precios? CRM, pero debe existir una lista base (regla «el menú no repite el expediente») · bloquea `/sdlc-design SDLC-PRICE-002`

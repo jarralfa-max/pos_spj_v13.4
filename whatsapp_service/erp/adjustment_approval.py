@@ -5,6 +5,11 @@ variación supera la tolerancia de ±0.2 unidades.
 
 El microservicio corre separado del ERP desktop, por eso este handler aplica la
 respuesta directamente sobre la BD del ERP.
+
+SDLC-WA-005: los servicios `core.*` que recalculaban y proyectaban el total se
+eliminaron con el legacy de Delivery. Su regla, que es poca, vive aquí:
+total = suma de `delivery_items.subtotal` redondeada a centavos, proyectada a
+`ventas.total`. El rediseño de la aprobación es SDLC-WA-029.
 """
 from __future__ import annotations
 from whatsapp_service.domain.money import quantize_money, to_decimal
@@ -12,12 +17,13 @@ from whatsapp_service.domain.money import quantize_money, to_decimal
 import logging
 import sqlite3
 from typing import Dict
-from core.delivery.domain.events import DeliveryEvents
-from core.services.order_total_service import OrderTotalService
-from core.delivery.projections.sale_delivery_projection import SaleDeliveryProjectionService
+from backend.shared.ids import new_uuid
 from whatsapp_service.phone_number import possible_match_key
 
 logger = logging.getLogger("wa.adjustment_approval")
+
+# Mismo nombre que el `DeliveryEvents.TOTAL_UPDATED` del legacy eliminado.
+DELIVERY_TOTAL_UPDATED = "DELIVERY_TOTAL_UPDATED"
 
 
 def _clean_phone(phone: str) -> str:
@@ -50,7 +56,38 @@ class AdjustmentApprovalService:
         ).fetchone()
         return row is not None
 
+    def _columns(self, table: str) -> set:
+        return {row[1] for row in self.db.execute(f"PRAGMA table_info({table})").fetchall()}
+
+    def _recalculate_order_total(self, order_id: str):
+        rows = self.db.execute(
+            "SELECT COALESCE(subtotal, 0) FROM delivery_items WHERE delivery_id=?",
+            (order_id,),
+        ).fetchall()
+        total = quantize_money(sum((to_decimal(r[0]) for r in rows), to_decimal(0)))
+        if "weight_adjusted" in self._columns("delivery_orders"):
+            self.db.execute(
+                "UPDATE delivery_orders SET total=?, weight_adjusted=1 WHERE id=?",
+                (total, order_id),
+            )
+        else:
+            self.db.execute("UPDATE delivery_orders SET total=? WHERE id=?", (total, order_id))
+        return total
+
+    def _project_sale_total(self, venta_id, total) -> None:
+        if venta_id and "total" in self._columns("ventas"):
+            self.db.execute("UPDATE ventas SET total=? WHERE id=?", (total, str(venta_id)))
+
     def respond_latest_for_phone(self, phone: str, accepted: bool) -> Dict:
+        try:
+            return self._respond_latest_for_phone(phone, accepted)
+        except Exception:
+            # La conexión es compartida: nada a medio aplicar debe quedar para
+            # el siguiente commit de otro flujo.
+            self.db.rollback()
+            raise
+
+    def _respond_latest_for_phone(self, phone: str, accepted: bool) -> Dict:
         phone10 = _clean_phone(phone)
         if not phone10:
             return {"ok": False, "error": "telefono invalido"}
@@ -107,8 +144,8 @@ class AdjustmentApprovalService:
 
         # Recalcular total del pedido desde delivery_items; ventas se actualiza solo vía proyección controlada.
         old_total = quantize_money(to_decimal(data.get("order_total") or 0))
-        new_total = OrderTotalService(self.db).recalculate_order_total(order_id)
-        SaleDeliveryProjectionService(self.db).project_total(venta_id, new_total)
+        new_total = self._recalculate_order_total(order_id)
+        self._project_sale_total(venta_id, new_total)
         pending_left = self.db.execute(
             "SELECT 1 FROM delivery_items WHERE delivery_id=? AND adjustment_status='pending_customer' LIMIT 1",
             (order_id,),
@@ -121,29 +158,27 @@ class AdjustmentApprovalService:
         )
 
         event_type = "DELIVERY_ADJUSTMENT_ACCEPTED" if accepted else "DELIVERY_ADJUSTMENT_REJECTED"
-        try:
-            self.db.execute(
-                """
-                INSERT INTO wa_event_log(event_type, data_json, sucursal_id, prioridad, timestamp)
-                SELECT ?,
-                       json_object('order_id', ?, 'old_total', ?, 'new_total', ?, 'folio', ?, 'cliente_tel', COALESCE(cliente_tel,'')),
-                       COALESCE(sucursal_id,1), 35, datetime('now')
-                FROM delivery_orders WHERE id=?
-                """,
-                (DeliveryEvents.TOTAL_UPDATED.value, order_id, old_total, new_total, folio, order_id),
-            )
-            self.db.execute(
-                """
-                INSERT INTO wa_event_log(event_type, data_json, sucursal_id, prioridad, timestamp)
-                SELECT ?,
-                       json_object('order_id', ?, 'item_id', ?, 'folio', ?, 'response', ?, 'total', ?),
-                       COALESCE(sucursal_id,1), 40, datetime('now')
-                FROM delivery_orders WHERE id=?
-                """,
-                (event_type, order_id, item_id, folio, action, new_total, order_id),
-            )
-        except Exception as exc:
-            logger.warning("No se pudo registrar evento de ajuste delivery order=%s item=%s: %s", order_id, item_id, exc)
+        # El evento es parte del cambio: si no se registra, no se aplica nada.
+        self.db.execute(
+            """
+            INSERT INTO wa_event_log(id, event_type, data_json, sucursal_id, prioridad, timestamp)
+            SELECT ?, ?,
+                   json_object('order_id', ?, 'old_total', ?, 'new_total', ?, 'folio', ?, 'cliente_tel', COALESCE(cliente_tel,'')),
+                   sucursal_id, 35, datetime('now')
+            FROM delivery_orders WHERE id=?
+            """,
+            (new_uuid(), DELIVERY_TOTAL_UPDATED, order_id, old_total, new_total, folio, order_id),
+        )
+        self.db.execute(
+            """
+            INSERT INTO wa_event_log(id, event_type, data_json, sucursal_id, prioridad, timestamp)
+            SELECT ?, ?,
+                   json_object('order_id', ?, 'item_id', ?, 'folio', ?, 'response', ?, 'total', ?),
+                   sucursal_id, 40, datetime('now')
+            FROM delivery_orders WHERE id=?
+            """,
+            (new_uuid(), event_type, order_id, item_id, folio, action, new_total, order_id),
+        )
 
         self.db.commit()
         return {

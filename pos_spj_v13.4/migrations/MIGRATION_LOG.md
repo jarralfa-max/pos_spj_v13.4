@@ -5445,3 +5445,83 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Siembra `CONFIGURACION.usuario.asignaciones` para `system_owner` y `admin`.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
+
+### 357 — permiso para re-anclar la sucursal de la estación (2026-11-02, SDLC-ARQ-TERM-002)
+
+- Siembra `CONFIGURACION.estacion.reanclar` en `rol_permisos` para `system_owner` y `admin` (los roles
+  de acceso total; no amplía lo que nadie podía hacer). Ningún otro rol lo recibe de fábrica.
+- `SetInstallationBranchUseCase` lo exige ahora en backend; antes bastaba `CONFIGURACION.empresa.editar`
+  y sólo lo comprobaba la pantalla. El re-anclaje además se rechaza con turno de caja abierto, con
+  pendientes de sincronizar o si la estación está vinculada al registro central, y se audita en
+  `audit_logs` (`instalacion.reanclar`, aplicado o rechazado).
+- Sin cambios de esquema. Sólo agrega filas; idempotente. Reversa: borrar esas filas y la versión 357
+  de `schema_migrations`.
+- Probada sólo sobre bases creadas en un directorio temporal
+  (`tests/integration/configuracion/test_installation_branch_reanchor.py`).
+- Detalle: `docs/sdlc/items/SDLC-ARQ-TERM-002/spec.md`.
+
+### p006 y 354 — aprovisionamiento de equipos, ya registrados (2026-11-06, SDLC-SYNC-001)
+
+- `p006_device_provisioning` existía pero no estaba en `PG_MIGRATIONS`, y el repositorio central ya
+  seleccionaba sus columnas: en un central migrado desde cero cada `/api/v1/sync/events` fallaba con
+  columna inexistente. Se registra.
+- Como p006 nunca corrió en ningún central, se corrige en sitio: `central_device_events.id` pasa de
+  `BIGSERIAL` a `UUID` (contrato del carril: sin identidades del servidor). El id lo genera
+  `add_device_event` con `new_uuid()`; `ORDER BY occurred_at, id` sigue valiendo con UUIDv7.
+- `354_device_enrollment` se registra en el carril SQLite: es del mismo slice que p006 (decisión del
+  responsable, 2026-11-05). Sólo agrega una tabla vacía y es idempotente; las bases que ya están en
+  357 la reciben al siguiente arranque, porque el motor revisa versión por versión.
+- Guardia nueva: `tests/unit/central_pg/test_postgres_lane_contract.py` falla si un
+  `migrations/pg/p*.py` queda fuera de `PG_MIGRATIONS` o si el repositorio selecciona una columna que
+  el carril no crea. Corre en el job `central-postgres`.
+- **No verificado aquí:** contra PostgreSQL real (`test_empty_central_accepts_a_station_and_a_device_enrollment`
+  corre sólo con `SPJ_TEST_PG_DSN`, en CI).
+
+### Conflictos de replicación: DUPLICATE ya no oculta un CONFLICTO (2026-11-06, SDLC-SYNC-002, sin migración)
+
+- La ingesta central respondía DUPLICATE a un reenvío idéntico aunque el hecho estuviera guardado en
+  CONFLICTO; la estación lo marcaba SYNCED y la proyección, que sólo lee APPLIED, nunca lo veía.
+  Ahora responde CONFLICT con el código original. Bastaba perder un acuse: no hacía falta acción humana.
+- La estación lista sus conflictos y los resuelve en Configuración → Offline (decisión del responsable,
+  2026-11-05), con `CONFIGURACION.offline.gestionar`, motivo obligatorio y rastro en `audit_logs`
+  (`sincronizacion.conflicto.resolver`). Sin esquema nuevo: `replication_envelopes` ya tenía el estado.
+- La política de resolución por tipo de agregado sigue fuera (`docs/sdlc/items/SDLC-SYNC-002/intent.md`).
+
+### 392 — identidad persistente de la terminal (2026-11-06, SDLC-ARQ-TERM-001, parcial)
+
+- `workstations` es la fuente canónica (decisión 2026-11-02). `configuraciones.terminal_instalacion_id`
+  guarda el UUIDv7 de esta máquina; el hostname queda como dato descriptivo en `device_identifier`.
+- Agrega `workstations.schema_version` y `protocol_version`. `create_workstation_schema` no cambia: una
+  migración ya distribuida no cambia de cuerpo, así que las columnas las pone sólo la 392.
+- Adopta la fila que ya represente a esta máquina (por nombre, o la única activa sin máquina); nunca
+  una que nombre a otra.
+- `software_station_settings` deja de usar el hostname como llave: se mueve al id de la terminal.
+- **Pendiente, no hecho:** retirar `pos_terminals`, que sigue siendo padre por FK de `cash_shifts` y
+  `cash_shift_assignments`; ver `docs/sdlc/lotes/lote-8.md`.
+
+### Proyección central fuera de orden (2026-11-09, SDLC-SYNC-003, sin migración)
+
+- Un hecho que depende de otro que aún no llega queda en ERROR `DEPENDENCY_MISSING` y se reintenta solo,
+  al final de cada lote. Pasa con una reversa de caja antes que su movimiento y con una cancelación o
+  reversa de venta antes que la venta. También con un cierre de turno antes que la apertura.
+  `set_sale_status` y `close_cash_shift` dicen ahora si tocaron una fila: con 0 filas ya no se registra OK.
+- Otros ERROR se reintentan a pedido: `scripts/central_stations.py project --retry-errors`.
+- Crédito, puntos y unidades organizacionales: un hecho más viejo del mismo agregado y la misma estación
+  queda SKIPPED `SUPERSEDED`. La versión se lee del `sync_inbox` del último hecho aplicado
+  (`last_event_id`), sin columnas nuevas. Entre estaciones distintas no hay orden comparable
+  (SDLC-ARQ-SYNC-001).
+- **No verificado aquí:** el SQL de PostgreSQL (`pending_facts`, `last_projected_event`); su prueba
+  corre en el job `central-postgres`.
+
+### Conflictos entre estaciones en el central (2026-11-09, SDLC-ARQ-SYNC-001, parcial, sin migración)
+
+- La proyección registra en `sync_conflicts` (OPEN) dos invariantes:
+  - `DOUBLE_OPEN_SHIFT`: dos turnos sin cerrar en la misma caja;
+  - `CROSS_STATION_OVERSELL`: una salida deja negativa una existencia que movieron dos o más estaciones.
+- El hecho se proyecta igual: detectar no decide quién gana.
+- La autoridad del inventario es la estación (decisión 2026-11-02), así que la sobreventa se detecta y
+  no se previene.
+- **Pendiente:** la matriz de autoridad por entidad (sin aprobar) y la detección de versiones
+  concurrentes de agregados compartidos, que depende de esa matriz. `sync_aggregate_heads` sigue
+  quedándose con la última estación.
+- **No verificado aquí:** el SQL de PostgreSQL; su prueba corre en el job `central-postgres`.

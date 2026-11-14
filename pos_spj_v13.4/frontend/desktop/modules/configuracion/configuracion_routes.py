@@ -110,6 +110,10 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         UpdateDesignTokenUseCase,
         UpdateThemeUseCase,
     )
+    from backend.application.sync.replication_conflicts import (
+        ReplicationConflictQuery,
+        ResolveReplicationConflictUseCase,
+    )
     from backend.application.use_cases.configuracion.offline_management_use_cases import (
         ChangeCacheExpirationPolicyStatusUseCase,
         CreateCacheExpirationPolicyUseCase,
@@ -143,8 +147,14 @@ def build_configuracion_view(*, connection, session_context, parent=None):
     from backend.infrastructure.db.repositories.security.grant_version_repository import (
         SqliteGrantVersionRepository,
     )
+    from backend.infrastructure.db.repositories.replication.conflict_unit_of_work import (
+        ReplicationConflictUnitOfWork,
+    )
     from backend.infrastructure.db.repositories.settings.installation_branch_repository import (
         SqliteInstallationBranchRepository,
+    )
+    from backend.infrastructure.db.repositories.settings.installation_branch_unit_of_work import (
+        InstallationBranchUnitOfWork,
     )
     from backend.infrastructure.db.repositories.settings.user_directory_repository import (
         SqliteUserDirectoryRepository,

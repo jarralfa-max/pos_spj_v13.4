@@ -7,7 +7,10 @@ import logging
 from typing import Callable, Iterable
 
 from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
+
+from frontend.desktop.themes.theme_manager import ThemeManager
 
 
 @dataclass(frozen=True)
@@ -143,7 +146,7 @@ class SearchSelector(QWidget):
         from a real, pickable option without changing the selection contract."""
         item = QListWidgetItem(text)
         item.setFlags(Qt.NoItemFlags)
-        item.setForeground(Qt.gray)
+        item.setForeground(QColor(ThemeManager.instance().colors().TEXT_MUTED))
         self._results.addItem(item)
 
     def selected_option(self) -> SearchOption | None:

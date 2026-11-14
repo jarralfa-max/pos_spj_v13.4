@@ -35,6 +35,9 @@ def _to_entity(row: dict) -> FixedAsset:
         disposal_date=parse_date(row["disposal_date"]),
         disposal_journal_entry_id=row["disposal_journal_entry_id"],
         supplier_id=row["supplier_id"], source_document_id=row["source_document_id"],
+        source_document_number=row["source_document_number"],
+        suspended_on=parse_date(row["suspended_on"]),
+        suspended_months=row["suspended_months"] or 0,
         project_id=row["project_id"],
         branch_id=row["branch_id"], cost_center_id=row["cost_center_id"],
         operation_id=row["operation_id"],
@@ -44,6 +47,12 @@ def _to_entity(row: dict) -> FixedAsset:
 
 def _mutable(asset: FixedAsset) -> dict:
     return {
+        "name": asset.name, "asset_code": asset.asset_code,
+        "asset_category_id": asset.asset_category_id,
+        "acquisition_cost": asset.acquisition_cost.to_string(),
+        "residual_value": asset.residual_value.to_string(),
+        "useful_life_months": asset.useful_life_months,
+        "project_id": asset.project_id, "cost_center_id": asset.cost_center_id,
         "accumulated_depreciation": asset.accumulated_depreciation.to_string(),
         "status": asset.status.value, "status_reason": asset.status_reason,
         "acquisition_date": iso(asset.acquisition_date),
@@ -54,6 +63,8 @@ def _mutable(asset: FixedAsset) -> dict:
         "last_depreciated_period": asset.last_depreciated_period,
         "disposal_date": iso(asset.disposal_date),
         "disposal_journal_entry_id": asset.disposal_journal_entry_id,
+        "suspended_on": iso(asset.suspended_on),
+        "suspended_months": asset.suspended_months,
         "updated_at": asset.updated_at,
     }
 
@@ -71,16 +82,12 @@ def _category_to_entity(row: dict) -> FixedAssetCategory:
 class FixedAssetRepository(FinanceRepositoryBase):
     def save(self, asset: FixedAsset) -> None:
         values = {
-            "id": asset.id, "asset_code": asset.asset_code, "name": asset.name,
-            "asset_category_id": asset.asset_category_id,
-            "acquisition_cost": asset.acquisition_cost.to_string(),
-            "residual_value": asset.residual_value.to_string(),
+            "id": asset.id,
             "currency_code": asset.acquisition_cost.currency_code,
-            "useful_life_months": asset.useful_life_months,
             "depreciation_method": asset.depreciation_method.value,
             "supplier_id": asset.supplier_id, "source_document_id": asset.source_document_id,
-            "project_id": asset.project_id, "branch_id": asset.branch_id,
-            "cost_center_id": asset.cost_center_id, "operation_id": asset.operation_id,
+            "source_document_number": asset.source_document_number,
+            "branch_id": asset.branch_id, "operation_id": asset.operation_id,
             "created_at": asset.created_at,
         }
         values.update(_mutable(asset))
@@ -96,6 +103,30 @@ class FixedAssetRepository(FinanceRepositoryBase):
     def find_by_operation_id(self, operation_id: str) -> FixedAsset | None:
         row = self._query_one("SELECT * FROM fixed_assets WHERE operation_id=?", (operation_id,))
         return _to_entity(row) if row else None
+
+    def find_by_source_document(self, source_document_id: str) -> FixedAsset | None:
+        row = self._query_one("SELECT * FROM fixed_assets WHERE source_document_id=?"
+                              " ORDER BY created_at LIMIT 1", (source_document_id,))
+        return _to_entity(row) if row else None
+
+    def find_by_document_number(self, document_number: str,
+                                supplier_id: str | None) -> FixedAsset | None:
+        """Activo ligado a ese documento, sin distinguir mayúsculas. Un folio de
+        recepción es ``compra / recepción``: basta con que coincida una parte.
+        Sin proveedor (pagado de tesorería) sólo compara el número."""
+        row = self._query_one(
+            "SELECT * FROM fixed_assets WHERE source_document_number IS NOT NULL"
+            " AND instr(UPPER(' / ' || source_document_number || ' / '),"
+            " UPPER(' / ' || ? || ' / ')) > 0"
+            " AND (? IS NULL OR supplier_id IS NULL OR supplier_id = ?)"
+            " ORDER BY created_at LIMIT 1",
+            (document_number, supplier_id, supplier_id))
+        return _to_entity(row) if row else None
+
+    def list_pending_completion(self) -> list[FixedAsset]:
+        """Reconocidos por Compras y aún sin los datos para depreciar."""
+        return [_to_entity(r) for r in
+                self._query("SELECT * FROM fixed_assets WHERE status='DRAFT'")]
 
     def list_capitalized(self) -> list[FixedAsset]:
         """Activos en servicio (ACTIVO) — los únicos que deprecian."""

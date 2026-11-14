@@ -3,7 +3,7 @@
 - **Prioridad:** P3
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/mercado-pago.md` Fase 1.5 · Fase 16 (`/sdlc-plan arquitectura` 2026-10-29; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md`, Fase 1.5 «Imports a legacy eliminado» (`legacy`))
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -35,4 +35,4 @@ No desarrollar una aplicación paralela ni duplicar contextos, tablas, servicios
 SDLC-CORE-005 (código muerto), SDLC-CORE-011.
 
 ## Preguntas abiertas
-- ¿Se borran las pruebas legacy o se reescriben las que describen comportamiento deseado (pendiente, webhook)?
+- ¿Se borran las pruebas legacy o se reescriben las que describen comportamiento deseado (pendiente, webhook)? borrar
