@@ -34,11 +34,11 @@ accepts for its own Caja side effect, not something this phase's scope
 extends to closing with a full saga/compensation mechanism.
 
 Cash-on-delivery money (`DriverCashCollection`/`DriverSettlement`, ORD-20/21)
-is a deliberately SEPARATE mechanism and is NOT unified with Sale payments
-here — a driver's collected cash is reconciled against the delivery job,
-never posted as a Sales payment line. Unifying the two would be real scope
-creep beyond this phase; documented as an open question in
-`docs/refactor/ORD-22_ventas_finanzas.md`, not silently decided either way.
+is a SEPARATE mechanism: a driver's collected cash is reconciled against the
+delivery job. When that order's Sale is paid in cash, the money is the same one
+the driver carries, so it skips the drawer (`driver_collected`), and Finance
+moves it between custodies without counting it twice (SDLC-ORD-001, see
+`event_handlers/finance/driver_cash_handlers.py`).
 """
 
 from __future__ import annotations
@@ -50,7 +50,11 @@ from backend.application.orders_delivery.permissions import OrdersDeliveryPermis
 from backend.application.orders_delivery.result import OrderResult, fail_from_domain_error
 from backend.application.orders_delivery.use_cases._base import _OrdersDeliveryBaseUseCase
 from backend.application.sales.authorization import SalesAuthorizationPolicy
-from backend.domain.orders_delivery.enums import OrderStatus, PaymentStatus
+from backend.domain.orders_delivery.enums import (
+    CollectionPaymentMethod,
+    OrderStatus,
+    PaymentStatus,
+)
 from backend.domain.orders_delivery.events import OrderEvents
 from backend.domain.orders_delivery.exceptions import (
     OrderNotFoundError,
@@ -64,6 +68,9 @@ from backend.domain.orders_delivery.policies.order_lifecycle_policy import (
 from backend.domain.orders_delivery.policies.order_payment_policy import OrderPaymentPolicy
 from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import (
     OrdersDeliveryUnitOfWork,
+)
+from backend.infrastructure.integrations.orders_delivery_inventory_client import (
+    OrdersDeliveryInventoryClient,
 )
 from backend.infrastructure.integrations.orders_delivery_sales_client import (
     OrdersDeliverySalesClient,
@@ -152,6 +159,7 @@ class RecordOrderPaymentUseCase(_OrdersDeliveryBaseUseCase):
                         f"El pedido {order_id} no ha sido proyectado a una venta"),
                     operation_id=operation_id)
             sale_id = order.sale_id
+            driver_collected = method == "CASH" and self._driver_collects_cash(uow, order_id)
 
         client = OrdersDeliverySalesClient(
             connection, branch_id=order.branch_id, sales_authorization=sales_authorization)
@@ -163,7 +171,8 @@ class RecordOrderPaymentUseCase(_OrdersDeliveryBaseUseCase):
                 total_paid=total_paid, order_total=sale_total)
             if target_status == PaymentStatus.PAID:
                 client.complete_sale(
-                    sale_id=sale_id, actor_user_id=actor_user_id, operation_id=operation_id)
+                    sale_id=sale_id, actor_user_id=actor_user_id, operation_id=operation_id,
+                    driver_collected=driver_collected)
         except OrdersDeliveryDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
 
@@ -182,6 +191,15 @@ class RecordOrderPaymentUseCase(_OrdersDeliveryBaseUseCase):
         return OrderResult.ok(
             "Pago registrado", entity_id=order.id, operation_id=operation_id,
             payment_status=target_status.value, order=CustomerOrderDTO.from_entity(order))
+
+    @staticmethod
+    def _driver_collects_cash(uow, order_id: str) -> bool:
+        """¿Este pedido se cobra en efectivo a la puerta? Entonces el dinero lo
+        trae el repartidor, y su cobro lo registra, no un cajón."""
+        job = uow.delivery_jobs.get_by_order_id(order_id)
+        collection = uow.cash_collections.get_by_job_id(job.id) if job else None
+        return collection is not None and (
+            collection.payment_method == CollectionPaymentMethod.CASH)
 
 
 class ReverseCustomerOrderUseCase(_OrdersDeliveryBaseUseCase):
@@ -238,10 +256,16 @@ class ReverseCustomerOrderUseCase(_OrdersDeliveryBaseUseCase):
 
         client = OrdersDeliverySalesClient(
             connection, branch_id=order.branch_id, sales_authorization=sales_authorization)
+        inventory = OrdersDeliveryInventoryClient(connection, branch_id=order.branch_id)
         try:
+            # La mercancía la sacó Pedidos, así que la devuelve Pedidos, dentro
+            # de la transacción del reverso de la venta (SDLC-ORD-004).
             client.refund(
                 sale_id=sale_id, reason=reason, actor_user_id=actor_user_id,
-                authorizer_user_id=authorizer_user_id, operation_id=operation_id)
+                authorizer_user_id=authorizer_user_id, operation_id=operation_id,
+                restore_inventory=lambda: inventory.restore_order(
+                    order, operation_id=operation_id, actor_user_id=actor_user_id,
+                    reason_code="ORDER_REVERSAL"))
         except OrdersDeliveryDomainError as exc:
             return fail_from_domain_error(exc, operation_id=operation_id)
 

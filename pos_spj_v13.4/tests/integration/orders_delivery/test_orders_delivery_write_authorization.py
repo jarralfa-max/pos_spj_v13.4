@@ -31,8 +31,11 @@ from backend.application.orders_delivery.session_authorization import (
 from backend.infrastructure.db.schema.orders_delivery_schema import (
     create_orders_delivery_schema,
 )
+from backend.infrastructure.db.schema.pricing_schema import create_pricing_schema
+from backend.infrastructure.db.schema.products_schema import create_products_schema
 from backend.shared.ids import new_uuid
 from tests.integration._audit_trail_table import create_audit_logs_table
+from tests.integration.orders_delivery.test_capture_order import Catalogo
 
 SUCURSAL = new_uuid()
 USUARIO = new_uuid()
@@ -57,11 +60,11 @@ def _politica(sesion):
     return OrdersDeliveryAuthorizationPolicy(OrdersDeliverySessionPermissionChecker(sesion))
 
 
-def _datos_pedido():
+def _datos_pedido(conn):
+    producto = Catalogo(conn).producto("Refresco", precio="25", branch_id=SUCURSAL)
     return {
         "channel": "POS", "fulfillment_type": "COUNTER", "contact_name": "Ana",
-        "contact_phone": None,
-        "lines": [{"product_id": new_uuid(), "unit_price": "25.00", "requested_quantity": "2"}],
+        "contact_phone": None, "lines": [{"product_id": producto, "quantity": "2"}],
     }
 
 
@@ -74,6 +77,8 @@ def _pedidos(conn):
 def conn():
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
+    create_products_schema(c)
+    create_pricing_schema(c)
     create_orders_delivery_schema(c)
     create_audit_logs_table(c)
     c.commit()
@@ -134,7 +139,8 @@ def _presenter_de_lista(conn, **kwargs):
 
 def test_new_order_writes_when_the_session_grants_it(app, conn):
     ok, mensaje = _presenter_de_lista(
-        conn, authorization=_politica(_Sesion({P.ORDER_CREATE}))).create_order(_datos_pedido())
+        conn, authorization=_politica(_Sesion({P.ORDER_CREATE}))).new_order_presenter().create(
+            _datos_pedido(conn))
 
     assert ok, mensaje
     assert _pedidos(conn) == 1
@@ -142,7 +148,8 @@ def test_new_order_writes_when_the_session_grants_it(app, conn):
 
 def test_new_order_is_refused_without_the_permission(app, conn):
     ok, mensaje = _presenter_de_lista(
-        conn, authorization=_politica(_Sesion({P.VIEW_OWN_BRANCH}))).create_order(_datos_pedido())
+        conn, authorization=_politica(_Sesion({P.VIEW_OWN_BRANCH}))).new_order_presenter().create(
+            _datos_pedido(conn))
 
     assert not ok
     assert P.ORDER_CREATE in mensaje
@@ -150,7 +157,7 @@ def test_new_order_is_refused_without_the_permission(app, conn):
 
 
 def test_without_a_policy_writing_still_fails_closed(app, conn):
-    ok, mensaje = _presenter_de_lista(conn).create_order(_datos_pedido())
+    ok, mensaje = _presenter_de_lista(conn).new_order_presenter().create(_datos_pedido(conn))
 
     assert not ok
     assert "PermissionChecker" in mensaje
@@ -166,6 +173,7 @@ def test_the_view_passes_the_policy_to_the_pages_it_builds(app, conn):
         actor_user_id=USUARIO, authorization=politica)
     vista.show_route("orders_all")
 
-    ok, mensaje = vista.stack.currentWidget()._presenter.create_order(_datos_pedido())
+    ok, mensaje = vista.stack.currentWidget()._presenter.new_order_presenter().create(
+        _datos_pedido(conn))
     assert ok, mensaje
     assert _pedidos(conn) == 1

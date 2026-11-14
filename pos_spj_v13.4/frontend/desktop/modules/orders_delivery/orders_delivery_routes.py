@@ -70,7 +70,7 @@ def build_page(page_id: str, connection=None, *, branch_id: str | None = None,
     builder_name = _REAL_ROUTE_BUILDERS.get(page_id)
     if connection is not None and branch_id is not None and builder_name is not None:
         extra = ({"customer_lookup": customer_lookup}
-                 if builder_name == "_build_new_order" else {})
+                 if builder_name in ("_build_new_order", "_build_orders_list") else {})
         return globals()[builder_name](
             connection, page_id=page_id, branch_id=branch_id, actor_user_id=actor_user_id,
             authorization=authorization, **extra)
@@ -89,14 +89,14 @@ def _build_overview(connection, *, page_id: str, branch_id: str, actor_user_id: 
 
 
 def _build_orders_list(connection, *, page_id: str, branch_id: str, actor_user_id: str | None,
-                authorization=None):
+                authorization=None, customer_lookup=None):
     from frontend.desktop.modules.orders_delivery.pages.orders_list_page import OrdersListPage
     from frontend.desktop.modules.orders_delivery.presenters.orders_list_presenter import (
         OrdersListPresenter,
     )
     presenter = OrdersListPresenter(
         connection, branch_id=branch_id, actor_user_id=actor_user_id or "",
-        authorization=authorization)
+        authorization=authorization, customer_lookup=customer_lookup)
     return OrdersListPage(presenter)
 
 

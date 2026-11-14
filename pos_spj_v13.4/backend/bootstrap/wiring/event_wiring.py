@@ -35,6 +35,7 @@ def wire_cross_context_events(connection) -> dict:
     """
     from backend.application.cash_register.finance_wiring import wire_cash_register
     from backend.application.costing.wiring import wire_costing
+    from backend.application.orders_delivery.integrations.wiring import wire_orders_delivery
     from backend.application.pricing.integrations.wiring import wire_pricing
     from backend.application.procurement.integrations.wiring import wire_procurement
     from backend.application.sales.integrations.wiring import wire_sales
@@ -65,6 +66,8 @@ def wire_cross_context_events(connection) -> dict:
         "procurement": wire_procurement(bus, connection),
         # Fase 6 (2026-09-18): la venta completada llega a contabilidad.
         "sales": wire_sales(bus, connection),
+        # SDLC-ORD-001: el efectivo que cobra un repartidor llega al mayor.
+        "orders_delivery": wire_orders_delivery(bus, connection),
         # CRM-43 (2026-10-08): la compra llega al expediente del cliente (número de
         # compras, última compra, etapa). Se cableaba en core/events, ya borrado.
         "customers": wire_customers_sales(bus, connection),
@@ -118,6 +121,11 @@ def wire_cross_context_events(connection) -> dict:
         loyalty_sales_tick(connection, bus)
     except Exception:
         logger.exception("despacho inicial de ventas a Fidelidad fallido")
+    # Pedidos (SDLC-ORD-001): cobros y liquidaciones pendientes de repartidor.
+    try:
+        orders_delivery_tick(connection, bus)
+    except Exception:
+        logger.exception("despacho inicial de orders_delivery_outbox fallido")
     # Finanzas (FIN-ERP): merma valuada pendiente, vencimientos y finance_outbox.
     try:
         from backend.application.finance.wiring import finance_periodic_tick
@@ -125,6 +133,15 @@ def wire_cross_context_events(connection) -> dict:
     except Exception:
         logger.exception("ciclo inicial de Finanzas fallido")
     return summary
+
+
+def orders_delivery_tick(connection, bus) -> dict:
+    """Entrega `orders_delivery_outbox` (idempotente: Finanzas lo es por evento y
+    documento). Lo usa el arranque y el ciclo periódico del shell."""
+    from backend.application.orders_delivery.integrations.orders_delivery_outbox_dispatcher import (
+        dispatch_orders_delivery_outbox,
+    )
+    return dispatch_orders_delivery_outbox(connection, bus)
 
 
 def _wire_loyalty(bus, connection) -> dict:

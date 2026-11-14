@@ -8,14 +8,12 @@ permissions — reservation is the automatic side effect of confirming an
 order (§17's flow: confirmar → reservar), not a distinct user-facing action,
 same reasoning ORD-6 already applied to schedule activation.
 
-Scope note (see `docs/refactor/ORD-8_inventario.md`): Allocation (binding a
-reservation to specific lots, §23's "asignación de lote") and Commit
-(converting a reservation into an actual stock decrement using
-`final_quantity`/`final_weight`, §50) are deliberately NOT built here —
-Commit needs `final_quantity`/`final_weight`, which only exist after
-catch-weight adjustment (ORD-10). Building it now would mean committing
-against `requested_quantity`, which master prompt §50 explicitly forbids
-once an adjustment has happened.
+Commit (converting a reservation into an actual stock decrement using
+`final_quantity`/`final_weight`, §50) is not a separate use case: it runs inside
+the transaction of whatever takes the goods out of the branch —
+`DispatchDeliveryJobUseCase` for a delivery and `CompletePickupUseCase` at the
+counter (SDLC-ORD-004, responsable's decision: "al despachar"). See
+`OrdersDeliveryInventoryClient.commit_order`.
 """
 
 from __future__ import annotations
@@ -58,11 +56,9 @@ class ReserveOrderInventoryUseCase(_OrdersDeliveryBaseUseCase):
             try:
                 for line in order.lines:
                     line_operation_id = f"{operation_id}-{line.id}"
-                    quantity = line.requested_quantity.value if line.requested_quantity else 0
-                    weight = line.requested_weight.value if line.requested_weight else 0
                     reservation_id = client.reserve_line(
-                        product_id=line.product_id, quantity=quantity, weight=weight,
-                        order_id=order.id, operation_id=line_operation_id,
+                        product_id=line.product_id, quantity=line.requested_base_quantity(),
+                        line_id=line.id, operation_id=line_operation_id,
                         actor_user_id=actor_user_id)
                     line.set_reservation(reservation_id)
                     reserved.append((line, reservation_id))
