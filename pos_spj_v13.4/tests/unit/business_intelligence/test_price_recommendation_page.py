@@ -11,6 +11,7 @@ import sqlite3
 import pytest
 from PyQt5.QtWidgets import QApplication
 
+from backend.application.analytics.access import BiAccess
 from backend.domain.decision_intelligence.enums import (
     BusinessRecommendationType,
     RecommendationStatus,
@@ -72,21 +73,21 @@ def _recommendation() -> BusinessRecommendation:
 
 
 def test_page_constructs_without_a_selected_product_or_branch(qapp, conn):
-    page = PriceRecommendationPage(PriceRecommendationPresenter(conn))
+    page = PriceRecommendationPage(PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests()))
     assert page._product_id is None
     assert page._branch_id is None
     assert page._recommendation is None
 
 
 def test_ensure_loaded_populates_settings_driven_defaults(qapp, conn):
-    page = PriceRecommendationPage(PriceRecommendationPresenter(conn))
+    page = PriceRecommendationPage(PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests()))
     page.ensure_loaded()
     assert page.margin_threshold.value() == page._presenter.default_margin_review_threshold_pct()
     assert page.valid_for_days.value() == page._presenter.default_valid_for_days()
 
 
 def test_selecting_a_product_and_branch_stores_their_ids(qapp, conn):
-    page = PriceRecommendationPage(PriceRecommendationPresenter(conn))
+    page = PriceRecommendationPage(PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests()))
     page._select_product(SearchOption(id="p1", label="Res Molida"))
     page._select_branch(SearchOption(id="b1", label="Sucursal Centro"))
     assert page._product_id == "p1"
@@ -94,7 +95,7 @@ def test_selecting_a_product_and_branch_stores_their_ids(qapp, conn):
 
 
 def test_apply_transition_without_a_recommendation_shows_a_message_not_a_crash(qapp, conn, monkeypatch):
-    page = PriceRecommendationPage(PriceRecommendationPresenter(conn))
+    page = PriceRecommendationPage(PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests()))
     from frontend.desktop.components.dialogs import MessageDialog
     calls = []
     monkeypatch.setattr(MessageDialog, "information", lambda *a, **k: calls.append(a))
@@ -103,12 +104,12 @@ def test_apply_transition_without_a_recommendation_shows_a_message_not_a_crash(q
 
 
 def test_apply_transition_updates_the_in_memory_recommendation(qapp, conn):
-    page = PriceRecommendationPage(PriceRecommendationPresenter(conn))
+    page = PriceRecommendationPage(PriceRecommendationPresenter(conn, access=BiAccess.permissive_for_tests()))
     page._recommendation = _recommendation()
     page._apply_transition("acknowledge")
     assert page._recommendation.status.value == "ACKNOWLEDGED"
 
 
 def test_build_page_with_connection_returns_real_price_recommendation_page(qapp, conn):
-    page = build_page("bi_recommendations", conn)
+    page = build_page("bi_recommendations", conn, access=BiAccess.permissive_for_tests())
     assert isinstance(page, PriceRecommendationPage)

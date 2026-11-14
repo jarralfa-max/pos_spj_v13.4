@@ -19,7 +19,7 @@ def svc():
     S.add_payable(conn, 600.0)
     S.add_waste(conn, p, b, 2, 40.0, when=S.this_month_day())
     conn.commit()
-    return BiDashboardService(BiDashboardQueryService(conn))
+    return BiDashboardService.permissive_for_tests(BiDashboardQueryService(conn))
 
 
 def test_filter_options(svc):

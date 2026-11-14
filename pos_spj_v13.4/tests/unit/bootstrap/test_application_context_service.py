@@ -145,3 +145,55 @@ def test_switching_to_a_branch_none_of_the_users_roles_covers_is_rejected():
     assert switched.roles == ("cajero",)
     assert switched.site_allows_module("sales_pos")
     assert not switched.site_allows_module("meat_processing")
+
+
+# ── SDLC-SET-001: la sesión sigue al ancla de la estación ─────────────────
+def test_following_the_anchor_needs_no_voluntary_switch_permission():
+    """Anclar ya se autorizó; la sesión opera el sitio anclado (N01), así que no
+    aplica `APPLICATION_CONTEXT_SWITCH`, que además nadie tiene sembrado."""
+    context = _context(permissions=frozenset())
+    followed = _service().follow_installation_anchor(context, branch_id="branch-2")
+    assert (followed.branch_id, followed.branch_name) == ("branch-2", "Sucursal Norte")
+    assert followed.permissions == PERMISSIONS_BY_BRANCH["branch-2"]
+    assert followed.feature_context.is_enabled("whatsapp")
+    assert followed.session_id == context.session_id
+    assert context.branch_id == "branch-1"
+
+
+def test_following_the_anchor_keeps_the_voluntary_switch_gate_closed():
+    context = _context(permissions=frozenset())
+    with pytest.raises(ContextSwitchNotAllowedError):
+        _service().change_branch(context, new_branch_id="branch-2")
+
+
+def test_following_the_anchor_reloads_roles_and_site_capabilities():
+    service = ApplicationContextService(
+        branch_resolver=lambda branch_id: BRANCHES.get(branch_id),
+        permissions_loader=lambda u, b: frozenset(), feature_flags_loader=lambda b: {},
+        site_access_checker=lambda u, b: True, roles_loader=lambda u, b: ("cajero",),
+        site_capabilities_loader=lambda b: frozenset({"POS", "SALES", "CASH"}))
+    followed = service.follow_installation_anchor(_context(), branch_id="branch-2")
+    assert followed.roles == ("cajero",)
+    assert not followed.site_allows_module("meat_processing")
+
+
+def test_following_the_anchor_to_a_site_no_role_covers_is_rejected():
+    service = ApplicationContextService(
+        branch_resolver=lambda branch_id: BRANCHES.get(branch_id),
+        permissions_loader=lambda u, b: frozenset(), feature_flags_loader=lambda b: {},
+        site_access_checker=lambda u, b: False)
+    with pytest.raises(ContextSwitchNotAllowedError, match="Sucursal Norte"):
+        service.follow_installation_anchor(_context(), branch_id="branch-2")
+
+
+def test_following_the_anchor_to_an_unknown_branch_is_rejected():
+    with pytest.raises(BranchNotFoundError):
+        _service().follow_installation_anchor(_context(), branch_id="does-not-exist")
+
+
+def test_following_the_anchor_is_audited_like_a_switch():
+    events = []
+    _service(audit_sink=lambda name, payload: events.append(name)).follow_installation_anchor(
+        _context(), branch_id="branch-2")
+    assert events == ["APPLICATION_CONTEXT_CHANGING", "APPLICATION_CONTEXT_CHANGED",
+                      "NAVIGATION_CONTEXT_REBUILT"]

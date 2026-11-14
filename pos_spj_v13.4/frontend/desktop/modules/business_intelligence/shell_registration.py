@@ -38,7 +38,6 @@ from typing import Optional
 from backend.security.permissions.codes import permission_code
 from frontend.desktop.shell.modules.module_descriptor import ModuleDescriptor
 from frontend.desktop.shell.modules.session_access import (
-    active_branch_id,
     actor_user_id,
     sidebar_permission_checker,
 )
@@ -101,6 +100,7 @@ class BusinessIntelligenceModuleActivator:
         este módulo quedaban INALCANZABLES tras un sidebar vacío. Ahora usa
         la derivación compartida del shell (§26).
         """
+        from backend.application.analytics.access import build_bi_access
         from frontend.desktop.modules.business_intelligence.business_intelligence_view import (
             BusinessIntelligenceView,
         )
@@ -109,7 +109,7 @@ class BusinessIntelligenceModuleActivator:
         return BusinessIntelligenceView(
             has_permission=sidebar_permission_checker(session),
             connection=self._connection,
-            branch_id=active_branch_id(session),
+            access=build_bi_access(self._connection, session),
             actor_user_id=actor_user_id(session),
         )
 

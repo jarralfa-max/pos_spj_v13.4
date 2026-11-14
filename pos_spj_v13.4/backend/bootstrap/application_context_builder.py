@@ -47,6 +47,10 @@ from backend.bootstrap.application_context import (
     FeatureContext,
     default_workstation_id,
 )
+from backend.bootstrap.application_context_service import (
+    ApplicationContextService,
+    BranchLookupResult,
+)
 from backend.infrastructure.db.repositories.feature_flags.feature_flag_repository import (
     SqliteFeatureFlagRepository,
 )
@@ -157,3 +161,31 @@ class ApplicationContextBuilder:
         """Capacidades de la unidad del sitio. `None` (no restringe) si la base no
         tiene estructura organizacional o el sitio no tiene unidad."""
         return SqliteOrgUnitRepository(self._conn).site_capabilities(site_id)
+
+    def context_service(self, *, user_id: str) -> ApplicationContextService:
+        """El servicio de cambio de contexto con los MISMOS puertos que `build()`,
+        para que un contexto reconstruido en sesión valga lo mismo que uno de login
+        (SDLC-SET-001)."""
+        branches = SqliteBranchDirectoryRepository(self._conn)
+        permission_repo = SqlitePermissionRepository(self._conn)
+        resolver = AccessScopeResolver(permission_repo)
+        query = PermissionQueryService(permission_repo)
+        flags = BranchFeatureFlagsQuery(
+            SqliteFeatureFlagRepository(self._conn),
+            SqliteFeatureFlagRuleRepository(self._conn),
+        )
+
+        def resolve_branch(branch_id: str) -> BranchLookupResult | None:
+            rows = branches.search(branch_ids=(branch_id,), active_only=True, limit=1)
+            if not rows:
+                return None
+            return BranchLookupResult(id=str(rows[0]["id"]), name=str(rows[0]["nombre"] or ""))
+
+        return ApplicationContextService(
+            branch_resolver=resolve_branch,
+            permissions_loader=query.permission_codes_for_user,
+            feature_flags_loader=lambda branch_id: flags.flags_for(branch_id, user_id=user_id),
+            site_access_checker=resolver.covers if resolver.supports_scopes else None,
+            roles_loader=query.roles_for,
+            site_capabilities_loader=self._site_capabilities,
+        )

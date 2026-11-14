@@ -9,6 +9,7 @@ import sqlite3
 import pytest
 from PyQt5.QtWidgets import QApplication, QFileDialog
 
+from backend.application.analytics.access import BiAccess
 from frontend.desktop.components.dialogs import MessageDialog
 from frontend.desktop.modules.business_intelligence.business_intelligence_routes import build_page
 from frontend.desktop.modules.business_intelligence.pages.reports_page import ReportsPage
@@ -31,14 +32,14 @@ def conn():
 
 
 def test_page_constructs_with_the_report_and_format_catalogs(qapp, conn):
-    page = ReportsPage(ReportsPresenter(conn))
+    page = ReportsPage(ReportsPresenter(conn, access=BiAccess.permissive_for_tests()))
     assert page.report_selector.count() == 1
     assert page.report_selector.itemData(0) == "executive_summary"
     assert page.format_selector.count() == 3
 
 
 def test_export_selected_cancelled_dialog_does_nothing(qapp, conn, monkeypatch):
-    page = ReportsPage(ReportsPresenter(conn))
+    page = ReportsPage(ReportsPresenter(conn, access=BiAccess.permissive_for_tests()))
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
     calls = []
     monkeypatch.setattr(MessageDialog, "information", lambda *a, **k: calls.append(a))
@@ -47,7 +48,7 @@ def test_export_selected_cancelled_dialog_does_nothing(qapp, conn, monkeypatch):
 
 
 def test_export_selected_writes_a_real_file(qapp, conn, monkeypatch, tmp_path):
-    page = ReportsPage(ReportsPresenter(conn))
+    page = ReportsPage(ReportsPresenter(conn, access=BiAccess.permissive_for_tests()))
     target = str(tmp_path / "reporte.csv")
     page.format_selector.setCurrentIndex(2)  # csv
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: (target, ""))
@@ -60,5 +61,5 @@ def test_export_selected_writes_a_real_file(qapp, conn, monkeypatch, tmp_path):
 
 
 def test_build_page_with_connection_returns_real_reports_page(qapp, conn):
-    page = build_page("bi_reports", conn)
+    page = build_page("bi_reports", conn, access=BiAccess.permissive_for_tests())
     assert isinstance(page, ReportsPage)

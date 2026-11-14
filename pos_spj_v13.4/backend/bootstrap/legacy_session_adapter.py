@@ -55,6 +55,15 @@ class LegacySessionAdapter:
         self._refresher = grant_refresher
         self._revoked = False
 
+    def rebind(self, context: ApplicationContext) -> None:
+        """Pasa a un contexto nuevo de la MISMA sesión (SDLC-SET-001: la estación se
+        re-ancló). Los módulos conservan este objeto y leen sucursal y permisos en
+        cada uso, así que todos siguen al contexto nuevo sin reconstruirse."""
+        if context.session_id != self._context.session_id or context.user_id != self._context.user_id:
+            raise ValueError("Un contexto de otra sesión no puede reemplazar a esta sesión.")
+        self._context = context
+        self._evaluator = PermissionEvaluator(context)
+
     def _refresh_permissions(self) -> None:
         """Si cambió alguna concesión, recarga los permisos y los roles de ESTA
         sesión (usuario y sucursal siguen igual). Los roles también: `is_admin()`

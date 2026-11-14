@@ -130,14 +130,14 @@ class TestEmpresaPageInstallationBranch:
         ok, message = presenter.set_installation_branch(new_uuid())
         assert ok is False
 
-    def test_editing_the_company_no_longer_allows_re_anchoring(self, app, conn):
-        """SDLC-ARQ-TERM-002: el permiso lo decide el caso de uso y es específico."""
-        before = SqliteInstallationBranchRepository(conn).get()
-        perms = _all_permissions() - {ConfiguracionPermissions.ESTACION_REANCLAR}
-        view = _view(app, conn, perms)
+    def test_outside_the_shell_nothing_follows_and_the_page_says_so(self, app, conn):
+        """SDLC-SET-001: sin ventana viva que mueva la sesión no se aparenta que
+        ya opera en la sucursal nueva."""
+        view = _view(app, conn)
         view.show_route("config_empresa")
         presenter = view._pages["config_empresa"]._presenter
 
-        ok, message = presenter.set_installation_branch(_branch_ids(conn)[0])
-        assert ok is False and "estacion.reanclar" in message
-        assert SqliteInstallationBranchRepository(conn).get() == before
+        followed, message = presenter.follow_installation_branch(_branch_ids(conn)[0])
+
+        assert followed is True
+        assert "cierre sesión" in message.lower()

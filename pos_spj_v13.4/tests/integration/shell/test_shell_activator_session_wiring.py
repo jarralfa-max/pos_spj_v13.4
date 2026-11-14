@@ -224,7 +224,10 @@ def test_activator_hands_the_view_connection_branch_and_actor(
     activator._build_view()
 
     assert captured["connection"] is conn
-    assert captured["branch_id"] == "b1"
+    if view_name == "BusinessIntelligenceView":
+        assert captured["access"].default_branch_id == "b1"     # SDLC-BI-001
+    else:
+        assert captured["branch_id"] == "b1"
     assert captured["actor_user_id"] == "u1"
     assert captured["has_permission"]("CUALQUIERA") is True
     assert captured["has_permission"]("OTRA") is False

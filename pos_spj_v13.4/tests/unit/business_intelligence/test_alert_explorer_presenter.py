@@ -3,6 +3,7 @@ from datetime import datetime
 
 import pytest
 
+from backend.application.analytics.access import BiAccess
 from backend.domain.analytical_alerting.enums import AlertSeverity, AlertStatus, AlertType
 from backend.domain.analytical_alerting.value_objects.alert import AnalyticalAlert
 from backend.shared.ids import new_uuid
@@ -52,7 +53,7 @@ def test_evaluate_all_against_a_bare_connection_breaches_margin_drop(conn):
     its 3% threshold, so WASTE_SPIKE does not fire. Confirms the presenter
     runs the REAL AnalyticalAlertEngine against REAL (if degraded) dashboard
     KPIs rather than crashing or fabricating data."""
-    presenter = AlertExplorerPresenter(conn)
+    presenter = AlertExplorerPresenter(conn, access=BiAccess.permissive_for_tests())
     alerts = presenter.evaluate_all()
     assert len(alerts) == 1
     assert alerts[0].alert_type == AlertType.MARGIN_DROP
@@ -61,13 +62,13 @@ def test_evaluate_all_against_a_bare_connection_breaches_margin_drop(conn):
 
 
 def test_apply_transition_acknowledge_requires_an_authenticated_actor(conn):
-    presenter = AlertExplorerPresenter(conn)  # no actor_user_id
+    presenter = AlertExplorerPresenter(conn, access=BiAccess.permissive_for_tests())  # no actor_user_id
     with pytest.raises(AlertTransitionError):
         presenter.apply_transition(_alert(), "acknowledge")
 
 
 def test_apply_transition_full_lifecycle_with_an_actor(conn):
-    presenter = AlertExplorerPresenter(conn, actor_user_id=new_uuid())
+    presenter = AlertExplorerPresenter(conn, actor_user_id=new_uuid(), access=BiAccess.permissive_for_tests())
     alert = _alert()
     acknowledged = presenter.apply_transition(alert, "acknowledge")
     assert acknowledged.status == AlertStatus.ACKNOWLEDGED
@@ -79,20 +80,20 @@ def test_apply_transition_full_lifecycle_with_an_actor(conn):
 
 
 def test_apply_transition_resolve_without_a_reason_fails(conn):
-    presenter = AlertExplorerPresenter(conn, actor_user_id=new_uuid())
+    presenter = AlertExplorerPresenter(conn, actor_user_id=new_uuid(), access=BiAccess.permissive_for_tests())
     alert = _alert(status=AlertStatus.IN_PROGRESS)
     with pytest.raises(AlertTransitionError):
         presenter.apply_transition(alert, "resolve", reason="")
 
 
 def test_apply_transition_rejects_an_invalid_jump(conn):
-    presenter = AlertExplorerPresenter(conn, actor_user_id=new_uuid())
+    presenter = AlertExplorerPresenter(conn, actor_user_id=new_uuid(), access=BiAccess.permissive_for_tests())
     alert = _alert()  # status=OPEN
     with pytest.raises(AlertTransitionError):
         presenter.apply_transition(alert, "resolve", reason="x")  # OPEN -> RESOLVED not allowed
 
 
 def test_apply_transition_rejects_an_unknown_action(conn):
-    presenter = AlertExplorerPresenter(conn, actor_user_id=new_uuid())
+    presenter = AlertExplorerPresenter(conn, actor_user_id=new_uuid(), access=BiAccess.permissive_for_tests())
     with pytest.raises(AlertTransitionError):
         presenter.apply_transition(_alert(), "not_a_real_action")

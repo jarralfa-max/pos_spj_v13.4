@@ -101,6 +101,26 @@ class ApplicationContextService:
                 "No se puede cambiar de sucursal: hay operaciones abiertas sin guardar."
             )
 
+        return self._rebuild_at(context, new_branch_id)
+
+    def follow_installation_anchor(
+        self, context: ApplicationContext, *, branch_id: str,
+    ) -> ApplicationContext:
+        """La estación ya se re-ancló: la sesión pasa al sitio anclado (SDLC-SET-001).
+
+        No es un cambio voluntario de sucursal: quien ancla ya fue autorizado por
+        el caso de uso, y la sesión opera el sitio de la estación (N01). Por eso no
+        exige `APPLICATION_CONTEXT_SWITCH` ni mira operaciones abiertas: el ancla ya
+        quedó persistida y seguir en la sucursal anterior es justo el defecto. El
+        alcance sí se valida: sin rol en el sitio se rechaza, igual que al iniciar
+        sesión, y quien llama debe cerrar la sesión.
+        """
+        self._audit(APPLICATION_CONTEXT_CHANGING, {
+            "user_id": context.user_id, "from_branch_id": context.branch_id, "to_branch_id": branch_id,
+        })
+        return self._rebuild_at(context, branch_id)
+
+    def _rebuild_at(self, context: ApplicationContext, new_branch_id: str) -> ApplicationContext:
         branch = self._resolve_branch(new_branch_id)
         if branch is None:
             raise BranchNotFoundError(f"La sucursal '{new_branch_id}' no existe o no está activa.")
