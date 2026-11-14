@@ -21,6 +21,12 @@ from backend.domain.orders_delivery.exceptions import (
     DeliveryJobNotFoundError,
     OrdersDeliveryDomainError,
 )
+from backend.domain.sales.enums import PaymentMethod
+from backend.domain.sales.exceptions import (
+    PaymentReferenceInvalidError,
+    PaymentReferenceRequiredError,
+)
+from backend.domain.sales.policies.payment_policy import SalePaymentPolicy
 from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import (
     OrdersDeliveryUnitOfWork,
 )
@@ -85,6 +91,9 @@ class RecordCashCollectionUseCase(_OrdersDeliveryBaseUseCase):
                 return fail_from_domain_error(
                     CashCollectionNotFoundError(f"Cobro {collection_id} no existe"),
                     operation_id=operation_id)
+            problema = _transfer_reference_problem(collection, collected_amount, reference)
+            if problema is not None:
+                return OrderResult.fail(*problema, operation_id=operation_id)
             try:
                 collection.record_collection(collected_amount=collected_amount, reference=reference)
             except OrdersDeliveryDomainError as exc:
@@ -103,3 +112,21 @@ class RecordCashCollectionUseCase(_OrdersDeliveryBaseUseCase):
         return OrderResult.ok(
             "Cobro registrado", entity_id=collection.id, operation_id=operation_id,
             status=collection.status.value)
+
+
+def _transfer_reference_problem(collection, collected_amount, reference):
+    """Un cobro por transferencia lleva su referencia (decisión 2026-11-14): la
+    misma validación de Ventas (SDLC-PAY-002), no una segunda. Un intento fallido
+    (monto 0) no la necesita. Devuelve `(mensaje, código)` o None."""
+    if collection.payment_method != CollectionPaymentMethod.TRANSFER:
+        return None
+    if Decimal(str(collected_amount)) <= 0:
+        return None
+    try:
+        SalePaymentPolicy.ensure_reference_valid(
+            method=PaymentMethod.TRANSFER, reference=reference)
+    except PaymentReferenceRequiredError as exc:
+        return str(exc), "PAYMENT_REFERENCE_REQUIRED"
+    except PaymentReferenceInvalidError as exc:
+        return str(exc), "PAYMENT_REFERENCE_INVALID"
+    return None

@@ -44,6 +44,9 @@ from backend.application.sales.authorization import (
     SalesAuthorizationPolicy,
 )
 from backend.application.services.finance.finance_bootstrap import bootstrap_finance
+from backend.infrastructure.db.repositories.orders_delivery.customer_order_repository import (
+    CustomerOrderRepository,
+)
 from backend.infrastructure.db.schema.finance_schema import create_finance_schema
 from backend.infrastructure.db.schema.inventory_schema import create_inventory_schema
 from backend.infrastructure.db.schema.orders_delivery_schema import create_orders_delivery_schema
@@ -155,10 +158,11 @@ def _proyectar(conn, order_id, cajero=None):
     return resultado.data["sale_id"], cajero
 
 
-def _pagar(conn, order_id, amount="100.00", method="CASH", operation_id=None):
+def _pagar(conn, order_id, amount="100.00", method="CASH", operation_id=None,
+           reference=None):
     return RecordOrderPaymentUseCase(_auth()).execute(
         conn, order_id=order_id, method=method, amount=Decimal(amount),
-        actor_user_id=new_uuid(), operation_id=operation_id or new_uuid(),
+        actor_user_id=new_uuid(), operation_id=operation_id or new_uuid(), reference=reference,
         sales_authorization=_sales_auth())
 
 
@@ -240,11 +244,25 @@ class TestFallaDelEfectoDeCaja:
         order_id, _branch_id = _pedido(conn)
         sale_id, _cajero = _proyectar(conn, order_id)
 
-        resultado = _pagar(conn, order_id, method="TRANSFER")
+        # Decisión 2026-11-14: también en Pedidos la transferencia lleva referencia.
+        resultado = _pagar(conn, order_id, method="TRANSFER", reference="SPEI-0001")
 
         assert resultado.success, resultado.message
         assert conn.execute("SELECT status FROM sales WHERE id=?",
                             (sale_id,)).fetchone()[0] == "COMPLETED"
+
+    def test_una_transferencia_sin_referencia_se_rechaza(self, conn):
+        """Decisión 2026-11-14: la misma validación de SDLC-PAY-002, desde Pedidos."""
+        order_id, _branch_id = _pedido(conn)
+        sale_id, _cajero = _proyectar(conn, order_id)
+
+        resultado = _pagar(conn, order_id, method="TRANSFER")
+
+        assert not resultado.success
+        assert "referencia es obligatoria" in resultado.message
+        assert conn.execute("SELECT COUNT(*) FROM sale_payments WHERE sale_id=?",
+                            (sale_id,)).fetchone()[0] == 0
+        assert CustomerOrderRepository(conn).get(order_id).payment_status.value != "PAID"
 
 
 class TestEfectivoDelRepartidor:
