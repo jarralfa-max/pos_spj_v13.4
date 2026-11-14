@@ -5446,6 +5446,57 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
 
+### 358 — versión del turno de caja (2026-11-05, SDLC-ARQ-SHIFT-004)
+
+- `cash_shifts.version` (INTEGER, default 1): cada transición compara estado y versión y la
+  incrementa; 0 filas afectadas es `CashShiftConflictError`, no una escritura sobre otro estado.
+- Va también en el DDL de la 175 para las bases que nacen hoy; la 358 la agrega a las existentes.
+- Sólo agrega: ningún turno cambia de estado. Idempotente.
+- Junto con esto la UoW de Caja abre con `BEGIN IMMEDIATE` y abrir turno con un `operation_id`
+  ya aplicado devuelve el turno original.
+
+### 359 — permisos de Caja separados y asignaciones de turno (2026-11-05, SDLC-ARQ-SHIFT-003)
+
+- Quien tenía `CAJA.turno.forzar_cierre` recibe `CAJA.turno.intervenir` y
+  `CAJA.movimiento.intervenir`; quien tenía `CAJA.corte_z.generar` recibe `CAJA.turno.cerrar`,
+  que desde hoy el Corte Z final sí exige. Nadie pierde lo que ya podía hacer.
+- Cada turno vivo recibe su fila ACTIVE en `cash_shift_assignments`, que nunca se había escrito.
+- Sólo agrega filas. Idempotente.
+
+### 360 — confirmación del depósito por Tesorería (2026-11-06, SDLC-CASH-002)
+
+- `cash_deposit_confirmations`: una por depósito (`deposit_id` único), con el ticket del banco,
+  quién confirmó y el `operation_id`. La escribe Tesorería (`FINANZAS.tesoreria.movimiento`).
+- Sólo agrega. Idempotente.
+
+### 380 — folio de compra en el auxiliar de activos (2026-11-06, SDLC-FIN-002)
+
+- `fixed_assets.source_document_number`, nula. Sólo agrega.
+- Una compra con naturaleza `ASSET` deja el activo en `fixed_assets` en estado `DRAFT`, con vida
+  útil 0 (sin capturar), en la misma transacción que su asiento. Finanzas → Activos fijos →
+  «Completar datos» lo activa **sin asiento**: el costo ya lo reconoció Compras.
+- `CapitalizeAssetUseCase` rechaza un documento que ya esté en el auxiliar; antes duplicaba la CxP
+  o el pago. Un activo por documento: varias líneas `ASSET` de la misma compra quedan en un solo
+  registro hasta que SDLC-ASSET-024 consolide las identidades.
+- El cierre bloquea con activos comprados sin completar (`purchased_assets_completed`).
+- Devolución o reverso de Compras: baja el costo del activo, o lo cancela si llega a cero. Un
+  activo ya depreciado no se ajusta solo: se registra el error y requiere baja formal.
+
+### 381 — meses fuera de servicio de un activo (2026-11-06, SDLC-FIN-003)
+
+- `fixed_assets.suspended_on` y `suspended_months`. Sólo agrega.
+- Los meses omitidos se recuperan en la siguiente corrida (`DepreciationPolicy`). Los suspendidos
+  no son omitidos: no se recuperan y alargan la vida en calendario. Un activo suspendido antes de
+  esta migración no tiene `suspended_on`, así que sus meses cuentan como omitidos al reanudarlo.
+- La baja deprecia lo que falte hasta el periodo anterior, como corrida registrada y en la misma
+  transacción. El asiento lleva la fecha de la baja.
+
+### Sin migración — depreciación automática (2026-11-06, SDLC-FIN-004)
+
+- `finance_periodic_tick` corre la depreciación del mes que terminó desde el día 1. Reemplaza el
+  job mensual del legacy (`accrual_depreciacion_mensual`). Sin esquema nuevo: la idempotencia es
+  el `operation_id` derivado del periodo, sobre `depreciation_runs.operation_id` (UNIQUE).
+
 ### Respaldo antes de migrar al arrancar (2026-11-05, SDLC-ARQ-INST-001, sin migración nueva)
 
 - Nuevo paso `PreMigrationBackupStep` entre `SchemaCompatibilityStep` y `DatabaseMigrationStep`.
@@ -5454,3 +5505,222 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
   actualizador. Si el respaldo falla, el arranque se detiene sin migrar.
 - Sin pendientes (por ejemplo «Reparar» de la misma versión) o con base nueva no respalda.
 - Si una migración falla, el mensaje de error indica la ruta del respaldo.
+
+### 384 — referencia de pago única entre ventas (2026-11-06, SDLC-PAY-002)
+
+- Índice único parcial `uq_sale_payments_processor_reference` sobre método + `UPPER(TRIM(reference))`,
+  sólo para `MERCADO_PAGO`, `CARD` y `TRANSFER` con referencia (decisión del responsable 2026-11-05).
+- Compatible con el DELETE+INSERT del repositorio y con las anulaciones: un pago anulado, o el de una
+  venta cancelada, sale de `sale_payments` y libera la referencia.
+- El DDL vive en `create_payment_reference_index` y no en `create_sales_schema`: ese corre desde la 198,
+  antes del respaldo legacy de la 255, que podría traer repetidas.
+- Copia de la base real: 0 pagos, ninguna referencia vacía o repetida. Si otra instalación trae
+  duplicados no se tocan: el índice protege desde el último, se avisa en el log y el caso de uso sigue
+  revisando todo el historial.
+
+### 385 — una sola cuenta de procesadores (2026-11-06, SDLC-PAY-004)
+
+- Decisión del responsable: una cuenta de tesorería para Mercado Pago y tarjetas, con espejo en la
+  1115, y la venta carga directo a ella. Ventas, devoluciones y compras resuelven el espejo en
+  `treasury_resolution.py`; el rol `clearing_account_id` del perfil `SALE` ya no se usa para cobros.
+- Sólo renombra la cuenta sembrada («Procesador de tarjetas»).
+- La 1120 no se reclasifica: decisión del responsable y 0 renglones contables en la copia de la base
+  real. Con renglones en otra instalación, avisa en el log y no mueve nada.
+
+### SDLC-ORD-004 — un pedido descuenta inventario al salir de la sucursal (2026-11-06, sin migración)
+
+- Decisión del responsable: «al despachar». En mostrador no hay despacho: la mercancía sale al
+  entregarla, en `CompletePickupUseCase`.
+- `OrdersDeliveryInventoryClient.commit_order` registra un `SALE_ISSUE` con
+  `source_module="orders_delivery"` y cumple las reservas, en la transacción del despacho o la
+  entrega. `restore_order` devuelve lo que el libro dice que está fuera, a su lote y ubicación, en
+  `ReturnToBranchUseCase` y en `ReverseCustomerOrderUseCase`.
+- `ReverseSaleUseCase` acepta `inventory_return`: Pedidos devuelve dentro de la transacción del
+  reverso, y Ventas ya no repone lo que nunca sacó.
+- Pedidos reserva con `ReserveStockForCustomerOrderUseCase`, por línea, del almacén de venta y de los
+  saldos reales con lote y ubicación. La reserva anterior buscaba un saldo sin lote ni ubicación, que
+  ningún flujo llena y que ningún movimiento puede descontar. `inventory_reservation_id` guarda ahora
+  el id de la línea.
+- `ORDERS_DELIVERY_GRANT` gana `MOVEMENT_CREATE`.
+- Saneamiento: sin migración. El responsable midió cero reservas `CONFIRMED` de pedidos completados
+  (2026-11-05: «ni uno, estamos en desarrollo»). Si apareciera una, `restore_order` suelta la
+  retención al reversar.
+- Pruebas: `tests/integration/test_orders_delivery_inventory_commit.py`.
+
+### 388 — efectivo en poder de repartidores (SDLC-ORD-001, 2026-11-06)
+
+- Cuenta `1104 Efectivo en poder de repartidores` y perfil `DRIVER_CASH`, en `finance_bootstrap` y,
+  para una base ya sembrada, en la migración 388. El responsable confirmó que lleva cuenta propia.
+- Cobro y liquidación ya tienen consumidor en Finanzas (`driver_cash_handlers.py`):
+  - venta: Dr caja registradora / Cr ingresos;
+  - cobro: Dr 1104 / Cr caja registradora;
+  - liquidación: Dr caja general / Cr 1104, y la diferencia contra la caja registradora, a faltantes o
+    sobrantes.
+- Sólo el efectivo genera custodia. Un cobro `MIXED` no se asienta: no guarda qué parte fue efectivo.
+- `CheckoutSaleUseCase(cash_custody=...)`: en Pedidos, Caja corre en la transacción de la venta y su
+  falla detiene el cobro. Desaparece `cash_effects_error`. El efectivo de un cobro a domicilio
+  (`"DRIVER"`) no pasa por Caja; el efectivo en sucursal (`"DRAWER"`) exige turno; lo demás sólo pasa
+  por Caja si hay turno.
+- `record_payment` no vuelve a pagar una venta ya pagada: es el reintento de un cobro que falló al
+  completarse.
+- `CreateDriverSettlementUseCase` toma también los cobros `COLLECTED` y `PARTIALLY_COLLECTED`: nada
+  en producción los pasaba a `PENDING_SETTLEMENT`, así que ningún repartidor podía liquidarse.
+- `wire_orders_delivery`, despacho al arrancar y tarea periódica `orders_delivery.outbox`. El
+  despachador publica en modo estricto, confirma fila por fila y deja pendientes los eventos
+  contables sin consumidor.
+- Probada en memoria sobre el catálogo sembrado; no se corrió sobre una copia de la base real.
+- Pruebas: `tests/integration/test_orders_delivery_driver_cash_finance.py`.
+
+### SDLC-ORD-005 — "Nuevo pedido" es un solo flujo (2026-11-06, sin migración)
+
+- El alta rápida de "Todos los pedidos" se conserva (decisión del responsable) y ahora envuelve
+  `NewOrderPage`: búsqueda de producto, precio de Pricing y dirección, con `CaptureOrderUseCase`. Ya
+  no pide el UUID del producto ni un precio libre.
+- `CreateCustomerOrderUseCase` respeta el precio de la línea y deja de estar expuesto a la UI: sólo
+  lo llama la conversión de una cotización. El caso de uso no cambia, para no perder ese flujo.
+- Pruebas: `tests/integration/orders_delivery/test_new_order_dialog.py`.
+
+### SDLC-ORD-002 — outbox drenados o declarados sólo-replicación (2026-11-06, sin migración)
+
+- `orders_delivery_outbox` ya se drena al arrancar y periódicamente (commit de SDLC-ORD-001).
+- Se midió con el cableado real que `crm_outbox`, `customer_outbox`, `quote_outbox`,
+  `loyalty_cards_outbox`, `sweepstakes_outbox`, `customer_service_outbox` y `customer_privacy_outbox`
+  no tienen ningún suscriptor local. Quedan declarados como `REPLICATION_ONLY_OUTBOXES` en
+  `backend/infrastructure/sync/replication_sources.py`: la replicación es su único lector.
+- `tests/integration/bootstrap/test_outbox_drain_coverage.py` falla si alguien suscribe uno de sus
+  eventos sin construirle despachador.
+
+### SDLC-ORD-003 — pipeline autoritativo de pedidos (2026-11-06, sin migración)
+
+- Decisión según la regla del responsable («el más avanzado»): `customer_orders` y `quotes`. La
+  evidencia y el plan de corte están en `docs/sdlc/items/SDLC-ORD-003/decision.md`.
+- Guardia: `tests/architecture/test_orders_single_pipeline_ratchet.py`. No permite lectores ni
+  escritores nuevos de `delivery_orders` o `pendiente_wa` en el ERP, y la lista sólo puede encogerse.
+
+### SDLC-ORD-006 — avisos al cliente de Pedidos con reintento (2026-11-06, sin migración)
+
+- Los avisos "va en camino", "entregado", "no pudimos entregar", "listo para recoger", "requiere tu
+  aprobación" y su reenvío quedan en `whatsapp_outbox` dentro de la transacción del hecho
+  (decisión del responsable: esa cola). Son idempotentes por `operation_id`, con
+  `payload_json.source="orders_delivery"`. `OrdersDeliveryNoticeOutbox` los intenta en cuanto
+  confirma la transacción.
+- La tarea de fondo `orders_delivery.customer_notices` reintenta con espera creciente. Al quinto intento
+  el aviso pasa a `DEAD_LETTER` y llega a gerencia de la sucursal con el tipo `aviso_cliente_fallido`
+  (en `DELIVERY_ALERT_TYPES`).
+- La alerta interna de entrega fallida se escribe en la transacción del intento.
+- Riesgo declarado: hoy ningún proceso del microservicio drena `whatsapp_outbox` (SDLC-WA-006). Si
+  empieza a hacerlo, hay que retirar este drenado para no enviar dos veces (SDLC-WA-037).
+- Pruebas: `tests/integration/test_orders_delivery_notice_retry.py`.
+
+### 357 — permiso para re-anclar la sucursal de la estación (2026-11-02, SDLC-ARQ-TERM-002)
+
+- Siembra `CONFIGURACION.estacion.reanclar` en `rol_permisos` para `system_owner` y `admin` (los roles
+  de acceso total; no amplía lo que nadie podía hacer). Ningún otro rol lo recibe de fábrica.
+- `SetInstallationBranchUseCase` lo exige ahora en backend; antes bastaba `CONFIGURACION.empresa.editar`
+  y sólo lo comprobaba la pantalla. El re-anclaje además se rechaza con turno de caja abierto, con
+  pendientes de sincronizar o si la estación está vinculada al registro central, y se audita en
+  `audit_logs` (`instalacion.reanclar`, aplicado o rechazado).
+- Sin cambios de esquema. Sólo agrega filas; idempotente. Reversa: borrar esas filas y la versión 357
+  de `schema_migrations`.
+- Probada sólo sobre bases creadas en un directorio temporal
+  (`tests/integration/configuracion/test_installation_branch_reanchor.py`).
+- Detalle: `docs/sdlc/items/SDLC-ARQ-TERM-002/spec.md`.
+
+### p006 y 354 — aprovisionamiento de equipos, ya registrados (2026-11-06, SDLC-SYNC-001)
+
+- `p006_device_provisioning` existía pero no estaba en `PG_MIGRATIONS`, y el repositorio central ya
+  seleccionaba sus columnas: en un central migrado desde cero cada `/api/v1/sync/events` fallaba con
+  columna inexistente. Se registra.
+- Como p006 nunca corrió en ningún central, se corrige en sitio: `central_device_events.id` pasa de
+  `BIGSERIAL` a `UUID` (contrato del carril: sin identidades del servidor). El id lo genera
+  `add_device_event` con `new_uuid()`; `ORDER BY occurred_at, id` sigue valiendo con UUIDv7.
+- `354_device_enrollment` se registra en el carril SQLite: es del mismo slice que p006 (decisión del
+  responsable, 2026-11-05). Sólo agrega una tabla vacía y es idempotente; las bases que ya están en
+  357 la reciben al siguiente arranque, porque el motor revisa versión por versión.
+- Guardia nueva: `tests/unit/central_pg/test_postgres_lane_contract.py` falla si un
+  `migrations/pg/p*.py` queda fuera de `PG_MIGRATIONS` o si el repositorio selecciona una columna que
+  el carril no crea. Corre en el job `central-postgres`.
+- **No verificado aquí:** contra PostgreSQL real (`test_empty_central_accepts_a_station_and_a_device_enrollment`
+  corre sólo con `SPJ_TEST_PG_DSN`, en CI).
+
+### Conflictos de replicación: DUPLICATE ya no oculta un CONFLICTO (2026-11-06, SDLC-SYNC-002, sin migración)
+
+- La ingesta central respondía DUPLICATE a un reenvío idéntico aunque el hecho estuviera guardado en
+  CONFLICTO; la estación lo marcaba SYNCED y la proyección, que sólo lee APPLIED, nunca lo veía.
+  Ahora responde CONFLICT con el código original. Bastaba perder un acuse: no hacía falta acción humana.
+- La estación lista sus conflictos y los resuelve en Configuración → Offline (decisión del responsable,
+  2026-11-05), con `CONFIGURACION.offline.gestionar`, motivo obligatorio y rastro en `audit_logs`
+  (`sincronizacion.conflicto.resolver`). Sin esquema nuevo: `replication_envelopes` ya tenía el estado.
+- La política de resolución por tipo de agregado sigue fuera (`docs/sdlc/items/SDLC-SYNC-002/intent.md`).
+
+### 392 — identidad persistente de la terminal (2026-11-06, SDLC-ARQ-TERM-001, parcial)
+
+- `workstations` es la fuente canónica (decisión 2026-11-02). `configuraciones.terminal_instalacion_id`
+  guarda el UUIDv7 de esta máquina; el hostname queda como dato descriptivo en `device_identifier`.
+- Agrega `workstations.schema_version` y `protocol_version`. `create_workstation_schema` no cambia: una
+  migración ya distribuida no cambia de cuerpo, así que las columnas las pone sólo la 392.
+- Adopta la fila que ya represente a esta máquina (por nombre, o la única activa sin máquina); nunca
+  una que nombre a otra.
+- `software_station_settings` deja de usar el hostname como llave: se mueve al id de la terminal.
+- **Pendiente, no hecho:** retirar `pos_terminals`, que sigue siendo padre por FK de `cash_shifts` y
+  `cash_shift_assignments`; ver `docs/sdlc/lotes/lote-8.md`.
+
+### Proyección central fuera de orden (2026-11-09, SDLC-SYNC-003, sin migración)
+
+- Un hecho que depende de otro que aún no llega queda en ERROR `DEPENDENCY_MISSING` y se reintenta solo,
+  al final de cada lote. Pasa con una reversa de caja antes que su movimiento y con una cancelación o
+  reversa de venta antes que la venta. También con un cierre de turno antes que la apertura.
+  `set_sale_status` y `close_cash_shift` dicen ahora si tocaron una fila: con 0 filas ya no se registra OK.
+- Otros ERROR se reintentan a pedido: `scripts/central_stations.py project --retry-errors`.
+- Crédito, puntos y unidades organizacionales: un hecho más viejo del mismo agregado y la misma estación
+  queda SKIPPED `SUPERSEDED`. La versión se lee del `sync_inbox` del último hecho aplicado
+  (`last_event_id`), sin columnas nuevas. Entre estaciones distintas no hay orden comparable
+  (SDLC-ARQ-SYNC-001).
+- **No verificado aquí:** el SQL de PostgreSQL (`pending_facts`, `last_projected_event`); su prueba
+  corre en el job `central-postgres`.
+
+### Conflictos entre estaciones en el central (2026-11-09, SDLC-ARQ-SYNC-001, parcial, sin migración)
+
+- La proyección registra en `sync_conflicts` (OPEN) dos invariantes:
+  - `DOUBLE_OPEN_SHIFT`: dos turnos sin cerrar en la misma caja;
+  - `CROSS_STATION_OVERSELL`: una salida deja negativa una existencia que movieron dos o más estaciones.
+- El hecho se proyecta igual: detectar no decide quién gana.
+- La autoridad del inventario es la estación (decisión 2026-11-02), así que la sobreventa se detecta y
+  no se previene.
+- **Pendiente:** la matriz de autoridad por entidad (sin aprobar) y la detección de versiones
+  concurrentes de agregados compartidos, que depende de esa matriz. `sync_aggregate_heads` sigue
+  quedándose con la última estación.
+- **No verificado aquí:** el SQL de PostgreSQL; su prueba corre en el job `central-postgres`.
+
+### SDLC-WA-002 — firma de webhooks independiente de `APP_ENV` (2026-11-06, sin migración de esquema)
+
+- Cambio de comportamiento en `whatsapp_service/`: sin `WA_APP_SECRET` o `MP_WEBHOOK_SECRET` el
+  webhook responde 503 en cualquier entorno. Antes sólo pasaba con `APP_ENV=production`, y las
+  estaciones instaladas nunca lo fijan.
+- Aceptar sin firma exige `WA_ALLOW_UNSIGNED_WEBHOOKS` (`1`, `true`, `yes`), que se ignora en
+  producción y en estación instalada.
+- MercadoPago: la unidad de `ts` se deduce por magnitud (antes todo `ts` en segundos daba 403) y la
+  ventana se configura con `MP_SIGNATURE_MAX_AGE_SECONDS` (por defecto 300).
+- Salud: check nuevo `webhook_signature`. Arranque: una línea con `webhooks_sin_firma`.
+- **Acción operativa (D3=A):** una estación con el servicio local y sin `WA_APP_SECRET` deja de
+  recibir mensajes hasta configurarlo en el módulo WhatsApp. Va en la nota de release.
+- Reversa: revertir el commit.
+
+### 374 — bandeja de pagos de MercadoPago sin asignar (2026-11-09, SDLC-WA-001)
+
+- `whatsapp_unmatched_payments`, en el esquema del canal (`whatsapp_schema.py`). La crean esta
+  migración y también `migrate_channel_schema` al arrancar el microservicio.
+  - Guarda id UUIDv7, proveedor e id del pago (únicos juntos), referencia externa, monto en TEXT,
+    moneda, estado, motivo, alta y resolución.
+- Webhook (`whatsapp_service/webhook/mercadopago.py`):
+  - procesa `payment.created` y `payment.updated` si el pago consultado está `approved`;
+  - casa por la venta de `external_reference`, que debe estar `pendiente_wa` y coincidir en
+    teléfono, en moneda MXN y en el monto exacto del total;
+  - ya no busca por sufijo de teléfono;
+  - aplica cada pago una sola vez por su id;
+  - avisa al cliente y emite eventos sólo después del match;
+  - lo que no casa va a la bandeja;
+  - responde 5xx cuando no guardó nada, para que el proveedor reintente.
+- Probada en una base temporal: dos corridas idempotentes. **No** se probó sobre una copia de la
+  base real.
+- Reversa: revertir el commit. La tabla nueva sólo agrega.

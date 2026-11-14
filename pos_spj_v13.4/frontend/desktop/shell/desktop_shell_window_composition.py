@@ -306,6 +306,15 @@ def _cash_outbox_tick(connection):
     return tick
 
 
+def _hr_outbox_tick(connection):
+    """Reintenta la cola de RR. HH. hacia Finanzas (idempotente por evento)."""
+    def tick():
+        from backend.application.use_cases.hr.finance_wiring import dispatch_hr_outbox
+        from backend.shared.events.application_bus import get_bus
+        return dispatch_hr_outbox(connection, get_bus())
+    return tick
+
+
 def _orders_delivery_outbox_tick(connection):
     """Reintenta la cola de Pedidos (idempotente por evento)."""
     def tick():

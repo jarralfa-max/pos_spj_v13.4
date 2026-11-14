@@ -45,6 +45,9 @@ from backend.application.event_handlers.finance.procurement_posting_policy impor
 )
 from backend.application.services.finance.posting_engine import PostingEngine
 from backend.application.services.finance.treasury_resolution import treasury_candidates
+from backend.application.use_cases.finance.purchased_asset_use_case import (
+    register_purchased_asset_in,
+)
 from backend.domain.finance.enums import JournalType, PostingPurpose, TreasuryAccountType
 from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.money import Money

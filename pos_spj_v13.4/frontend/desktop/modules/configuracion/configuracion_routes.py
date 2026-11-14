@@ -306,7 +306,7 @@ def build_configuracion_view(*, connection, session_context, parent=None,
         save_role_uc=SaveRoleUseCase(role_management_service, authorization=authorization),
         company_profile_service=company_profile_service,
         set_installation_branch_uc=SetInstallationBranchUseCase(
-            company_profile_service, authorization=action_authorizer),
+            lambda: InstallationBranchUnitOfWork(connection), authorization=authorization),
         role_permission_matrix_query=RolePermissionMatrixQuery(connection),
         save_role_permissions_uc=SaveRolePermissionsUseCase(connection, authorization=authorization),
         test_integration_connection_uc=TestIntegrationConnectionUseCase(connection, secret_store, authorization=action_authorizer),

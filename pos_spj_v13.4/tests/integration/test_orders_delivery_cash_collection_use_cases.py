@@ -111,6 +111,37 @@ class TestRecordCashCollectionUseCase:
             actor_user_id=new_uuid(), operation_id=new_uuid())
         assert result.data["status"] == "PARTIALLY_COLLECTED"
 
+    def _transfer_request(self, conn) -> str:
+        job_id, _ = _job_with_driver(conn)
+        return CreateCashCollectionRequestUseCase(_allow_all()).execute(
+            conn, delivery_job_id=job_id, payment_method="TRANSFER", actor_user_id=new_uuid(),
+            operation_id=new_uuid()).entity_id
+
+    def test_a_transfer_without_reference_is_rejected(self, conn):
+        """Decisión 2026-11-14: el repartidor captura la referencia de la
+        transferencia, con la misma validación de SDLC-PAY-002."""
+        collection_id = self._transfer_request(conn)
+        result = RecordCashCollectionUseCase(_allow_all()).execute(
+            conn, collection_id=collection_id, collected_amount=Decimal("250.00"),
+            actor_user_id=new_uuid(), operation_id=new_uuid())
+        assert not result.success
+        assert result.error_code == "PAYMENT_REFERENCE_REQUIRED"
+        estado = conn.execute("SELECT status FROM driver_cash_collections WHERE id=?",
+                              (collection_id,)).fetchone()[0]
+        assert estado == "EXPECTED"
+
+    def test_a_transfer_with_an_invalid_reference_is_rejected(self, conn):
+        result = RecordCashCollectionUseCase(_allow_all()).execute(
+            conn, collection_id=self._transfer_request(conn), collected_amount=Decimal("250.00"),
+            actor_user_id=new_uuid(), operation_id=new_uuid(), reference="no vale")
+        assert not result.success and result.error_code == "PAYMENT_REFERENCE_INVALID"
+
+    def test_a_transfer_with_reference_is_recorded(self, conn):
+        result = RecordCashCollectionUseCase(_allow_all()).execute(
+            conn, collection_id=self._transfer_request(conn), collected_amount=Decimal("250.00"),
+            actor_user_id=new_uuid(), operation_id=new_uuid(), reference="SPEI-0001")
+        assert result.success and result.data["status"] == "COLLECTED"
+
     def test_unknown_collection_fails(self, conn):
         result = RecordCashCollectionUseCase(_allow_all()).execute(
             conn, collection_id=new_uuid(), collected_amount=Decimal("100.00"),
