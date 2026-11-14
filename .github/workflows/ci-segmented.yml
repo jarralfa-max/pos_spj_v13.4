@@ -29,6 +29,12 @@ jobs:
         run: |
           cd pos_spj_v13.4
           python -m compileall .
+      - name: Fetch base branch for the known-failures ratchet
+        # tests/architecture/test_known_failures_only_shrink.py compara
+        # tests/known_failures.txt contra la rama base; el checkout es superficial.
+        run: |
+          BASE="${GITHUB_BASE_REF:-$(grep -o 'Rama base:\*\* `[^`]*`' pos_spj_v13.4/docs/sdlc/README.md | cut -d'`' -f2)}"
+          git fetch --no-tags --depth=200 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
       - name: Validate architecture
         run: |
           cd pos_spj_v13.4

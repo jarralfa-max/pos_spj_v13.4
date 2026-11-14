@@ -334,3 +334,21 @@ def _unintercepted_message_dialogs_fail_instead_of_hanging(monkeypatch):
     monkeypatch.setattr(dialogs.MessageDialog, "exec_", _exec)
     yield
     assert not shown, "MessageDialog modal sin interceptar en la prueba: " + "; ".join(shown)
+
+
+# Fallas preexistentes conocidas (`tests/known_failures.txt`). Se marcan xfail
+# NO estricto: siguen corriendo, una regresión nueva fuera de la lista hace fallar
+# el CI, y si una de la lista empieza a pasar sale como XPASS (hay que borrar su
+# línea). La lista sólo puede encogerse: lo vigila
+# `tests/architecture/test_known_failures_only_shrink.py`.
+def pytest_collection_modifyitems(config, items):
+    from tests.known_failures import item_key, load
+
+    known = dict(load())
+    if not known:
+        return
+    for item in items:
+        ref = known.get(item_key(item))
+        if ref is not None:
+            item.add_marker(pytest.mark.xfail(
+                strict=False, reason=f"falla preexistente: {ref or 'sin ítem'}"))

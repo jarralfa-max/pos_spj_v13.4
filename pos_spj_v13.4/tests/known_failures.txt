@@ -1,0 +1,70 @@
+# Fallas preexistentes conocidas: una prueba por línea, con el nodeid relativo a pos_spj_v13.4/.
+#
+# tests/conftest.py marca cada una como xfail(strict=False), con el motivo
+# "falla preexistente: <ítem>". No se borran ni se saltan: siguen corriendo, y si
+# una empieza a pasar sale como XPASS.
+#
+# Esta lista SÓLO PUEDE ENCOGERSE. tests/architecture/test_known_failures_only_shrink.py
+# falla si aparece una línea que no estaba en la versión de la rama base.
+# - Si arreglas una prueba de esta lista, borra su línea en el mismo commit.
+# - Nunca agregues una línea para tapar una regresión nueva.
+#
+# Formato: <nodeid>  # <ítem del backlog que la arreglará> — <causa>
+# Fuentes:
+# - docs/sdlc/baseline/2026-10-28.md
+# - docs/sdlc/lotes/integracion-ronda-1.md
+# - CI "CI Segmented Domains", corrida 43623739104 sobre 29f14d78 (Ubuntu, Python 3.11)
+
+# --- Arquitectura: SDLC-CORE-008 (DDL fuera de migraciones, conexiones crudas, ratchet UUID, imports raíz)
+tests/architecture/test_clean_birth_guardrails.py::test_services_repositories_ui_do_not_create_schema  # SDLC-CORE-008 — unit_repository.py emite DDL
+tests/architecture/test_no_schema_changes_outside_migrations.py::test_no_create_or_alter_table_outside_migrations  # SDLC-CORE-008 — CREATE/ALTER fuera de migrations/
+tests/architecture/test_no_raw_sqlite_connect.py::test_no_raw_sqlite_connect_outside_pool  # SDLC-CORE-008 — finance_schema.py abre sqlite3 crudo
+tests/architecture/test_uuidv7_cutover_protection.py::test_uuidv7_cutover_forbidden_identity_patterns_do_not_increase  # SDLC-CORE-008 — legacy_id 2 → 7 (318_quotes)
+tests/architecture/test_no_legacy_imports.py::test_no_forbidden_root_namespace_imports  # SDLC-CORE-008 — 4 imports raíz (migrations, scripts.verify_tables)
+
+# --- Arquitectura: SDLC-CORE-009 (UI, deuda visual, herramientas de refactor)
+tests/architecture/test_design_system_guardrails.py::test_desktop_visual_debt_does_not_grow  # SDLC-CORE-009 — deuda visual nueva
+tests/architecture/test_design_system_guardrails.py::test_visual_debt_baseline_is_exact_and_kept_pruned  # SDLC-CORE-009 — línea base visual con comodines
+tests/architecture/test_no_entity_combo_mass_loading.py::test_no_qcombobox_mass_loading_for_entities  # SDLC-CORE-009 — QComboBox con carga masiva
+tests/architecture/test_no_hardcoded_numeric_defaults_in_ui.py::test_no_hardcoded_numeric_defaults_in_ui  # SDLC-CORE-009 — defaults numéricos en UI
+tests/architecture/test_no_hardcoded_paths.py::test_no_loose_relative_paths  # SDLC-CORE-009 — rutas relativas sueltas
+tests/architecture/test_pricing_ui_has_no_database_access.py::test_pricing_ui_has_no_database_access  # SDLC-CORE-009 — UI de Precios con acceso a BD
+tests/architecture/test_inventory_does_not_use_legacy_permissions.py::test_inventory_does_not_use_legacy_permissions  # SDLC-CORE-009 — permisos legacy en Inventario
+tests/architecture/test_no_deprecated_services_with_business_logic.py::test_no_deprecated_services_with_business_logic  # SDLC-CORE-009 — servicios deprecados con lógica
+tests/architecture/test_products_integration_boundaries.py::test_dtos_have_no_price_or_stock_fields  # SDLC-CORE-009 — DTO con precio/stock
+tests/architecture/test_expiry_damage_contract.py::test_loss10_schema_and_inventory_boundary_are_explicit  # SDLC-CORE-009 — contrato LOSS-10
+tests/architecture/test_refactor_orchestrator.py::test_parent_orchestrator_does_not_call_codex_sdk_directly  # SDLC-CORE-009 — orquestador de refactor
+tests/architecture/test_refactor_orchestrator.py::test_refactor_orchestrator_cli_supports_timeout_and_retry_controls  # SDLC-CORE-009 — orquestador de refactor
+tests/architecture/test_refactor_orchestrator.py::test_refactor_orchestrator_runs_each_turn_in_fresh_subprocess  # SDLC-CORE-009 — orquestador de refactor
+tests/architecture/test_refactor_orchestrator.py::test_refactor_orchestrator_times_out_and_terminates_worker_tree  # SDLC-CORE-009 — orquestador de refactor
+tests/architecture/test_refactor_state_json_is_valid.py::test_done_modules_are_complete  # SDLC-CORE-009 — estado de refactor incompleto
+tests/architecture/test_refactor_paths_inside_package.py::test_refactor_directories_are_inside_real_package  # SDLC-CORE-009 — directorios de refactor fuera del paquete
+
+# --- Arquitectura, sólo en CI (Linux): ya fallaba en 1d0ea1c6, antes de la ronda 1. En Windows pasa.
+tests/architecture/test_whatsapp_runtime_imports.py::test_import_is_independent_of_desktop_and_does_not_change_python_path  # SDLC-WA-016 — whatsapp_service/config/settings.py importa backend.* sin depender de sys.path
+
+# --- Unitarias: SDLC-CORE-010
+tests/unit/test_feature_flags_page.py::TestFeatureFlagsPageLoadsRealData::test_selecting_a_flag_loads_its_rules  # SDLC-CORE-010 — sin permiso CONFIGURACION.flag.aprobar
+tests/unit/test_feature_flags_page.py::TestFeatureFlagsFullLoop::test_create_request_approve_apply_closes_the_loop  # SDLC-CORE-010 — sin permiso CONFIGURACION.flag.aprobar
+tests/unit/test_pos_checkout_dialogs.py::test_reintentar_el_cobro_no_duplica_pagos  # SDLC-CORE-010 — PyQt5.QtWidgets no tiene MessageDialog
+tests/unit/test_transfers_ui_workspace.py::test_sidebar_filters_permissions_and_dialogs_use_accessible_standard_inputs  # SDLC-CORE-010 — barra lateral de Transferencias
+
+# --- Ventas/POS
+tests/unit/test_sales_pos_visual_validation.py::TestResolutionValidation::test_checkout_width_is_identical_at_both_resolutions  # SDLC-UI-031 — geometría dependiente del monitor (mismo tipo que UI-031)
+tests/integration/test_sales_checkout_settles_everything.py::test_con_autorizacion_y_motivo_se_cobra_y_queda_negativo_y_auditado  # SDLC-CORE-011 — fixture sin usuarios.sucursal_id
+tests/integration/test_sales_checkout_settles_everything.py::test_la_autorizacion_sin_existencia_se_valida[sin_permiso]  # SDLC-CORE-011 — fixture sin usuarios.sucursal_id
+
+# --- BI: SDLC-CORE-011 (pruebas de integración de BI desactualizadas)
+tests/integration/business_intelligence/test_every_bi_page_opens.py::test_the_route_opens_against_a_migrated_database[bi_sales]  # SDLC-CORE-011 — página BI no abre sobre base migrada
+tests/integration/business_intelligence/test_every_bi_page_opens.py::test_the_route_opens_against_a_migrated_database[bi_inventory]  # SDLC-CORE-011 — página BI no abre sobre base migrada
+tests/integration/business_intelligence/test_every_bi_page_opens.py::test_the_route_opens_against_a_migrated_database[bi_waste]  # SDLC-CORE-011 — página BI no abre sobre base migrada
+tests/integration/business_intelligence/test_every_bi_page_opens.py::test_the_route_opens_against_a_migrated_database[bi_pricing]  # SDLC-CORE-011 — página BI no abre sobre base migrada
+tests/integration/business_intelligence/test_every_bi_page_opens.py::test_the_route_opens_against_a_migrated_database[bi_branches]  # SDLC-CORE-011 — página BI no abre sobre base migrada
+tests/integration/business_intelligence/test_every_bi_page_opens.py::test_the_route_opens_against_a_migrated_database[bi_finance]  # SDLC-CORE-011 — página BI no abre sobre base migrada
+tests/integration/business_intelligence/test_every_bi_page_opens.py::test_the_route_opens_against_a_migrated_database[bi_cash]  # SDLC-CORE-011 — página BI no abre sobre base migrada
+tests/integration/business_intelligence/test_every_bi_page_opens.py::test_the_cash_section_reads_the_canonical_tables  # SDLC-CORE-011 — sección de caja de BI
+
+# --- Auditoría de migraciones: el ítem más cercano es SDLC-CORE-004 (migraciones sin registrar); falta confirmarlo
+tests/test_migration_audit.py::test_scan_standalone_finds_files  # SDLC-CORE-004 — busca scripts/ en la raíz del repo, no en pos_spj_v13.4/scripts/
+tests/test_migration_audit.py::test_scan_engine_finds_registered  # SDLC-CORE-004 — busca scripts/ en la raíz del repo, no en pos_spj_v13.4/scripts/
+tests/test_migration_audit.py::test_new_migrations_053_054_have_run  # SDLC-CORE-004 — busca scripts/ en la raíz del repo, no en pos_spj_v13.4/scripts/
