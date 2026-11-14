@@ -7,7 +7,7 @@
 
 ## Cómo se midió
 
-Cada detector se corrió sobre `6ef92643` (integración sin reparar) y se repitió sobre la punta de esta rama. Los scripts quedan fuera del repositorio, en el scratchpad de la sesión.
+Los detectores 1 y 5 se corrieron sobre `6ef92643`, la integración sin reparar. Los detectores 2, 3 y 4 se corrieron sobre `6ef92643` y se repitieron sobre la punta reparada: sólo queda lo explicado abajo. El detector 6 se corrió una vez, con el código ya reparado (`7b5c6fac`). Los scripts quedan fuera del repositorio, en el scratchpad de la sesión.
 
 1. **Hunks por lote.** Cada hunk de `git diff ff2061a1...fix/lote-N` se prueba con `git apply --check` en ambos sentidos: si el inverso aplica, el cambio está; si aplica el directo, se perdió; si no aplica ninguno, se revisa a mano. Resultado: 0 hunks perdidos sin explicación (los mixtos se listan abajo) y 0 archivos borrados por un lote que reaparezcan.
 2. **Líneas agregadas por cada lote que faltan en HEAD.** Es la versión rápida de `lost_lines.py`.
@@ -15,7 +15,7 @@ Cada detector se corrió sobre `6ef92643` (integración sin reparar) y se repiti
 4. **Trabajo de la base que se perdió.** Son líneas de `ff2061a1` que faltan en HEAD y que ningún lote eliminó. Sólo sale `BACKLOG.md`, por `1d0ea1c6`, y es esperado.
 5. **Merges que tomaron un solo lado.** Para cada merge de `ff2061a1..HEAD`, se buscan los archivos cambiados por ambos padres. Si el resultado es idéntico a uno de los padres, se perdió el otro lado; si no es idéntico a ninguno, se revisa a mano.
 6. **Nombres globales no definidos (estilo F821) y atributos `self.X` leídos y nunca asignados en su clase.** Se corrieron sobre los 440 `.py` de `git diff --name-only ff2061a1 HEAD`. `undef_names.py` no ve atributos, y por eso no detectó la pérdida 8.
-7. **Pruebas por área de cada lote** sobre `6ef92643`. Cada grupo de fallas apuntó a una pérdida.
+7. **Pruebas sobre `6ef92643`**, sólo en algunos grupos: re-anclaje, pruebas del lote 2 y drenado de outbox. Cada grupo de fallas apuntó a una pérdida. Las pruebas por área completas se corrieron sólo sobre la rama reparada (abajo).
 
 ## Pérdidas encontradas y qué se restauró
 
@@ -71,6 +71,8 @@ Se corrió `migrations.engine.up` sobre bases temporales en el scratchpad, con `
 
    `return_use_cases.py` combina bien los dos lotes: los 5 detectores no encuentran pérdida. Es una interacción entre lotes, no una pérdida del merge. Hay que decidir si el reverso de un pedido exige el turno de quien lo hace, como en el POS, o el del cajero que cobró. No se cambió nada.
 
+   Prueba de que en las preguntas 2 y 3 no hay injerto: en HEAD, `payment_policy.py` es idéntico a `fix/lote-4` y `active_shift_resolver.py` a `fix/lote-1`. `sales_cash_effects_client.py` es el de `fix/lote-1` con lo que agrega el lote 4, sin cambiar la regla.
+
 ## Resultados por área
 
 Corrida sobre `1886ea2a` (punta de esta rama, con las 9 restauraciones) desde `pos_spj_v13.4/`, con `QT_QPA_PLATFORM=offscreen` y un tope de 600 s por corrida. La máquina tiene 2 CPU, así que los tiempos son mayores que los de los informes de cada lote.
@@ -78,7 +80,7 @@ Corrida sobre `1886ea2a` (punta de esta rama, con las 9 restauraciones) desde `p
 | Lote / área | Rutas | Resultado | Frente al informe del lote |
 |---|---|---|---|
 | 1 Caja | `tests/unit/cash_register`, `tests/integration/cash_register` | ✅ 358 passed | Sin fallas |
-| 2 Finanzas/RR. HH. | `tests/integration/finance`, `tests/unit/finance`, `tests/integration/hr`, `tests/unit/hr`, `test_hr_module_migration.py` | ✅ 560 passed | Sin fallas. Antes de reparar había 7 (HR-002, FIN-002, 380) |
+| 2 Finanzas/RR. HH. | `tests/integration/finance`, `tests/unit/finance`, `tests/integration/hr`, `tests/unit/hr`, `test_hr_module_migration.py` | ✅ 560 passed | Sin fallas. Antes de reparar había 6 en esta área (HR-002, FIN-002, 380) y 1 en bootstrap (ORD-001) |
 | 3 Instalador | `tests/integration/bootstrap`, `software_distribution`, `tests/unit/bootstrap`, `software_distribution`, `security`, `test_app_paths_resources.py`, `test_phase2_infrastructure.py` | ✅ 679 passed | El lote dio 650 passed; las 29 de más son de lotes posteriores |
 | 4 Pagos | `tests/integration/sales`, `tests/finance`, `tests/migrations`, `procurement/test_immediate_payment_bridge.py`, `e2e/test_cash_sale_refund_flow.py` | ✅ 174 passed | Sin fallas |
 | 5 BI | `tests/integration/business_intelligence` | 58 passed, 8 failed | **Igual** al lote (58/8 preexistentes, `test_every_bi_page_opens.py`) |
@@ -86,8 +88,10 @@ Corrida sobre `1886ea2a` (punta de esta rama, con las 9 restauraciones) desde `p
 | 5 Shell | `shell/test_installation_branch_session_follow.py`, `shell/test_desktop_shell_window_composition.py` | ✅ 11 passed | Antes de reparar había 5 fallas en la primera |
 | 6 Pedidos | `tests/integration/orders_delivery`, `test_orders_delivery_{outbox_dispatcher,driver_cash_finance,settlement_use_cases}.py`, `logistics/test_driver_pwa_api.py`, `test_erp_chain_wiring_ratchet.py`, `test_orders_single_pipeline_ratchet.py` | 296 passed, 1 failed | **Nueva** frente al lote: pregunta 2 (PAY-002 × ORD) |
 | 6 Pedidos (resto) | Resto de `tests/{unit,integration}/test_orders_delivery_*.py` | 400 passed, 4 failed | **Nuevas** frente al lote: pregunta 3 (SHIFT-001 × ORD) |
+| 4 y 6 Ventas/POS | `tests/unit/test_sales_*.py`, `tests/unit/test_pos_checkout_dialogs.py` | 465 passed, 2 failed | Las 2 son preexistentes y el lote 4 ya las listaba: `test_checkout_width_is_identical_at_both_resolutions` (geometría, tipo SDLC-UI-031) y `test_reintentar_el_cobro_no_duplica_pagos` (SDLC-CORE-010) |
+| 4 y 6 Ventas/POS | `tests/integration/test_sales_*.py` | 29 passed, 2 failed | Las 2 son preexistentes y los lotes 4, 6 y 7 ya las listaban: `test_sales_checkout_settles_everything.py`, `no such column: sucursal_id` (SDLC-CORE-011) |
 | 7 Seguridad | `tests/integration/security`, `test_transfers_bootstrap_migration.py`, `test_configuracion_use_cases_are_authorized.py` | ✅ 197 passed | Sin fallas |
-| 7 Transferencias | `tests/integration/transfers` | **Cortada a los 600 s**, sin resultado (en el lote tardó 15 min) | No verificado |
+| 7 Transferencias | `tests/integration/transfers`, un archivo por corrida | ✅ 66 passed | El lote dio 62 passed. La primera corrida completa, que pasó por el corte de red, no dejó resultado |
 | 8 Sync/terminales | `tests/unit/{central_pg,central_sync,offline}`, `tests/integration/{central_pg,central_sync,sync}`, `test_cash_offline_sync.py`, `test_terminal_identity.py`, `test_installation_branch_reanchor_use_case.py` | ✅ 181 passed, 5 skipped (PostgreSQL real) | Antes de reparar había 17 fallas en el re-anclaje |
 | 8 Configuración | `tests/integration/configuracion` completo | ✅ 378 passed | El lote dio 313 passed en `c9151d46` |
 | 9 WhatsApp | `whatsapp_service/tests` con `PYTHONPATH` al worktree y `ERP_DB_PATH` a una base temporal vacía | 843 passed, 13 failed | **Igual** al lote (13/843 preexistentes). `whatsapp_service/` en HEAD es idéntico a `fix/lote-9` |
