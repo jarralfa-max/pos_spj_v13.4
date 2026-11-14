@@ -141,3 +141,15 @@ class TestEmpresaPageInstallationBranch:
 
         assert followed is True
         assert "cierre sesión" in message.lower()
+
+    def test_editing_the_company_no_longer_allows_re_anchoring(self, app, conn):
+        """SDLC-ARQ-TERM-002: el permiso lo decide el caso de uso y es específico."""
+        before = SqliteInstallationBranchRepository(conn).get()
+        perms = _all_permissions() - {ConfiguracionPermissions.ESTACION_REANCLAR}
+        view = _view(app, conn, perms)
+        view.show_route("config_empresa")
+        presenter = view._pages["config_empresa"]._presenter
+
+        ok, message = presenter.set_installation_branch(_branch_ids(conn)[0])
+        assert ok is False and "estacion.reanclar" in message
+        assert SqliteInstallationBranchRepository(conn).get() == before

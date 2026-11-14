@@ -94,7 +94,9 @@ def _gerente_local(org) -> str:
     rol_id, uid = new_uuid(), new_uuid()
     org.conn.execute("INSERT INTO roles (id, nombre) VALUES (?, 't_gerente_local')", (rol_id,))
     for permiso in (ConfiguracionPermissions.GENERAL_VIEW, ConfiguracionPermissions.EMPRESA_VIEW,
-                    ConfiguracionPermissions.EMPRESA_EDITAR, ConfiguracionPermissions.USUARIOS_VIEW):
+                    ConfiguracionPermissions.EMPRESA_EDITAR, ConfiguracionPermissions.USUARIOS_VIEW,
+                    # SDLC-ARQ-TERM-002: re-anclar ya no basta con editar la empresa.
+                    ConfiguracionPermissions.ESTACION_REANCLAR):
         modulo, accion = permiso.split(".", 1)
         org.conn.execute(
             "INSERT OR IGNORE INTO rol_permisos (id, rol_id, modulo, accion, permitido)"

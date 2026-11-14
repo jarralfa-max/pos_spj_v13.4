@@ -1,21 +1,37 @@
-"""Set installation branch use case — single canonical route to anchor
-THIS terminal to a branch (`configuraciones.sucursal_instalacion_id`,
-read by `core/app_container.py`/`branch_resolution.py` at startup).
-Wraps the already-correct, UoW-wrapped
-`core/services/configuration_settings_service.py::CompanyProfileService
-.set_installation_branch()`, which validates the branch exists and is
-active before persisting.
+"""Set installation branch use case — the single canonical route to anchor
+THIS station to a branch (`configuraciones.sucursal_instalacion_id`, read by
+`ApplicationContextBuilder` at login).
 
-SDLC-ARQ-PERM-001: re-anclar la terminal exige `CONFIGURACION.empresa.editar`
-también aquí, no sólo en la pantalla; sin autorizador falla cerrado.
-TERM-002 (aprobación central del re-anclaje) queda fuera."""
+SDLC-ARQ-TERM-002: re-anchoring moves where this station's sales, cash and
+inventory land, so it is guarded HERE, not in the screen:
+
+1. permission `CONFIGURACION.estacion.reanclar`, checked in backend (fails
+   closed when no policy is wired);
+2. inside one unit of work: the anchor is written first (that takes SQLite's
+   write lock, so nothing can open a shift or enqueue a fact in between), then
+   - a station enrolled in the central registry is rejected: the central
+     reassigns it (decision 2026-11-02: central approval when a central
+     registry exists, otherwise the local permission is enough);
+   - an unfinished cash shift in another branch is rejected;
+   - facts still pending synchronization are rejected;
+   and a violation rolls everything back;
+3. every attempt that reaches here is audited in `audit_logs`
+   (`instalacion.reanclar`): applied together with the anchor, rejected in its
+   own transaction after the rollback.
+
+Re-anchoring to the branch already anchored is a no-op (double click, retry).
+
+Integración ronda 1: `execute` empieza por `require()` como exige la guardia de
+SDLC-ARQ-PERM-001 (`tests/architecture/test_configuracion_use_cases_are_authorized.py`);
+para un comando válido el orden observable es el mismo de TERM-002.
+"""
 
 from __future__ import annotations
 
 from typing import Callable
 
 from backend.application.commands.settings_commands import SetInstallationBranchCommand
-from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.authorization import ConfiguracionAuthorizationPolicy
 from backend.application.configuracion.permissions import ConfiguracionPermissions
 from backend.application.dto.use_case_result import UseCaseResult
 from backend.application.security.unwired_policy import unwired
@@ -36,21 +52,23 @@ PERMISSION_DENIED = "PERMISSION_DENIED"
 class SetInstallationBranchUseCase(BaseUseCase[SetInstallationBranchCommand]):
     name = "SetInstallationBranchUseCase"
 
-    def __init__(self, company_profile_service, *, authorization=None) -> None:
-        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
-        self._service = company_profile_service
+    def __init__(self, uow_factory: Callable[[], object], authorization=None) -> None:
+        """`uow_factory()` returns a unit of work exposing `.installation_branch`
+        and `.audit_log` (`InstallationBranchUnitOfWork` in production)."""
+        self._uow_factory = uow_factory
+        self._auth = authorization or unwired(ConfiguracionAuthorizationPolicy)
 
     def execute(self, command: SetInstallationBranchCommand) -> UseCaseResult:
-        self._authz.require(ConfiguracionPermissions.EMPRESA_EDITAR,
-                            claimed_actor=command.user_name)
-        command.validate_context()
-        actor = str(command.user_name or "")
-        target = validate_uuidv7(command.branch_id)
         try:
-            self._auth.require(actor, ConfiguracionPermissions.ESTACION_REANCLAR)
+            self._auth.require(str(command.user_name or ""),
+                               ConfiguracionPermissions.ESTACION_REANCLAR)
         except ConfigurationPermissionDeniedError:
-            self._record_rejection(command, target, PERMISSION_DENIED)
+            command.validate_context()
+            self._record_rejection(command, validate_uuidv7(command.branch_id),
+                                   PERMISSION_DENIED)
             raise
+        command.validate_context()
+        target = validate_uuidv7(command.branch_id)
 
         try:
             with self._uow_factory() as uow:

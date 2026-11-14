@@ -313,34 +313,57 @@ def test_unknown_action_is_denied_without_touching_anything():
 
 # ── fuera del paquete: anclaje de sucursal y diseñador de tickets ────────────
 
-def test_set_installation_branch_denied_without_empresa_editar():
-    from backend.application.commands.settings_commands import SetInstallationBranchCommand
+class _ReanchorUow:
+    """UoW de re-anclaje que registra todo: sólo debe auditar el rechazo."""
+
+    def __init__(self, calls: list) -> None:
+        self._calls = calls
+        self.installation_branch = SimpleNamespace(
+            get=lambda: None, set=lambda *a, **k: calls.append("set"))
+        self.audit_log = SimpleNamespace(record=lambda **k: calls.append(("audit", k["details"])))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _reanchor_uc(authorization):
     from backend.application.use_cases.set_installation_branch_use_case import (
         SetInstallationBranchUseCase,
     )
-    checker, authorization = _denying_authorizer()
-    service = _Trap()
-    use_case = SetInstallationBranchUseCase(service, authorization=authorization)
+    calls: list = []
+    return calls, SetInstallationBranchUseCase(lambda: _ReanchorUow(calls),
+                                               authorization=authorization)
+
+
+def test_set_installation_branch_denied_without_estacion_reanclar():
+    """Integración ronda 1: con SDLC-ARQ-TERM-002 el permiso es
+    `CONFIGURACION.estacion.reanclar` (antes `EMPRESA_EDITAR`, PERM-001)."""
+    from backend.application.commands.settings_commands import SetInstallationBranchCommand
+    from backend.shared.ids import new_uuid
+    checker = _RecordingDenyChecker()
+    calls, use_case = _reanchor_uc(ConfiguracionAuthorizationPolicy(checker))
     with pytest.raises(ConfigurationPermissionDeniedError):
         use_case.execute(SetInstallationBranchCommand(
-            operation_id="op-1", branch_id="b-1", user_name=SESSION_USER))
-    assert checker.asked == [P.EMPRESA_EDITAR]
-    assert service.calls == []
+            operation_id="op-1", branch_id=new_uuid(), user_name=SESSION_USER))
+    assert checker.asked == [P.ESTACION_REANCLAR]
+    assert "set" not in calls
+    assert [c[0] for c in calls] == ["audit"] and "PERMISSION_DENIED" in calls[0][1]
 
 
 def test_set_installation_branch_rejects_a_foreign_declared_actor():
     from backend.application.commands.settings_commands import SetInstallationBranchCommand
-    from backend.application.use_cases.set_installation_branch_use_case import (
-        SetInstallationBranchUseCase,
-    )
+    from backend.application.configuracion.authorization import SessionPermissionChecker
+    from backend.shared.ids import new_uuid
     session = SimpleNamespace(user_id=SESSION_USER, is_active=True, tiene_permiso=lambda code: True)
-    service = _Trap()
-    use_case = SetInstallationBranchUseCase(
-        service, authorization=ConfiguracionActionAuthorizer.for_session(session))
+    calls, use_case = _reanchor_uc(
+        ConfiguracionAuthorizationPolicy(SessionPermissionChecker(session)))
     with pytest.raises(ConfigurationPermissionDeniedError):
         use_case.execute(SetInstallationBranchCommand(
-            operation_id="op-1", branch_id="b-1", user_name="otro-usuario"))
-    assert service.calls == []
+            operation_id="op-1", branch_id=new_uuid(), user_name="otro-usuario"))
+    assert "set" not in calls
 
 
 @pytest.mark.parametrize(("method", "kwargs", "permission"), [
