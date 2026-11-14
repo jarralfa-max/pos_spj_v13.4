@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.domain.cash_register.enums import BlindCountStatus, CashShiftStatus
+from backend.domain.cash_register.enums import (
+    BlindCountStatus, CashShiftOperability, CashShiftStatus,
+)
 from backend.domain.cash_register.exceptions import CashDuplicateOperationError, CashInvalidStateError
 
 if TYPE_CHECKING:
@@ -27,6 +29,20 @@ class CashShiftLifecyclePolicy:
         CashShiftStatus.COUNTED,
         CashShiftStatus.PENDING_REVIEW,
         CashShiftStatus.CLOSING,
+    })
+    #: Estados activos de cierre: el turno sigue ocupando cajero, caja, cajón y
+    #: terminal, pero ya no admite ventas ni reembolsos.
+    CLOSING_STATUSES = frozenset({
+        CashShiftStatus.PENDING_COUNT,
+        CashShiftStatus.COUNTING,
+        CashShiftStatus.COUNTED,
+        CashShiftStatus.PENDING_REVIEW,
+        CashShiftStatus.CLOSING,
+    })
+    #: Un turno en cierre ya no cambia de manos: se termina y se abre otro.
+    REASSIGNABLE_STATUSES = frozenset({
+        CashShiftStatus.OPEN,
+        CashShiftStatus.SUSPENDED,
     })
     FINAL_STATUSES = frozenset({
         CashShiftStatus.CLOSED,
@@ -52,6 +68,32 @@ class CashShiftLifecyclePolicy:
     @classmethod
     def is_active(cls, status: CashShiftStatus | str) -> bool:
         return cls.normalize(status) in cls.ACTIVE_STATUSES
+
+    @classmethod
+    def active_status_values(cls) -> tuple[str, ...]:
+        """Los estados activos como texto, ordenados: para SQL parametrizado.
+        Única fuente; nadie copia la tupla (SDLC-ARQ-SHIFT-001)."""
+        return tuple(sorted(status.value for status in cls.ACTIVE_STATUSES))
+
+    @classmethod
+    def closing_status_values(cls) -> tuple[str, ...]:
+        return tuple(sorted(status.value for status in cls.CLOSING_STATUSES))
+
+    @classmethod
+    def operability(cls, status: CashShiftStatus | str) -> CashShiftOperability:
+        """OPEN cobra; SUSPENDED debe reanudarse; cualquier otro estado activo
+        (en cierre, o una apertura a medias) obliga a abrir un turno nuevo."""
+        current = cls.normalize(status)
+        if current is CashShiftStatus.OPEN:
+            return CashShiftOperability.OPERABLE
+        if current is CashShiftStatus.SUSPENDED:
+            return CashShiftOperability.MUST_RESUME
+        return CashShiftOperability.MUST_OPEN_NEW
+
+    @classmethod
+    def ensure_reassignable(cls, status: CashShiftStatus | str) -> None:
+        if cls.normalize(status) not in cls.REASSIGNABLE_STATUSES:
+            raise CashInvalidStateError("Sólo se entrega un turno abierto o suspendido")
 
     @classmethod
     def ensure_operable(cls, status: CashShiftStatus | str) -> None:

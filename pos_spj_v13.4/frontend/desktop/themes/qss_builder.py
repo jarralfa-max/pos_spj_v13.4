@@ -46,31 +46,36 @@ def build_qss(theme: str = "light", *, density="comfortable") -> str:
         _spin_controls(c, metrics),
         _brand_swatches(),
         _emphasis(c),
-        _customer_display(),
+        _customer_display(c),
     ]
     return "\n\n".join(parts)
 
 
-def _customer_display() -> str:
+def _customer_display(c) -> str:
+    """Customer-facing screen: follows the register's theme (owner decision,
+    SDLC-UI-004, 2026-11-02) instead of a fixed brand look."""
     return f"""
-QWidget#customerDisplayWindow {{ background-color: {BrandColors.CHARCOAL}; }}
+QWidget#customerDisplayWindow {{ background-color: {c.BACKGROUND}; }}
 QWidget#customerDisplayWindow QWidget {{ background-color: transparent; }}
-QWidget#customerDisplayWindow QLabel {{ color: {BrandColors.WHITE}; }}
-QWidget#customerDisplayWindow QPushButton {{ color: {BrandColors.WHITE}; }}
+QWidget#customerDisplayWindow QLabel {{ color: {c.TEXT_PRIMARY}; }}
+QWidget#customerDisplayWindow QPushButton {{ color: {c.TEXT_PRIMARY}; }}
 QWidget#customerDisplayWindow QScrollArea {{ border: none; }}
 QWidget#customerDisplayWindow[displayMode="CART"] QLabel#customerDisplayScale,
 QWidget#customerDisplayWindow[displayMode="CART"] QLabel#customerDisplayPoints {{
-    background-color: {BrandColors.FOREST_GREEN};
+    background-color: {c.PRIMARY_DEFAULT};
+    color: {c.TEXT_INVERSE};
     border-radius: {Radii.SM}px;
     padding: {Spacing.MD}px;
 }}
-QWidget#customerDisplayWindow[displayMode="THANK_YOU"] {{ background-color: {BrandColors.FOREST_GREEN}; }}
+QWidget#customerDisplayWindow[displayMode="THANK_YOU"] {{ background-color: {c.PRIMARY_DEFAULT}; }}
+QWidget#customerDisplayWindow[displayMode="THANK_YOU"] QLabel {{ color: {c.TEXT_INVERSE}; }}
 QWidget#customerDisplayWindow[displayMode="THANK_YOU"] QLabel#customerDisplayPoints,
-QWidget#customerDisplayWindow QLabel#customerDisplayConfirmation {{ color: {BrandColors.PREMIUM_GOLD}; }}
+QWidget#customerDisplayWindow QLabel#customerDisplayConfirmation {{ color: {c.ACCENT_SUBTLE}; }}
 QLabel#customerDisplayConfirmation {{ font-size: {Typography.SIZE_DISPLAY}px; }}
-QWidget#customerDisplayWindow QWidget#customerDisplayLine {{ border-bottom: 1px solid {BrandColors.FOREST_GREEN}; }}
+QWidget#customerDisplayWindow QWidget#customerDisplayLine {{ border-bottom: 1px solid {c.PRIMARY_BORDER}; }}
 QWidget#customerDisplayWindow QLabel#customerDisplayStatus {{
-    background-color: {BrandColors.FOREST_GREEN};
+    background-color: {c.PRIMARY_DEFAULT};
+    color: {c.TEXT_INVERSE};
     border-radius: {Radii.SM}px;
     padding: {Spacing.XS}px {Spacing.SM}px;
 }}
