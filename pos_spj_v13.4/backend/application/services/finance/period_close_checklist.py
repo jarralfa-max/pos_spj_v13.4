@@ -59,6 +59,9 @@ class PeriodCloseChecklist:
             unposted = uow.journal_entries.count_unposted(date_from=start.isoformat(),
                                                           date_to=end.isoformat())
             depreciation_due = self._assets_pending_depreciation(uow, code, end)
+            assets_incomplete = sum(
+                1 for asset in uow.fixed_assets.list_pending_completion()
+                if asset.acquisition_date is None or asset.acquisition_date <= end)
             unbalanced = uow.journal_entries.exists_unbalanced()
             failing_outbox = uow.outbox.count_failing()
             overdue_receivables = len(uow.receivables.list_overdue_candidates(end))
@@ -85,6 +88,8 @@ class PeriodCloseChecklist:
                   f"{len(open_recs)} conciliaciones abiertas con estados del periodo"),
             _item("depreciation_run", "Depreciaciones calculadas", depreciation_due,
                   f"{depreciation_due} activos sin depreciación de {code}"),
+            _item("purchased_assets_completed", "Activos comprados completos", assets_incomplete,
+                  f"{assets_incomplete} activos comprados sin vida útil: no se deprecian"),
             _item("receivables_reviewed", "CxC revisadas", subledger[CHECK_RECEIVABLES],
                   "El auxiliar de CxC no cuadra con el mayor"),
             _item("receivables_overdue", "CxC vencidas gestionadas", overdue_receivables,

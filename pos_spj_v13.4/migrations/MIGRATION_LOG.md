@@ -5404,25 +5404,30 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
 
-### 358 — versión del turno de caja (2026-11-05, SDLC-ARQ-SHIFT-004)
+### 380 — folio de compra en el auxiliar de activos (2026-11-06, SDLC-FIN-002)
 
-- `cash_shifts.version` (INTEGER, default 1): cada transición compara estado y versión y la
-  incrementa; 0 filas afectadas es `CashShiftConflictError`, no una escritura sobre otro estado.
-- Va también en el DDL de la 175 para las bases que nacen hoy; la 358 la agrega a las existentes.
-- Sólo agrega: ningún turno cambia de estado. Idempotente.
-- Junto con esto la UoW de Caja abre con `BEGIN IMMEDIATE` y abrir turno con un `operation_id`
-  ya aplicado devuelve el turno original.
+- `fixed_assets.source_document_number`, nula. Sólo agrega.
+- Una compra con naturaleza `ASSET` deja el activo en `fixed_assets` en estado `DRAFT`, con vida
+  útil 0 (sin capturar), en la misma transacción que su asiento. Finanzas → Activos fijos →
+  «Completar datos» lo activa **sin asiento**: el costo ya lo reconoció Compras.
+- `CapitalizeAssetUseCase` rechaza un documento que ya esté en el auxiliar; antes duplicaba la CxP
+  o el pago. Un activo por documento: varias líneas `ASSET` de la misma compra quedan en un solo
+  registro hasta que SDLC-ASSET-024 consolide las identidades.
+- El cierre bloquea con activos comprados sin completar (`purchased_assets_completed`).
+- Devolución o reverso de Compras: baja el costo del activo, o lo cancela si llega a cero. Un
+  activo ya depreciado no se ajusta solo: se registra el error y requiere baja formal.
 
-### 359 — permisos de Caja separados y asignaciones de turno (2026-11-05, SDLC-ARQ-SHIFT-003)
+### 381 — meses fuera de servicio de un activo (2026-11-06, SDLC-FIN-003)
 
-- Quien tenía `CAJA.turno.forzar_cierre` recibe `CAJA.turno.intervenir` y
-  `CAJA.movimiento.intervenir`; quien tenía `CAJA.corte_z.generar` recibe `CAJA.turno.cerrar`,
-  que desde hoy el Corte Z final sí exige. Nadie pierde lo que ya podía hacer.
-- Cada turno vivo recibe su fila ACTIVE en `cash_shift_assignments`, que nunca se había escrito.
-- Sólo agrega filas. Idempotente.
+- `fixed_assets.suspended_on` y `suspended_months`. Sólo agrega.
+- Los meses omitidos se recuperan en la siguiente corrida (`DepreciationPolicy`). Los suspendidos
+  no son omitidos: no se recuperan y alargan la vida en calendario. Un activo suspendido antes de
+  esta migración no tiene `suspended_on`, así que sus meses cuentan como omitidos al reanudarlo.
+- La baja deprecia lo que falte hasta el periodo anterior, como corrida registrada y en la misma
+  transacción. El asiento lleva la fecha de la baja.
 
-### 360 — confirmación del depósito por Tesorería (2026-11-06, SDLC-CASH-002)
+### Sin migración — depreciación automática (2026-11-06, SDLC-FIN-004)
 
-- `cash_deposit_confirmations`: una por depósito (`deposit_id` único), con el ticket del banco,
-  quién confirmó y el `operation_id`. La escribe Tesorería (`FINANZAS.tesoreria.movimiento`).
-- Sólo agrega. Idempotente.
+- `finance_periodic_tick` corre la depreciación del mes que terminó desde el día 1. Reemplaza el
+  job mensual del legacy (`accrual_depreciacion_mensual`). Sin esquema nuevo: la idempotencia es
+  el `operation_id` derivado del periodo, sobre `depreciation_runs.operation_id` (UNIQUE).

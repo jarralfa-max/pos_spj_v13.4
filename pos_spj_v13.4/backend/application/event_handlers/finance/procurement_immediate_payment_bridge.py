@@ -44,6 +44,9 @@ from backend.application.event_handlers.finance.procurement_posting_policy impor
     purchase_issue_date,
 )
 from backend.application.services.finance.posting_engine import PostingEngine
+from backend.application.use_cases.finance.purchased_asset_use_case import (
+    register_purchased_asset_in,
+)
 from backend.domain.finance.enums import JournalType, PostingPurpose, TreasuryAccountType
 from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.money import Money
@@ -123,6 +126,10 @@ class ProcurementImmediatePaymentBridgeHandler:
                                  operation_id),
                 lines, currency_code=currency_code, branch_id=branch_id,
             )
+            register_purchased_asset_in(
+                uow, profile, payload, document_id=document_id, document_number=folio,
+                issue_date=issue_date, currency_code=currency_code, operation_id=operation_id,
+                branch_id=branch_id)
 
     def _resolve_treasury_account(self, *, payment_source: str, branch_id: str | None):
         account, problema = resolve_purchase_treasury_account(

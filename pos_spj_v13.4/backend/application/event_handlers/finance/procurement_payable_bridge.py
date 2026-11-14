@@ -33,6 +33,9 @@ from backend.application.event_handlers.finance.procurement_posting_policy impor
 )
 from backend.application.services.finance.posting_engine import PostingEngine
 from backend.application.use_cases.finance.create_payable_use_case import create_payable_in
+from backend.application.use_cases.finance.purchased_asset_use_case import (
+    register_purchased_asset_in,
+)
 from backend.domain.finance.enums import JournalType, PostingPurpose
 from backend.domain.finance.exceptions import FinanceDomainError
 from backend.domain.finance.services.journal_posting_service import LineSpec
@@ -103,6 +106,10 @@ class ProcurementPayableBridgeHandler:
                              PostingPurpose.SUPPLIER_INVOICE, operation_id),
             lines, currency_code=currency_code, branch_id=branch_id,
         )
+        register_purchased_asset_in(
+            uow, profile, payload, document_id=str(payload.get("document_id") or operation_id),
+            document_number=document_number, issue_date=issue_date,
+            currency_code=currency_code, operation_id=operation_id, branch_id=branch_id)
 
 
 def _due_date(issue_date: date, payload: dict) -> date | None:

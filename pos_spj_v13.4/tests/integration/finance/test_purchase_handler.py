@@ -1,11 +1,14 @@
-"""FASE 8 — PURCHASE_RECEIVED: inventario contra CxP, nunca contra Caja."""
+"""FASE 8 — compra recibida: inventario contra CxP, nunca contra Caja.
+
+SDLC-FIN-001: la ruta viva es ``ProcurementPayableBridgeHandler``.
+"""
 
 from datetime import date
 
 import pytest
 
-from backend.application.event_handlers.finance.purchase_received_handler import (
-    PurchaseReceivedHandler,
+from backend.application.event_handlers.finance.procurement_payable_bridge import (
+    ProcurementPayableBridgeHandler,
 )
 from backend.application.finance.ports import NoOperationalSources
 from backend.domain.finance.enums import PostingPurpose
@@ -16,10 +19,11 @@ from backend.shared.ids import new_uuid
 
 def _payload(**overrides):
     payload = {
-        "event_id": new_uuid(), "operation_id": new_uuid(),
-        "purchase_id": new_uuid(), "supplier_id": new_uuid(),
-        "folio": "C-001", "occurred_at": "2026-07-16T09:00:00Z",
-        "subtotal": "10000.00", "tax_total": "1600.00", "total": "11600.00",
+        "source_module": "procurement", "operation_id": new_uuid(),
+        "document_id": new_uuid(), "supplier_id": new_uuid(),
+        "document_number": "C-001", "timestamp": "2026-07-16T09:00:00",
+        "nature_subtotals": {"INVENTORY": "10000.00"}, "tax_total": "1600.00",
+        "amount": "11600.00",
     }
     payload.update(overrides)
     return payload
@@ -27,12 +31,12 @@ def _payload(**overrides):
 
 class TestPurchaseReceived:
     def test_creates_entry_document_and_payable(self, bootstrapped_conn):
-        handler = PurchaseReceivedHandler(bootstrapped_conn)
+        handler = ProcurementPayableBridgeHandler(bootstrapped_conn)
         payload = _payload()
         handler.handle(payload)
         with FinanceUnitOfWork(bootstrapped_conn) as uow:
             entry = uow.journal_entries.find_by_posting_reference(
-                "purchases", payload["purchase_id"], PostingPurpose.PURCHASE_RECEIPT)
+                "procurement", payload["document_id"], PostingPurpose.SUPPLIER_INVOICE)
             payables = uow.payables.list_open_by_supplier(payload["supplier_id"])
         assert entry.is_balanced()
         assert entry.total_credits().to_string() == "11600.00"
@@ -41,29 +45,27 @@ class TestPurchaseReceived:
 
     def test_purchase_never_touches_cash_register_account(self, bootstrapped_conn):
         """El asiento de compra no debe tocar la cuenta de Caja POS (1102)."""
-        handler = PurchaseReceivedHandler(bootstrapped_conn)
+        handler = ProcurementPayableBridgeHandler(bootstrapped_conn)
         payload = _payload()
         handler.handle(payload)
         with FinanceUnitOfWork(bootstrapped_conn) as uow:
             pos_account = uow.accounts.get_by_code("1102")
             entry = uow.journal_entries.find_by_posting_reference(
-                "purchases", payload["purchase_id"], PostingPurpose.PURCHASE_RECEIPT)
+                "procurement", payload["document_id"], PostingPurpose.SUPPLIER_INVOICE)
         assert all(line.account_id != pos_account.id for line in entry.lines)
 
     def test_totals_must_reconcile(self, bootstrapped_conn):
-        handler = PurchaseReceivedHandler(bootstrapped_conn)
+        handler = ProcurementPayableBridgeHandler(bootstrapped_conn)
         with pytest.raises(FinanceDomainError):
-            handler.handle(_payload(total="99999.00"))
+            handler.handle(_payload(amount="99999.00"))
 
-    def test_idempotent_by_event_and_by_purchase(self, bootstrapped_conn):
-        handler = PurchaseReceivedHandler(bootstrapped_conn)
+    def test_idempotent_by_operation(self, bootstrapped_conn):
+        handler = ProcurementPayableBridgeHandler(bootstrapped_conn)
         payload = _payload()
         handler.handle(payload)
         handler.handle(payload)
-        handler.handle(_payload(purchase_id=payload["purchase_id"],
-                                supplier_id=payload["supplier_id"]))
         entries = bootstrapped_conn.execute(
-            "SELECT COUNT(*) FROM journal_entries WHERE posting_purpose='PURCHASE_RECEIPT'"
+            "SELECT COUNT(*) FROM journal_entries WHERE posting_purpose='SUPPLIER_INVOICE'"
         ).fetchone()[0]
         payables = bootstrapped_conn.execute("SELECT COUNT(*) FROM payables").fetchone()[0]
         assert entries == 1 and payables == 1

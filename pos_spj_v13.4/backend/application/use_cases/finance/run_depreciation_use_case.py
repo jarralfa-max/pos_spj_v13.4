@@ -5,6 +5,9 @@ La depreciación acumulada sólo cambia por una corrida: cada corrida queda en
 deprecia a lo más una vez por periodo (restricción única + idempotencia del
 asiento): repetir la corrida no duplica nada; una corrida posterior del mismo
 periodo sólo incluye lo que faltaba (p. ej. un activo capitalizado después).
+
+La baja usa las mismas dos piezas (``depreciate_asset_in`` y ``record_run_in``)
+para ponerse al día en su propia transacción.
 """
 
 from __future__ import annotations
@@ -24,6 +27,49 @@ from backend.domain.finance.value_objects.posting_reference import PostingRefere
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
 from backend.shared.events.event_names import EventName
 from backend.shared.ids import new_uuid
+
+
+def depreciate_asset_in(uow: FinanceUnitOfWork, engine: PostingEngine,
+                        domain: DepreciationDomainService, asset, period_code: str,
+                        entry_date: date, created_by: str | None):
+    """Deprecia un activo y guarda su asiento. ``(activo, importe, asiento)`` o
+    ``None`` si no hay nada que depreciar."""
+    amount = domain.apply(asset, period_code)
+    if amount.is_zero():
+        return None
+    entry = engine.post(
+        uow, JournalType.FIXED_ASSETS, entry_date,
+        f"Depreciación {period_code} — {asset.name}",
+        PostingReference("finance", f"{asset.id}:{period_code}",
+                         PostingPurpose.DEPRECIATION, new_uuid()),
+        [LineSpec(asset.depreciation_expense_account_id, debit=amount,
+                  description=f"Gasto por depreciación {asset.name}",
+                  branch_id=asset.branch_id, cost_center_id=asset.cost_center_id,
+                  project_id=asset.project_id),
+         LineSpec(asset.accumulated_depreciation_account_id, credit=amount,
+                  description="Depreciación acumulada", branch_id=asset.branch_id)],
+        branch_id=asset.branch_id, created_by=created_by)
+    uow.fixed_assets.update(asset)
+    return asset.id, amount, entry.id
+
+
+def record_run_in(uow: FinanceUnitOfWork, period_code: str, lines: list, *,
+                  operation_id: str, created_by: str | None) -> str:
+    """Corrida registrada: detalle por activo, auditoría y evento."""
+    currency = lines[0][1].currency_code
+    run_id = uow.fixed_assets.save_run(period_code=period_code, lines=lines,
+                                       run_by=created_by, operation_id=operation_id,
+                                       currency_code=currency)
+    total = sum((amount.amount for _, amount, _ in lines), Decimal("0"))
+    uow.audit(AuditAction.DEPRECIATION_RUN, entity_type="depreciation_run",
+              entity_id=run_id, operation_id=operation_id, user_id=created_by,
+              after={"period": period_code, "assets": len(lines),
+                     "total": format(total, "f")})
+    publish_finance_event(uow, EventName.DEPRECIATION_POSTED, {
+        "depreciation_run_id": run_id, "period": period_code, "entries": len(lines),
+        "total": format(total, "f"),
+    }, operation_id=operation_id, entity_id=run_id)
+    return run_id
 
 
 class RunDepreciationUseCase:
@@ -46,36 +92,12 @@ class RunDepreciationUseCase:
                                                          period_code):
                 if asset.id in already:
                     continue
-                amount = self._domain.apply(asset, period_code)
-                if amount.is_zero():
-                    continue
-                entry = self._engine.post(
-                    uow, JournalType.FIXED_ASSETS, entry_date,
-                    f"Depreciación {period_code} — {asset.name}",
-                    PostingReference("finance", f"{asset.id}:{period_code}",
-                                     PostingPurpose.DEPRECIATION, new_uuid()),
-                    [LineSpec(asset.depreciation_expense_account_id, debit=amount,
-                              description=f"Gasto por depreciación {asset.name}",
-                              branch_id=asset.branch_id, cost_center_id=asset.cost_center_id,
-                              project_id=asset.project_id),
-                     LineSpec(asset.accumulated_depreciation_account_id, credit=amount,
-                              description="Depreciación acumulada", branch_id=asset.branch_id)],
-                    branch_id=asset.branch_id, created_by=created_by)
-                uow.fixed_assets.update(asset)
-                lines.append((asset.id, amount, entry.id))
+                line = depreciate_asset_in(uow, self._engine, self._domain, asset, period_code,
+                                           entry_date, created_by)
+                if line is not None:
+                    lines.append(line)
             if not lines:
                 return []
-            currency = lines[0][1].currency_code
-            run_id = uow.fixed_assets.save_run(period_code=period_code, lines=lines,
-                                               run_by=created_by, operation_id=operation_id,
-                                               currency_code=currency)
-            total = sum((amount.amount for _, amount, _ in lines), Decimal("0"))
-            uow.audit(AuditAction.DEPRECIATION_RUN, entity_type="depreciation_run",
-                      entity_id=run_id, operation_id=operation_id, user_id=created_by,
-                      after={"period": period_code, "assets": len(lines),
-                             "total": format(total, "f")})
-            publish_finance_event(uow, EventName.DEPRECIATION_POSTED, {
-                "depreciation_run_id": run_id, "period": period_code, "entries": len(lines),
-                "total": format(total, "f"),
-            }, operation_id=operation_id, entity_id=run_id)
+            record_run_in(uow, period_code, lines, operation_id=operation_id,
+                          created_by=created_by)
             return [entry_id for _, _, entry_id in lines]
