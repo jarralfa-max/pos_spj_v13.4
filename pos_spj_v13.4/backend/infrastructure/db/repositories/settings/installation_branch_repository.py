@@ -90,16 +90,22 @@ class SqliteInstallationBranchRepository(SettingsRepositoryBase):
     def open_cash_shifts_outside(self, branch_id: str) -> int:
         """Turnos de caja sin cerrar en una sucursal distinta de `branch_id`.
 
-        Terminales: CLOSED, FORCE_CLOSED y CANCELLED (migración 175). Cualquier
-        otro estado —abierto, suspendido, en arqueo, en cierre— retiene efectivo
-        y ventas de la sucursal en la que nació.
+        Cuenta los estados activos de la política de Caja, la misma fuente de
+        `ActiveShiftResolver` (SDLC-ARQ-SHIFT-001; decisión 2026-11-14): abierto,
+        suspendido, en arqueo o en cierre retiene efectivo y ventas de la
+        sucursal en la que nació.
         """
         if not self._table_exists("cash_shifts"):
             return 0
+        from backend.domain.cash_register.policies.workflow_policies import (
+            CashShiftLifecyclePolicy,
+        )
+        statuses = CashShiftLifecyclePolicy.active_status_values()
+        marks = ",".join("?" for _ in statuses)
         row = self._query_one(
             "SELECT COUNT(*) AS n FROM cash_shifts WHERE branch_id <> ?"
-            " AND status NOT IN ('CLOSED','FORCE_CLOSED','CANCELLED')",
-            (str(branch_id),),
+            f" AND status IN ({marks})",
+            (str(branch_id), *statuses),
         )
         return int(row["n"]) if row else 0
 
