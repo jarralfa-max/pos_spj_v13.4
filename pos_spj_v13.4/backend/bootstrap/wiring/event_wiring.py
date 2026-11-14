@@ -99,6 +99,9 @@ def wire_cross_context_events(connection) -> dict:
         ("procurement", "backend.application.procurement.integrations.wiring", "wire_procurement"),
         # Fase 6 (2026-09-18): la venta completada llega a contabilidad.
         ("sales", "backend.application.sales.integrations.wiring", "wire_sales"),
+        # SDLC-ORD-001: el efectivo que cobra un repartidor llega al mayor.
+        ("orders_delivery", "backend.application.orders_delivery.integrations.wiring",
+         "wire_orders_delivery"),
         # CRM-43 (2026-10-08): la compra llega al expediente del cliente (número de
         # compras, última compra, etapa). Se cableaba en core/events, ya borrado.
         ("customers", "backend.application.customers.integrations.sales_wiring",
@@ -160,6 +163,11 @@ def wire_cross_context_events(connection) -> dict:
         loyalty_sales_tick(connection, bus)
     except Exception as exc:
         summary.record_failure("loyalty_sales", exc)
+    # Pedidos (SDLC-ORD-001): cobros y liquidaciones pendientes de repartidor.
+    try:
+        orders_delivery_tick(connection, bus)
+    except Exception as exc:
+        summary.record_failure("orders_delivery_outbox", exc)
     # Finanzas (FIN-ERP): merma valuada pendiente, vencimientos y finance_outbox.
     try:
         from backend.application.finance.wiring import finance_periodic_tick
