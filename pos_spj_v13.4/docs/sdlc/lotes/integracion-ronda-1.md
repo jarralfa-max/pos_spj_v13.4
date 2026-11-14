@@ -104,4 +104,15 @@ Una primera corrida de WhatsApp dio 3 fallas más («configuration database does
 
 ## `tests/architecture` completo
 
-Pendiente: se lanza en segundo plano después de este commit. Línea base en `docs/sdlc/baseline/2026-10-28.md`: 22 failed, 879 passed, 1 skipped, 2 xfailed.
+Se corrió sobre `947f197c`, con el código igual al de la punta: **22 failed, 933 passed, 1 skipped, 2 xfailed** en 24 min.
+
+Comparación por nombre con la última corrida de los lotes, que tiene las mismas 22 fallas de la línea base `docs/sdlc/baseline/2026-10-28.md`:
+
+- 21 fallas son las mismas.
+- `test_whatsapp_runtime_imports.py::test_channel_uses_qualified_imports` ya pasa, porque SDLC-WA-005 la arregló en el lote 9.
+- **Una falla es nueva:** `test_active_shift_single_source.py::test_active_shift_has_a_single_source`. La guardia es de SDLC-ARQ-SHIFT-001 (lote 1) y señala `backend/infrastructure/db/repositories/settings/installation_branch_repository.py:101`. Ahí `open_cash_shifts_outside` (SDLC-ARQ-TERM-002, lote 8) consulta `cash_shifts` con estados literales (`status NOT IN ('CLOSED','FORCE_CLOSED','CANCELLED')`) en lugar de usar la fuente única del turno activo. Los dos archivos son idénticos a los de sus lotes (`git diff fix/lote-8 HEAD` y `git diff fix/lote-1 HEAD` vacíos). Es una interacción entre lotes, no una pérdida: pregunta 4.
+- Las 2 pruebas nuevas de `test_standalone_migrations_registered.py` pasan.
+
+## Pregunta 4 (de `tests/architecture`)
+
+4. **El re-anclaje cuenta los turnos abiertos sin la fuente única de SHIFT-001.** La guarda «turno de caja sin cerrar» de TERM-002 consulta `cash_shifts` con estados literales, y la guardia de SHIFT-001 lo prohíbe. Hay que decidir si `open_cash_shifts_outside` pasa a `ActiveShiftResolver` o a los estados que este expone, o si la guardia la exceptúa porque cuenta turnos de toda la estación y no resuelve el turno de un operador. No se cambió nada.
