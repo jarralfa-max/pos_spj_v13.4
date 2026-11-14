@@ -20,7 +20,8 @@ from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceU
 
 logger = logging.getLogger("spj.finance.outbox_dispatcher")
 
-REQUIRES_CONSUMER: frozenset[str] = frozenset()
+#: SDLC-CASH-002: sin consumidor, el depósito confirmado nunca llegaría al banco.
+REQUIRES_CONSUMER: frozenset[str] = frozenset({"TREASURY_CASH_DEPOSIT_CONFIRMED"})
 MAX_ATTEMPTS = 10
 
 

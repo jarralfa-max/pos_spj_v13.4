@@ -367,6 +367,13 @@ class FinanceCommandService:
             created_by=actor)
 
     @_dispatches
+    def confirm_cash_deposit(self, *, deposit_id: str, ticket_reference: str) -> str:
+        actor = self._actor(P.TREASURY_MOVEMENT)
+        return self._uc["confirm_cash_deposit"].execute(
+            self._conn(), deposit_id=deposit_id, ticket_reference=ticket_reference,
+            confirmed_by=actor, operation_id=new_uuid())
+
+    @_dispatches
     def treasury_movement(self, *, treasury_account_id: str, kind: TreasuryMovementKind,
                           amount: str, counterpart_account_id: str | None = None,
                           reference: str = "", description: str = "") -> str:
@@ -592,6 +599,12 @@ class FinanceCommandService:
             or self._today(), operation_id=new_uuid(), created_by=actor, **asset)
 
     @_dispatches
+    def complete_purchased_asset(self, asset_id: str, **data):
+        actor = self._actor(P.ASSET_MANAGE)
+        return self._uc["complete_purchased_asset"].execute(
+            self._conn(), asset_id=asset_id, operation_id=new_uuid(), completed_by=actor, **data)
+
+    @_dispatches
     def run_depreciation(self, year: int, month: int) -> list[str]:
         actor = self._actor(P.ASSET_DEPRECIATE)
         return self._uc["run_depreciation"].execute(
@@ -610,13 +623,15 @@ class FinanceCommandService:
     def suspend_asset(self, asset_id: str, *, reason: str) -> None:
         actor = self._actor(P.ASSET_MANAGE)
         self._uc["asset_status"].suspend(self._conn(), asset_id=asset_id, reason=reason,
-                                         operation_id=new_uuid(), actor=actor)
+                                         operation_id=new_uuid(), actor=actor,
+                                         on_date=self._today())
 
     @_dispatches
     def resume_asset(self, asset_id: str) -> None:
         actor = self._actor(P.ASSET_MANAGE)
         self._uc["asset_status"].resume(self._conn(), asset_id=asset_id,
-                                        operation_id=new_uuid(), actor=actor)
+                                        operation_id=new_uuid(), actor=actor,
+                                        on_date=self._today())
 
     # ── configuración ────────────────────────────────────────────────────
     @_dispatches

@@ -12,13 +12,9 @@ persisted, transactional context; that is LOY-4..6's job).
 ``TRANSACTION_REVERSED`` — are DELIBERATELY the exact same string values as
 ``backend.shared.events.event_names.EventName.LOYALTY_POINTS_ISSUED`` /
 ``LOYALTY_POINTS_EXPIRED`` / ``LOYALTY_REWARD_GRANTED`` /
-``LOYALTY_TRANSACTION_REVERSED`` — the canonical names Finance's 12 already-
-built, already-tested event handlers
-(``backend/application/event_handlers/finance/loyalty_*_handler.py``)
-listen for (LOY-0 audit finding: nothing in the repo publishes them today).
-Reusing the exact literal here means a future phase that wires real
-publishing only has to route the string through, never reconcile two
-different vocabularies for the same concept. The legacy bus's own
+``LOYALTY_TRANSACTION_REVERSED``. Finance does not consume them: its entries
+come from ``loyalty/integrations/finance_posting.py``, which reads the ledger
+(SDLC-FIN-001 retired the per-event handlers nobody wired). The legacy bus's own
 ``LOYALTY_POINTS_EARNED``/``LOYALTY_POINTS_REDEEMED`` (different names, same
 ``core/events/event_bus.py`` still driving `core/services/loyalty_service.py`
 in production) are a THIRD, separate vocabulary — deliberately not reused

@@ -31,19 +31,23 @@ class PayrollPaidHandler(FinanceEventHandler):
         branch_id = payload.get("branch_id")
 
         gross_salaries = self.money(payload, "gross_salaries", currency)
+        # SDLC-HR-001: faltas y retardos son sueldo no devengado. Bajan el gasto;
+        # antes caían en la resta de abajo y se acreditaban como pasivo por enterar.
+        unearned = self.money(payload, "unearned_deductions", currency, required=False)
+        salary_expense = gross_salaries.subtract(unearned)
         social_security = self.money(payload, "social_security", currency, required=False)
         net_paid = self.money(payload, "net_paid", currency)
         loan_deductions = self.money(payload, "loan_deductions", currency, required=False)
-        withholdings = gross_salaries.add(social_security).subtract(net_paid).subtract(
+        withholdings = salary_expense.add(social_security).subtract(net_paid).subtract(
             loan_deductions)
-        if withholdings.is_negative():
+        if salary_expense.is_negative() or withholdings.is_negative():
             raise FinanceDomainError(
                 "PAYROLL_PAID: el neto pagado excede sueldos + cargas sociales"
             )
 
         profile = self.resolve_profile(uow, "PAYROLL", entry_date)
         lines = [
-            LineSpec(profile.account_for("salary_expense_account_id"), debit=gross_salaries,
+            LineSpec(profile.account_for("salary_expense_account_id"), debit=salary_expense,
                      description=f"Sueldos nómina {payroll_run_id[:8]}"),
         ]
         if social_security.is_positive():

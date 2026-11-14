@@ -25,12 +25,15 @@ Instalado como servicio local (opcional), las credenciales `.env` y las
 conversaciones viven en `<datos>/whatsapp/`, fuera de los archivos que el
 instalador reemplaza o desinstala.
 """
+import logging
 import os
 import sqlite3
 from pathlib import Path
 
 from dotenv import load_dotenv
 from backend.shared.app_paths import AppPaths
+
+logger = logging.getLogger("wa.settings")
 
 _APP_PATHS = AppPaths.from_environment()
 if _APP_PATHS.is_installed:
@@ -158,12 +161,16 @@ OLLAMA_TIMEOUT = int(Decimal(os.getenv("OLLAMA_TIMEOUT", "15") or "15"))  # Segu
 
 
 # ── Environment helpers (FASE 2) ─────────────────────────────────────────────
+def _raw_app_env() -> str:
+    return (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "development").strip().lower()
+
+
 def get_app_env() -> str:
     """
     Entorno de ejecución normalizado.
     Prioridad: APP_ENV -> ENVIRONMENT -> development.
     """
-    raw = (os.getenv("APP_ENV") or os.getenv("ENVIRONMENT") or "development").strip().lower()
+    raw = _raw_app_env()
     if raw in {"prod", "production"}:
         return "production"
     if raw in {"test", "testing"}:
@@ -177,6 +184,79 @@ def is_production() -> bool:
 
 def is_test() -> bool:
     return get_app_env() == "test"
+
+
+# ── Firma de webhooks (SDLC-WA-002) ──────────────────────────────────────────
+# Las estaciones instaladas nunca fijan APP_ENV y corren en `development`, así
+# que el entorno no puede decidir si un webhook se acepta sin firma: eso exige
+# un opt-in explícito, ignorado en producción y en estación instalada.
+_UNSIGNED_OPT_IN_VAR = "WA_ALLOW_UNSIGNED_WEBHOOKS"
+_UNSIGNED_OPT_IN_VALUES = frozenset({"1", "true", "yes"})
+_KNOWN_APP_ENVS = frozenset({"production", "prod", "test", "testing", "development", "dev"})
+_DEFAULT_MP_SIGNATURE_MAX_AGE_SECONDS = 300
+
+
+def _unsigned_opt_in_requested() -> bool:
+    return os.getenv(_UNSIGNED_OPT_IN_VAR, "").strip().lower() in _UNSIGNED_OPT_IN_VALUES
+
+
+def _unsigned_opt_in_blocker() -> str | None:
+    """Motivo por el que esta máquina no admite el opt-in; None si lo admite."""
+    if is_production():
+        return "producción"
+    if _APP_PATHS.is_installed:
+        return "estación instalada"
+    return None
+
+
+def allow_unsigned_webhooks() -> bool:
+    """True sólo con opt-in explícito en una máquina de desarrollo."""
+    return _unsigned_opt_in_requested() and _unsigned_opt_in_blocker() is None
+
+
+def unsigned_webhook_rejection(secret_name: str) -> str:
+    """Texto único del `error` de un 503 por falta de secreto. Sólo nombres."""
+    text = (
+        f"{secret_name} no configurado; webhook rechazado sin procesar. "
+        "Configúralo desde el módulo WhatsApp o en el archivo de entorno del servicio."
+    )
+    blocker = _unsigned_opt_in_blocker()
+    if _unsigned_opt_in_requested() and blocker:
+        return f"{text} {_UNSIGNED_OPT_IN_VAR} se ignoró por {blocker}."
+    return (
+        f"{text} Sólo en una máquina de desarrollo se puede aceptar sin firma "
+        f"con {_UNSIGNED_OPT_IN_VAR}=1."
+    )
+
+
+def describe_webhook_security() -> dict:
+    """Estado de la firma de webhooks para el arranque; nunca lleva secretos."""
+    raw_env = _raw_app_env()
+    return {
+        "env": get_app_env(),
+        "installed": _APP_PATHS.is_installed,
+        "unsigned_allowed": allow_unsigned_webhooks(),
+        "unrecognized_env_value": raw_env if raw_env and raw_env not in _KNOWN_APP_ENVS else None,
+        "opt_in_ignored_reason": _unsigned_opt_in_blocker() if _unsigned_opt_in_requested() else None,
+    }
+
+
+def get_mp_signature_max_age_seconds() -> int:
+    """Ventana anti-replay de MercadoPago, leída en cada llamada."""
+    raw = os.getenv("MP_SIGNATURE_MAX_AGE_SECONDS", "").strip()
+    if not raw:
+        return _DEFAULT_MP_SIGNATURE_MAX_AGE_SECONDS
+    try:
+        seconds = int(raw)
+    except ValueError:
+        seconds = 0
+    if seconds <= 0:
+        logger.warning(
+            "MP_SIGNATURE_MAX_AGE_SECONDS inválido (%r); se usa %d.",
+            raw, _DEFAULT_MP_SIGNATURE_MAX_AGE_SECONDS,
+        )
+        return _DEFAULT_MP_SIGNATURE_MAX_AGE_SECONDS
+    return seconds
 
 
 def _read_erp_config(key: str, default: str = "") -> str:

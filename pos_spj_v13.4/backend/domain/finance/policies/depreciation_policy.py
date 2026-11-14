@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from decimal import ROUND_HALF_UP, Decimal
+
 from backend.domain.finance.entities.fixed_asset import FixedAsset
 from backend.domain.finance.enums import DepreciationMethod, FixedAssetStatus
 from backend.domain.finance.exceptions import FinanceDomainError
@@ -10,7 +12,8 @@ from backend.domain.finance.value_objects.money import Money
 
 class DepreciationPolicy:
     def monthly_amount(self, asset: FixedAsset, period_code: str) -> Money:
-        """Amount to depreciate for one period. Never exceeds the remaining base."""
+        """Importe a depreciar en ``period_code``: la cuota del mes más los meses
+        omitidos desde la última corrida. Nunca excede la base restante."""
         if asset.status is not FixedAssetStatus.ACTIVE:
             raise FinanceDomainError(
                 f"Asset {asset.name!r} is {asset.status.value}; only ACTIVE assets depreciate"
@@ -26,11 +29,22 @@ class DepreciationPolicy:
         # Auditoría F19: la cuota del ÚLTIMO mes de vida útil liquida el
         # remanente (33.33 + 33.33 + 33.34 = 100 en tres meses). Antes el
         # centavo de redondeo generaba un cuarto mes que la vida útil no tiene.
-        # Meses omitidos: no se recuperan a mitad de vida; el último mes (o
-        # cualquiera posterior) liquida lo que falte.
-        if self.life_month_index(asset, period_code) >= asset.useful_life_months:
+        # Los meses suspendidos no cuentan: alargan la vida en calendario.
+        in_service = self.life_month_index(asset, period_code) - asset.suspended_months
+        if in_service >= asset.useful_life_months:
             return remaining
-        return monthly if monthly <= remaining else remaining
+        # SDLC-FIN-003 (decisión del responsable, 2026-11-05): los meses omitidos
+        # se recuperan en el siguiente periodo corrido.
+        due = monthly.multiply(max(in_service - self._months_covered(asset, monthly), 1))
+        return due if due <= remaining else remaining
+
+    @staticmethod
+    def _months_covered(asset: FixedAsset, monthly: Money) -> int:
+        """Cuotas que ya cubre la depreciación acumulada."""
+        if not monthly.is_positive():
+            return 0
+        covered = asset.accumulated_depreciation.amount / monthly.amount
+        return int(covered.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
     @staticmethod
     def life_month_index(asset: FixedAsset, period_code: str) -> int:

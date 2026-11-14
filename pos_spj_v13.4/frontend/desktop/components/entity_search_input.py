@@ -12,6 +12,7 @@ import logging
 from typing import Callable, Iterable
 
 from PyQt5.QtCore import QEvent, Qt, pyqtSignal
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
 from frontend.desktop.components.search_input import SearchInput
@@ -20,6 +21,7 @@ from frontend.desktop.components.search_selector import (
     SEARCH_FAILED_MESSAGE,
     SearchOption,
 )
+from frontend.desktop.themes.theme_manager import ThemeManager
 from frontend.desktop.themes.tokens import Spacing
 
 logger = logging.getLogger("spj.entity_search_input")
@@ -208,7 +210,7 @@ class EntitySearchInput(QWidget):
         from a real, pickable option without changing the selection contract."""
         item = QListWidgetItem(text)
         item.setFlags(Qt.NoItemFlags)
-        item.setForeground(Qt.gray)
+        item.setForeground(QColor(ThemeManager.instance().colors().TEXT_MUTED))
         self._results.addItem(item)
 
     def _choose(self, item: QListWidgetItem) -> None:

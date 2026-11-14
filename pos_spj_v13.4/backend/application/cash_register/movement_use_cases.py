@@ -86,7 +86,7 @@ class RegisterSafeDropUseCase:
             ensure_owner_or_intervention(
                 self._auth, shift_cashier_user_id=shift["cashier_user_id"],
                 actor_user_id=actor_user_id, branch_id=branch_id,
-                intervention_permission=CashPermissions.SHIFT_FORCE_CLOSE, require_reason=False,
+                intervention_permission=CashPermissions.MOVEMENT_INTERVENE, require_reason=False,
                 action="mover efectivo en")
             CashShiftLifecyclePolicy.ensure_operable(shift["status"])
             reason = uow.movement_reasons.get_active(
@@ -280,6 +280,50 @@ class ReceiveTreasuryHandoverUseCase:
                     received_denominations=received, expected_amount=handover["amount"],
                     received_amount=str(total), treasury_transfer_required=matches)
         return HandoverResult(handover_id, status)
+
+
+@dataclass(frozen=True, slots=True)
+class DepositResult:
+    entity_id: str
+    status: str
+    idempotent: bool = False
+
+
+class PrepareCashDepositUseCase:
+    """Paquete de depósito de una entrega que Tesorería ya recibió
+    (SDLC-CASH-002). Una entrega, un depósito. No asienta: Caja sólo prepara;
+    la confirmación con ticket y el asiento al banco son de Tesorería
+    (`ConfirmCashDepositUseCase`)."""
+
+    def __init__(self, authorization: CashAuthorizationPolicy) -> None:
+        self._auth = authorization
+
+    def execute(self, connection, *, handover_id: str, branch_id: str,
+                actor_user_id: str, operation_id: str) -> DepositResult:
+        self._auth.require(user_id=actor_user_id,
+                           permission_code=CashPermissions.DEPOSIT_PREPARE,
+                           branch_id=branch_id)
+        with CashRegisterUnitOfWork(connection) as uow:
+            prior = uow.deposit_preparations.find_by_handover(handover_id)
+            if prior:
+                return DepositResult(prior["id"], prior["status"], True)
+            handover = uow.handovers.get(handover_id)
+            if not handover or handover["branch_id"] != branch_id \
+                    or handover["status"] != "RECEIVED":
+                raise CashInvalidStateError(
+                    "Sólo se prepara el depósito de una entrega recibida por Tesorería")
+            deposit_id = new_uuid()
+            uow.deposit_preparations.add(
+                deposit_id=deposit_id, handover_id=handover_id, branch_id=branch_id,
+                amount=handover["amount"], prepared_by=actor_user_id,
+                operation_id=operation_id,
+                denominations_json=json.dumps(
+                    _line_map(uow.handovers.list_denominations(handover_id)), sort_keys=True),
+                prepared_at=_now(), status="RECEIVED_BY_TREASURY")
+            _record(uow, CashEvents.DEPOSIT_PREPARED, operation_id=operation_id,
+                    entity_id=deposit_id, branch_id=branch_id, actor_user_id=actor_user_id,
+                    deposit_id=deposit_id, handover_id=handover_id, amount=handover["amount"])
+        return DepositResult(deposit_id, "RECEIVED_BY_TREASURY")
 
 
 class DisputeTreasuryHandoverUseCase:

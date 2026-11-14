@@ -86,3 +86,13 @@ def test_configuration_changes_live_theme_and_restores_it_on_restart(manager, qt
     assert restored.theme == "dark"
     presenter.create_theme.assert_not_called()
     presenter.update_theme.assert_not_called()
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_painted_frames_read_the_theme_mid_role(manager, qt_font_resources, theme):
+    """SDLC-UI-004: QPalette.Mid (card preview frame) must follow the theme."""
+    from frontend.desktop.themes.semantic_colors import SemanticColors
+
+    manager.apply(qt_font_resources, theme)
+    mid = qt_font_resources.palette().color(QPalette.Mid).name().upper()
+    assert mid == SemanticColors.for_theme(theme).BORDER_STRONG.upper()

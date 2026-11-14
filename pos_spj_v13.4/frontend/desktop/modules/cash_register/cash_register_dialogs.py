@@ -289,6 +289,69 @@ class SuspendCashShiftDialog(FormDialog):
         return CashTextReasonResult(reason=self.reason.value())
 
 
+@dataclass(frozen=True, slots=True)
+class CashShiftHandoverResult:
+    new_cashier_user_id: str
+    reason: str
+
+
+class CashShiftHandoverDialog(FormDialog):
+    """Entrega de un turno vivo a otro cajero (SDLC-ARQ-SHIFT-003)."""
+
+    def __init__(self, parent=None, *, shift, users) -> None:
+        super().__init__(parent, title="Entregar turno", width=DialogMetrics.WIDTH_MD)
+        context = QLabel(
+            "\n".join((
+                f"Caja: {getattr(shift, 'register_name', '') or 'Caja'}",
+                f"Entrega: {getattr(shift, 'cashier_name', '') or 'Cajero'}",
+                f"Estado: {status_label(getattr(shift, 'status', ''))}",
+            )),
+            self,
+        )
+        context.setWordWrap(True)
+        self.user = StandardComboBox(self, accessible_name="Recibe")
+        for user in users:
+            self.user.addItem(user.name, user.id)
+        self.reason = StandardTextArea(
+            self, placeholder="Indica por que se entrega el turno", max_length=700)
+        self.form.addRow("Contexto", context)
+        self.form.addRow("Recibe", self.user)
+        self.form.addRow("Motivo", self.reason)
+        self.add_button_box(ok_text="Entregar turno", cancel_text="Cancelar")
+
+    def accept(self) -> None:
+        if not self.reason.value():
+            self.reason.setFocus()
+            return
+        super().accept()
+
+    def result_value(self) -> CashShiftHandoverResult:
+        return CashShiftHandoverResult(new_cashier_user_id=str(self.user.currentData() or ""),
+                                       reason=self.reason.value())
+
+
+class ReviewZCutDialog(FormDialog):
+    """Revisión opcional de un Corte Z ya cerrado (SDLC-ARQ-SHIFT-003)."""
+
+    def __init__(self, parent=None, *, document) -> None:
+        super().__init__(parent, title="Revisar Corte Z", width=DialogMetrics.WIDTH_MD)
+        context = QLabel(str(getattr(document, "document_number", "") or "Corte Z"), self)
+        self.reason = StandardTextArea(
+            self, placeholder="Anota que se reviso de este corte", max_length=700)
+        self.form.addRow("Documento", context)
+        self.form.addRow("Revision", self.reason)
+        self.add_button_box(ok_text="Marcar revisado", cancel_text="Cancelar")
+
+    def accept(self) -> None:
+        if not self.reason.value():
+            self.reason.setFocus()
+            return
+        super().accept()
+
+    def result_value(self) -> CashTextReasonResult:
+        return CashTextReasonResult(reason=self.reason.value())
+
+
 class ReprintCashDocumentDialog(FormDialog):
     """Semantic dialog for audited cash document reprints."""
 

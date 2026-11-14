@@ -40,7 +40,7 @@ def _db():
         );
         CREATE TABLE ventas (id INTEGER PRIMARY KEY, total REAL);
         CREATE TABLE wa_event_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL PRIMARY KEY,
             event_type TEXT,
             data_json TEXT,
             sucursal_id INTEGER,
@@ -74,8 +74,9 @@ def test_accept_adjustment_applies_new_qty_and_total_and_event():
     assert int(order["adjustment_pending"]) == 0
     assert order["adjustment_blocked_state"] == ""
 
-    event = db.execute("SELECT event_type FROM wa_event_log ORDER BY id DESC LIMIT 1").fetchone()
-    assert event["event_type"] == "DELIVERY_ADJUSTMENT_ACCEPTED"
+    # SDLC-WA-005: id UUIDv7 en TEXT, como la tabla real; no se ordena por id.
+    events = {r["event_type"] for r in db.execute("SELECT event_type FROM wa_event_log")}
+    assert "DELIVERY_ADJUSTMENT_ACCEPTED" in events
 
 
 def test_reject_adjustment_keeps_original_total_and_event():
@@ -95,5 +96,6 @@ def test_reject_adjustment_keeps_original_total_and_event():
     assert float(item["subtotal"]) == 200.0
     assert item["adjustment_status"] == "rejected"
 
-    event = db.execute("SELECT event_type FROM wa_event_log ORDER BY id DESC LIMIT 1").fetchone()
-    assert event["event_type"] == "DELIVERY_ADJUSTMENT_REJECTED"
+    # SDLC-WA-005: id UUIDv7 en TEXT, como la tabla real; no se ordena por id.
+    events = {r["event_type"] for r in db.execute("SELECT event_type FROM wa_event_log")}
+    assert "DELIVERY_ADJUSTMENT_REJECTED" in events

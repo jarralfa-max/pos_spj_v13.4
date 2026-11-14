@@ -60,6 +60,15 @@ class CapitalizeAssetUseCase:
             duplicate = uow.fixed_assets.find_by_operation_id(operation_id)
             if duplicate is not None:
                 return duplicate
+            document_number = (document_number or "").strip()
+            if document_number:
+                same_document = uow.fixed_assets.find_by_document_number(document_number,
+                                                                         supplier_id)
+                if same_document is not None:
+                    raise FinanceDomainError(
+                        f"El documento {document_number} ya está capitalizado "
+                        f"({same_document.name}). Capitalizarlo otra vez duplicaría la "
+                        "cuenta por pagar o el pago; complete ese activo.")
             profile = require_profile(uow, "FIXED_ASSET", capitalization_date,
                                       branch_id=branch_id)
             category = None
@@ -76,6 +85,7 @@ class CapitalizeAssetUseCase:
                 asset_category_id=asset_category_id, acquisition_date=acquisition_date,
                 supplier_id=supplier_id, project_id=project_id, branch_id=branch_id,
                 cost_center_id=cost_center_id)
+            asset.source_document_number = document_number or None
             asset.capitalize(
                 capitalization_date,
                 category.asset_account_id if category else profile.account_for("asset_account_id"),

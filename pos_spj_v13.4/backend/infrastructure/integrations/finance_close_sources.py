@@ -12,9 +12,6 @@ from datetime import date, timedelta
 
 from backend.application.finance.ports import OperationalCloseStatus
 
-_OPEN_SHIFT_STATUSES = ("OPENING", "OPEN", "SUSPENDED", "PENDING_COUNT", "COUNTING",
-                        "COUNTED", "PENDING_REVIEW", "CLOSING")
-
 
 def _sales_events() -> frozenset[str]:
     from backend.application.sales.integrations.wiring import REQUIRES_CONSUMER
@@ -62,13 +59,15 @@ class SqliteOperationalCloseSources:
 
     def status(self, *, period_start: date, period_end: date) -> OperationalCloseStatus:
         until = (period_end + timedelta(days=1)).isoformat()
-        shifts = self._conn.execute(
-            "SELECT COUNT(*) FROM cash_shifts WHERE status IN ({})"
-            " AND COALESCE(business_date, substr(opened_at, 1, 10)) <= ?".format(
-                ",".join("?" for _ in _OPEN_SHIFT_STATUSES)),
-            (*_OPEN_SHIFT_STATUSES, period_end.isoformat())).fetchone()
+        # SDLC-ARQ-SHIFT-001: los turnos abiertos los cuenta la fuente única
+        # de Caja (antes una tupla copiada de los estados activos).
+        from backend.application.cash_register.active_shift_resolver import (
+            ActiveShiftResolver,
+        )
+        open_shifts = ActiveShiftResolver(self._conn).count_active(
+            business_date_until=period_end.isoformat())
         return OperationalCloseStatus(
-            open_cash_shifts=int(shifts[0] or 0),
+            open_cash_shifts=open_shifts,
             pending_sales_events=self._pending("sales_outbox", _sales_events(), until),
             pending_purchase_events=self._pending("procurement_outbox", _PROCUREMENT_EVENTS,
                                                   until),

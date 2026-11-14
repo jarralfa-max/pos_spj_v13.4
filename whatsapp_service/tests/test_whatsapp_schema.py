@@ -49,7 +49,7 @@ class TestSchemaCreation:
         # whatsapp_quote_drafts + whatsapp_quote_draft_lines -> 16. WA-13
         # (migración 246) agregó whatsapp_delivery_requests -> 17. WA-16
         # (migración 247) agregó whatsapp_handoff_requests -> 18.
-        assert len(WHATSAPP_TABLES) == 18
+        assert len(WHATSAPP_TABLES) == 19
 
     def test_create_is_idempotent(self, conn):
         create_whatsapp_schema(conn)  # segunda vez, no debe fallar
