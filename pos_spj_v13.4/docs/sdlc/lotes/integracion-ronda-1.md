@@ -63,6 +63,41 @@ Se corrió `migrations.engine.up` sobre bases temporales en el scratchpad, con `
    Lo cambiado está en el commit `7b5c6fac`.
 2. **Pedidos con transferencia sin referencia.** `tests/integration/test_orders_delivery_driver_cash_finance.py::TestFallaDelEfectoDeCaja::test_pago_remoto_sin_efectivo_no_exige_turno` (lote 6) falla porque SDLC-PAY-002 (lote 4, `65b8cc86`) exige referencia para `TRANSFER`. No es una pérdida del merge: es una interacción entre lotes. `RecordOrderPaymentUseCase` ya acepta `reference=`. Hay que decidir si la prueba debe dar una referencia o si Pedidos debe exigirla en su pantalla. No se cambió nada.
 
+3. **Reverso de pedidos sin el turno de quien reembolsa.** Cuatro pruebas del lote 6 fallan por la regla de SDLC-ARQ-SHIFT-001 (lote 1, `ActiveShiftResolver`): el efectivo sale del turno operable de quien reembolsa, y estas pruebas abren el turno a nombre de un cajero y reversan con otro `actor_user_id`. Son estas:
+   - `test_orders_delivery_inventory_commit.py::TestReverso::test_devuelve_exactamente_lo_que_salio`
+   - `test_orders_delivery_inventory_commit.py::TestReverso::test_vuelve_al_lote_del_que_salio`
+   - `test_orders_delivery_sales_finance_use_cases.py::TestReverseCustomerOrderUseCase::test_reverses_order_and_sale_together`
+   - `test_orders_delivery_sales_finance_use_cases.py::TestReverseCustomerOrderUseCase::test_retry_with_same_operation_id_does_not_double_refund`
+
+   `return_use_cases.py` combina bien los dos lotes: los 5 detectores no encuentran pérdida. Es una interacción entre lotes, no una pérdida del merge. Hay que decidir si el reverso de un pedido exige el turno de quien lo hace, como en el POS, o el del cajero que cobró. No se cambió nada.
+
 ## Resultados por área
 
-Pendiente: se completa al terminar la corrida.
+Corrida sobre `1886ea2a` (punta de esta rama, con las 9 restauraciones) desde `pos_spj_v13.4/`, con `QT_QPA_PLATFORM=offscreen` y un tope de 600 s por corrida. La máquina tiene 2 CPU, así que los tiempos son mayores que los de los informes de cada lote.
+
+| Lote / área | Rutas | Resultado | Frente al informe del lote |
+|---|---|---|---|
+| 1 Caja | `tests/unit/cash_register`, `tests/integration/cash_register` | ✅ 358 passed | Sin fallas |
+| 2 Finanzas/RR. HH. | `tests/integration/finance`, `tests/unit/finance`, `tests/integration/hr`, `tests/unit/hr`, `test_hr_module_migration.py` | ✅ 560 passed | Sin fallas. Antes de reparar había 7 (HR-002, FIN-002, 380) |
+| 3 Instalador | `tests/integration/bootstrap`, `software_distribution`, `tests/unit/bootstrap`, `software_distribution`, `security`, `test_app_paths_resources.py`, `test_phase2_infrastructure.py` | ✅ 679 passed | El lote dio 650 passed; las 29 de más son de lotes posteriores |
+| 4 Pagos | `tests/integration/sales`, `tests/finance`, `tests/migrations`, `procurement/test_immediate_payment_bridge.py`, `e2e/test_cash_sale_refund_flow.py` | ✅ 174 passed | Sin fallas |
+| 5 BI | `tests/integration/business_intelligence` | 58 passed, 8 failed | **Igual** al lote (58/8 preexistentes, `test_every_bi_page_opens.py`) |
+| 5 Configuración | `tests/unit/configuracion`, `test_empresa_page_installation_branch.py` | ✅ 201 passed | Incluye las 2 pruebas adaptadas y la restaurada |
+| 5 Shell | `shell/test_installation_branch_session_follow.py`, `shell/test_desktop_shell_window_composition.py` | ✅ 11 passed | Antes de reparar había 5 fallas en la primera |
+| 6 Pedidos | `tests/integration/orders_delivery`, `test_orders_delivery_{outbox_dispatcher,driver_cash_finance,settlement_use_cases}.py`, `logistics/test_driver_pwa_api.py`, `test_erp_chain_wiring_ratchet.py`, `test_orders_single_pipeline_ratchet.py` | 296 passed, 1 failed | **Nueva** frente al lote: pregunta 2 (PAY-002 × ORD) |
+| 6 Pedidos (resto) | Resto de `tests/{unit,integration}/test_orders_delivery_*.py` | 400 passed, 4 failed | **Nuevas** frente al lote: pregunta 3 (SHIFT-001 × ORD) |
+| 7 Seguridad | `tests/integration/security`, `test_transfers_bootstrap_migration.py`, `test_configuracion_use_cases_are_authorized.py` | ✅ 197 passed | Sin fallas |
+| 7 Transferencias | `tests/integration/transfers` | **Cortada a los 600 s**, sin resultado (en el lote tardó 15 min) | No verificado |
+| 8 Sync/terminales | `tests/unit/{central_pg,central_sync,offline}`, `tests/integration/{central_pg,central_sync,sync}`, `test_cash_offline_sync.py`, `test_terminal_identity.py`, `test_installation_branch_reanchor_use_case.py` | ✅ 181 passed, 5 skipped (PostgreSQL real) | Antes de reparar había 17 fallas en el re-anclaje |
+| 8 Configuración | `tests/integration/configuracion` completo | ✅ 378 passed | El lote dio 313 passed en `c9151d46` |
+| 9 WhatsApp | `whatsapp_service/tests` con `PYTHONPATH` al worktree y `ERP_DB_PATH` a una base temporal vacía | 843 passed, 13 failed | **Igual** al lote (13/843 preexistentes). `whatsapp_service/` en HEAD es idéntico a `fix/lote-9` |
+| 10 UI | `test_theme_tokens_dark_derivation.py`, `test_web_and_documents_use_juanis_tokens.py`, `tests/ui/test_terminal_density_scope.py`, `tests/unit/business_intelligence`, `test_customer_display_window.py` | ✅ 184 passed | Sin fallas |
+| Global | `python -m compileall -q .` | ✅ sin errores | — |
+| Global | Nombres no definidos y atributos sin asignar en los 440 `.py` tocados | ✅ 0 nombres nuevos; en atributos, sólo falsos positivos de clase base | — |
+| Global | `tests/test_migration_audit.py` | 3 failed | Preexistente: busca `scripts/` en la raíz del repo |
+
+Una primera corrida de WhatsApp dio 3 fallas más («configuration database does not exist») porque `ERP_DB_PATH` apuntaba a un archivo inexistente. Era un error del entorno; repetida con una base vacía, da el resultado de la tabla.
+
+## `tests/architecture` completo
+
+Pendiente: se lanza en segundo plano después de este commit. Línea base en `docs/sdlc/baseline/2026-10-28.md`: 22 failed, 879 passed, 1 skipped, 2 xfailed.
