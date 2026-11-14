@@ -84,6 +84,9 @@ class TransactionalUnitOfWork:
     _owns_transaction: bool = True
     #: Caja exige que una UoW no se confirme dos veces (CASH-3).
     _reject_double_commit: bool = False
+    #: Con qué abre la transacción la UoW dueña. `BEGIN IMMEDIATE` toma el
+    #: candado de escritura antes de leer: lo leído no cambia hasta el commit.
+    _begin_statement: str = "BEGIN"
 
     def __enter__(self):
         self._completed = False
@@ -100,7 +103,7 @@ class TransactionalUnitOfWork:
                 self._savepoint = f"uow_{next(_SAVEPOINT_SEQ)}"
                 self.connection.execute(f"SAVEPOINT {self._savepoint}")
             elif getattr(raw, "in_transaction", True) is False:
-                self.connection.execute("BEGIN")
+                self.connection.execute(self._begin_statement)
                 self._mode = "owner"
             else:
                 self._mode = "inherited"   # transacción abierta fuera de una UoW

@@ -30,6 +30,7 @@ DDL = (
         status TEXT NOT NULL CHECK(status IN ('OPENING','OPEN','SUSPENDED','PENDING_COUNT','COUNTING','COUNTED','PENDING_REVIEW','CLOSING','CLOSED','FORCE_CLOSED','CANCELLED')),
         opened_at TEXT NOT NULL, suspended_reason TEXT,
         z_cut_id TEXT REFERENCES cash_cuts(id) DEFERRABLE INITIALLY DEFERRED, closed_at TEXT,
+        version INTEGER NOT NULL DEFAULT 1 CHECK(version>=1),
         CHECK((status='CLOSED' AND z_cut_id IS NOT NULL AND closed_at IS NOT NULL) OR status<>'CLOSED'))""",
     f"""CREATE TABLE IF NOT EXISTS cash_shift_assignments (
         id TEXT NOT NULL PRIMARY KEY CHECK({U('id')}), shift_id TEXT NOT NULL REFERENCES cash_shifts(id) ON DELETE CASCADE,

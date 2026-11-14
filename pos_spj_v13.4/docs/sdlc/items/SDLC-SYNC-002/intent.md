@@ -37,4 +37,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 Pipeline híbrido Slices 3-6.
 
 ## Preguntas abiertas
-- ¿Quién resuelve un conflicto (central, estación, humano) y con qué pantalla? estacion, en configuraciones
+- ¿Quién resuelve un conflicto (central, estación, humano) y con qué pantalla? estacion, en configuraciones/offline

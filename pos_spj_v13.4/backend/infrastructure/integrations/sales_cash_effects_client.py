@@ -35,6 +35,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from backend.application.cash_register.active_shift_resolver import ActiveShiftResolver
 from backend.application.cash_register.ledger_use_cases import LedgerCommandResult
 from backend.application.cash_register.sales_integration import CashSalesIntegrationService, SaleCashResult
 from backend.domain.sales.enums import PaymentMethod
@@ -63,6 +64,15 @@ class SalesCashEffectsClient:
         todo corte, con un aviso en el log y nada más."""
         return self._service.require_open_shift(
             connection, branch_id=branch_id, cashier_user_id=cashier_user_id)
+
+    def open_shift_problem(self, connection, *, branch_id: str, cashier_user_id: str,
+                           purpose: str = "sale") -> str | None:
+        """Por qué el cajero no puede cobrar (`purpose="sale"`) o devolver
+        efectivo (`"refund"`), o None. Única redacción para la barra del POS,
+        el cobro y la devolución (SDLC-ARQ-SHIFT-001): distingue sin turno,
+        turno suspendido (reanudar) y turno en cierre (abrir otro)."""
+        return ActiveShiftResolver(connection).operability_problem(
+            branch_id=branch_id, cashier_user_id=cashier_user_id, purpose=purpose)
 
     def record_completed_sale(
         self, connection, *, sale_id: str, branch_id: str, cashier_user_id: str,
