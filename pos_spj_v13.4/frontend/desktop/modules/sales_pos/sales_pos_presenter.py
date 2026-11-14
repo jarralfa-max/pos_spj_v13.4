@@ -440,6 +440,15 @@ class SalesPosPresenter:
             return None
         return check(method=method, amount=amount, outstanding=outstanding)
 
+    def payment_reference_problem(self, *, method: str, reference: str | None,
+                                  taken: tuple = ()) -> str | None:
+        """Por qué se rechazaría esta referencia (obligatoria, con formato y sin
+        repetir), ANTES de iniciar el cobro."""
+        check = self.query_service("payment_reference_check")
+        if check is None:
+            return None
+        return check(method=method, reference=reference, taken=taken)
+
     def payment_methods(self, *, has_customer: bool) -> tuple[str, ...]:
         """Los métodos que este usuario puede cobrar (§31, §61). Crédito sólo
         con cliente asignado (§36: "No mostrar Crédito cuando el cliente no

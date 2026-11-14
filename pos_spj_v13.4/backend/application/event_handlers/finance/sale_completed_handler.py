@@ -19,6 +19,7 @@ from decimal import Decimal
 
 from backend.application.event_handlers.finance.handler_base import FinanceEventHandler
 from backend.application.services.finance.posting_engine import PostingEngine
+from backend.application.services.finance.treasury_resolution import processor_ledger_account_id
 from backend.domain.finance.entities.financial_document import FinancialDocument
 from backend.domain.finance.entities.receivable import Receivable
 from backend.domain.finance.enums import (
@@ -96,6 +97,8 @@ class SaleCompletedHandler(FinanceEventHandler):
             amount = Money.from_string(str(settlement["amount"]), currency)
             if amount.is_zero():
                 continue
+            # La operación del procesador en la línea: conciliación (SDLC-PAY-003).
+            ref = f" ref {settlement['reference']}" if settlement.get("reference") else ""
             if settlement_type is SettlementType.ON_CREDIT:
                 credit_amount = credit_amount.add(amount)
                 # El renglón por cobrar lleva al cliente (auxiliar de clientes y
@@ -108,10 +111,13 @@ class SaleCompletedHandler(FinanceEventHandler):
                                       debit=amount, description=f"Efectivo venta {folio}"))
             elif settlement_type is SettlementType.BANK_TRANSFER:
                 lines.append(LineSpec(profile.account_for("bank_account_id"),
-                                      debit=amount, description=f"Transferencia venta {folio}"))
+                                      debit=amount,
+                                      description=f"Transferencia venta {folio}{ref}"))
             elif settlement_type in (SettlementType.CARD, SettlementType.PAYMENT_PROCESSOR):
-                lines.append(LineSpec(profile.account_for("clearing_account_id"),
-                                      debit=amount, description=f"Tarjeta/procesador venta {folio}"))
+                # El espejo de la cuenta de procesadores, no la 1120 (SDLC-PAY-004).
+                lines.append(LineSpec(processor_ledger_account_id(uow, branch_id=branch_id),
+                                      debit=amount,
+                                      description=f"Tarjeta/procesador venta {folio}{ref}"))
             elif settlement_type in _INSTRUMENT_SETTLEMENTS:
                 line, obligation = self._instrument_settlement_line(
                     uow, settlement, settlement_type, amount, entry_date, folio, branch_id)

@@ -322,6 +322,23 @@ class CashLedgerRepository(_Repository):
 class CashSettlementRepository(_Repository):
     """Canonical settlement persistence owned by Caja, not Ventas."""
 
+    def list_allocations_for_shift(self, shift_id: str) -> list[dict]:
+        """Lo cobrado en el turno por medio (SDLC-PAY-005: lo lee el corte)."""
+        cursor = self.execute(
+            "SELECT a.payment_record_id, a.method_type, a.amount, a.external_reference"
+            " FROM payment_allocations a JOIN payment_records p ON p.id=a.payment_record_id"
+            " WHERE p.shift_id=? AND p.status='CONFIRMED' ORDER BY a.created_at, a.id",
+            (shift_id,))
+        names = [item[0] for item in cursor.description]
+        return [dict(zip(names, row)) for row in cursor.fetchall()]
+
+    def list_refund_executions_for_shift(self, shift_id: str) -> list[dict]:
+        cursor = self.execute(
+            "SELECT method, amount FROM cash_refund_executions WHERE shift_id=?"
+            " ORDER BY executed_at, id", (shift_id,))
+        names = [item[0] for item in cursor.description]
+        return [dict(zip(names, row)) for row in cursor.fetchall()]
+
     def find_payment_record_for_sale(self, sale_id: str):
         cursor = self.execute(
             "SELECT * FROM payment_records WHERE sale_id=? ORDER BY recorded_at,id LIMIT 1",

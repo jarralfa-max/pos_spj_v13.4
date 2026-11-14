@@ -357,7 +357,8 @@ MIGRATIONS = [
     _Migration("351",  "migrations.standalone.351_organizational_structure"),
     _Migration("352",  "migrations.standalone.352_org_outbox_and_branch_profiles"),
     _Migration("353",  "migrations.standalone.353_user_role_assignments"),
-    _Migration("388",  "migrations.standalone.388_driver_cash_account"),
+    _Migration("384",  "migrations.standalone.384_sale_payment_reference_unique"),
+    _Migration("385",  "migrations.standalone.385_single_processor_account"),
 ]
 
 def _ensure_tracking_table(conn):

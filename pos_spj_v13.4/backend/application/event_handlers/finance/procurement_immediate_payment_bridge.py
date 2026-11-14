@@ -44,9 +44,7 @@ from backend.application.event_handlers.finance.procurement_posting_policy impor
     purchase_issue_date,
 )
 from backend.application.services.finance.posting_engine import PostingEngine
-from backend.application.use_cases.finance.purchased_asset_use_case import (
-    register_purchased_asset_in,
-)
+from backend.application.services.finance.treasury_resolution import treasury_candidates
 from backend.domain.finance.enums import JournalType, PostingPurpose, TreasuryAccountType
 from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.money import Money
@@ -159,13 +157,7 @@ def resolve_purchase_treasury_account(connection, *, payment_source: str,
         return None, (f"la fuente de pago {payment_source or '(vacía)'} no corresponde a "
                       "un tipo de cuenta de tesorería sin ambigüedad")
     with FinanceUnitOfWork(connection) as uow:
-        candidates = [a for a in uow.treasury.list_active() if a.account_type == account_type]
-    if branch_id:
-        branch_scoped = [a for a in candidates if a.branch_id == branch_id]
-        if branch_scoped:
-            candidates = branch_scoped
-        else:
-            candidates = [a for a in candidates if a.branch_id is None]
+        candidates = treasury_candidates(uow.treasury.list_active(), account_type, branch_id)
     if len(candidates) != 1:
         return None, (f"hay {len(candidates)} cuentas de tesorería activas de tipo "
                       f"{account_type.value} para esta sucursal; se necesita exactamente una")

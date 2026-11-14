@@ -5446,87 +5446,23 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
 
-### SDLC-ORD-004 — un pedido descuenta inventario al salir de la sucursal (2026-11-06, sin migración)
+### 384 — referencia de pago única entre ventas (2026-11-06, SDLC-PAY-002)
 
-- Decisión del responsable: «al despachar». En mostrador no hay despacho: la mercancía sale al
-  entregarla, en `CompletePickupUseCase`.
-- `OrdersDeliveryInventoryClient.commit_order` registra un `SALE_ISSUE` con
-  `source_module="orders_delivery"` y cumple las reservas, en la transacción del despacho o la
-  entrega. `restore_order` devuelve lo que el libro dice que está fuera, a su lote y ubicación, en
-  `ReturnToBranchUseCase` y en `ReverseCustomerOrderUseCase`.
-- `ReverseSaleUseCase` acepta `inventory_return`: Pedidos devuelve dentro de la transacción del
-  reverso, y Ventas ya no repone lo que nunca sacó.
-- Pedidos reserva con `ReserveStockForCustomerOrderUseCase`, por línea, del almacén de venta y de los
-  saldos reales con lote y ubicación. La reserva anterior buscaba un saldo sin lote ni ubicación, que
-  ningún flujo llena y que ningún movimiento puede descontar. `inventory_reservation_id` guarda ahora
-  el id de la línea.
-- `ORDERS_DELIVERY_GRANT` gana `MOVEMENT_CREATE`.
-- Saneamiento: sin migración. El responsable midió cero reservas `CONFIRMED` de pedidos completados
-  (2026-11-05: «ni uno, estamos en desarrollo»). Si apareciera una, `restore_order` suelta la
-  retención al reversar.
-- Pruebas: `tests/integration/test_orders_delivery_inventory_commit.py`.
+- Índice único parcial `uq_sale_payments_processor_reference` sobre método + `UPPER(TRIM(reference))`,
+  sólo para `MERCADO_PAGO`, `CARD` y `TRANSFER` con referencia (decisión del responsable 2026-11-05).
+- Compatible con el DELETE+INSERT del repositorio y con las anulaciones: un pago anulado, o el de una
+  venta cancelada, sale de `sale_payments` y libera la referencia.
+- El DDL vive en `create_payment_reference_index` y no en `create_sales_schema`: ese corre desde la 198,
+  antes del respaldo legacy de la 255, que podría traer repetidas.
+- Copia de la base real: 0 pagos, ninguna referencia vacía o repetida. Si otra instalación trae
+  duplicados no se tocan: el índice protege desde el último, se avisa en el log y el caso de uso sigue
+  revisando todo el historial.
 
-### 388 — efectivo en poder de repartidores (SDLC-ORD-001, 2026-11-06)
+### 385 — una sola cuenta de procesadores (2026-11-06, SDLC-PAY-004)
 
-- Cuenta `1104 Efectivo en poder de repartidores` y perfil `DRIVER_CASH`, en `finance_bootstrap` y,
-  para una base ya sembrada, en la migración 388. El responsable confirmó que lleva cuenta propia.
-- Cobro y liquidación ya tienen consumidor en Finanzas (`driver_cash_handlers.py`):
-  - venta: Dr caja registradora / Cr ingresos;
-  - cobro: Dr 1104 / Cr caja registradora;
-  - liquidación: Dr caja general / Cr 1104, y la diferencia contra la caja registradora, a faltantes o
-    sobrantes.
-- Sólo el efectivo genera custodia. Un cobro `MIXED` no se asienta: no guarda qué parte fue efectivo.
-- `CheckoutSaleUseCase(cash_custody=...)`: en Pedidos, Caja corre en la transacción de la venta y su
-  falla detiene el cobro. Desaparece `cash_effects_error`. El efectivo de un cobro a domicilio
-  (`"DRIVER"`) no pasa por Caja; el efectivo en sucursal (`"DRAWER"`) exige turno; lo demás sólo pasa
-  por Caja si hay turno.
-- `record_payment` no vuelve a pagar una venta ya pagada: es el reintento de un cobro que falló al
-  completarse.
-- `CreateDriverSettlementUseCase` toma también los cobros `COLLECTED` y `PARTIALLY_COLLECTED`: nada
-  en producción los pasaba a `PENDING_SETTLEMENT`, así que ningún repartidor podía liquidarse.
-- `wire_orders_delivery`, despacho al arrancar y tarea periódica `orders_delivery.outbox`. El
-  despachador publica en modo estricto, confirma fila por fila y deja pendientes los eventos
-  contables sin consumidor.
-- Probada en memoria sobre el catálogo sembrado; no se corrió sobre una copia de la base real.
-- Pruebas: `tests/integration/test_orders_delivery_driver_cash_finance.py`.
-
-### SDLC-ORD-005 — "Nuevo pedido" es un solo flujo (2026-11-06, sin migración)
-
-- El alta rápida de "Todos los pedidos" se conserva (decisión del responsable) y ahora envuelve
-  `NewOrderPage`: búsqueda de producto, precio de Pricing y dirección, con `CaptureOrderUseCase`. Ya
-  no pide el UUID del producto ni un precio libre.
-- `CreateCustomerOrderUseCase` respeta el precio de la línea y deja de estar expuesto a la UI: sólo
-  lo llama la conversión de una cotización. El caso de uso no cambia, para no perder ese flujo.
-- Pruebas: `tests/integration/orders_delivery/test_new_order_dialog.py`.
-
-### SDLC-ORD-002 — outbox drenados o declarados sólo-replicación (2026-11-06, sin migración)
-
-- `orders_delivery_outbox` ya se drena al arrancar y periódicamente (commit de SDLC-ORD-001).
-- Se midió con el cableado real que `crm_outbox`, `customer_outbox`, `quote_outbox`,
-  `loyalty_cards_outbox`, `sweepstakes_outbox`, `customer_service_outbox` y `customer_privacy_outbox`
-  no tienen ningún suscriptor local. Quedan declarados como `REPLICATION_ONLY_OUTBOXES` en
-  `backend/infrastructure/sync/replication_sources.py`: la replicación es su único lector.
-- `tests/integration/bootstrap/test_outbox_drain_coverage.py` falla si alguien suscribe uno de sus
-  eventos sin construirle despachador.
-
-### SDLC-ORD-003 — pipeline autoritativo de pedidos (2026-11-06, sin migración)
-
-- Decisión según la regla del responsable («el más avanzado»): `customer_orders` y `quotes`. La
-  evidencia y el plan de corte están en `docs/sdlc/items/SDLC-ORD-003/decision.md`.
-- Guardia: `tests/architecture/test_orders_single_pipeline_ratchet.py`. No permite lectores ni
-  escritores nuevos de `delivery_orders` o `pendiente_wa` en el ERP, y la lista sólo puede encogerse.
-
-### SDLC-ORD-006 — avisos al cliente de Pedidos con reintento (2026-11-06, sin migración)
-
-- Los avisos "va en camino", "entregado", "no pudimos entregar", "listo para recoger", "requiere tu
-  aprobación" y su reenvío quedan en `whatsapp_outbox` dentro de la transacción del hecho
-  (decisión del responsable: esa cola). Son idempotentes por `operation_id`, con
-  `payload_json.source="orders_delivery"`. `OrdersDeliveryNoticeOutbox` los intenta en cuanto
-  confirma la transacción.
-- La tarea de fondo `orders_delivery.customer_notices` reintenta con espera creciente. Al quinto intento
-  el aviso pasa a `DEAD_LETTER` y llega a gerencia de la sucursal con el tipo `aviso_cliente_fallido`
-  (en `DELIVERY_ALERT_TYPES`).
-- La alerta interna de entrega fallida se escribe en la transacción del intento.
-- Riesgo declarado: hoy ningún proceso del microservicio drena `whatsapp_outbox` (SDLC-WA-006). Si
-  empieza a hacerlo, hay que retirar este drenado para no enviar dos veces (SDLC-WA-037).
-- Pruebas: `tests/integration/test_orders_delivery_notice_retry.py`.
+- Decisión del responsable: una cuenta de tesorería para Mercado Pago y tarjetas, con espejo en la
+  1115, y la venta carga directo a ella. Ventas, devoluciones y compras resuelven el espejo en
+  `treasury_resolution.py`; el rol `clearing_account_id` del perfil `SALE` ya no se usa para cobros.
+- Sólo renombra la cuenta sembrada («Procesador de tarjetas»).
+- La 1120 no se reclasifica: decisión del responsable y 0 renglones contables en la copia de la base
+  real. Con renglones en otra instalación, avisa en el log y no mueve nada.

@@ -76,7 +76,10 @@ from backend.domain.sales.exceptions import (
     SaleNotFoundError,
 )
 from backend.domain.sales.policies.lifecycle_policies import SaleLifecyclePolicy
-from backend.domain.sales.policies.payment_policy import SalePaymentPolicy
+from backend.domain.sales.policies.payment_policy import (
+    REFERENCE_REQUIRED_METHODS,
+    SalePaymentPolicy,
+)
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
 from backend.infrastructure.integrations.sales_cash_effects_client import SalesCashEffectsClient
 from backend.infrastructure.integrations.sales_folio_client import SalesFolioClient
@@ -307,6 +310,11 @@ def _completed_payload(sale, costos: dict, sin_costo: list[str], inventario: str
         "rounding_adjustment": str(t.rounding_adjustment),
         "total": str(t.total),
         "payments": [{"method": m, "amount": str(a)} for m, a in sorted(pagos.items())],
+        # `payments` sigue por método (Fidelidad y el central lo leen así); la
+        # conciliación por operación necesita cada pago (SDLC-PAY-003).
+        "payment_references": [
+            {"method": p.method.value, "amount": str(p.amount), "reference": p.reference}
+            for p in sale.payments if p.reference and p.method in REFERENCE_REQUIRED_METHODS],
         "change": str(cambio),
         # Para las reglas de Fidelidad (§13, 2026-10-03): por producto (multiplicadores
         # por categoría/producto, puntos por unidad) y canal.

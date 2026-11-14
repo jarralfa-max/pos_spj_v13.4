@@ -236,6 +236,32 @@ _INDEXES = (
 )
 
 
+#: SDLC-PAY-002 — un pago de procesador no anulado, una sola vez. Parcial: sólo
+#: Mercado Pago, Tarjeta y Transferencia con referencia (la lista es
+#: `REFERENCE_REQUIRED_METHODS`). Compatible con el DELETE+INSERT del repositorio
+#: y con las anulaciones: un pago anulado sale de `sale_payments`.
+PAYMENT_REFERENCE_INDEX = "uq_sale_payments_processor_reference"
+_PAYMENT_REFERENCE_INDEX_WHERE = (
+    "method IN ('MERCADO_PAGO','CARD','TRANSFER')"
+    " AND reference IS NOT NULL AND TRIM(reference) <> ''"
+)
+
+
+def create_payment_reference_index(conn, *, captured_after: str | None = None) -> None:
+    """Fuera de `create_sales_schema` a propósito: ese DDL corre desde la 198, antes
+    del respaldo legacy de la 255, que podría traer referencias repetidas.
+
+    `captured_after`: cuando ya hay duplicados históricos, el índice protege lo
+    capturado después de esa fecha (la revisión del caso de uso cubre todo)."""
+    where = _PAYMENT_REFERENCE_INDEX_WHERE
+    if captured_after is not None:
+        literal = captured_after.replace("'", "''")
+        where += f" AND captured_at > '{literal}'"
+    conn.execute(
+        f"CREATE UNIQUE INDEX IF NOT EXISTS {PAYMENT_REFERENCE_INDEX}"
+        f" ON sale_payments(method, UPPER(TRIM(reference))) WHERE {where}")
+
+
 def create_sales_schema(conn) -> None:
     """Create the canonical Sales/POS schema (idempotent). DDL lives only here."""
     for statement in _DDL:

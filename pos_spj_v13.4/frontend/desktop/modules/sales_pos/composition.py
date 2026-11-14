@@ -20,6 +20,8 @@ directly, not comments, since they go stale).
 
 from __future__ import annotations
 
+from functools import partial
+
 from backend.application.customers.authorization import CustomerAuthorizationPolicy
 from backend.application.customers.queries.customer_lookup_query_service import (
     CustomerLookupQueryService,
@@ -77,7 +79,10 @@ from backend.application.sales.use_cases.coupon_use_cases import (
     SellPrepaidVoucherUseCase,
 )
 from backend.application.sales.use_cases.loyalty_use_cases import RedeemLoyaltyPointsUseCase
-from backend.application.sales.use_cases.payment_use_cases import RecordSalePaymentUseCase
+from backend.application.sales.use_cases.payment_use_cases import (
+    RecordSalePaymentUseCase,
+    payment_reference_problem,
+)
 from backend.application.sales.use_cases.receipt_use_cases import (
     PrintSaleReceiptUseCase,
     ReprintReceiptUseCase,
@@ -363,6 +368,7 @@ def build_sales_pos_presenter(
         # Reglas puras del dominio que la pantalla consulta (cambio, peso).
         "cash_tender": _cash_tender,
         "payment_amount_check": _payment_amount_check,
+        "payment_reference_check": partial(payment_reference_problem, connection),
         "weight_policy": _weight_policy,
         "scale_factory": _scale_factory(connection, auth),
         "display_preferences": _display_preferences(connection),

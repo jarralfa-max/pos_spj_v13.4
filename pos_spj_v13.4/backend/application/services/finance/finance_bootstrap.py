@@ -210,7 +210,8 @@ def _seed_treasury(uow: FinanceUnitOfWork, ids: dict[str, str]) -> None:
     uow.treasury.save(TreasuryAccount.create(
         "Banco principal", TreasuryAccountType.BANK, ids["1110"]))
     uow.treasury.save(TreasuryAccount.create(
-        "Procesador de tarjetas", TreasuryAccountType.PAYMENT_PROCESSOR, ids["1115"]))
+        "Procesadores de pago (Mercado Pago y tarjetas)",
+        TreasuryAccountType.PAYMENT_PROCESSOR, ids["1115"]))
 
 
 def _seed_taxes(uow: FinanceUnitOfWork, ids: dict[str, str], effective: date) -> None:

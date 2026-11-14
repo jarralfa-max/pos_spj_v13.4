@@ -33,7 +33,17 @@ from backend.application.sales.result import SaleResult, fail_from_domain_error
 from backend.application.sales.use_cases._base import _SalesBaseUseCase
 from backend.domain.sales.enums import PaymentMethod
 from backend.domain.sales.events import SaleEvents
-from backend.domain.sales.exceptions import CreditNotAuthorizedError, SalesDomainError, SaleNotFoundError
+from backend.domain.sales.exceptions import (
+    CreditNotAuthorizedError,
+    PaymentReferenceDuplicatedError,
+    SalesDomainError,
+    SaleNotFoundError,
+)
+from backend.domain.sales.policies.payment_policy import (
+    REFERENCE_REQUIRED_METHODS,
+    SalePaymentPolicy,
+)
+from backend.infrastructure.db.repositories.sales.sale_repository import SaleRepository
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
 from backend.infrastructure.integrations.sales_credit_client import SalesCreditClient
 
@@ -45,6 +55,40 @@ _PERMISSION_BY_METHOD = {
     PaymentMethod.MERCADO_PAGO: SalesPermissions.PAYMENT_MERCADO_PAGO,
     PaymentMethod.VOUCHER: SalesPermissions.PAYMENT_VOUCHER,
 }
+
+
+def _ensure_processor_reference(repository: SaleRepository, *, method: PaymentMethod,
+                                reference: str | None) -> None:
+    """SDLC-PAY-002: obligatoria, con formato y sin otro pago vivo que la use.
+    Un pago anulado o de una venta cancelada sale de `sale_payments`, así que
+    su referencia queda libre."""
+    SalePaymentPolicy.ensure_reference_valid(method=method, reference=reference)
+    if method not in REFERENCE_REQUIRED_METHODS:
+        return
+    found = repository.find_live_payment_reference(method=method.value, reference=reference)
+    if found is not None:
+        raise PaymentReferenceDuplicatedError(
+            f"La referencia {reference.strip()} ya está registrada en la venta {found}: un "
+            "mismo pago no puede respaldar dos cobros.")
+
+
+def payment_reference_problem(connection, *, method: str, reference: str | None,
+                              taken: tuple = ()) -> str | None:
+    """Por qué se rechazaría esta referencia, ANTES de iniciar el cobro.
+    `taken`: pares (método, referencia) ya capturados y aún sin guardar."""
+    try:
+        payment_method = PaymentMethod(method)
+        _ensure_processor_reference(SaleRepository(connection), method=payment_method,
+                                    reference=reference)
+    except ValueError:
+        return None
+    except SalesDomainError as exc:
+        return str(exc)
+    if payment_method in REFERENCE_REQUIRED_METHODS:
+        key = reference.strip().upper()
+        if any(m == method and (r or "").strip().upper() == key for m, r in taken):
+            return "Esa referencia ya está en los pagos de este cobro."
+    return None
 
 
 class RecordSalePaymentUseCase(_SalesBaseUseCase):
@@ -71,6 +115,12 @@ class RecordSalePaymentUseCase(_SalesBaseUseCase):
             sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
             if denied is not None:
                 return denied
+
+            try:
+                _ensure_processor_reference(uow.sales, method=payment_method,
+                                            reference=reference)
+            except SalesDomainError as exc:
+                return fail_from_domain_error(exc, operation_id=operation_id)
 
             already_mixed_after = bool(sale.payments) and any(
                 p.method != payment_method for p in sale.payments)
@@ -121,7 +171,12 @@ class RecordSalePaymentUseCase(_SalesBaseUseCase):
                     folio=sale.sale_number or sale.id, amount=amount, branch_id=sale.branch_id,
                     payment_id=payment.id)
 
-            uow.sales.save(sale)
+            try:
+                uow.sales.save(sale)
+            except PaymentReferenceDuplicatedError as exc:
+                # Otra caja guardó la misma referencia entre la revisión y aquí.
+                uow.rollback()
+                return fail_from_domain_error(exc, operation_id=operation_id)
             self._emit(uow, SaleEvents.PAYMENT_RECORDED, entity_id=sale.id,
                        operation_id=operation_id, branch_id=sale.branch_id,
                        actor_user_id=actor_user_id, method=payment_method.value,

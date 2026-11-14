@@ -39,6 +39,7 @@ from backend.application.cash_register.active_shift_resolver import ActiveShiftR
 from backend.application.cash_register.ledger_use_cases import LedgerCommandResult
 from backend.application.cash_register.sales_integration import CashSalesIntegrationService, SaleCashResult
 from backend.domain.sales.enums import PaymentMethod
+from backend.domain.sales.policies.payment_policy import REFERENCE_REQUIRED_METHODS
 
 _SETTLEMENT_TYPE_BY_METHOD = {
     PaymentMethod.CASH: "CASH",
@@ -145,7 +146,10 @@ def _payment_lines(payments) -> list[dict]:
     por instrumento CON su referencia — Caja exige identificar el instrumento
     (`REFUND_VOUCHER` requiere referencia validada). Medido 2026-10-15: sin ella
     Caja rechazaba la venta entera y el efectivo de un cobro vale+efectivo
-    nunca llegaba al cajón (el error se tragaba después del commit)."""
+    nunca llegaba al cajón (el error se tragaba después del commit).
+
+    Los pagos electrónicos van uno por pago con su referencia (SDLC-PAY-003): es
+    lo único que permite casar una operación del procesador con la venta."""
     totals: dict[str, Decimal] = {}
     lines: list[dict] = []
     for payment in payments:
@@ -153,6 +157,10 @@ def _payment_lines(payments) -> list[dict]:
         if payment.method is PaymentMethod.VOUCHER:
             lines.append({"type": settlement_type, "amount": str(payment.amount),
                           "voucher_id": payment.reference or payment.id})
+            continue
+        if payment.reference and payment.method in REFERENCE_REQUIRED_METHODS:
+            lines.append({"type": settlement_type, "amount": str(payment.amount),
+                          "external_reference": payment.reference})
             continue
         totals[settlement_type] = totals.get(settlement_type, Decimal("0")) + payment.amount
     return [{"type": t, "amount": str(a)} for t, a in totals.items()] + lines

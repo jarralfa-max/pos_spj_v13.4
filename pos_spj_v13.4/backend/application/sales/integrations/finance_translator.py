@@ -46,6 +46,16 @@ def _dec(value) -> Decimal:
     return Decimal(str(value or "0"))
 
 
+def _referenced_settlements(tipo: str, importe: Decimal, referencias: list[dict]) -> list[dict]:
+    """Una liquidación por operación del procesador, si las referencias cubren
+    el importe del método. Un evento anterior a SDLC-PAY-003 no las trae."""
+    if not referencias or sum((_dec(r.get("amount")) for r in referencias),
+                              Decimal("0")) != importe:
+        return [{"type": tipo, "amount": str(importe)}]
+    return [{"type": tipo, "amount": str(_dec(r.get("amount"))), "reference": r["reference"]}
+            for r in referencias]
+
+
 def sale_completed_to_finance(envelope: dict) -> dict:
     """Sobre de `sales_outbox` (`sale_event_payload`) → payload de Finanzas."""
     datos = dict(envelope.get("payload") or {})
@@ -55,6 +65,7 @@ def sale_completed_to_finance(envelope: dict) -> dict:
     cambio = _dec(datos.get("change"))
 
     liquidaciones: list[dict] = _instrument_settlements(datos.get("voucher_payments"))
+    referencias = datos.get("payment_references") or []
     for pago in datos.get("payments") or []:
         metodo = str(pago.get("method") or "")
         if metodo == "VOUCHER":
@@ -66,7 +77,8 @@ def sale_completed_to_finance(envelope: dict) -> dict:
         if tipo == "CASH":
             importe -= cambio
         if importe:
-            liquidaciones.append({"type": tipo, "amount": str(importe)})
+            liquidaciones.extend(_referenced_settlements(
+                tipo, importe, [r for r in referencias if r.get("method") == metodo]))
 
     return {
         "event_id": envelope.get("event_id"),

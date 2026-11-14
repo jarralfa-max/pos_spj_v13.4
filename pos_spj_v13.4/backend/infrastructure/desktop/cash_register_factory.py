@@ -1073,6 +1073,14 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             ("Generado por", user_name(generated_by)),
         )
 
+    def _payment_lines(cut) -> tuple[tuple[str, str], ...]:
+        """Cobros por medio de pago (SDLC-PAY-005); importes sólo a quien los ve."""
+        from backend.domain.cash_register.cut_breakdown import cut_payment_lines
+
+        if not cut.sensitive_amounts_visible:
+            return ()
+        return cut_payment_lines(cut.snapshot or {})
+
     def _x_cut_document(*, cut_id: str, branch_id: str,
                         actor_user_id: str) -> CashPrintDocument:
         cut = query_services["x_cut"].get(
@@ -1098,7 +1106,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
                 (key, value)
                 for key, value in sorted((cut.snapshot or {}).items())
                 if key.startswith("movement.")
-            ),
+            ) + _payment_lines(cut),
             totals=totals,
             barcode_value=cut.document_number,
             final=False,
@@ -1218,6 +1226,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
                 ("Generado", str(cut.generated_at)[:16].replace("T", " ")),
                 ("Final", "Si" if cut.is_final else "No"),
             ),
+            lines=_payment_lines(cut),
             totals=totals,
             barcode_value=cut.document_number,
             final=cut.is_final,

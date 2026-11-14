@@ -9,6 +9,7 @@ from typing import Protocol
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.permissions import CashPermissions
 from backend.application.cash_register.shift_use_cases import _record
+from backend.domain.cash_register.cut_breakdown import payment_breakdown
 from backend.domain.cash_register.entities import XCut
 from backend.domain.cash_register.events import CashEvents
 from backend.domain.cash_register.exceptions import CashInvalidStateError
@@ -69,6 +70,12 @@ def _snapshot(rows: list[dict]) -> tuple[Decimal, dict[str, str]]:
     return balance, snapshot
 
 
+def _payment_snapshot(uow, shift_id: str) -> dict[str, str]:
+    """Cobros por medio y reembolsos electrónicos del turno (SDLC-PAY-005)."""
+    return payment_breakdown(uow.settlements.list_allocations_for_shift(shift_id),
+                             uow.settlements.list_refund_executions_for_shift(shift_id))
+
+
 class GenerateXCutUseCase:
     def __init__(self, authorization: CashAuthorizationPolicy) -> None:
         self._auth = authorization
@@ -100,6 +107,7 @@ class GenerateXCutUseCase:
                     "No se puede generar Corte X mientras hay un conteo ciego abierto"
                 )
             expected, snapshot = _snapshot(uow.ledger.list_for_shift(shift_id))
+            snapshot.update(_payment_snapshot(uow, shift_id))
             cut = XCut.generate(
                 shift_id=shift_id, branch_id=branch_id, generated_by=actor_user_id,
                 expected_cash=expected, operation_id=operation_id, snapshot=snapshot,
