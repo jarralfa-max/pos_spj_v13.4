@@ -10,6 +10,7 @@ from frontend.desktop.components.dialogs import MessageDialog, StandardDialog
 from frontend.desktop.components.kpi_bar import KPIBar
 from frontend.desktop.components.kpi_card import KPIDTO
 from frontend.desktop.components.page_header import PageHeader
+from frontend.desktop.components.selection_controls import StandardComboBox
 from frontend.desktop.components.tables import ColumnSpec, StandardTable
 from frontend.desktop.components.view_states import ViewState, create_state_widget
 from frontend.desktop.modules.cash_register.cash_register_presenter import CashContextError
@@ -32,6 +33,12 @@ class CashLedgerPage(QWidget):
         self._query, self._shift_id = query_service, shift_id
         self._presenter = presenter
         self._rows_by_id = {}
+        # SDLC-ARQ-SHIFT-002: `shift_id` es el turno que este usuario opera. Los
+        # de otros cajeros se pueden ver, nunca operar desde aquí.
+        self._own_shift_id = shift_id
+        consultable = self._consultable_shifts()
+        if not self._shift_id and consultable:
+            self._shift_id = consultable[0].id
         root = QVBoxLayout(self)
 
         income = create_primary_button(self, "Registrar ingreso")
@@ -43,10 +50,11 @@ class CashLedgerPage(QWidget):
 
         caps = self._presenter.capabilities() if self._presenter is not None else None
         has_shift = bool(self._shift_id)
-        income.setEnabled(bool(has_shift and caps and caps.movement_income))
-        withdrawal.setEnabled(bool(has_shift and caps and caps.movement_withdrawal))
-        safe_drop.setEnabled(bool(has_shift and caps and caps.safe_drop_create))
-        reverse.setEnabled(bool(has_shift and caps and caps.movement_reverse))
+        self._write_actions = ((income, bool(caps and caps.movement_income)),
+                               (withdrawal, bool(caps and caps.movement_withdrawal)),
+                               (safe_drop, bool(caps and caps.safe_drop_create)),
+                               (reverse, bool(caps and caps.movement_reverse)))
+        self._read_actions = (detail, origin)
         detail.setEnabled(bool(has_shift and caps and caps.movement_view))
         origin.setEnabled(bool(has_shift and caps and caps.movement_view))
 
@@ -72,8 +80,18 @@ class CashLedgerPage(QWidget):
             ))
             self._kpis = KPIBar(self)
             self._table = StandardTable([], self)
+            self._apply_shift_mode()
             return
 
+        self._shift_selector = None
+        if consultable:
+            self._shift_selector = StandardComboBox(self, accessible_name="Turno a consultar")
+            if self._own_shift_id:
+                self._shift_selector.addItem("Mi turno", self._own_shift_id)
+            for row in consultable:
+                self._shift_selector.addItem(self._consultation_label(row), row.id)
+            self._shift_selector.currentIndexChanged.connect(self._on_shift_selected)
+            root.addWidget(self._shift_selector)
         self._kpis = KPIBar(self)
         root.addWidget(self._kpis)
         self._table = StandardTable([
@@ -87,7 +105,48 @@ class CashLedgerPage(QWidget):
             ColumnSpec("Documento origen"),
         ], self)
         root.addWidget(self._table)
+        self._apply_shift_mode()
         self.refresh()
+
+    def _consultable_shifts(self) -> tuple:
+        """Con `CAJA.movimiento.ver`: ver el turno exige ver sus movimientos."""
+        provider = getattr(self._presenter, "consultable_shifts", None)
+        caps = self._presenter.capabilities() if self._presenter is not None else None
+        if not callable(provider) or not (caps and caps.movement_view):
+            return ()
+        return tuple(provider())
+
+    def _consultation_label(self, row) -> str:
+        return f"Consulta: {row.register_name} · {row.cashier_name or 'Cajero'}"
+
+    def shown_shift_id(self) -> str | None:
+        return self._shift_id
+
+    def is_consultation(self) -> bool:
+        return bool(self._shift_id) and self._shift_id != self._own_shift_id
+
+    def write_actions_enabled(self) -> bool:
+        return any(button.isEnabled() for button, _allowed in self._write_actions)
+
+    def read_actions_enabled(self) -> bool:
+        return all(button.isEnabled() for button in self._read_actions)
+
+    def select_shift(self, shift_id: str) -> None:
+        index = self._shift_selector.findData(shift_id)
+        if index >= 0:
+            self._shift_selector.setCurrentIndex(index)
+
+    def _on_shift_selected(self, _index: int) -> None:
+        self._shift_id = self._shift_selector.currentData()
+        self._apply_shift_mode()
+        self.refresh()
+
+    def _apply_shift_mode(self) -> None:
+        """Las escrituras siempre van al turno propio: mientras se ve el de
+        otro cajero no hay nada que operar desde esta pantalla."""
+        operating = bool(self._own_shift_id) and not self.is_consultation()
+        for button, allowed in self._write_actions:
+            button.setEnabled(operating and allowed)
 
     @staticmethod
     def _money(value):

@@ -88,11 +88,13 @@ def _completed_sale(conn, *, price="100.00", method="CASH", second_method=None, 
     pay_amount = sale.totals.total - (second_amount or Decimal("0"))
     RecordSalePaymentUseCase(_allow_all()).execute(
         conn, sale_id=sale_id, method=method, amount=pay_amount,
-        actor_user_id=cashier, operation_id=new_uuid())
+        actor_user_id=cashier, operation_id=new_uuid(),
+        reference=None if method == "CASH" else f"REF-{new_uuid()[-12:]}")
     if second_method:
         RecordSalePaymentUseCase(_allow_all()).execute(
             conn, sale_id=sale_id, method=second_method, amount=second_amount,
-            actor_user_id=cashier, operation_id=new_uuid())
+            actor_user_id=cashier, operation_id=new_uuid(),
+            reference=f"REF-{new_uuid()[-12:]}")
     result = CheckoutSaleUseCase(_allow_all(), **_PREP).execute(
         conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid())
     assert result.success, result.message

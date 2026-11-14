@@ -10,8 +10,10 @@ lote), en este orden:
    de SU sucursal. Una estación comprometida no escribe en otra sucursal ni se
    hace pasar por otra estación → REJECTED.
 3. **Idempotencia**: el mismo `event_id` con la misma huella → DUPLICATE (la
-   estación lo da por entregado); con otra huella → CONFLICT `EVENT_ID_REUSED`.
-   Nunca se sobrescribe.
+   estación lo da por entregado) sólo si el hecho quedó APPLIED; si quedó en
+   CONFLICTO se responde CONFLICT con su código original: DUPLICATE hacía que la
+   estación lo marcara SYNCED y nadie lo proyectaba jamás (SDLC-SYNC-002). Con
+   otra huella → CONFLICT `EVENT_ID_REUSED`. Nunca se sobrescribe.
 4. **Secuencia**: el mismo `sequence_no` de la estación ya usado por otro hecho →
    CONFLICT `SEQUENCE_REUSED` (p. ej. una base de estación restaurada de un
    respaldo viejo que vuelve a numerar).
@@ -67,6 +69,7 @@ class CentralInboxRepository(Protocol):
     def get_station(self, station_id: str) -> Mapping[str, Any] | None: ...
     def savepoint(self): ...
     def fact_hash(self, event_id: str) -> str | None: ...
+    def fact_status(self, event_id: str) -> tuple[str, str | None] | None: ...
     def event_for_sequence(self, station_id: str, sequence_no: int) -> str | None: ...
     def insert_fact(self, envelope: ReplicationEnvelope, *, station_id: str, status: str,
                     error_code: str | None, now: datetime) -> bool: ...
@@ -191,7 +194,12 @@ class CentralIngestionService:
 
     def _already_known(self, sobre, huella, estacion_id, instante) -> ReplicationAck:
         if huella == sobre.content_hash:
-            return self._ack(sobre.event_id, "DUPLICATE")
+            estado, codigo = self._repo.fact_status(sobre.event_id)
+            if estado == "APPLIED":
+                return self._ack(sobre.event_id, "DUPLICATE")
+            return self._ack(sobre.event_id, "CONFLICT", codigo or estado,
+                             "El hecho sigue en conflicto en el servidor central",
+                             conflict={"stored_status": estado})
         self._repo.add_conflict(event_id=sobre.event_id, kind="EVENT_ID_REUSED",
                                 details={"stored_hash": huella,
                                          "incoming_hash": sobre.content_hash,

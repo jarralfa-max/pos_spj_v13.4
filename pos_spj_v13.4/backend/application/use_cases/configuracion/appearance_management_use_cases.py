@@ -47,6 +47,9 @@ from backend.infrastructure.db.repositories.appearance.design_token_repository i
     SqliteDesignTokenRepository,
 )
 from backend.infrastructure.db.repositories.appearance.theme_repository import SqliteThemeRepository
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class ThemeStatusAction(str, Enum):
@@ -67,11 +70,13 @@ class AppearancePreferenceStatusAction(str, Enum):
 # ── Theme ─────────────────────────────────────────────────────────────────────
 
 class CreateThemeUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._themes = SqliteThemeRepository(connection)
 
     def execute(self, *, code: str, name: str, mode: ThemeMode | str) -> Theme:
+        self._authz.require(ConfiguracionPermissions.TEMA_CREAR)
         if self._themes.get_by_code(code) is not None:
             raise ThemeCodeOccupiedError(f"Ya existe un tema con código {code!r}")
         theme = Theme.create(code=code, name=name, mode=ThemeMode(mode))
@@ -81,11 +86,13 @@ class CreateThemeUseCase:
 
 
 class UpdateThemeUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._themes = SqliteThemeRepository(connection)
 
     def execute(self, *, theme_id: str, name: str) -> Theme:
+        self._authz.require(ConfiguracionPermissions.APARIENCIA_GESTIONAR)
         theme = self._themes.get(theme_id)
         if theme is None:
             raise ThemeNotFoundError(f"Tema {theme_id} no encontrado")
@@ -96,11 +103,13 @@ class UpdateThemeUseCase:
 
 
 class ChangeThemeStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._themes = SqliteThemeRepository(connection)
 
     def execute(self, *, theme_id: str, action: ThemeStatusAction) -> Theme:
+        self._authz.require(ConfiguracionPermissions.APARIENCIA_GESTIONAR)
         theme = self._themes.get(theme_id)
         if theme is None:
             raise ThemeNotFoundError(f"Tema {theme_id} no encontrado")
@@ -118,13 +127,15 @@ class ChangeThemeStatusUseCase:
 # ── DesignToken ───────────────────────────────────────────────────────────────
 
 class CreateDesignTokenUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._tokens = SqliteDesignTokenRepository(connection)
 
     def execute(
         self, *, theme_id: str | None, token_key: str, category: TokenCategory | str, token_value: str,
     ) -> DesignToken:
+        self._authz.require(ConfiguracionPermissions.APARIENCIA_GESTIONAR)
         scope_key = theme_id or None
         candidates = self._tokens.list_for_theme(theme_id or "")
         existing = [
@@ -144,11 +155,13 @@ class CreateDesignTokenUseCase:
 
 
 class UpdateDesignTokenUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._tokens = SqliteDesignTokenRepository(connection)
 
     def execute(self, *, token_id: str, token_value: str) -> DesignToken:
+        self._authz.require(ConfiguracionPermissions.APARIENCIA_GESTIONAR)
         token = self._tokens.get(token_id)
         if token is None:
             raise DesignTokenNotFoundError(f"Token {token_id} no encontrado")
@@ -161,7 +174,8 @@ class UpdateDesignTokenUseCase:
 # ── DensityProfile ────────────────────────────────────────────────────────────
 
 class CreateDensityProfileUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._profiles = SqliteDensityProfileRepository(connection)
 
@@ -169,6 +183,7 @@ class CreateDensityProfileUseCase:
         self, *, level: DensityLevel | str, name: str, scale_factor: Decimal, control_height_px: int,
         touch_target_px: int, spacing_unit_px: int,
     ) -> DensityProfile:
+        self._authz.require(ConfiguracionPermissions.APARIENCIA_GESTIONAR)
         level_enum = DensityLevel(level)
         if self._profiles.get_by_level(level_enum) is not None:
             raise DensityProfileLevelOccupiedError(f"Ya existe un perfil de densidad para {level_enum.value!r}")
@@ -182,7 +197,8 @@ class CreateDensityProfileUseCase:
 
 
 class UpdateDensityProfileUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._profiles = SqliteDensityProfileRepository(connection)
 
@@ -190,6 +206,7 @@ class UpdateDensityProfileUseCase:
         self, *, profile_id: str, name: str, scale_factor: Decimal, control_height_px: int,
         touch_target_px: int, spacing_unit_px: int,
     ) -> DensityProfile:
+        self._authz.require(ConfiguracionPermissions.APARIENCIA_GESTIONAR)
         profile = self._profiles.get(profile_id)
         if profile is None:
             raise DensityProfileNotFoundError(f"Perfil de densidad {profile_id} no encontrado")
@@ -203,11 +220,13 @@ class UpdateDensityProfileUseCase:
 
 
 class ChangeDensityProfileStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._profiles = SqliteDensityProfileRepository(connection)
 
     def execute(self, *, profile_id: str, action: DensityProfileStatusAction) -> DensityProfile:
+        self._authz.require(ConfiguracionPermissions.APARIENCIA_GESTIONAR)
         profile = self._profiles.get(profile_id)
         if profile is None:
             raise DensityProfileNotFoundError(f"Perfil de densidad {profile_id} no encontrado")
@@ -236,7 +255,8 @@ def _active_scope_occupant(
 
 
 class CreateAppearancePreferenceUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._preferences = SqliteAppearancePreferenceRepository(connection)
 
@@ -244,6 +264,7 @@ class CreateAppearancePreferenceUseCase:
         self, *, scope_type: AppearanceScopeType | str, scope_id: str | None, theme_id: str,
         density_level: DensityLevel | str = DensityLevel.NORMAL,
     ) -> AppearancePreference:
+        self._authz.require(ConfiguracionPermissions.APARIENCIA_GESTIONAR)
         scope_type_enum = AppearanceScopeType(scope_type)
         if _active_scope_occupant(self._preferences, scope_type_enum, scope_id) is not None:
             raise AppearancePreferenceScopeOccupiedError(
@@ -259,11 +280,13 @@ class CreateAppearancePreferenceUseCase:
 
 
 class ChangeAppearancePreferenceStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._preferences = SqliteAppearancePreferenceRepository(connection)
 
     def execute(self, *, preference_id: str, action: AppearancePreferenceStatusAction) -> AppearancePreference:
+        self._authz.require(ConfiguracionPermissions.APARIENCIA_GESTIONAR)
         preference = self._preferences.get(preference_id)
         if preference is None:
             raise AppearancePreferenceNotFoundError(f"Preferencia {preference_id} no encontrada")

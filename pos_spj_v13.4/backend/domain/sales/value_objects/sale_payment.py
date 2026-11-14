@@ -22,6 +22,15 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def mask_payment_reference(reference: str | None) -> str:
+    """Lo que ve el cliente de una referencia de procesador (SDLC-PAY-003): los
+    últimos 4 caracteres. La completa vive en Caja y en el asiento."""
+    text = (reference or "").strip()
+    if not text:
+        return ""
+    return "****" + (text[-4:] if len(text) > 4 else "")
+
+
 @dataclass(frozen=True, slots=True)
 class SalePayment:
     id: str

@@ -208,7 +208,7 @@ class TestSaleResumptionPolicy:
     def test_same_user_same_workstation_always_allowed(self):
         SaleResumptionPolicy.ensure_can_resume(
             status=SaleStatus.SUSPENDED,
-            suspended_by_user_id="u1", resuming_user_id="u1",
+            owner_user_id="u1", resuming_user_id="u1",
             suspended_at_workstation_id="w1", resuming_workstation_id="w1",
             allow_cross_user_resume=False, allow_cross_workstation_resume=False,
         )
@@ -217,7 +217,7 @@ class TestSaleResumptionPolicy:
         with pytest.raises(SaleResumeNotAllowedError):
             SaleResumptionPolicy.ensure_can_resume(
                 status=SaleStatus.SUSPENDED,
-                suspended_by_user_id="u1", resuming_user_id="u2",
+                owner_user_id="u1", resuming_user_id="u2",
                 suspended_at_workstation_id="w1", resuming_workstation_id="w1",
                 allow_cross_user_resume=False,
             )
@@ -226,7 +226,7 @@ class TestSaleResumptionPolicy:
         with pytest.raises(SaleResumeNotAllowedError):
             SaleResumptionPolicy.ensure_can_resume(
                 status=SaleStatus.SUSPENDED,
-                suspended_by_user_id="u1", resuming_user_id="u1",
+                owner_user_id="u1", resuming_user_id="u1",
                 suspended_at_workstation_id="w1", resuming_workstation_id="w2",
                 allow_cross_workstation_resume=False,
             )
@@ -235,7 +235,7 @@ class TestSaleResumptionPolicy:
         with pytest.raises(SaleResumeNotAllowedError):
             SaleResumptionPolicy.ensure_can_resume(
                 status=SaleStatus.COMPLETED,
-                suspended_by_user_id="u1", resuming_user_id="u1",
+                owner_user_id="u1", resuming_user_id="u1",
                 suspended_at_workstation_id="w1", resuming_workstation_id="w1",
             )
 

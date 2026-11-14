@@ -29,6 +29,7 @@ opinion on how it's produced.
 from __future__ import annotations
 
 from backend.bootstrap.application_context import ApplicationContext
+from backend.bootstrap.application_context_builder import ApplicationContextBuilder
 from backend.bootstrap.health.health_status import HealthReport
 from frontend.desktop.modules.business_intelligence.shell_registration import (
     BUSINESS_INTELLIGENCE_MODULE_ID,
@@ -114,6 +115,9 @@ from frontend.desktop.modules.transfers.shell_registration import (
     build_transfers_module_descriptor, build_transfers_route_definition,
 )
 from frontend.desktop.shell.application_shell.application_window import ApplicationWindow
+from frontend.desktop.shell.application_shell.installation_branch_follower import (
+    InstallationBranchFollower,
+)
 from frontend.desktop.shell.loading.dispatching_module_activator import DispatchingModuleActivator
 from frontend.desktop.shell.loading.module_loader import ModuleLoader
 from frontend.desktop.shell.modules.health_requirement import ModuleHealthEvaluator
@@ -191,6 +195,8 @@ SCHEDULED_UPDATE_INTERVAL_MS = 60 * 1000
 #: Auditoría de Caja CJA-04 (2026-10-16): reintento de lo que Caja no pudo
 #: entregar a Finanzas (Corte Z, entrega de valores).
 CASH_OUTBOX_INTERVAL_MS = 2 * 60 * 1000
+#: SDLC-HR-002: reintento del asiento de nómina (antes sólo al pagar y al arrancar).
+HR_OUTBOX_INTERVAL_MS = 2 * 60 * 1000
 #: FIN-ERP (2026-10-22): merma valuada hacia el mayor, vencimientos de CxC/CxP
 #: y entrega del finance_outbox.
 FINANCE_CYCLE_INTERVAL_MS = 5 * 60 * 1000
@@ -248,6 +254,11 @@ def _build_background_services(*, context: ApplicationContext, connection):
     supervisor.bind("cash_register.outbox", PeriodicTaskService(
         _cash_outbox_tick(connection), interval_ms=CASH_OUTBOX_INTERVAL_MS,
         name="cola de Caja a Finanzas"))
+    registry.register(BackgroundServiceDescriptor(
+        "hr.outbox", "Entrega de nómina a Finanzas", module_id="hr"))
+    supervisor.bind("hr.outbox", PeriodicTaskService(
+        _hr_outbox_tick(connection), interval_ms=HR_OUTBOX_INTERVAL_MS,
+        name="cola de RR. HH. a Finanzas"))
     # Auditoría Fidelidad 968e0bc FID-10: ventas pendientes hacia Fidelidad y
     # Finanzas se reintentan solas (antes, hasta la siguiente operación del POS).
     registry.register(BackgroundServiceDescriptor(
@@ -256,6 +267,20 @@ def _build_background_services(*, context: ApplicationContext, connection):
     supervisor.bind("loyalty.sales_events", PeriodicTaskService(
         _loyalty_sales_tick(connection), interval_ms=LOYALTY_SALES_INTERVAL_MS,
         name="ventas a Fidelidad"))
+    # SDLC-ORD-001: cobros y liquidaciones de repartidor hacia Finanzas.
+    registry.register(BackgroundServiceDescriptor(
+        "orders_delivery.outbox", "Entrega de Pedidos a Finanzas",
+        module_id="orders_delivery"))
+    supervisor.bind("orders_delivery.outbox", PeriodicTaskService(
+        _orders_delivery_outbox_tick(connection), interval_ms=CASH_OUTBOX_INTERVAL_MS,
+        name="cola de Pedidos a Finanzas"))
+    # SDLC-ORD-006: avisos al cliente de Pedidos que WhatsApp no recibió.
+    registry.register(BackgroundServiceDescriptor(
+        "orders_delivery.customer_notices", "Reintento de avisos de Pedidos por WhatsApp",
+        module_id="orders_delivery"))
+    supervisor.bind("orders_delivery.customer_notices", PeriodicTaskService(
+        _orders_delivery_notices_tick(connection), interval_ms=PRODUCTS_WHATSAPP_OUTBOX_INTERVAL_MS,
+        name="avisos de Pedidos por WhatsApp"))
     registry.register(BackgroundServiceDescriptor(
         "finance.cycle", "Merma, vencimientos y eventos de Finanzas", module_id="finance"))
     supervisor.bind("finance.cycle", PeriodicTaskService(
@@ -278,6 +303,25 @@ def _cash_outbox_tick(connection):
         from backend.application.cash_register.finance_wiring import dispatch_cash_outbox
         from backend.shared.events.application_bus import get_bus
         return dispatch_cash_outbox(connection, get_bus())
+    return tick
+
+
+def _orders_delivery_outbox_tick(connection):
+    """Reintenta la cola de Pedidos (idempotente por evento)."""
+    def tick():
+        from backend.bootstrap.wiring.event_wiring import orders_delivery_tick
+        from backend.shared.events.application_bus import get_bus
+        return orders_delivery_tick(connection, get_bus())
+    return tick
+
+
+def _orders_delivery_notices_tick(connection):
+    """Reintenta los avisos al cliente de Pedidos (idempotente por mensaje)."""
+    def tick():
+        from backend.infrastructure.integrations.orders_delivery_notice_outbox import (
+            OrdersDeliveryNoticeOutbox,
+        )
+        return OrdersDeliveryNoticeOutbox(connection).drain()
     return tick
 
 
@@ -333,11 +377,22 @@ def build_application_window(
     nav_items = NavigationItemRegistry()
     register_migrated_modules_navigation(nav_items)
 
+    # SDLC-SET-001: anclar la estación en Configuración mueve esta sesión.
+    branch_follower = InstallationBranchFollower(
+        context_service=ApplicationContextBuilder(connection).context_service(user_id=context.user_id),
+        session_context=session_context,
+        resolve_sidebar_items=lambda new_context: resolver.resolve(
+            context=new_context, health_report=health_report),
+    )
+
     dispatcher = DispatchingModuleActivator()
     for module_id, build_descriptor, build_route, activator_factory in _MIGRATED_MODULE_WIRINGS:
         modules.register(build_descriptor())
         routes.register(build_route())
-        dispatcher.register(module_id, activator_factory(connection, view_factories, session_context))
+        activator = activator_factory(connection, view_factories, session_context)
+        if module_id == CONFIGURACION_MODULE_ID:
+            activator.session_site_follower = branch_follower
+        dispatcher.register(module_id, activator)
 
     loader = ModuleLoader(module_registry=modules, activator=dispatcher)
     router = DesktopRouter(route_registry=routes, view_factory_registry=view_factories, initial_context=context)
@@ -353,4 +408,5 @@ def build_application_window(
     window = ApplicationWindow(router=router, sidebar=sidebar, module_loader=loader,
                                service_supervisor=supervisor)
     inbox_feed.attach(window.notification_drawer)
+    branch_follower.attach(window)
     return window

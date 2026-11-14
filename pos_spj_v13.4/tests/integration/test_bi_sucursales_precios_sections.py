@@ -30,7 +30,7 @@ from tests.integration import bi_seed as S
 
 
 def _servicio(conn):
-    return BiDashboardService(BiDashboardQueryService(conn))
+    return BiDashboardService.permissive_for_tests(BiDashboardQueryService(conn))
 
 
 def _mes(conn, section):

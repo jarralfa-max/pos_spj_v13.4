@@ -20,6 +20,7 @@ from backend.domain.orders_delivery.enums import DeliveryStatus
 from backend.domain.orders_delivery.events import DeliveryEvents
 from backend.domain.orders_delivery.exceptions import (
     DeliveryJobNotFoundError,
+    OrderNotFoundError,
     OrdersDeliveryDomainError,
     RedeliveryNotAllowedError,
     RedeliveryRequestNotFoundError,
@@ -27,6 +28,9 @@ from backend.domain.orders_delivery.exceptions import (
 from backend.domain.orders_delivery.redelivery import RedeliveryRequest
 from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import (
     OrdersDeliveryUnitOfWork,
+)
+from backend.infrastructure.integrations.orders_delivery_inventory_client import (
+    OrdersDeliveryInventoryClient,
 )
 
 
@@ -156,10 +160,21 @@ class ReturnToBranchUseCase(_OrdersDeliveryBaseUseCase):
                 return fail_from_domain_error(
                     DeliveryJobNotFoundError(f"Job de entrega {delivery_job_id} no existe"),
                     operation_id=operation_id)
+            order = uow.orders.get(job.order_id)
+            if order is None:
+                return fail_from_domain_error(
+                    OrderNotFoundError(f"Pedido {job.order_id} no existe"),
+                    operation_id=operation_id)
             try:
                 job.start_return()
                 job.complete_return()
+                # Se descontó al despachar: lo que regresa vuelve a contarse, en
+                # el lote y la ubicación de los que salió (SDLC-ORD-004).
+                OrdersDeliveryInventoryClient(connection, branch_id=order.branch_id).restore_order(
+                    order, operation_id=operation_id, actor_user_id=actor_user_id,
+                    reason_code="DELIVERY_RETURNED")
             except OrdersDeliveryDomainError as exc:
+                uow.rollback()
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.delivery_jobs.save(job)
             self._emit_delivery(

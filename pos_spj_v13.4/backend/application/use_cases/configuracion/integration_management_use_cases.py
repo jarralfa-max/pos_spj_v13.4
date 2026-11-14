@@ -41,6 +41,9 @@ from backend.infrastructure.db.repositories.integrations.integration_instance_re
 from backend.infrastructure.db.repositories.integrations.webhook_endpoint_repository import (
     SqliteWebhookEndpointRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class IntegrationDefinitionStatusAction(str, Enum):
@@ -53,6 +56,18 @@ class IntegrationInstanceStatusAction(str, Enum):
     DEACTIVATE = "DEACTIVATE"
 
 
+#: Permiso por acción. ÚNICA fuente: la verifica el caso de uso
+#: (SDLC-ARQ-PERM-001) y el presentador la importa para su mensaje previo.
+INTEGRATION_DEFINITION_STATUS_PERMISSIONS = {
+    IntegrationDefinitionStatusAction.ACTIVATE: ConfiguracionPermissions.INTEGRACIONES_ACTIVAR,
+    IntegrationDefinitionStatusAction.DEACTIVATE: ConfiguracionPermissions.INTEGRACIONES_DESACTIVAR,
+}
+INTEGRATION_INSTANCE_STATUS_PERMISSIONS = {
+    IntegrationInstanceStatusAction.ACTIVATE: ConfiguracionPermissions.INTEGRACIONES_ACTIVAR,
+    IntegrationInstanceStatusAction.DEACTIVATE: ConfiguracionPermissions.INTEGRACIONES_DESACTIVAR,
+}
+
+
 class WebhookEndpointStatusAction(str, Enum):
     ACTIVATE = "ACTIVATE"
     DEACTIVATE = "DEACTIVATE"
@@ -61,7 +76,8 @@ class WebhookEndpointStatusAction(str, Enum):
 # ── IntegrationDefinition ────────────────────────────────────────────────────
 
 class CreateIntegrationDefinitionUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._definitions = SqliteIntegrationDefinitionRepository(connection)
 
@@ -69,6 +85,7 @@ class CreateIntegrationDefinitionUseCase:
         self, *, code: str, name: str, category: IntegrationCategory | str,
         required_credential_names: tuple[str, ...] | list[str] = (),
     ) -> IntegrationDefinition:
+        self._authz.require(ConfiguracionPermissions.INTEGRACIONES_CREAR)
         definition = IntegrationDefinition.create(
             code=code, name=name, category=IntegrationCategory(category),
             required_credential_names=required_credential_names,
@@ -79,13 +96,15 @@ class CreateIntegrationDefinitionUseCase:
 
 
 class UpdateIntegrationDefinitionUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._definitions = SqliteIntegrationDefinitionRepository(connection)
 
     def execute(
         self, *, definition_id: str, name: str, required_credential_names: tuple[str, ...] | list[str] = (),
     ) -> IntegrationDefinition:
+        self._authz.require(ConfiguracionPermissions.INTEGRACIONES_EDITAR)
         definition = self._definitions.get(definition_id)
         if definition is None:
             raise IntegrationDefinitionNotFoundError(f"Definición {definition_id} no encontrada")
@@ -96,11 +115,13 @@ class UpdateIntegrationDefinitionUseCase:
 
 
 class ChangeIntegrationDefinitionStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._definitions = SqliteIntegrationDefinitionRepository(connection)
 
     def execute(self, *, definition_id: str, action: IntegrationDefinitionStatusAction) -> IntegrationDefinition:
+        self._authz.require_mapped(INTEGRATION_DEFINITION_STATUS_PERMISSIONS, action)
         definition = self._definitions.get(definition_id)
         if definition is None:
             raise IntegrationDefinitionNotFoundError(f"Definición {definition_id} no encontrada")
@@ -118,11 +139,13 @@ class ChangeIntegrationDefinitionStatusUseCase:
 # ── IntegrationInstance ──────────────────────────────────────────────────────
 
 class CreateIntegrationInstanceUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._instances = SqliteIntegrationInstanceRepository(connection)
 
     def execute(self, *, definition_id: str, name: str, config: dict | None = None) -> IntegrationInstance:
+        self._authz.require(ConfiguracionPermissions.INTEGRACIONES_CREAR)
         instance = IntegrationInstance.create(definition_id=definition_id, name=name, config=config)
         self._instances.save(instance)
         self._conn.commit()
@@ -130,11 +153,13 @@ class CreateIntegrationInstanceUseCase:
 
 
 class UpdateIntegrationInstanceUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._instances = SqliteIntegrationInstanceRepository(connection)
 
     def execute(self, *, instance_id: str, name: str, config: dict | None = None) -> IntegrationInstance:
+        self._authz.require(ConfiguracionPermissions.INTEGRACIONES_EDITAR)
         instance = self._instances.get(instance_id)
         if instance is None:
             raise IntegrationInstanceNotFoundError(f"Instancia {instance_id} no encontrada")
@@ -145,11 +170,13 @@ class UpdateIntegrationInstanceUseCase:
 
 
 class ChangeIntegrationInstanceStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._instances = SqliteIntegrationInstanceRepository(connection)
 
     def execute(self, *, instance_id: str, action: IntegrationInstanceStatusAction) -> IntegrationInstance:
+        self._authz.require_mapped(INTEGRATION_INSTANCE_STATUS_PERMISSIONS, action)
         instance = self._instances.get(instance_id)
         if instance is None:
             raise IntegrationInstanceNotFoundError(f"Instancia {instance_id} no encontrada")
@@ -165,7 +192,8 @@ class ChangeIntegrationInstanceStatusUseCase:
 
 
 class SetIntegrationInstanceCredentialUseCase:
-    def __init__(self, connection, secret_store) -> None:
+    def __init__(self, connection, secret_store, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._instances = SqliteIntegrationInstanceRepository(connection)
         self._secret_store = secret_store
@@ -173,6 +201,7 @@ class SetIntegrationInstanceCredentialUseCase:
     def execute(
         self, *, instance_id: str, credential_name: str, secret_name: str, secret_value: str | None = None,
     ) -> IntegrationInstance:
+        self._authz.require(ConfiguracionPermissions.INTEGRACIONES_SECRETOS)
         instance = self._instances.get(instance_id)
         if instance is None:
             raise IntegrationInstanceNotFoundError(f"Instancia {instance_id} no encontrada")
@@ -187,7 +216,8 @@ class SetIntegrationInstanceCredentialUseCase:
 # ── WebhookEndpoint ──────────────────────────────────────────────────────────
 
 class CreateWebhookEndpointUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._endpoints = SqliteWebhookEndpointRepository(connection)
 
@@ -196,6 +226,7 @@ class CreateWebhookEndpointUseCase:
         signature_scheme: WebhookSignatureScheme | str = WebhookSignatureScheme.NONE,
         signing_secret_reference: str | None = None,
     ) -> WebhookEndpoint:
+        self._authz.require(ConfiguracionPermissions.WEBHOOKS_GESTIONAR)
         endpoint = WebhookEndpoint.create(
             instance_id=instance_id, code=code, path=path,
             signature_scheme=WebhookSignatureScheme(signature_scheme),
@@ -207,11 +238,13 @@ class CreateWebhookEndpointUseCase:
 
 
 class ChangeWebhookEndpointStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._endpoints = SqliteWebhookEndpointRepository(connection)
 
     def execute(self, *, endpoint_id: str, action: WebhookEndpointStatusAction) -> WebhookEndpoint:
+        self._authz.require(ConfiguracionPermissions.WEBHOOKS_GESTIONAR)
         endpoint = self._endpoints.get(endpoint_id)
         if endpoint is None:
             raise WebhookEndpointNotFoundError(f"Webhook {endpoint_id} no encontrado")
@@ -233,11 +266,13 @@ class RecordIntegrationHealthCheckUseCase:
     SET-8/9/10 already established for hardware this repo can't safely
     call out to blind."""
 
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._checks = SqliteIntegrationHealthCheckRepository(connection)
 
     def execute(self, *, instance_id: str, success: bool, message: str = "") -> IntegrationHealthCheck:
+        self._authz.require(ConfiguracionPermissions.INTEGRACIONES_PROBAR)
         check = IntegrationHealthCheck.record(instance_id=instance_id, success=success, message=message)
         self._checks.save(check)
         self._conn.commit()
@@ -267,7 +302,8 @@ class TestIntegrationConnectionUseCase:
 
     __test__ = False  # no es una prueba de pytest pese al nombre
 
-    def __init__(self, connection, secret_store, verifiers=None) -> None:
+    def __init__(self, connection, secret_store, verifiers=None, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._secret_store = secret_store
         self._verifiers = DEFAULT_CONNECTION_VERIFIERS if verifiers is None else verifiers
@@ -276,6 +312,7 @@ class TestIntegrationConnectionUseCase:
         self._checks = SqliteIntegrationHealthCheckRepository(connection)
 
     def execute(self, *, instance_id: str) -> IntegrationHealthCheck:
+        self._authz.require(ConfiguracionPermissions.INTEGRACIONES_PROBAR)
         instance = self._instances.get(instance_id)
         if instance is None:
             raise IntegrationInstanceNotFoundError(f"Instancia {instance_id} no encontrada")

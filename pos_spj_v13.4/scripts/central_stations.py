@@ -34,6 +34,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--station")
     parser.add_argument("--branch")
     parser.add_argument("--name", default="")
+    parser.add_argument("--retry-errors", action="store_true",
+                        help="project: reintenta también los hechos en ERROR permanente")
     args = parser.parse_args(argv)
 
     conexion = create_connection_factory(DatabaseSettings.postgresql_from_env())()
@@ -48,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
                 PostgresCentralProjectionRepository,
             )
             total = CentralProjector(PostgresCentralProjectionRepository(conexion)).run_once(
-                limit=100_000)
+                limit=100_000, retry_errors=args.retry_errors)
             print(f"Proyectados={total.projected} omitidos={total.skipped} errores={total.errors}")
             return 0
         if not args.station:

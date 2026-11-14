@@ -11,11 +11,15 @@
 
 from __future__ import annotations
 
+import logging
+
 from backend.application.event_handlers.finance.loss_recognition_handler import (
     LOSS_FINANCE_RECOGNITION_REQUESTED,
     LossRecognitionHandler,
 )
 from backend.application.services.finance.finance_bootstrap import bootstrap_finance
+
+logger = logging.getLogger("spj.finance.wiring")
 
 
 def wire_finance(bus, connection) -> dict:
@@ -27,8 +31,9 @@ def wire_finance(bus, connection) -> dict:
 
 
 def finance_periodic_tick(connection, bus, *, today=None) -> dict:
-    """Ciclo de fondo de Finanzas: entrega la merma valuada pendiente, despacha
-    el ``finance_outbox`` y marca CxC/CxP vencidas (idempotente por día)."""
+    """Ciclo de fondo de Finanzas: entrega la merma valuada pendiente, marca
+    CxC/CxP vencidas (idempotente por día), corre la depreciación del mes que
+    terminó (una vez por periodo) y despacha el ``finance_outbox``."""
     from datetime import date
 
     from backend.application.losses.outbox_dispatcher import dispatch_loss_outbox
@@ -41,6 +46,20 @@ def finance_periodic_tick(connection, bus, *, today=None) -> dict:
     bootstrap_finance(connection)
     losses = dispatch_loss_outbox(LossOutboxRepository(connection), bus)
     overdue = MarkOverdueDocumentsUseCase().execute(connection, as_of=today or date.today())
+    depreciation = _scheduled_depreciation(connection, today or date.today())
     finance = dispatch_finance_outbox(connection, bus)
-    return {"losses": losses, "finance": finance,
+    return {"losses": losses, "finance": finance, "depreciation": depreciation,
             "overdue": {"receivables": overdue.receivables, "payables": overdue.payables}}
+
+
+def _scheduled_depreciation(connection, today) -> dict:
+    """Un fallo aquí no detiene el resto del ciclo: se registra y se reintenta."""
+    from backend.application.use_cases.finance.scheduled_depreciation_use_case import (
+        RunScheduledDepreciationUseCase,
+    )
+
+    try:
+        return RunScheduledDepreciationUseCase().execute(connection, today=today)
+    except Exception as exc:
+        logger.exception("corrida automática de depreciación fallida")
+        return {"error": str(exc)}

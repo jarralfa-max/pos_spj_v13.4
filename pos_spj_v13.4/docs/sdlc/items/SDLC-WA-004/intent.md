@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-003
 
 ## Problema
@@ -33,7 +33,7 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 WA-22.
 
 ## Preguntas abiertas
-- ¿Cuenta contable de anticipos de clientes?
+- ¿Cuenta contable de anticipos de clientes? si
 
 ## Ampliación 2026-10-29 (`/sdlc-plan arquitectura docs/sdlc/inputs/mercado-pago.md`)
 Origen: `docs/sdlc/inputs/mercado-pago.md` Fase 14; matriz `docs/audits/MERCADO_PAGO_INTEGRATION_AUDIT.md` (Fase 14 «Microservicio no dueño del estado financiero», `defectuoso`, CRITICAL).

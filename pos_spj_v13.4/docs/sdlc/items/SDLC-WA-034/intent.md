@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §44 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-012
 
 ## Problema
@@ -35,4 +35,4 @@ Privacidad y datos: altas sin consentimiento, duplicados entre maestros.
 SDLC-CRM-003; CRM-9 (privacidad).
 
 ## Preguntas abiertas
-- ¿Qué datos mínimos pide el registro por WhatsApp y qué versión del aviso de privacidad se muestra? ¿Un número sin registrar puede pedir sin registrarse?
+- ¿Qué datos mínimos pide el registro por WhatsApp y qué versión del aviso de privacidad se muestra? Nombre completo, direccion ¿Un número sin registrar puede pedir sin registrarse? si

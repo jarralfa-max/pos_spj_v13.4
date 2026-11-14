@@ -263,6 +263,8 @@ class SaleReceiptDataDTO:
     forma_pago: str
     efectivo_recibido: Decimal
     cambio: Decimal
+    #: (método, referencia ENMASCARADA) de cada pago electrónico (SDLC-PAY-003).
+    payment_references: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

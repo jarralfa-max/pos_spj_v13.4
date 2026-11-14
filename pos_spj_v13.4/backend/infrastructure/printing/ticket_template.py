@@ -83,6 +83,7 @@ td.num { text-align: right; }
     <tr><td><strong>Total</strong></td><td class="num"><strong>{{total}}</strong></td></tr>
   </table>
   <div>Forma de pago: {{forma_pago}}</div>
+  <div>{{referencia_pago}}</div>
   <div class="linea"></div>
   <div class="centro">{{mensaje_psicologico}}</div>
 </body>
@@ -117,6 +118,10 @@ class TicketTemplateEngine:
             # de antes del descuento.
             "total": _money(totales.get("total_final", totales.get("total"))),
             "mensaje_psicologico": html.escape(str(mensaje_psicologico or "")),
+            # Ya enmascarada: el ticket nunca lleva la referencia completa.
+            "referencia_pago": html.escape(" · ".join(
+                f"Ref. {r.get('referencia')}"
+                for r in (datos.get("pago") or {}).get("referencias") or ())),
             ITEMS_PLACEHOLDER: self._render_items(datos.get("items") or []),
         })
         return campos

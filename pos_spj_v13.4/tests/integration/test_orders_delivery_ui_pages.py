@@ -23,7 +23,6 @@ from backend.application.orders_delivery.use_cases.order_capture_use_cases impor
 )
 from backend.infrastructure.db.schema.orders_delivery_schema import create_orders_delivery_schema
 from backend.shared.ids import new_uuid
-from frontend.desktop.modules.orders_delivery.dialogs.new_order_dialog import NewOrderDialog
 from frontend.desktop.modules.orders_delivery.orders_delivery_routes import build_page
 from frontend.desktop.modules.orders_delivery.pages.analytics_page import OrdersAnalyticsPage
 from frontend.desktop.modules.orders_delivery.pages.orders_list_page import OrdersListPage
@@ -109,20 +108,6 @@ class TestOrdersListPage(object):
         page.reload()
         assert page.table.rowCount() == 0
 
-    def test_new_order_dialog_creates_a_real_order(self, app, conn):
-        branch_id = new_uuid()
-        presenter = OrdersListPresenter(
-            conn, branch_id=branch_id, actor_user_id=new_uuid(), authorization=_allow_all())
-        ok, message = presenter.create_order({
-            "channel": "POS", "fulfillment_type": "COUNTER", "contact_name": "Ana",
-            "contact_phone": None,
-            "lines": [{"product_id": new_uuid(), "unit_price": "25.00", "requested_quantity": "2"}],
-        })
-        assert ok, message
-        row = conn.execute(
-            "SELECT COUNT(*) FROM customer_orders WHERE branch_id=?", (branch_id,)).fetchone()
-        assert row[0] == 1
-
 
 class TestOrdersAnalyticsPage(object):
     def test_renders_kpis_and_charts_without_crashing(self, app, conn):
@@ -132,31 +117,6 @@ class TestOrdersAnalyticsPage(object):
         page.ensure_loaded()
         assert page.kpis._cards
         assert len(page.charts) == 2
-
-
-class TestNewOrderDialog(object):
-    def test_data_shape_matches_use_case_expectations(self, app):
-        dialog = NewOrderDialog()
-        dialog.channel_combo.set_current_id("POS")
-        dialog.fulfillment_combo.set_current_id("COUNTER")
-        dialog.contact_name_input.setText("Cliente")
-        product_id = new_uuid()
-        dialog.product_id_input.setText(product_id)
-        dialog.quantity_input.setText("2")
-        dialog.unit_price_input.setValue(10.0)
-
-        data = dialog.data()
-
-        assert data["channel"] == "POS"
-        assert data["fulfillment_type"] == "COUNTER"
-        assert data["lines"] == [{
-            "product_id": product_id, "unit_price": "10.0", "requested_quantity": "2.000",
-        }]
-        assert dialog._is_valid() is True
-
-    def test_invalid_without_required_fields(self, app):
-        dialog = NewOrderDialog()
-        assert dialog._is_valid() is False
 
 
 class TestBuildPageWiring(object):

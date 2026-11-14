@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
-
-
-_ACTIVE_SHIFT_STATUSES = tuple(status.value for status in CashShiftLifecyclePolicy.ACTIVE_STATUSES)
+from backend.application.cash_register.active_shift_resolver import (
+    ActiveShift,
+    ActiveShiftResolver,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,32 +37,27 @@ class CashOperationalContext:
 
 
 class DesktopCashOperationalContextResolver:
-    """Resolve Caja active context from session and canonical tables only."""
+    """Resolve Caja active context from session and canonical tables only.
+
+    SDLC-ARQ-SHIFT-001: el turno activo sale de `ActiveShiftResolver` (la
+    misma fuente que POS, devoluciones y cierre financiero), sin caché en el
+    `composition_root`: cada consulta lee la base."""
 
     def __init__(self, connection, session, composition_root) -> None:
         self._connection = connection
         self._session = session
         self._composition_root = composition_root
+        self._shifts = ActiveShiftResolver(connection)
 
     def active_shift_id(self) -> str | None:
-        branch_id = self._branch_id()
-        user_id = self._user_id()
-        cached = getattr(self._composition_root, "active_cash_shift_id", None)
-        if cached:
-            row = self._current_active_cash_shift(
-                branch_id=branch_id,
-                cashier_user_id=user_id,
-            )
-            if row and row["id"] == str(cached):
-                return str(cached)
-        row = self._current_active_cash_shift(
-            branch_id=branch_id,
-            cashier_user_id=user_id,
-        )
-        if row:
-            setattr(self._composition_root, "active_cash_shift_id", row["id"])
-            return row["id"]
-        return None
+        shift = self._active_shift()
+        return shift.id if shift else None
+
+    def _active_shift(self) -> ActiveShift | None:
+        branch_id, user_id = self._branch_id(), self._user_id()
+        if not branch_id or not user_id:
+            return None
+        return self._shifts.for_cashier(cashier_user_id=user_id, branch_id=branch_id)
 
     def available_registers(self) -> list[dict]:
         """Cajas ACTIVAS de la sucursal con su cajón y terminal activos, y si
@@ -88,10 +83,7 @@ class DesktopCashOperationalContextResolver:
                FROM cash_registers r
                WHERE r.branch_id=? AND r.status='ACTIVE' ORDER BY r.name""",
             (branch_id,)).fetchall()
-        marks = ",".join("?" for _ in _ACTIVE_SHIFT_STATUSES)
-        busy = {str(r[0]) for r in self._connection.execute(
-            f"SELECT register_id FROM cash_shifts WHERE branch_id=? AND status IN ({marks})",
-            (branch_id, *_ACTIVE_SHIFT_STATUSES)).fetchall()}
+        busy = self._shifts.busy_register_ids(branch_id=branch_id)
         return [{"register_id": str(r[0]), "register_name": str(r[1] or ""),
                  "drawer_id": r[2], "drawer_name": str(r[3] or ""),
                  "terminal_id": r[4], "terminal_name": str(r[5] or ""),
@@ -119,22 +111,11 @@ class DesktopCashOperationalContextResolver:
         cash_register_id = chosen["register_id"] if chosen else None
         cash_drawer_id = chosen["drawer_id"] if chosen else None
         pos_terminal_id = chosen["terminal_id"] if chosen else None
-        active_shift = (
-            self._current_active_cash_shift(
-                branch_id=branch_id,
-                cashier_user_id=self._user_id(),
-                register_id=cash_register_id,
-            )
-            or self._current_active_cash_shift(
-                branch_id=branch_id,
-                cashier_user_id=self._user_id(),
-            )
-        )
+        active_shift = self._active_shift()
         if active_shift:
-            cash_register_id = active_shift["register_id"]
-            cash_drawer_id = active_shift["drawer_id"]
-            pos_terminal_id = active_shift["terminal_id"]
-            setattr(self._composition_root, "active_cash_shift_id", active_shift["id"])
+            cash_register_id = active_shift.register_id
+            cash_drawer_id = active_shift.drawer_id
+            pos_terminal_id = active_shift.terminal_id
         sync_device_id = (
             self._root_value("active_cash_sync_device_id")
             or self._session_value("active_cash_sync_device_id")
@@ -147,7 +128,7 @@ class DesktopCashOperationalContextResolver:
             cash_register_id=cash_register_id,
             cash_drawer_id=cash_drawer_id,
             pos_terminal_id=pos_terminal_id,
-            cash_shift_id=active_shift["id"] if active_shift else self.active_shift_id(),
+            cash_shift_id=active_shift.id if active_shift else None,
             sync_device_id=sync_device_id,
         )
 
@@ -189,41 +170,3 @@ class DesktopCashOperationalContextResolver:
         value = getattr(self._composition_root, name, None)
         text = str(value or "").strip()
         return text or None
-
-    def _current_active_cash_shift(
-        self,
-        *,
-        branch_id: str | None,
-        cashier_user_id: str | None = None,
-        register_id: str | None = None,
-        drawer_id: str | None = None,
-        terminal_id: str | None = None,
-    ) -> dict[str, str] | None:
-        if not branch_id:
-            return None
-        placeholders = ",".join("?" for _ in _ACTIVE_SHIFT_STATUSES)
-        params: list[str] = [str(branch_id), *_ACTIVE_SHIFT_STATUSES]
-        filters = [f"branch_id=? AND status IN ({placeholders})"]
-        if cashier_user_id:
-            filters.append("cashier_user_id=?")
-            params.append(str(cashier_user_id))
-        if register_id:
-            filters.append("register_id=?")
-            params.append(str(register_id))
-        if drawer_id:
-            filters.append("drawer_id=?")
-            params.append(str(drawer_id))
-        if terminal_id:
-            filters.append("terminal_id=?")
-            params.append(str(terminal_id))
-        cursor = self._connection.execute(
-            f"""SELECT id,branch_id,register_id,drawer_id,terminal_id,cashier_user_id,status
-            FROM cash_shifts
-            WHERE {' AND '.join(filters)}
-            ORDER BY opened_at DESC,id DESC LIMIT 1""",
-            tuple(params),
-        )
-        row = cursor.fetchone()
-        if row is None:
-            return None
-        return dict(zip((item[0] for item in cursor.description), map(str, row)))

@@ -127,6 +127,21 @@ def test_conflicts_are_recorded_never_overwritten(central):
     assert tipos == {"EVENT_ID_REUSED", "AGGREGATE_VERSION_REGRESSION"}
 
 
+def test_resending_a_stored_conflict_answers_conflict(central):
+    """SDLC-SYNC-002 sobre PostgreSQL real."""
+    conn, repo, emitida = central
+    agregado = new_uuid()
+    _ingesta(repo, emitida, sobre(emitida, secuencia=1, agregado=agregado, version=2))
+    regresivo = sobre(emitida, secuencia=2, agregado=agregado, version=1)
+    _ingesta(repo, emitida, regresivo)
+
+    acuse = _ingesta(repo, emitida, regresivo)[0]
+
+    assert acuse.outcome is ReplicationOutcome.CONFLICT
+    assert acuse.error_code == "AGGREGATE_VERSION_REGRESSION"
+    assert _uno(conn, "SELECT count(*) FROM sync_conflicts")[0] == 1
+
+
 def test_branch_scope_is_enforced(central):
     conn, repo, emitida = central
     acuse = _ingesta(repo, emitida, sobre(emitida, branch_id=new_uuid()))[0]

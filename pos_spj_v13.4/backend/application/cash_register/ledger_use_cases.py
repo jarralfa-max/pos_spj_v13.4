@@ -103,7 +103,7 @@ class RegisterCashMovementUseCase:
             ensure_owner_or_intervention(
                 self._auth, shift_cashier_user_id=shift["cashier_user_id"],
                 actor_user_id=actor_user_id, branch_id=branch_id,
-                intervention_permission=CashPermissions.SHIFT_FORCE_CLOSE, require_reason=False,
+                intervention_permission=CashPermissions.MOVEMENT_INTERVENE, require_reason=False,
                 action="mover efectivo en")
             CashShiftLifecyclePolicy.ensure_operable(shift["status"])
             if direction is CashMovementDirection.OUTFLOW:

@@ -157,10 +157,22 @@ DEFAULT_SOURCES: tuple[ReplicationSource, ...] = (
     ReplicationSource("quotes", "quote_outbox", "quote"),
     ReplicationSource("organization", "org_outbox", "org_unit"),
 )
+#: Outbox SÓLO-REPLICACIÓN (SDLC-ORD-002, medido el 2026-11-06 con el cableado
+#: real): ninguno de sus eventos tiene suscriptor local, así que no tienen
+#: despachador en proceso. Este motor es su único lector y sus filas se quedan
+#: en PENDING. `tests/integration/bootstrap/test_outbox_drain_coverage.py` falla
+#: si alguien suscribe uno de sus eventos: en ese momento necesita despachador y
+#: sale de esta lista. `orders_delivery_outbox` NO está aquí: se drena al
+#: arrancar y periódicamente (SDLC-ORD-001).
+REPLICATION_ONLY_OUTBOXES: frozenset[str] = frozenset({
+    "crm_outbox", "customer_outbox", "quote_outbox", "loyalty_cards_outbox",
+    "sweepstakes_outbox", "customer_service_outbox", "customer_privacy_outbox",
+})
+
 # Fuera a propósito: `whatsapp_outbox` y `product_whatsapp_outbox` son colas de
 # MENSAJES por enviar (su propio despachador los entrega), no hechos de negocio;
 # `sync_outbox`, `event_outbox` y `delivery_outbox_events` son legados sin
 # escritor canónico.
 
 
-__all__ = ["DEFAULT_SOURCES", "ReplicationSource"]
+__all__ = ["DEFAULT_SOURCES", "REPLICATION_ONLY_OUTBOXES", "ReplicationSource"]

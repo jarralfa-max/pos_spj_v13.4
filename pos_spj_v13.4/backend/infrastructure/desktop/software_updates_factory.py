@@ -3,7 +3,7 @@ the three hosts: the startup sequence (`frontend/desktop/app.py`), the
 Configuración page «Acerca de y actualizaciones» and the background trigger
 of the maintenance window.
 
-The station key is the MACHINE (`default_workstation_id()`, the host name):
+The station key is the TERMINAL id (SDLC-ARQ-TERM-001), not the host name:
 software is installed per machine, whoever logs in.
 """
 from __future__ import annotations
@@ -20,6 +20,7 @@ from backend.application.software_updates.use_cases import (
     StationContext,
 )
 from backend.bootstrap.application_context import default_workstation_id
+from backend.bootstrap.terminal_identity import current_terminal_id
 from backend.infrastructure.db.repositories.settings.configuracion_security_repositories import (
     ConfiguracionAuditLogRepository,
 )
@@ -67,7 +68,9 @@ def build_software_update_dependencies(
     return SoftwareUpdateDependencies(
         connection=connection,
         installation=installation,
-        station=StationContext(workstation_key=default_workstation_id(), branch_id=branch_id,
+        station=StationContext(workstation_key=(current_terminal_id(connection)
+                                                or default_workstation_id()),
+                               branch_id=branch_id,
                                user_id=user_id),
         authorization=authorization,
         repository=SqliteStationUpdateRepository(connection),

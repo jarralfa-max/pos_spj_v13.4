@@ -106,6 +106,65 @@ class TestOfflinePageStructure:
         assert not hasattr(page, "edit_cache_button")
 
 
+def _conflicto(conn) -> str:
+    """Un sobre en CONFLICTO, como lo deja el motor de replicación."""
+    import importlib
+
+    importlib.import_module("migrations.standalone.350_replication_engine").run(conn)
+    estacion, sobre = new_uuid(), new_uuid()
+    conn.execute("INSERT INTO replication_stations (id, branch_id, created_at, updated_at)"
+                 " VALUES (?,?,'t','t')", (estacion, new_uuid()))
+    conn.execute(
+        "INSERT INTO replication_envelopes (id, station_id, source, source_row_id, event_id,"
+        " event_type, operation_id, aggregate_type, aggregate_id, sequence_no,"
+        " aggregate_version, content_hash, envelope_json, state, last_error, created_at)"
+        " VALUES (?,?,'sales',?,?,'SALE_COMPLETED',?,'sales.sale',?,1,1,'h','{}','CONFLICT',"
+        "'AGGREGATE_VERSION_REGRESSION','t')",
+        (sobre, estacion, new_uuid(), new_uuid(), new_uuid(), new_uuid()))
+    conn.commit()
+    return sobre
+
+
+class TestOfflinePageConflicts:
+    def test_pending_conflicts_are_visible_and_resolved_with_a_reason(self, app, conn, monkeypatch):
+        from frontend.desktop.modules.configuracion import pages as _pages  # noqa: F401
+        from frontend.desktop.modules.configuracion.pages import offline_page
+
+        sobre = _conflicto(conn)
+        view = _view(app, conn)
+        view.show_route("config_offline")
+        page = view._pages["config_offline"]
+        assert page.conflicts_table.rowCount() == 1
+        page.conflicts_table.selectRow(0)
+        assert page.conflicts_table.selected_row_id() == sobre
+
+        class _Dialogo:
+            def __init__(self, *a, **k):
+                pass
+
+            def exec_(self):
+                return offline_page.QDialog.Accepted
+
+            def values(self):
+                return {"reason": "El central ya lo tiene"}
+
+        monkeypatch.setattr(offline_page, "ResolveReplicationConflictDialog", _Dialogo)
+        monkeypatch.setattr(offline_page.MessageDialog, "information", lambda *a, **k: None)
+        monkeypatch.setattr(offline_page.MessageDialog, "warning", lambda *a, **k: None)
+        page.accept_remote_button.click()
+
+        estado = conn.execute("SELECT state FROM replication_envelopes").fetchone()[0]
+        assert estado == "SYNCED"
+        assert page.conflicts_table.rowCount() == 0
+
+    def test_no_conflicts_shows_the_empty_state(self, app, conn):
+        view = _view(app, conn)
+        view.show_route("config_offline")
+        page = view._pages["config_offline"]
+        assert page.conflicts_empty is not None
+        assert not page.accept_remote_button.isEnabled()
+
+
 class TestOfflinePageLoadsRealData:
     def test_policies_table_loads_all_policies_including_inactive(self, app, conn):
         CreateCacheExpirationPolicyUseCase(conn).execute(entity_type="customer", ttl_seconds=3600)

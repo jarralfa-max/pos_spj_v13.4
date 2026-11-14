@@ -20,13 +20,14 @@ placeholders (documented in `docs/refactor/BI-25_analytical_pages.md`).
 
 from __future__ import annotations
 
-from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+from backend.application.analytics.access import BiAccess
 from backend.application.analytics.queries.bi_dashboard_query_service import (
     BiDashboardQueryService,
 )
 from backend.application.analytics.services.bi_dashboard_service import BiDashboardService
 from backend.application.dto.charts.chart_data import ChartDataDTO, ChartSeriesDTO, ChartType
 from frontend.desktop.components.kpi_card import KPIDTO
+from frontend.desktop.modules.business_intelligence.presenters.bi_filters import BiFilterState
 from frontend.desktop.components.tables import ColumnSpec
 
 _KIND_TO_CHART_TYPE = {
@@ -108,15 +109,18 @@ class AnalyticalSectionPresenter:
     `business_intelligence_routes.py` so this presenter stays a pure
     translator with no navigation knowledge."""
 
-    def __init__(self, connection, section_key: str, *, permission_checker=None) -> None:
+    def __init__(self, connection, section_key: str, *, access: BiAccess | None = None) -> None:
+        access = access or BiAccess()
         query_service = BiDashboardQueryService(connection)
-        self._service = BiDashboardService(query_service, permission_checker=permission_checker)
+        self._service = BiDashboardService(
+            query_service, permission_checker=access.can, branch_scope=access.scope)
+        self.filters = BiFilterState(access, query_service)
         self._section_key = section_key
         self._cached: dict | None = None
 
     def _data(self) -> dict:
         if self._cached is None:
-            self._cached = self._service.section_data(self._section_key, DashboardFilters())
+            self._cached = self._service.section_data(self._section_key, self.filters.current)
         return self._cached
 
     def invalidate(self) -> None:

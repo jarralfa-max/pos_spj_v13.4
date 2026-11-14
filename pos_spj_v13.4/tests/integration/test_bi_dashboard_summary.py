@@ -14,7 +14,7 @@ def service():
     p = S.add_product(conn, "Pollo", "Aves", 18.0, branch_id=b)
     S.add_sale(conn, b, [(p, 3, 30.0, 18.0)], when=S.this_month_day())
     conn.commit()
-    return BiDashboardService(BiDashboardQueryService(conn))
+    return BiDashboardService.permissive_for_tests(BiDashboardQueryService(conn))
 
 
 def test_payload_tiene_todas_las_secciones(service):

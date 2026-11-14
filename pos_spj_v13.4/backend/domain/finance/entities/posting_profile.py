@@ -56,6 +56,8 @@ ACCOUNT_ROLES = (
     # §14: sobrante y faltante de caja, cada uno en su cuenta configurable.
     "cash_over_account_id",
     "cash_short_account_id",
+    # SDLC-ORD-001: efectivo en poder de repartidores.
+    "driver_cash_account_id",
     "discount_account_id",
     # Auditoría Compras C12: crédito del proveedor por devolución que ya no
     # tiene CxP que acreditar (pagada o de contado).

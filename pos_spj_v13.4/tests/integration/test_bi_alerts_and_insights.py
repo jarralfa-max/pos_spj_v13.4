@@ -12,7 +12,7 @@ def test_alerta_merma_alta():
     S.add_sale(conn, b, [(p, 10, 30.0, 18.0)], when=S.this_month_day())  # ventas 300
     S.add_waste(conn, p, b, 5, 40.0, when=S.this_month_day())  # merma 40 → 13% > 3%
     conn.commit()
-    pl = BiDashboardService(BiDashboardQueryService(conn)).build_dashboard(
+    pl = BiDashboardService.permissive_for_tests(BiDashboardQueryService(conn)).build_dashboard(
         DashboardFilters(preset="month"))
     codes = {a["code"] for a in pl.alerts}
     assert "merma_alta" in codes
@@ -24,7 +24,7 @@ def test_insights_no_vacios_con_ventas():
     p = S.add_product(conn, "Pollo", "Aves", 18.0, branch_id=b)
     S.add_sale(conn, b, [(p, 3, 30.0, 18.0)], when=S.this_month_day())
     conn.commit()
-    pl = BiDashboardService(BiDashboardQueryService(conn)).build_dashboard(
+    pl = BiDashboardService.permissive_for_tests(BiDashboardQueryService(conn)).build_dashboard(
         DashboardFilters(preset="month"))
     titulos = " | ".join(i["title"] for i in pl.insights)
     assert "San Bartolo" in titulos

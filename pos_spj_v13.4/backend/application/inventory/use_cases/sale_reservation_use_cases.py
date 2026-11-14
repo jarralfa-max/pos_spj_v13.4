@@ -56,6 +56,18 @@ class ReserveStockForSaleUseCase(ReserveStockForProductionUseCase):
     _REQUIRE_RELEASED = False
 
 
+class ReserveStockForCustomerOrderUseCase(ReserveStockForProductionUseCase):
+    """Reserva para una línea de pedido (SDLC-ORD-004): mismo mecanismo y misma
+    elegibilidad que el mostrador, porque es la misma mercancía. Antes Pedidos
+    usaba `CreateReservationUseCase`, que busca un saldo sin lote ni ubicación:
+    una fila que ningún flujo real llena y que además ningún movimiento puede
+    descontar (la salida exige ubicación origen)."""
+    _SOURCE = ReservationSource.CUSTOMER_ORDER
+    _STRATEGY_SETTING = SALES_STRATEGY_SETTING
+    _PURPOSE = "pedido"
+    _REQUIRE_RELEASED = False
+
+
 class ReserveStockForTransferUseCase(ReserveStockForProductionUseCase):
     """Reserva para una transferencia (integración Logística 32cfbf): mismo
     mecanismo por lotes, origen TRANSFER y su propia estrategia configurable.

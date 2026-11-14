@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timezone
 
 from backend.domain.hr.enums import (
+    UNEARNED_CONCEPTS,
     AdjustmentStatus,
     AttendanceIncidentType,
     AttendanceSource,
@@ -558,6 +559,14 @@ class PayrollRun:
         total = Money.zero()
         for line in self.lines:
             if line.is_deduction:
+                total = total.add(line.amount)
+        return total
+
+    def unearned_deductions(self) -> Money:
+        """Faltas y retardos: sueldo no devengado, no una retención por enterar."""
+        total = Money.zero()
+        for line in self.lines:
+            if line.concept in UNEARNED_CONCEPTS:
                 total = total.add(line.amount)
         return total
 

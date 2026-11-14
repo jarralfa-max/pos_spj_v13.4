@@ -17,6 +17,12 @@ Los roles se identifican por nombre porque `usuarios.rol` guarda el nombre. Para
 que el nombre no sea una cadena editable que dé superpoderes, estos nombres son
 RESERVADOS: ningún rol se puede renombrar hacia ni desde uno de ellos, ni crear
 con ese nombre (`RoleManagementService.save_role`).
+
+Política aprobada (SDLC-ARQ-PERM-004, responsable, 2026-11-02): los roles de
+acceso total SIGUEN siendo reservados por nombre, no roles normales con todos
+los permisos, y el dueño y las cuentas con rol de toda la empresa operan el POS
+de cualquier sucursal sin asignación operativa explícita. Fuera de esta lista,
+ningún nombre de rol concede nada: lo que un rol puede lo dicen sus permisos.
 """
 from __future__ import annotations
 

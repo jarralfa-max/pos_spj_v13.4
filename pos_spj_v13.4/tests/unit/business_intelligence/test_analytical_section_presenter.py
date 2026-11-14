@@ -2,6 +2,7 @@ import sqlite3
 
 import pytest
 
+from backend.application.analytics.access import BiAccess
 from backend.application.dto.charts.chart_data import ChartType
 from frontend.desktop.modules.business_intelligence.presenters.analytical_section_presenter import (
     AnalyticalSectionPresenter,
@@ -71,7 +72,7 @@ def test_presenter_degrades_gracefully_against_a_bare_connection(conn, section_k
     """Same real `BiDashboardService` used by BI-24, just asking for one
     section's tab payload instead of the whole dashboard — no schema at all,
     must not crash."""
-    presenter = AnalyticalSectionPresenter(conn, section_key)
+    presenter = AnalyticalSectionPresenter(conn, section_key, access=BiAccess.permissive_for_tests())
     cards = presenter.kpi_cards()
     charts = presenter.charts()
     tables = presenter.tables()
@@ -81,7 +82,7 @@ def test_presenter_degrades_gracefully_against_a_bare_connection(conn, section_k
 
 
 def test_presenter_caches_data_until_invalidated(conn):
-    presenter = AnalyticalSectionPresenter(conn, "ventas")
+    presenter = AnalyticalSectionPresenter(conn, "ventas", access=BiAccess.permissive_for_tests())
     first = presenter._data()
     assert presenter._data() is first
     presenter.invalidate()

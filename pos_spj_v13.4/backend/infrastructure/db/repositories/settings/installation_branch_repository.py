@@ -17,6 +17,7 @@ es ésta?".
 from __future__ import annotations
 
 from backend.infrastructure.db.repositories.settings.base import SettingsRepositoryBase
+from backend.infrastructure.sync.replication_sources import DEFAULT_SOURCES
 from backend.shared.ids import validate_uuidv7
 
 #: Clave en `configuraciones`. Se mantiene el nombre histórico a propósito: las
@@ -67,3 +68,68 @@ class SqliteInstallationBranchRepository(SettingsRepositoryBase):
             (INSTALLATION_BRANCH_KEY, str(row["id"])),
         )
         return str(row["id"]), str(row["nombre"])
+
+    # ── guardas del re-anclaje (SDLC-ARQ-TERM-002) ──────────────────────────
+    def _table_exists(self, name: str) -> bool:
+        return self._query_one(
+            "SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name=?", (name,),
+        ) is not None
+
+    def central_enrollment_active(self) -> bool:
+        """¿Está ESTE equipo vinculado al registro central?
+
+        `device_enrollment` (migración 354) guarda la vinculación; sin la tabla o
+        sin una fila ENROLLED no hay registro central y basta el permiso local.
+        """
+        if not self._table_exists("device_enrollment"):
+            return False
+        return self._query_one(
+            "SELECT 1 AS x FROM device_enrollment WHERE status='ENROLLED' LIMIT 1",
+        ) is not None
+
+    def open_cash_shifts_outside(self, branch_id: str) -> int:
+        """Turnos de caja sin cerrar en una sucursal distinta de `branch_id`.
+
+        Terminales: CLOSED, FORCE_CLOSED y CANCELLED (migración 175). Cualquier
+        otro estado —abierto, suspendido, en arqueo, en cierre— retiene efectivo
+        y ventas de la sucursal en la que nació.
+        """
+        if not self._table_exists("cash_shifts"):
+            return 0
+        row = self._query_one(
+            "SELECT COUNT(*) AS n FROM cash_shifts WHERE branch_id <> ?"
+            " AND status NOT IN ('CLOSED','FORCE_CLOSED','CANCELLED')",
+            (str(branch_id),),
+        )
+        return int(row["n"]) if row else 0
+
+    def pending_sync_count(self) -> int:
+        """Hechos de esta estación que aún no llegan al servidor central.
+
+        Sólo cuenta si la estación participa en replicación (tiene fila en
+        `replication_stations`): sin ella no hay canal de sincronización. Cuentan
+        los sobres PENDING, IN_FLIGHT, RETRY y CONFLICT —SYNCED y DEAD son
+        finales— y los hechos de los outbox de contexto que aún no tienen sobre
+        (el motor los preparará en el siguiente ciclo).
+        """
+        if not (self._table_exists("replication_stations")
+                and self._table_exists("replication_envelopes")):
+            return 0
+        if self._query_one("SELECT 1 AS x FROM replication_stations LIMIT 1") is None:
+            return 0
+        row = self._query_one(
+            "SELECT COUNT(*) AS n FROM replication_envelopes"
+            " WHERE state IN ('PENDING','IN_FLIGHT','RETRY','CONFLICT')",
+        )
+        total = int(row["n"]) if row else 0
+        for source in DEFAULT_SOURCES:
+            if not self._table_exists(source.table):
+                continue
+            row = self._query_one(
+                f'SELECT COUNT(*) AS n FROM "{source.table}" o'
+                " WHERE NOT EXISTS (SELECT 1 FROM replication_envelopes r"
+                " WHERE r.source = ? AND r.source_row_id = o.id)",
+                (source.name,),
+            )
+            total += int(row["n"]) if row else 0
+        return total

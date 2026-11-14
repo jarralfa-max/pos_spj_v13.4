@@ -12,17 +12,30 @@ NEW payment line" and "has enough been recorded to actually complete."
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from decimal import Decimal
 
 from backend.domain.sales.enums import PaymentMethod, SaleStatus
 from backend.domain.sales.exceptions import (
     PaymentExceedsBalanceError,
+    PaymentReferenceInvalidError,
+    PaymentReferenceRequiredError,
     SaleInvalidStateError,
     SalePaymentIncompleteError,
 )
 
 _PAYABLE_STATUSES = frozenset({SaleStatus.CHECKOUT_PENDING, SaleStatus.PAYMENT_PENDING})
+
+#: Métodos cuyo cobro lo respalda una operación de un tercero (SDLC-PAY-002,
+#: decisión del responsable 2026-11-05): referencia obligatoria y única. El
+#: índice `uq_sale_payments_processor_reference` repite esta lista.
+REFERENCE_REQUIRED_METHODS = frozenset({
+    PaymentMethod.CARD, PaymentMethod.TRANSFER, PaymentMethod.MERCADO_PAGO,
+})
+
+#: Id de Mercado Pago, autorización de tarjeta o clave de rastreo SPEI.
+_REFERENCE_FORMAT = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{3,63}")
 
 
 class SalePaymentPolicy:
@@ -37,6 +50,20 @@ class SalePaymentPolicy:
         if total_paid < sale_total:
             raise SalePaymentIncompleteError(
                 f"Pago incompleto: recibido {total_paid}, requerido {sale_total}")
+
+    @staticmethod
+    def ensure_reference_valid(*, method: PaymentMethod, reference: str | None) -> None:
+        if method not in REFERENCE_REQUIRED_METHODS:
+            return
+        cleaned = (reference or "").strip()
+        if not cleaned:
+            raise PaymentReferenceRequiredError(
+                f"La referencia es obligatoria para cobrar con {method.value}: captura el "
+                "número de operación o autorización.")
+        if _REFERENCE_FORMAT.fullmatch(cleaned) is None:
+            raise PaymentReferenceInvalidError(
+                f"La referencia «{cleaned}» no es válida: usa de 4 a 64 letras, números, "
+                "guiones, puntos o diagonales, sin espacios.")
 
     @staticmethod
     def ensure_amount_allowed(*, method: PaymentMethod, amount: Decimal,

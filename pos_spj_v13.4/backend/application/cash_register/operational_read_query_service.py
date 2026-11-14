@@ -7,7 +7,7 @@ service through the presenter; it never imports repositories or executes SQL.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.permissions import CashPermissions
@@ -49,7 +49,8 @@ class CashOperationalReadQueryService:
         "deposits": (
             "Depositos preparados",
             CashPermissions.DEPOSIT_VIEW,
-            """SELECT id,event_name,user_id,'PREPARED',occurred_at
+            # SDLC-CASH-002: cada renglón es el depósito (su `deposit_id`), no el evento.
+            """SELECT entity_id,event_name,user_id,'PREPARED',occurred_at
                FROM cash_domain_events
                WHERE branch_id=? AND event_name='CASH_DEPOSIT_PREPARED'
                ORDER BY occurred_at DESC LIMIT ?""",
@@ -123,7 +124,22 @@ class CashOperationalReadQueryService:
             )
             for row in fetched
         )
+        if section_key == "deposits":
+            rows = self._with_treasury_status(rows)
         return CashOperationalReadSection(key=section_key, title=title, rows=rows)
+
+    def _with_treasury_status(self, rows: tuple) -> tuple:
+        """Qué depósitos ya confirmó Tesorería (dueña de la confirmación)."""
+        if not rows or self._connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table'"
+                " AND name='cash_deposit_confirmations'").fetchone() is None:
+            return rows
+        marks = ",".join("?" for _ in rows)
+        confirmed = {str(row[0]) for row in self._connection.execute(
+            f"SELECT deposit_id FROM cash_deposit_confirmations WHERE deposit_id IN ({marks})",
+            tuple(row.id for row in rows))}
+        return tuple(replace(row, status="CONFIRMED") if row.id in confirmed else row
+                     for row in rows)
 
     def _names(self, ids: set[str]) -> dict[str, str]:
         """Nombre de cada id: usuario (nombre o usuario) o caja registradora."""

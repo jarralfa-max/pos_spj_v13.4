@@ -33,7 +33,10 @@ _CUSTOMER_MESSAGE_TEMPLATES: dict[str, str] = {
 DELIVERY_FAILED_ALERT_TYPE = "entrega_fallida"
 
 #: Todos los tipos de alerta interna de este contexto.
-DELIVERY_ALERT_TYPES: frozenset[str] = frozenset({DELIVERY_FAILED_ALERT_TYPE})
+#: Un aviso al cliente que agotó sus reintentos por WhatsApp (SDLC-ORD-006).
+NOTICE_FAILED_ALERT_TYPE = "aviso_cliente_fallido"
+DELIVERY_ALERT_TYPES: frozenset[str] = frozenset({DELIVERY_FAILED_ALERT_TYPE,
+                                                  NOTICE_FAILED_ALERT_TYPE})
 
 _INTERNAL_ALERT_EVENTS: frozenset[str] = frozenset({
     DeliveryEvents.FAILED,

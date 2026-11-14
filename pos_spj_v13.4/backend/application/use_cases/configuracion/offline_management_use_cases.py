@@ -23,6 +23,9 @@ from backend.domain.offline.exceptions import (
 from backend.infrastructure.db.repositories.offline.cache_expiration_policy_repository import (
     SqliteCacheExpirationPolicyRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class CacheExpirationPolicyStatusAction(str, Enum):
@@ -31,11 +34,13 @@ class CacheExpirationPolicyStatusAction(str, Enum):
 
 
 class CreateCacheExpirationPolicyUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._policies = SqliteCacheExpirationPolicyRepository(connection)
 
     def execute(self, *, entity_type: str, ttl_seconds: int) -> CacheExpirationPolicy:
+        self._authz.require(ConfiguracionPermissions.OFFLINE_GESTIONAR)
         if self._policies.get_by_entity_type(entity_type) is not None:
             raise CacheExpirationPolicyEntityTypeOccupiedError(
                 f"Ya existe una política de expiración para {entity_type!r}"
@@ -47,11 +52,13 @@ class CreateCacheExpirationPolicyUseCase:
 
 
 class UpdateCacheExpirationPolicyUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._policies = SqliteCacheExpirationPolicyRepository(connection)
 
     def execute(self, *, policy_id: str, ttl_seconds: int) -> CacheExpirationPolicy:
+        self._authz.require(ConfiguracionPermissions.OFFLINE_GESTIONAR)
         policy = self._policies.get(policy_id)
         if policy is None:
             raise CacheExpirationPolicyNotFoundError(f"Política de expiración {policy_id} no encontrada")
@@ -62,11 +69,13 @@ class UpdateCacheExpirationPolicyUseCase:
 
 
 class ChangeCacheExpirationPolicyStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._policies = SqliteCacheExpirationPolicyRepository(connection)
 
     def execute(self, *, policy_id: str, action: CacheExpirationPolicyStatusAction) -> CacheExpirationPolicy:
+        self._authz.require(ConfiguracionPermissions.OFFLINE_GESTIONAR)
         policy = self._policies.get(policy_id)
         if policy is None:
             raise CacheExpirationPolicyNotFoundError(f"Política de expiración {policy_id} no encontrada")

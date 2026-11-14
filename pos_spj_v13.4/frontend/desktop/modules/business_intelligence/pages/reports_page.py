@@ -10,6 +10,9 @@ from PyQt5.QtWidgets import QComboBox, QFileDialog, QHBoxLayout, QVBoxLayout, QW
 
 from frontend.desktop.components import PageHeader, create_primary_button
 from frontend.desktop.components.dialogs import MessageDialog
+from frontend.desktop.modules.business_intelligence.widgets.bi_filter_bar import (
+    BiFilterBar,
+)
 from frontend.desktop.modules.business_intelligence.presenters.reports_presenter import (
     ReportUnavailableError,
 )
@@ -30,6 +33,9 @@ class ReportsPage(QWidget):
         root = QVBoxLayout(self)
         root.addWidget(PageHeader(
             title="Reportes", subtitle="Biblioteca de reportes exportables.", parent=self))
+
+        self.filter_bar = BiFilterBar(presenter.filters, self)
+        root.addWidget(self.filter_bar)
 
         self.report_selector = QComboBox(self)
         self.report_selector.setMinimumHeight(TouchTarget.MIN_HEIGHT)

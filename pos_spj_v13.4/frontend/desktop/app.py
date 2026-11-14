@@ -462,6 +462,27 @@ def _shutdown_desktop_resources(resources: dict) -> None:
             logger.exception("No se pudo cerrar la conexión principal del escritorio.")
 
 
+def _wire_events(connection) -> dict[str, str]:
+    """Cablea la integración entre contextos y devuelve lo que falló (paso → motivo).
+
+    Un cableado fallido no debe tumbar el arranque: los use cases que publican
+    directamente (ventas→inventario, ventas→caja) siguen funcionando sin el bus; se
+    pierde la integración entre contextos, no la operación local. Pero no pasa en
+    silencio (SDLC-CORE-001): degrada la salud y deja un aviso en la barra de estado.
+    """
+    from backend.bootstrap.wiring.event_wiring import (
+        WIRING_HEALTH_CHECK,
+        wire_cross_context_events,
+        wiring_failures,
+    )
+
+    try:
+        return wiring_failures(wire_cross_context_events(connection))
+    except Exception as exc:
+        logger.exception("No se pudo cablear la integración entre contextos.")
+        return {WIRING_HEALTH_CHECK: str(exc) or type(exc).__name__}
+
+
 def _run_desktop_session(app, ventana: dict) -> int:
     if not _relocate_legacy_database():
         return 1
@@ -472,16 +493,10 @@ def _run_desktop_session(app, ventana: dict) -> int:
     _record_station_start(connection)
     services = _build_services()
 
-    from backend.bootstrap.wiring.event_wiring import wire_cross_context_events
+    from backend.bootstrap.wiring.event_wiring import with_wiring_health, wiring_warning
 
-    try:
-        wire_cross_context_events(connection)
-    except Exception:
-        # Un cableado fallido no debe tumbar el arranque: los use cases que
-        # publican directamente (ventas→inventario, ventas→caja) siguen
-        # funcionando sin el bus; se pierde la integración entre contextos,
-        # no la operación local.
-        logger.exception("No se pudo cablear la integración entre contextos.")
+    wiring_problems = _wire_events(connection)
+    health_report = with_wiring_health(bootstrap.health_report, wiring_problems)
 
     from frontend.desktop.shell.application_lifecycle import set_update_handoff
 
@@ -502,9 +517,10 @@ def _run_desktop_session(app, ventana: dict) -> int:
             # 968e0bc, PER-08), no sólo al volver a iniciar sesión.
             session_context=LegacySessionAdapter(
                 context, grant_refresher=SessionGrantRefresher(connection)),
-            health_report=bootstrap.health_report,
+            health_report=health_report,
         )
         window.setWindowTitle(f"{APP_NAME} v{VERSION}")
+        window.status_bar.set_integration_warning(wiring_warning(wiring_problems))
         window.logout_requested.connect(lambda: _logout_and_reauthenticate(app, window, coordinator))
         if window.sidebar is not None and window.sidebar.active_route:
             window.navigate(window.sidebar.active_route)

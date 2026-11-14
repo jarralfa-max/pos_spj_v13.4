@@ -27,10 +27,13 @@ class CashOperationalContextResolverArchitectureTests(unittest.TestCase):
             "cash_registers",
             "cash_drawers",
             "pos_terminals",
-            "cash_shifts",
-            "CashShiftLifecyclePolicy.ACTIVE_STATUSES",
+            # SDLC-ARQ-SHIFT-001: el turno activo viene de la fuente única,
+            # no de SQL propio ni de una caché en el composition_root.
+            "ActiveShiftResolver",
         ):
             self.assertIn(required, source)
+        for forbidden_shift_source in ("cash_shifts", "ACTIVE_STATUSES", "active_cash_shift_id"):
+            self.assertNotIn(forbidden_shift_source, source)
         for forbidden in (
             '"admin"',
             '"desktop"',

@@ -27,6 +27,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from backend.application.analytics.access import BiAccess
 from backend.application.analytics.queries.bi_dashboard_query_service import (
     BiDashboardQueryService,
 )
@@ -82,7 +83,8 @@ def map_scenario_kpis(result) -> list[KPIDTO]:
 
 
 class PricingScenarioPresenter:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, access: BiAccess | None = None) -> None:
+        self._access = access or BiAccess()
         self._products = SearchSellableProductsQueryService(connection)
         self._dashboard_query_service = BiDashboardQueryService(connection)
         self._history = PriceHistoryQueryService(connection)
@@ -92,7 +94,7 @@ class PricingScenarioPresenter:
         return [_product_option(dto) for dto in self._products.search(query=query)]
 
     def search_branches(self, query: str) -> list[SearchOption]:
-        branches = self._dashboard_query_service.filter_options().get("branches", [])
+        branches = self._access.scoped_branches(self._dashboard_query_service)
         needle = query.strip().lower()
         return [
             SearchOption(id=b["id"], label=b["nombre"])
@@ -105,6 +107,8 @@ class PricingScenarioPresenter:
             raise ScenarioUnavailableError("Selecciona un producto.")
         if not branch_id:
             raise ScenarioUnavailableError("Selecciona una sucursal.")
+        if not self._access.covers(branch_id):
+            raise ScenarioUnavailableError("No tiene acceso a esa sucursal.")
         if price_change_pct == 0:
             raise ScenarioUnavailableError("Ingresa un cambio de precio distinto de cero.")
 

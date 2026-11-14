@@ -8,6 +8,9 @@ from PyQt5.QtWidgets import QHBoxLayout, QVBoxLayout, QWidget
 
 from frontend.desktop.components import HtmlChartView, KPIBar, PageHeader, create_secondary_button
 from frontend.desktop.components.dialogs import MessageDialog
+from frontend.desktop.modules.business_intelligence.widgets.bi_filter_bar import (
+    BiFilterBar,
+)
 
 
 class ExecutiveDashboardPage(QWidget):
@@ -27,7 +30,9 @@ class ExecutiveDashboardPage(QWidget):
         ))
 
         actions = QHBoxLayout()
-        actions.addStretch(1)
+        self.filter_bar = BiFilterBar(presenter.filters, self)
+        self.filter_bar.filters_changed.connect(self.refresh)
+        actions.addWidget(self.filter_bar, 1)
         refresh = create_secondary_button(self, "Actualizar")
         refresh.clicked.connect(self.refresh)
         actions.addWidget(refresh)

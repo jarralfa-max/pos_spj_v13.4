@@ -87,7 +87,7 @@ _SECTION_KEY_BY_PAGE_ID: dict[str, str] = {
 }
 
 
-def build_page(page_id: str, connection=None, *, branch_id: str | None = None,
+def build_page(page_id: str, connection=None, *, access=None,
                 actor_user_id: str | None = None):
     try:
         entry = BUSINESS_INTELLIGENCE_ROUTES[page_id]
@@ -97,7 +97,7 @@ def build_page(page_id: str, connection=None, *, branch_id: str | None = None,
     builder_name = _REAL_ROUTE_BUILDERS.get(page_id)
     if connection is not None and builder_name is not None:
         return globals()[builder_name](
-            connection, page_id=page_id, branch_id=branch_id, actor_user_id=actor_user_id)
+            connection, page_id=page_id, access=access, actor_user_id=actor_user_id)
 
     from frontend.desktop.modules.business_intelligence.pages import (
         BusinessIntelligencePlaceholderPage,
@@ -105,7 +105,7 @@ def build_page(page_id: str, connection=None, *, branch_id: str | None = None,
     return BusinessIntelligencePlaceholderPage(title=entry.title, subtitle=entry.tooltip)
 
 
-def _build_executive_dashboard(connection, *, page_id: str, branch_id: str | None,
+def _build_executive_dashboard(connection, *, page_id: str, access,
                                  actor_user_id: str | None):
     from frontend.desktop.modules.business_intelligence.pages.executive_dashboard_page import (
         ExecutiveDashboardPage,
@@ -113,10 +113,10 @@ def _build_executive_dashboard(connection, *, page_id: str, branch_id: str | Non
     from frontend.desktop.modules.business_intelligence.presenters.executive_dashboard_presenter import (
         ExecutiveDashboardPresenter,
     )
-    return ExecutiveDashboardPage(ExecutiveDashboardPresenter(connection))
+    return ExecutiveDashboardPage(ExecutiveDashboardPresenter(connection, access=access))
 
 
-def _build_analytical_section(connection, *, page_id: str, branch_id: str | None,
+def _build_analytical_section(connection, *, page_id: str, access,
                                 actor_user_id: str | None):
     from frontend.desktop.modules.business_intelligence.pages.analytical_section_page import (
         AnalyticalSectionPage,
@@ -126,11 +126,11 @@ def _build_analytical_section(connection, *, page_id: str, branch_id: str | None
     )
     entry = BUSINESS_INTELLIGENCE_ROUTES[page_id]
     section_key = _SECTION_KEY_BY_PAGE_ID[page_id]
-    presenter = AnalyticalSectionPresenter(connection, section_key)
+    presenter = AnalyticalSectionPresenter(connection, section_key, access=access)
     return AnalyticalSectionPage(presenter, title=entry.title, subtitle=entry.tooltip)
 
 
-def _build_forecast_explorer(connection, *, page_id: str, branch_id: str | None,
+def _build_forecast_explorer(connection, *, page_id: str, access,
                                actor_user_id: str | None):
     from frontend.desktop.modules.business_intelligence.pages.forecast_explorer_page import (
         ForecastExplorerPage,
@@ -138,10 +138,10 @@ def _build_forecast_explorer(connection, *, page_id: str, branch_id: str | None,
     from frontend.desktop.modules.business_intelligence.presenters.forecast_explorer_presenter import (
         ForecastExplorerPresenter,
     )
-    return ForecastExplorerPage(ForecastExplorerPresenter(connection))
+    return ForecastExplorerPage(ForecastExplorerPresenter(connection, access=access))
 
 
-def _build_price_recommendation(connection, *, page_id: str, branch_id: str | None,
+def _build_price_recommendation(connection, *, page_id: str, access,
                                    actor_user_id: str | None):
     from frontend.desktop.modules.business_intelligence.pages.price_recommendation_page import (
         PriceRecommendationPage,
@@ -149,10 +149,10 @@ def _build_price_recommendation(connection, *, page_id: str, branch_id: str | No
     from frontend.desktop.modules.business_intelligence.presenters.price_recommendation_presenter import (
         PriceRecommendationPresenter,
     )
-    return PriceRecommendationPage(PriceRecommendationPresenter(connection))
+    return PriceRecommendationPage(PriceRecommendationPresenter(connection, access=access))
 
 
-def _build_alert_explorer(connection, *, page_id: str, branch_id: str | None,
+def _build_alert_explorer(connection, *, page_id: str, access,
                             actor_user_id: str | None):
     from frontend.desktop.modules.business_intelligence.pages.alert_explorer_page import (
         AlertExplorerPage,
@@ -160,10 +160,11 @@ def _build_alert_explorer(connection, *, page_id: str, branch_id: str | None,
     from frontend.desktop.modules.business_intelligence.presenters.alert_explorer_presenter import (
         AlertExplorerPresenter,
     )
-    return AlertExplorerPage(AlertExplorerPresenter(connection, actor_user_id=actor_user_id))
+    return AlertExplorerPage(AlertExplorerPresenter(
+        connection, actor_user_id=actor_user_id, access=access))
 
 
-def _build_pricing_scenario(connection, *, page_id: str, branch_id: str | None,
+def _build_pricing_scenario(connection, *, page_id: str, access,
                               actor_user_id: str | None):
     from frontend.desktop.modules.business_intelligence.pages.pricing_scenario_page import (
         PricingScenarioPage,
@@ -171,13 +172,14 @@ def _build_pricing_scenario(connection, *, page_id: str, branch_id: str | None,
     from frontend.desktop.modules.business_intelligence.presenters.pricing_scenario_presenter import (
         PricingScenarioPresenter,
     )
-    return PricingScenarioPage(PricingScenarioPresenter(connection))
+    return PricingScenarioPage(PricingScenarioPresenter(connection, access=access))
 
 
-def _build_reports(connection, *, page_id: str, branch_id: str | None,
+def _build_reports(connection, *, page_id: str, access,
                      actor_user_id: str | None):
     from frontend.desktop.modules.business_intelligence.pages.reports_page import ReportsPage
     from frontend.desktop.modules.business_intelligence.presenters.reports_presenter import (
         ReportsPresenter,
     )
-    return ReportsPage(ReportsPresenter(connection, actor_user_id=actor_user_id))
+    return ReportsPage(ReportsPresenter(
+        connection, actor_user_id=actor_user_id, access=access))

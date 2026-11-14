@@ -497,18 +497,24 @@ class Sale:
         self._bump_version()
 
     def resume(self, *, resuming_user_id: str, resuming_workstation_id: str | None = None,
-               allow_cross_user_resume: bool = True,
+               allow_cross_user_resume: bool = False,
                allow_cross_workstation_resume: bool = True) -> None:
+        """Reanudar. Si la toma otro usuario (SDLC-ARQ-SESS-003), él pasa a ser
+        el responsable: el cobro cae en SU turno y en SUS ventas, y la sesión de
+        caja del cajero anterior deja de aplicar."""
         _ids(resuming_user_id)
         SaleResumptionPolicy.ensure_can_resume(
             status=self.status,
-            suspended_by_user_id=self.suspended_by_user_id or resuming_user_id,
+            owner_user_id=self.cashier_user_id,
             resuming_user_id=resuming_user_id,
             suspended_at_workstation_id=self.suspended_workstation_id or "",
             resuming_workstation_id=resuming_workstation_id or "",
             allow_cross_user_resume=allow_cross_user_resume,
             allow_cross_workstation_resume=allow_cross_workstation_resume,
         )
+        if resuming_user_id != self.cashier_user_id:
+            self.cashier_user_id = resuming_user_id
+            self.cash_session_id = None
         self.status = SaleStatus.ACTIVE
         self.suspended_at = None
         self._bump_version()

@@ -54,7 +54,11 @@ from .marketing_campaign_dialogs import (
     MarketingCampaignEditDialog,
     rules_to_text,
 )
-from .offline_dialogs import CacheExpirationPolicyCreateDialog, CacheExpirationPolicyEditDialog
+from .offline_dialogs import (
+    CacheExpirationPolicyCreateDialog,
+    CacheExpirationPolicyEditDialog,
+    ResolveReplicationConflictDialog,
+)
 from .user_role_dialogs import RoleCreateDialog, RoleEditDialog, UserCreateDialog, UserEditDialog
 from .print_route_dialogs import PrintRouteCreateDialog, PrintRouteEditDialog
 from .theme_dialogs import (
@@ -93,6 +97,7 @@ __all__ = [
     "ThemeCreateDialog", "ThemeEditDialog", "DesignTokenCreateDialog", "DesignTokenEditDialog",
     "DensityProfileCreateDialog", "DensityProfileEditDialog", "AppearancePreferenceCreateDialog",
     "CacheExpirationPolicyCreateDialog", "CacheExpirationPolicyEditDialog",
+    "ResolveReplicationConflictDialog",
     "UserCreateDialog", "UserEditDialog", "RoleCreateDialog", "RoleEditDialog",
     "SetInstallationBranchDialog",
 ]

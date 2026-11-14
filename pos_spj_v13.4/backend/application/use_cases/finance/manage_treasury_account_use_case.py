@@ -40,6 +40,14 @@ class ManageTreasuryAccountUseCase:
             ledger.assert_postable()
             if ledger.currency_code != currency_code.upper():
                 raise FinanceDomainError("La cuenta espejo está en otra moneda")
+            if account_type is TreasuryAccountType.PAYMENT_PROCESSOR and any(
+                    a.account_type is TreasuryAccountType.PAYMENT_PROCESSOR
+                    and a.branch_id == branch_id for a in uow.treasury.list_active()):
+                # Decisión del responsable (SDLC-PAY-004): con dos, Ventas y Compras
+                # no sabrían a cuál asentar.
+                raise FinanceDomainError(
+                    "Ya existe la cuenta de procesadores: Mercado Pago y tarjetas usan "
+                    "una sola")
             account = TreasuryAccount.create(
                 name, account_type, ledger_account_id, currency_code=currency_code,
                 branch_id=branch_id, bank_name=bank_name, account_number=account_number,

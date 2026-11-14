@@ -70,7 +70,7 @@ def _seed_balance(conn, *, product_id: str, branch_id: str) -> None:
         "INSERT INTO inventory_balances (id, product_id, branch_id, warehouse_id,"
         " location_id, lot_id, serial_id, inventory_status, quantity, weight,"
         " reserved_quantity, reserved_weight, version, updated_at)"
-        " VALUES (?,?,?,?,'','','','AVAILABLE','100','100','0','0',0,?)",
+        " VALUES (?,?,?,?,'UBIC','','','AVAILABLE','100','100','0','0',0,?)",
         (new_uuid(), product_id, branch_id, branch_id, "t"))
 
 

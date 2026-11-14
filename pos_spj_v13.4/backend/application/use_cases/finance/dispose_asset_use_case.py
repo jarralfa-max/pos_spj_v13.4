@@ -8,17 +8,26 @@ salvo en una venta, donde se compara con lo cobrado:
     Dr Pérdida en baja/venta (si el valor en libros > lo cobrado)
         Cr Activo fijo (costo)
         Cr Utilidad en venta de activos (si lo cobrado > valor en libros)
+
+SDLC-FIN-003: antes de calcular el resultado se corre, en la misma transacción,
+la depreciación que falte hasta el periodo anterior al de la baja. El mes de la
+baja no se deprecia. El asiento va con la fecha de la baja: si esta puede
+asentarse, el periodo también admite la depreciación recuperada.
 """
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 from backend.application.services.finance.posting_engine import (
     PostingEngine,
     publish_finance_event,
 )
 from backend.application.use_cases.finance._support import require_profile, require_treasury
+from backend.application.use_cases.finance.run_depreciation_use_case import (
+    depreciate_asset_in,
+    record_run_in,
+)
 from backend.domain.finance.enums import (
     AuditAction,
     FinancialDocumentType,
@@ -27,10 +36,12 @@ from backend.domain.finance.enums import (
     PostingPurpose,
 )
 from backend.domain.finance.exceptions import FinanceDomainError
+from backend.domain.finance.services.depreciation_service import DepreciationDomainService
 from backend.domain.finance.services.journal_posting_service import LineSpec
 from backend.domain.finance.value_objects.money import Money
 from backend.domain.finance.value_objects.posting_reference import PostingReference
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
+from backend.shared.business_dates import local_business_date
 from backend.shared.events.event_names import EventName
 
 _PURPOSE = {FixedAssetStatus.DISPOSED: PostingPurpose.ASSET_DISPOSAL,
@@ -40,9 +51,30 @@ _LABEL = {FixedAssetStatus.DISPOSED: "Baja", FixedAssetStatus.SOLD: "Venta",
           FixedAssetStatus.WRITTEN_OFF: "Castigo"}
 
 
+def _period_before(on_date: date) -> str:
+    last_day = on_date.replace(day=1) - timedelta(days=1)
+    return f"{last_day.year:04d}-{last_day.month:02d}"
+
+
 class DisposeAssetUseCase:
     def __init__(self) -> None:
         self._engine = PostingEngine()
+        self._depreciation = DepreciationDomainService()
+
+    def _catch_up(self, uow, asset, disposal_date: date, operation_id: str,
+                  disposed_by: str | None) -> None:
+        """Pone al día la depreciación. Un suspendido se reanuda sólo en memoria
+        para cerrar su cuenta de meses: recupera lo anterior a la suspensión."""
+        if asset.status is FixedAssetStatus.SUSPENDED:
+            asset.resume(disposal_date)
+        period_code = _period_before(disposal_date)
+        if not self._depreciation.depreciable_assets([asset], period_code):
+            return
+        line = depreciate_asset_in(uow, self._engine, self._depreciation, asset, period_code,
+                                   disposal_date, disposed_by)
+        if line is not None:
+            record_run_in(uow, period_code, [line], operation_id=f"{operation_id}:catch-up",
+                          created_by=disposed_by)
 
     def execute(self, connection, *, asset_id: str, disposal_date: date, operation_id: str,
                 outcome: FixedAssetStatus = FixedAssetStatus.DISPOSED,
@@ -64,6 +96,8 @@ class DisposeAssetUseCase:
                                       branch_id=asset.branch_id)
             currency = asset.acquisition_cost.currency_code
             cash = Money.from_string(proceeds or "0", currency)
+            status_before = asset.status.value
+            self._catch_up(uow, asset, disposal_date, operation_id, disposed_by)
             book = asset.net_book_value()
             lines = []
             if asset.accumulated_depreciation.is_positive():
@@ -96,7 +130,7 @@ class DisposeAssetUseCase:
                 lines, currency_code=currency, branch_id=asset.branch_id,
                 created_by=disposed_by,
                 source_document_type=FinancialDocumentType.ASSET_DISPOSAL.value)
-            before = {"status": asset.status.value, "book_value": book.to_string()}
+            before = {"status": status_before, "book_value": book.to_string()}
             asset.retire(outcome, disposal_date, entry.id, reason)
             uow.fixed_assets.update(asset)
             uow.audit(AuditAction.ASSET_CHANGED, entity_type="fixed_asset", entity_id=asset.id,
@@ -115,13 +149,16 @@ class ChangeAssetStatusUseCase:
     """Suspender (no deprecia mientras está fuera de servicio) o reanudar."""
 
     def suspend(self, connection, *, asset_id: str, reason: str, operation_id: str,
-                actor: str) -> None:
+                actor: str, on_date: date | None = None) -> None:
+        when = on_date or local_business_date(None)
         self._change(connection, asset_id, operation_id, actor, reason,
-                     lambda asset: asset.suspend(reason))
+                     lambda asset: asset.suspend(reason, when))
 
-    def resume(self, connection, *, asset_id: str, operation_id: str, actor: str) -> None:
+    def resume(self, connection, *, asset_id: str, operation_id: str, actor: str,
+               on_date: date | None = None) -> None:
+        when = on_date or local_business_date(None)
         self._change(connection, asset_id, operation_id, actor, None,
-                     lambda asset: asset.resume())
+                     lambda asset: asset.resume(when))
 
     @staticmethod
     def _change(connection, asset_id, operation_id, actor, reason, action) -> None:

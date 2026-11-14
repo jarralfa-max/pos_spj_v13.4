@@ -38,6 +38,8 @@ FINANCE_EVENTS = frozenset({
     "CASH_REFUND_PROCESSED",
     "CASH_HANDOVER_RECEIVED",
     "CASH_DEPOSIT_PREPARED",
+    # SDLC-CASH-002: lo publica Tesorería por el `finance_outbox`, no Caja.
+    "TREASURY_CASH_DEPOSIT_CONFIRMED",
 })
 
 #: Tras tantos intentos fallidos el evento pasa a DEAD_LETTER: sigue visible y

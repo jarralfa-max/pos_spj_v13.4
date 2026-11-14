@@ -34,6 +34,11 @@ Fecha: 2026-05-26
 
 ## MercadoPago pendiente y confirmación
 
+> **Actualización 2026-11-09 (SDLC-PAY-001).** Lo que sigue describe el flujo legacy
+> (`SalesService`, `MercadoPagoService`), eliminado en `47fb64cb`. Hoy el cobro con Mercado Pago es
+> manual: referencia obligatoria y única, trazada a Caja, Finanzas y ticket (PAY-002/003). El diseño de
+> la integración real está en `MERCADO_PAGO_INTEGRATION_TRD.md` y `MERCADO_PAGO_INTEGRATION_APPFLOW.md`.
+
 ### Creación de intención pendiente
 - UI detecta `Mercado Pago`.
 - `SalesService.create_pending_payment_sale(...)` guarda intención `pendiente_pago`.

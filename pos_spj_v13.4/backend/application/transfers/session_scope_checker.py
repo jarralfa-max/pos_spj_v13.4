@@ -22,13 +22,14 @@ QUÉ NO HACE, dicho explícitamente:
   peor que no validarlas, porque nadie volvería a mirarlo.
 * No hay escape global por permiso. Desde la auditoría de permisos 968e0bc
   (PER-04) `TRANSFERENCIAS.ver.todas_sucursales` YA es otorgable, pero el
-  alcance de Transferencias lo decide `usuarios_sucursales` (decisión del
-  usuario, 2026-09-17: la palanca es la asignación, no el permiso). El
-  administrador y el dueño pasan porque sus permisos llegan como el comodín
-  `{"*"}`, que `BranchScopeQueryService` reconoce.
-* `branch_id=None` PERMITE. `authorize_exception` llama a `require()` sin
-  sucursal, y denegar ahí rompería la autorización en caliente por un dato que
-  la operación no tiene.
+  alcance de Transferencias lo decide la asignación (decisión del usuario,
+  2026-09-17: la palanca es la asignación, no el permiso). El administrador y
+  el dueño pasan porque su rol vale en toda la empresa: es `AccessScopeResolver`,
+  el mismo de la sesión, a través de `BranchScopeQueryService`.
+* `branch_id` vacío NIEGA, salvo alcance global explícito (SDLC-ARQ-PERM-003;
+  decisión del responsable, 2026-11-02: las transferencias siempre van a
+  sucursal). Lo que no recae sobre una sucursal no llega hasta aquí:
+  `TransferAuthorizationPolicy.require` sólo pregunta por las patas declaradas.
 """
 
 from __future__ import annotations
@@ -48,12 +49,10 @@ class TransferSessionScopeChecker:
         self, *, user_id: str, branch_id: str | None,
         warehouse_id: str | None = None, location_id: str | None = None,
     ) -> bool:
-        objetivo = str(branch_id or "").strip()
-        if not objetivo:
-            return True
         if not str(user_id or "").strip():
             return False
         permitidas = self._scope.allowed_branch_ids(user_id)
         if permitidas is None:  # alcance global
             return True
-        return objetivo in set(permitidas)
+        objetivo = str(branch_id or "").strip()
+        return bool(objetivo) and objetivo in set(permitidas)

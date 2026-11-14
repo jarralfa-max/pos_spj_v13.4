@@ -154,6 +154,11 @@ class OrderInventoryReservationFailedError(OrdersDeliveryDomainError):
     mirrors `backend/domain/sales/exceptions.py::InventoryReservationFailedError`."""
 
 
+class OrderInventoryCommitFailedError(OrdersDeliveryDomainError):
+    """Inventory could not issue or take back this order's goods (SDLC-ORD-004):
+    the order must not leave the branch on paper if its stock cannot follow."""
+
+
 # ── ORD-9: preparation (master prompt §25) ───────────────────────────────
 
 class OrderPreparationNotAllowedError(OrdersDeliveryDomainError):

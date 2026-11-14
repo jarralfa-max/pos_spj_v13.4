@@ -65,6 +65,24 @@ class _Presentador:
     def payment_amount_problem(self, **kw):
         return None
 
+    def payment_reference_problem(self, **kw):
+        return "La referencia es obligatoria" if kw["method"] == "CARD" else None
+
+
+def test_el_dialogo_no_agrega_un_pago_con_referencia_rechazada(app):
+    """SDLC-PAY-002: el motivo sale del caso de uso y se ve antes del cobro."""
+    p = _Presentador([])
+    p.payment_methods = lambda *, has_customer=False: ("CARD",)
+    d = _pago(p)
+    d._lines, d._payment_ids = [], []
+    d._amount.set_decimal_value(Decimal("100"))
+
+    d._add_line()
+
+    assert d._lines == []
+    assert d._hint.text() == "La referencia es obligatoria"
+    assert d._reference.placeholderText() == "Número de autorización (obligatorio)"
+
 
 def _pago(presentador):
     from frontend.desktop.modules.sales_pos.dialogs.payment_dialog import PaymentDialog

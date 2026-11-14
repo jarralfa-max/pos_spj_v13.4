@@ -174,6 +174,34 @@ class CustomerOrderLine:
         subtotal."""
         return self._final_base_quantity()
 
+    def requested_base_quantity(self) -> Decimal:
+        """Lo que se aparta en Inventario al confirmar: la misma magnitud con la
+        que se tarifica la línea (peso si es peso variable)."""
+        return self._requested_base_quantity()
+
+    @property
+    def ships(self) -> bool:
+        """Una línea rechazada no sale de la sucursal."""
+        return self.status != OrderLineStatus.REJECTED
+
+    def issue_product_id(self) -> str:
+        """El producto que sale físicamente: el sustituto, si el cliente lo aceptó."""
+        if self.status == OrderLineStatus.SUBSTITUTED and self.substitute_product_id:
+            return self.substitute_product_id
+        return self.product_id
+
+    def issue_quantity(self) -> Decimal:
+        """Lo que sale físicamente (SDLC-ORD-004): la cantidad final si hubo
+        ajuste; si no, la preparada; si no, la pedida. Mismo orden peso-antes-
+        que-piezas de `_final_base_quantity`."""
+        pesos = (self.final_weight, self.prepared_weight)
+        cantidades = (self.final_quantity, self.prepared_quantity)
+        orden = (pesos + cantidades if self.catch_weight_enabled else cantidades + pesos)
+        for valor in orden:
+            if valor is not None:
+                return valor.value
+        return self._requested_base_quantity()
+
     def billable_unit(self) -> str:
         """The unit that goes with `billable_quantity()` — same
         catch-weight-vs-piece priority, falling back to the requested-side

@@ -17,13 +17,14 @@ those belong to the theme/renderer").
 
 from __future__ import annotations
 
-from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+from backend.application.analytics.access import BiAccess
 from backend.application.analytics.queries.bi_dashboard_query_service import (
     BiDashboardQueryService,
 )
 from backend.application.analytics.services.bi_dashboard_service import BiDashboardService
 from backend.application.dto.charts.chart_data import ChartDataDTO, ChartSeriesDTO, ChartType
 from frontend.desktop.components.kpi_card import KPIDTO
+from frontend.desktop.modules.business_intelligence.presenters.bi_filters import BiFilterState
 
 _KIND_TO_CHART_TYPE = {
     "line": ChartType.LINE,
@@ -95,14 +96,17 @@ def _map_chart(chart_key: str, raw: dict) -> ChartDataDTO:
 
 
 class ExecutiveDashboardPresenter:
-    def __init__(self, connection, *, permission_checker=None) -> None:
+    def __init__(self, connection, *, access: BiAccess | None = None) -> None:
+        access = access or BiAccess()
         query_service = BiDashboardQueryService(connection)
-        self._service = BiDashboardService(query_service, permission_checker=permission_checker)
+        self._service = BiDashboardService(
+            query_service, permission_checker=access.can, branch_scope=access.scope)
+        self.filters = BiFilterState(access, query_service)
 
     def kpi_cards(self) -> list[KPIDTO]:
-        payload = self._service.build_dashboard(DashboardFilters())
+        payload = self._service.build_dashboard(self.filters.current)
         return [_map_kpi(k) for k in payload.kpis[:_MAX_PRIMARY_KPIS]]
 
     def charts(self) -> list[ChartDataDTO]:
-        payload = self._service.build_dashboard(DashboardFilters())
+        payload = self._service.build_dashboard(self.filters.current)
         return [_map_chart(key, raw) for key, raw in payload.charts.items()]

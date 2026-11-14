@@ -8,6 +8,7 @@ mutación pasa por el presenter → use cases canónicos. Sin SQL ni lógica de 
 from __future__ import annotations
 
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QHBoxLayout,
     QPushButton,
@@ -19,6 +20,7 @@ from PyQt5.QtWidgets import (
 
 from frontend.desktop.components import PageHeader
 from frontend.desktop.components.icons import Icons
+from frontend.desktop.themes.theme_manager import ThemeManager
 from frontend.desktop.themes.tokens import Spacing
 
 
@@ -77,7 +79,7 @@ class ProductCategoriesPage(QWidget):
         item = QTreeWidgetItem([node["name"], node["code"], estado])
         item.setData(0, Qt.UserRole, node["id"])
         if not node.get("active"):
-            item.setForeground(0, Qt.gray)
+            item.setForeground(0, QColor(ThemeManager.instance().colors().TEXT_MUTED))
         for child in node.get("children", []):
             item.addChild(self._build_item(child, expanded))
         item.setExpanded(node["id"] in expanded or not expanded)

@@ -24,16 +24,17 @@ _CATEGORICAL_TYPES = {
 }
 
 
-def _series_color(index: int, semantic: str | None) -> str:
-    if semantic and semantic in ChartPalette.STATUS:
-        return ChartPalette.STATUS[semantic]
-    palette = ChartPalette.CATEGORICAL
+def _series_color(index: int, semantic: str | None, chart_palette=ChartPalette) -> str:
+    if semantic and semantic in chart_palette.STATUS:
+        return chart_palette.STATUS[semantic]
+    palette = chart_palette.CATEGORICAL
     return palette[index % len(palette)]
 
 
 def build_chart_payload(dto: ChartDataDTO, theme: str = "light") -> dict:
     """Build the JSON-safe spec the JS renderer consumes. Colors come from theme."""
     colors = SemanticColors.for_theme(theme)
+    chart_palette = ChartPalette.for_theme(theme)
     series_payload = []
     for index, series in enumerate(dto.series):
         series_payload.append({
@@ -41,7 +42,7 @@ def build_chart_payload(dto: ChartDataDTO, theme: str = "light") -> dict:
             "data": [None if v is None else float(v) for v in series.data],
             "type": series.series_type,          # None → renderer uses chart_type
             "stack": series.stack,
-            "color": _series_color(index, series.semantic),
+            "color": _series_color(index, series.semantic, chart_palette),
         })
     annotations = [
         {"kind": a.kind, "value": float(a.value), "label": a.label}
@@ -70,7 +71,7 @@ def build_chart_payload(dto: ChartDataDTO, theme: str = "light") -> dict:
             "tooltipBg": colors.TOOLTIP_BACKGROUND,
             "tooltipText": colors.TOOLTIP_TEXT,
         },
-        "palette": list(ChartPalette.CATEGORICAL),
+        "palette": list(chart_palette.CATEGORICAL),
     }
 
 

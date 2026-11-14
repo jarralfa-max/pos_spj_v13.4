@@ -27,6 +27,10 @@ from backend.application.event_handlers.finance.procurement_posting_policy impor
     purchase_issue_date,
 )
 from backend.application.services.finance.posting_engine import PostingEngine
+from backend.application.use_cases.finance.purchased_asset_use_case import (
+    ASSET_NATURE,
+    reduce_purchased_asset_in,
+)
 from backend.domain.finance.enums import FinancialDocumentType, JournalType, PostingPurpose
 from backend.domain.finance.exceptions import FinanceDomainError
 from backend.domain.finance.services.journal_posting_service import LineSpec
@@ -52,11 +56,14 @@ class ProcurementImmediatePaymentReversalHandler:
                 "procurement", document_id, PostingPurpose.SUPPLIER_PAYMENT)
             if entry is None or entry.reversed_by_entry_id:
                 return  # crédito (sin asiento) o ya revertido
-            self._engine.reverse(
-                uow, entry, purchase_issue_date(payload),
-                str(payload.get("reason") or "Reverso de compra de contado"),
-                f"{operation_id}:payment-reversal",
-                created_by=payload.get("user_id"))
+            reason = str(payload.get("reason") or "Reverso de compra de contado")
+            on_date = purchase_issue_date(payload)
+            reversal = self._engine.reverse(uow, entry, on_date, reason,
+                                            f"{operation_id}:payment-reversal",
+                                            created_by=payload.get("user_id"))
+            reduce_purchased_asset_in(
+                uow, [document_id], None, on_date=on_date, journal_entry_id=reversal.id,
+                reason=reason, operation_id=operation_id, actor=payload.get("user_id"))
 
 
 class ProcurementReturnCreditHandler:
@@ -152,9 +159,16 @@ class ProcurementReturnCreditHandler:
             if tax.is_positive():
                 lines.append(LineSpec(profile.account_for("tax_account_id"), credit=tax,
                                       description=f"IVA acreditable devuelto {folio}"))
-            self._engine.post(
+            entry = self._engine.post(
                 uow, JournalType.PURCHASES, on_date, f"Devolución a proveedor {folio}",
                 PostingReference("procurement", return_id, PostingPurpose.SUPPLIER_CREDIT_NOTE,
                                  operation_id),
                 lines, currency_code=currency, branch_id=payload.get("branch_id") or None,
                 created_by=payload.get("user_id"))
+            asset_credit = next((line.credit for line in lines
+                                 if line.description == f"{folio} ({ASSET_NATURE})"), None)
+            if asset_credit is not None:
+                reduce_purchased_asset_in(
+                    uow, invoice_ids, asset_credit, on_date=on_date, journal_entry_id=entry.id,
+                    reason=f"Devolución a proveedor {folio}", operation_id=operation_id,
+                    actor=payload.get("user_id"))

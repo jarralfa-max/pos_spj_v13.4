@@ -281,6 +281,10 @@ def _payment(block, payload, header, width, dots, rule, line, *rest):
     if pago.get("forma_pago"):
         forma = str(pago["forma_pago"])
         line(_pair("Forma de pago", PAYMENT_LABELS.get(forma, forma), width))
+    for ref in pago.get("referencias") or ():
+        metodo = str(ref.get("metodo") or "")
+        line(_pair(f"Ref. {PAYMENT_LABELS.get(metodo, metodo)}", str(ref.get("referencia") or ""),
+                   width))
     if Decimal(str(pago.get("efectivo_recibido") or 0)) > 0:
         line(_pair("Efectivo recibido", _money(pago.get("efectivo_recibido")), width))
         line(_pair("Cambio", _money(pago.get("cambio")), width))
