@@ -12,7 +12,8 @@ def _service(permission_checker):
     S.add_sale(conn, b, [(p, 1, 30.0, 18.0)], when=S.this_month_day())
     conn.commit()
     return BiDashboardService(BiDashboardQueryService(conn),
-                              permission_checker=permission_checker)
+                              permission_checker=permission_checker,
+                              branch_scope=lambda f: f)
 
 
 def test_dueno_ve_todas_las_secciones():

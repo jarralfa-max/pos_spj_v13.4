@@ -37,6 +37,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from decimal import Decimal
 
+from backend.application.analytics.access import BiAccess
 from backend.application.analytics.queries.bi_dashboard_query_service import (
     BiDashboardQueryService,
 )
@@ -102,7 +103,9 @@ def map_recommendation_kpis(recommendation) -> list[KPIDTO]:
 
 
 class PriceRecommendationPresenter:
-    def __init__(self, connection, *, settings: BiSettingsService | None = None) -> None:
+    def __init__(self, connection, *, settings: BiSettingsService | None = None,
+                 access: BiAccess | None = None) -> None:
+        self._access = access or BiAccess()
         self._products = SearchSellableProductsQueryService(connection)
         self._dashboard_query_service = BiDashboardQueryService(connection)
         self._history = PriceHistoryQueryService(connection)
@@ -119,7 +122,7 @@ class PriceRecommendationPresenter:
         return [_product_option(dto) for dto in self._products.search(query=query)]
 
     def search_branches(self, query: str) -> list[SearchOption]:
-        branches = self._dashboard_query_service.filter_options().get("branches", [])
+        branches = self._access.scoped_branches(self._dashboard_query_service)
         needle = query.strip().lower()
         return [
             SearchOption(id=b["id"], label=b["nombre"])
@@ -136,6 +139,8 @@ class PriceRecommendationPresenter:
             raise RecommendationUnavailableError("Selecciona un producto.")
         if not branch_id:
             raise RecommendationUnavailableError("Selecciona una sucursal.")
+        if not self._access.covers(branch_id):
+            raise RecommendationUnavailableError("No tiene acceso a esa sucursal.")
         if valid_for_days <= 0:
             raise RecommendationUnavailableError("La vigencia debe ser mayor a cero días.")
 

@@ -36,6 +36,7 @@ from backend.domain.hr.enums import (
     PayrollConcept,
     PayrollRunStatus,
 )
+from backend.domain.hr.services.employer_contribution import NoEmployerContributionProvider
 from backend.domain.hr.services.withholding import NoWithholdingProvider
 from backend.domain.hr.value_objects import Money
 from backend.domain.hr.exceptions import HRDomainError
@@ -304,9 +305,11 @@ class AuthorizePayrollRunUseCase:
 class PayPayrollRunUseCase:
     """Idempotent payment. Publishes one PAYROLL_PAID for finance to post."""
 
-    def __init__(self, authorization: AuthorizationPolicy | None = None) -> None:
+    def __init__(self, authorization: AuthorizationPolicy | None = None,
+                 employer_contribution=None) -> None:
         self._auth = authorization or AuthorizationPolicy()
         self._policy = PayrollPolicy()
+        self._employer_contribution = employer_contribution or NoEmployerContributionProvider()
 
     def execute(self, connection, *, actor_user_id: str, payroll_run_id: str,
                 payment_method: str, operation_id: str,
@@ -386,7 +389,9 @@ class PayPayrollRunUseCase:
                 "deductions_amount": payment.deductions_amount.to_string(),
                 "net_amount": payment.net_amount.to_string(),
                 "gross_salaries": payment.gross_amount.to_string(),
-                "social_security": "0.00",
+                "unearned_deductions": run.unearned_deductions().to_string(),
+                "social_security": self._employer_contribution.employer_contribution(
+                    run).to_string(),
                 "net_paid": payment.net_amount.to_string(),
                 "loan_deductions": loan_deductions.to_string(),
                 "run_type": run.run_type,

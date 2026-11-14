@@ -8,9 +8,10 @@ llamaba a `core.services.auto_audit.audit_write`, que pedía un `container`. Los
 casos de uso no lo tienen, y por eso este escritor nunca llegó a usarse. Ahora
 recibe la `connection` que sí tienen.
 
-SIGUE SIN LLAMARSE desde ningún caso de uso: conectarlo hace aparecer filas
-nuevas en la auditoría, que es un cambio de comportamiento y merece su propio
-paso.
+Su primer llamador es el traspaso de una venta suspendida
+(`ResumeSaleUseCase`, SDLC-ARQ-SESS-003); el resto de los casos de uso sigue sin
+escribir aquí: conectarlos hace aparecer filas nuevas en la auditoría, que es un
+cambio de comportamiento y merece su propio paso.
 """
 
 from __future__ import annotations

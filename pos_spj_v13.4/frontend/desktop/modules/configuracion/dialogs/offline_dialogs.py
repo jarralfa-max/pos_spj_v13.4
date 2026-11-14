@@ -17,6 +17,20 @@ def _parse_int(text: str, default: int) -> int:
         return default
 
 
+class ResolveReplicationConflictDialog(FormDialog):
+    """Pide el motivo: ninguna resolución de un conflicto es silenciosa."""
+
+    def __init__(self, parent=None, *, title: str = "Resolver conflicto") -> None:
+        super().__init__(parent, title=title)
+        self.reason = StandardLineEdit(self)
+        self.reason.setAccessibleName("Motivo de la resolución")
+        self.form.addRow("Motivo:", self.reason)
+        self.add_button_box(ok_text="Confirmar")
+
+    def values(self) -> dict:
+        return {"reason": self.reason.text().strip()}
+
+
 class CacheExpirationPolicyCreateDialog(FormDialog):
     def __init__(self, parent=None) -> None:
         super().__init__(parent, title="Nueva política de expiración")

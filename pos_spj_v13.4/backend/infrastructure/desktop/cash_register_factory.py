@@ -51,6 +51,7 @@ from backend.application.cash_register.movement_reason_query_service import (
     CashMovementReasonQueryService,
 )
 from backend.application.cash_register.movement_use_cases import (
+    PrepareCashDepositUseCase,
     DeliverTreasuryHandoverUseCase,
     DisputeTreasuryHandoverUseCase,
     PrepareTreasuryHandoverUseCase,
@@ -112,6 +113,7 @@ from backend.security.authentication.verify_authorizer_credentials_use_case impo
 )
 from backend.application.cash_register.shift_use_cases import (
     BeginCashShiftClosingUseCase,
+    ReassignCashShiftUseCase,
     OpenCashShiftUseCase,
     ResumeCashShiftUseCase,
     SuspendCashShiftUseCase,
@@ -121,6 +123,7 @@ from backend.application.cash_register.x_cut_use_cases import GenerateXCutUseCas
 from backend.application.cash_register.z_cut_query_service import CashZCutQueryService
 from backend.application.cash_register.z_cut_use_cases import (
     GenerateZCutUseCase,
+    ReviewZCutUseCase,
     NotifyZCutUseCase,
 )
 from backend.domain.cash_register.enums import CashMovementType
@@ -416,6 +419,15 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         "cash_begin_shift_closing_uc": resolve_attr(
             "cash_begin_shift_closing_uc", lambda: BeginCashShiftClosingUseCase(authorization)
         ),
+        "cash_prepare_deposit_uc": resolve_attr(
+            "cash_prepare_deposit_uc", lambda: PrepareCashDepositUseCase(authorization)
+        ),
+        "cash_reassign_shift_uc": resolve_attr(
+            "cash_reassign_shift_uc", lambda: ReassignCashShiftUseCase(authorization)
+        ),
+        "cash_review_z_cut_uc": resolve_attr(
+            "cash_review_z_cut_uc", lambda: ReviewZCutUseCase(authorization)
+        ),
         "cash_start_blind_count_uc": resolve_attr(
             "cash_start_blind_count_uc", lambda: StartBlindCountUseCase(authorization)
         ),
@@ -545,7 +557,7 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             actor_user_id=actor_user_id,
             operation_id=operation_id,
         )
-        setattr(composition_root, "active_cash_shift_id", result.entity_id)
+        # SDLC-ARQ-SHIFT-001: sin caché; el contexto lee el turno de la base.
         prepare_notifications_for_operation(operation_id)
         return result
 
@@ -598,6 +610,63 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
             branch_id=branch_id,
             actor_user_id=actor_user_id,
             operation_id=operation_id,
+        )
+        prepare_notifications_for_operation(operation_id)
+        return result
+
+    def prepare_cash_deposit_handler(
+        *,
+        handover_id: str,
+        branch_id: str,
+        actor_user_id: str,
+    ):
+        operation_id = new_uuid()
+        result = use_cases["cash_prepare_deposit_uc"].execute(
+            connection,
+            handover_id=handover_id,
+            branch_id=branch_id,
+            actor_user_id=actor_user_id,
+            operation_id=operation_id,
+        )
+        prepare_notifications_for_operation(operation_id)
+        return result
+
+    def reassign_cash_shift_handler(
+        *,
+        shift_id: str,
+        branch_id: str,
+        new_cashier_user_id: str,
+        actor_user_id: str,
+        reason: str,
+    ):
+        operation_id = new_uuid()
+        result = use_cases["cash_reassign_shift_uc"].execute(
+            connection,
+            shift_id=shift_id,
+            branch_id=branch_id,
+            new_cashier_user_id=new_cashier_user_id,
+            actor_user_id=actor_user_id,
+            operation_id=operation_id,
+            reason=reason,
+        )
+        prepare_notifications_for_operation(operation_id)
+        return result
+
+    def review_z_cut_handler(
+        *,
+        cut_id: str,
+        branch_id: str,
+        actor_user_id: str,
+        note: str,
+    ):
+        operation_id = new_uuid()
+        result = use_cases["cash_review_z_cut_uc"].execute(
+            connection,
+            cut_id=cut_id,
+            branch_id=branch_id,
+            actor_user_id=actor_user_id,
+            operation_id=operation_id,
+            note=note,
         )
         prepare_notifications_for_operation(operation_id)
         return result
@@ -1314,6 +1383,9 @@ def build_cash_register_presenter(composition_root) -> CashRegisterPresenter:
         "generate_x_cut": generate_x_cut_handler,
         "print_x_cut": print_x_cut_handler,
         "generate_z_cut": generate_z_cut_handler,
+        "review_z_cut": review_z_cut_handler,
+        "reassign_cash_shift": reassign_cash_shift_handler,
+        "prepare_cash_deposit": prepare_cash_deposit_handler,
         "print_z_cut": print_z_cut_handler,
         "notify_z_cut": notify_z_cut_handler,
         "set_cash_sync_connectivity": set_cash_sync_connectivity_handler,

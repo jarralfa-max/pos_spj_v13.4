@@ -17,6 +17,7 @@ from whatsapp_service.bootstrap.health_checks import (
     check_provider_gateway,
     check_schema,
     check_secrets,
+    check_webhook_signature,
     overall_status,
     run_all_checks,
 )
@@ -85,6 +86,32 @@ class TestIndividualChecks:
         monkeypatch.setattr("whatsapp_service.config.settings.get_app_secret", lambda: "super-secret-value")
         monkeypatch.setattr("whatsapp_service.config.settings.get_internal_api_key", lambda: "")
         result = check_secrets(root)
+        assert "super-secret-value" not in result.detail
+
+    def test_webhook_signature_healthy_with_secret(self, root, monkeypatch):
+        monkeypatch.setattr("whatsapp_service.config.settings.get_app_secret", lambda: "present")
+        monkeypatch.setattr("whatsapp_service.config.settings.allow_unsigned_webhooks", lambda: False)
+        assert check_webhook_signature(root).status == HealthStatus.HEALTHY
+
+    def test_webhook_signature_degraded_with_valid_opt_in(self, root, monkeypatch):
+        monkeypatch.setattr("whatsapp_service.config.settings.get_app_secret", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.allow_unsigned_webhooks", lambda: True)
+        result = check_webhook_signature(root)
+        assert result.status == HealthStatus.DEGRADED
+        assert "WA_APP_SECRET" in result.detail
+
+    def test_webhook_signature_unhealthy_without_secret_nor_opt_in(self, root, monkeypatch):
+        monkeypatch.setattr("whatsapp_service.config.settings.get_app_secret", lambda: "")
+        monkeypatch.setattr("whatsapp_service.config.settings.allow_unsigned_webhooks", lambda: False)
+        result = check_webhook_signature(root)
+        assert result.status == HealthStatus.UNHEALTHY
+        assert "configura WA_APP_SECRET en el módulo WhatsApp" in result.detail
+
+    def test_webhook_signature_detail_never_contains_a_secret_value(self, root, monkeypatch):
+        monkeypatch.setattr(
+            "whatsapp_service.config.settings.get_app_secret", lambda: "super-secret-value"
+        )
+        result = check_webhook_signature(root)
         assert "super-secret-value" not in result.detail
 
 
@@ -276,4 +303,6 @@ class TestBuildHealthResponse:
         assert "status" in response
         assert "checks" in response
         names = {c["name"] for c in response["checks"]}
-        assert {"database", "schema", "secrets", "provider_gateway"}.issubset(names)
+        assert {
+            "database", "schema", "secrets", "webhook_signature", "provider_gateway",
+        }.issubset(names)

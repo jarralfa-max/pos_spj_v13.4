@@ -124,6 +124,10 @@ class ProcurementImmediatePaymentBridgeHandler:
                                  operation_id),
                 lines, currency_code=currency_code, branch_id=branch_id,
             )
+            register_purchased_asset_in(
+                uow, profile, payload, document_id=document_id, document_number=folio,
+                issue_date=issue_date, currency_code=currency_code, operation_id=operation_id,
+                branch_id=branch_id)
 
     def _resolve_treasury_account(self, *, payment_source: str, branch_id: str | None):
         account, problema = resolve_purchase_treasury_account(

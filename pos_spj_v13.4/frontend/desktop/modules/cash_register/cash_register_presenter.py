@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from decimal import Decimal
 
+from backend.domain.cash_register.exceptions import CashPermissionDeniedError
 from frontend.desktop.modules.cash_register.capability_resolver import resolve_cash_capabilities
 from frontend.desktop.modules.cash_register.view_models import CashCapabilities
 
@@ -99,6 +100,21 @@ class CashRegisterPresenter:
     def optional_active_shift_id(self) -> str | None:
         value = self._active_shift_provider()
         return str(value) if value else None
+
+    def consultable_shifts(self) -> tuple:
+        """Turnos activos de OTROS cajeros en la sucursal, para verlos sin
+        operarlos (SDLC-ARQ-SHIFT-002). No toca `active_shift_id`: quien sólo
+        consulta sigue sin turno y las acciones se lo siguen negando."""
+        service = self._query_services.get("shifts")
+        if service is None or not self.capabilities().shift_view:
+            return ()
+        try:
+            rows = service.list_active(branch_id=self.active_branch_id(),
+                                       requester_user_id=self.actor_user_id())
+        except (CashContextError, CashPermissionDeniedError):
+            return ()      # sin sucursal o sin alcance en ella: no hay qué consultar
+        own = self.optional_active_shift_id()
+        return tuple(row for row in rows if row.id != own)
 
     def active_shift_id(self) -> str:
         return self._require(
@@ -273,6 +289,17 @@ class CashRegisterPresenter:
         except Exception:  # noqa: BLE001 - sin etiqueta, se muestra «Turno»
             return {}
 
+    def _shift_status(self) -> str:
+        own = self.optional_active_shift_id()
+        if own:
+            return self.shift_label(own)
+        consultable = self.consultable_shifts()
+        if len(consultable) == 1:
+            return f"Consulta · {self.shift_label(consultable[0].id)}"
+        if consultable:
+            return f"Consulta · {len(consultable)} turnos activos"
+        return "Sin turno activo"
+
     def shift_label(self, shift_id: str | None) -> str:
         if not shift_id:
             return "Sin turno"
@@ -328,6 +355,25 @@ class CashRegisterPresenter:
             shift_id=shift_id or self.active_shift_id(),
             branch_id=self.active_branch_id(),
             actor_user_id=self.actor_user_id(),
+        )
+
+    def prepare_cash_deposit(self, *, handover_id: str):
+        handler = self._command_handlers.get("prepare_cash_deposit")
+        if handler is None:
+            raise CashContextError("Comando de deposito no disponible: preparar")
+        return handler(handover_id=handover_id, branch_id=self.active_branch_id(),
+                       actor_user_id=self.actor_user_id())
+
+    def reassign_cash_shift(self, *, shift_id: str, new_cashier_user_id: str, reason: str):
+        handler = self._command_handlers.get("reassign_cash_shift")
+        if handler is None:
+            raise CashContextError("Comando de turno no disponible: entregar")
+        return handler(
+            shift_id=shift_id,
+            branch_id=self.active_branch_id(),
+            new_cashier_user_id=new_cashier_user_id,
+            actor_user_id=self.actor_user_id(),
+            reason=reason,
         )
 
     def begin_cash_shift_closing(self, *, shift_id: str | None = None):
@@ -475,6 +521,17 @@ class CashRegisterPresenter:
             shift_id=shift_id or self.active_shift_id(),
             branch_id=self.active_branch_id(),
             actor_user_id=self.actor_user_id(),
+        )
+
+    def review_z_cut(self, *, cut_id: str, note: str):
+        handler = self._command_handlers.get("review_z_cut")
+        if handler is None:
+            raise CashContextError("Comando de Corte Z no disponible: revisar")
+        return handler(
+            cut_id=cut_id,
+            branch_id=self.active_branch_id(),
+            actor_user_id=self.actor_user_id(),
+            note=note,
         )
 
     def print_z_cut(self, *, cut_id: str, reprint: bool = False,
@@ -706,8 +763,7 @@ class CashRegisterPresenter:
             except Exception:
                 alerts = 0
         return {
-            "shift": (self.shift_label(self.optional_active_shift_id())
-                      if self.optional_active_shift_id() else "Sin turno activo"),
+            "shift": self._shift_status(),
             "sync": sync_state,
             "alerts": alerts,
         }

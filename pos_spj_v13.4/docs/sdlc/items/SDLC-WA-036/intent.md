@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §47, §48 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-019
 
 ## Problema
@@ -36,4 +36,4 @@ Clientes que piden ayuda humana quedan sin respuesta; conversaciones con el nego
 WA-16 (memoria: coordinador envía síncrono, nunca se pasó al outbox).
 
 ## Preguntas abiertas
-- ¿Quién atiende conversaciones (roles), con qué horario y qué SLA de primera respuesta?
+- ¿Quién atiende conversaciones (roles), con qué horario y qué SLA de primera respuesta? cajeros, logistica, dentro de los horarios del ERP, dentro de 15 min

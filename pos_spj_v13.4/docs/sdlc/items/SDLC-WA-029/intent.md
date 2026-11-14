@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §35, §36 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-005, SDLC-WA-003
 
 ## Problema
@@ -35,4 +35,4 @@ Dinero: el total ajustado de un pedido se decide fuera de Orders, sin rastro de 
 ORD-0..30 (catch weight); SDLC-WA-005.
 
 ## Preguntas abiertas
-- ¿La aceptación del cliente por WhatsApp basta como aprobación, o un ajuste por encima de cierto monto requiere además a un empleado con `CUSTOMER_APPROVAL_OVERRIDE`?
+- ¿La aceptación del cliente por WhatsApp basta como aprobación, o un ajuste por encima de cierto monto requiere además a un empleado con `CUSTOMER_APPROVAL_OVERRIDE`? una aceptacion arriba de 500, valor configurable

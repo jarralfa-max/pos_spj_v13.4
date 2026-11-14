@@ -28,18 +28,21 @@ class CashHandoversPage(QWidget):
         deliver = create_secondary_button(self, "Entregar")
         receive = create_secondary_button(self, "Recibir")
         dispute = create_secondary_button(self, "Disputar")
+        deposit = create_secondary_button(self, "Preparar deposito")
         caps = presenter.capabilities()
         deliver.setEnabled(bool(caps.handover_deliver))
         receive.setEnabled(bool(caps.handover_receive))
         dispute.setEnabled(bool(caps.handover_dispute))
+        deposit.setEnabled(bool(caps.deposit_prepare))
         deliver.clicked.connect(self._deliver)
         receive.clicked.connect(self._receive)
         dispute.clicked.connect(self._dispute)
+        deposit.clicked.connect(self._prepare_deposit)
         root.addWidget(PageHeader(
             self,
             title="Entrega de valores",
             subtitle="Preparacion, doble confirmacion, recepcion y disputas.",
-            actions=[dispute, receive, deliver],
+            actions=[deposit, dispute, receive, deliver],
         ))
         self._kpis = KPIBar(self)
         root.addWidget(self._kpis)
@@ -106,6 +109,18 @@ class CashHandoversPage(QWidget):
         if dialog.exec_() != dialog.Accepted:
             return None
         return dialog.result_value().quantities
+
+    def _prepare_deposit(self) -> None:
+        handover_id = self._selected_handover_id()
+        if not handover_id:
+            return
+        try:
+            self._presenter.prepare_cash_deposit(handover_id=handover_id)
+        except (CashRegisterError, RuntimeError, ValueError) as exc:
+            self._show_error(user_facing_error(exc))
+            return
+        MessageDialog.information(self, "Caja", "Deposito preparado para Tesoreria.")
+        self.refresh()
 
     def _deliver(self) -> None:
         handover_id = self._selected_handover_id()

@@ -48,6 +48,7 @@ CHART: tuple[tuple[str, str, AccountType, CashFlowCategory, bool, str | None], .
     ("1101", "Caja general", A, OP, True, "1100"),
     ("1102", "Cajas registradoras (POS)", A, OP, True, "1100"),
     ("1103", "Fondo fijo", A, OP, True, "1100"),
+    ("1104", "Efectivo en poder de repartidores", A, OP, True, "1100"),
     ("1110", "Bancos", A, OP, True, "1100"),
     ("1115", "Procesadores de pago", A, OP, True, "1100"),
     ("1120", "Cuenta puente (partidas por identificar)", A, NO, True, "1100"),
@@ -313,6 +314,9 @@ def posting_profiles(ids: dict[str, str], effective: date) -> list[PostingProfil
             "clearing_account_id": ids["1120"],
             "cash_over_account_id": ids["7120"],
             "cash_short_account_id": ids["7501"],
+        }, effective),
+        _profile("DRIVER_CASH", "Efectivo en poder de repartidores", {
+            "driver_cash_account_id": ids["1104"],
         }, effective),
         _profile("TREASURY", "Tesorería: transferencias, cargos e intereses", {
             "clearing_account_id": ids["1120"],

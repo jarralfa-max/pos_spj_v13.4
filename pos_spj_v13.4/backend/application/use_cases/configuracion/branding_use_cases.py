@@ -21,6 +21,9 @@ from backend.infrastructure.media.branding_asset_storage import (
     BrandingAssetStorage,
 )
 from backend.shared.ids import new_uuid
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 def _now() -> str:
@@ -86,12 +89,14 @@ def _save_png(source: str, target: str) -> None:
 
 
 class ImportLogoUseCase:
-    def __init__(self, connection, storage: BrandingAssetStorage | None = None) -> None:
+    def __init__(self, connection, storage: BrandingAssetStorage | None = None, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._storage = storage or BrandingAssetStorage()
 
     def execute(self, *, source_path: str, remove_background: bool, tolerance=None,
                 actor_user_id: str = "") -> BrandingAsset:
+        self._authz.require(ConfiguracionPermissions.EMPRESA_EDITAR, claimed_actor=actor_user_id)
         tol = _tolerance(tolerance)
         original, (width, height) = self._storage.import_original(source_path)
         printed = self._storage.derive_print_version(
@@ -110,10 +115,12 @@ class ImportLogoUseCase:
 class SetCompanyLogoUseCase:
     """`None` quita el logo de la empresa."""
 
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
 
     def execute(self, *, asset_id: str | None) -> None:
+        self._authz.require(ConfiguracionPermissions.EMPRESA_EDITAR)
         from backend.domain.settings.value_objects.asset_reference import AssetReference
         from backend.infrastructure.db.repositories.settings.company_profile_repository import (
             SqliteCompanyProfileRepository,
@@ -135,10 +142,12 @@ class SetCompanyLogoUseCase:
 class SetBranchLogoUseCase:
     """`None` = la sucursal vuelve a heredar el logo de la empresa."""
 
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
 
     def execute(self, *, branch_id: str, asset_id: str | None, actor_user_id: str = "") -> None:
+        self._authz.require(ConfiguracionPermissions.EMPRESA_EDITAR, claimed_actor=actor_user_id)
         if asset_id:
             _require_asset(self._conn, asset_id)
             self._conn.execute(

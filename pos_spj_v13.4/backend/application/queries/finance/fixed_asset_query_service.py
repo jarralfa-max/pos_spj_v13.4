@@ -15,6 +15,7 @@ class FixedAssetQueryService(FinanceQueryServiceBase):
                " fa.accumulated_depreciation, fa.useful_life_months, fa.status,"
                " fa.status_reason, fa.capitalization_date, fa.acquisition_date,"
                " fa.last_depreciated_period, fa.branch_id, fa.project_id,"
+               " fa.source_document_number,"
                " c.name AS category_name, p.name AS project_name FROM fixed_assets fa"
                " LEFT JOIN fixed_asset_categories c ON c.id = fa.asset_category_id"
                " LEFT JOIN projects p ON p.id = fa.project_id")

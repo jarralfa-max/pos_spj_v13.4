@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §16, §72 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -37,4 +37,4 @@ Privacidad: datos personales y conversaciones retenidos indefinidamente y expues
 SDLC-SEC-006; SDLC-CRM-002.
 
 ## Preguntas abiertas
-- ¿Cuántos días se conservan mensajes y archivos de media? ¿Hay obligación de conservar alguna conversación (por ejemplo, la que originó un pedido)?
+- ¿Cuántos días se conservan mensajes y archivos de media? 7, configurable ¿Hay obligación de conservar alguna conversación (por ejemplo, la que originó un pedido)? no

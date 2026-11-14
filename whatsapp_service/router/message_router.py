@@ -211,7 +211,9 @@ class MessageRouter:
             return False
         accept_tokens = ("aceptar ajuste", "acepto ajuste", "acepto", "aceptar", "si acepto", "sí acepto")
         reject_tokens = ("rechazar ajuste", "rechazo ajuste", "rechazo", "rechazar", "no acepto")
-        accepted = True if any(t in raw for t in accept_tokens) else False if any(t in raw for t in reject_tokens) else None
+        # SDLC-WA-005: el rechazo se evalúa primero, porque "no acepto"
+        # contiene "acepto".
+        accepted = False if any(t in raw for t in reject_tokens) else True if any(t in raw for t in accept_tokens) else None
         if accepted is None:
             return False
         try:

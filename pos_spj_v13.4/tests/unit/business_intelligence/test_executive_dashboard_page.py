@@ -14,6 +14,7 @@ import sqlite3
 import pytest
 from PyQt5.QtWidgets import QApplication
 
+from backend.application.analytics.access import BiAccess
 from frontend.desktop.modules.business_intelligence.business_intelligence_routes import build_page
 from frontend.desktop.modules.business_intelligence.pages.executive_dashboard_page import (
     ExecutiveDashboardPage,
@@ -37,11 +38,11 @@ def conn():
 
 
 def test_page_constructs_without_loading_charts(qapp, conn):
-    page = ExecutiveDashboardPage(ExecutiveDashboardPresenter(conn))
+    page = ExecutiveDashboardPage(ExecutiveDashboardPresenter(conn, access=BiAccess.permissive_for_tests()))
     assert page.charts == []
     assert page._loaded is False
 
 
 def test_build_page_with_connection_returns_real_executive_dashboard(qapp, conn):
-    page = build_page("bi_executive", conn)
+    page = build_page("bi_executive", conn, access=BiAccess.permissive_for_tests())
     assert isinstance(page, ExecutiveDashboardPage)

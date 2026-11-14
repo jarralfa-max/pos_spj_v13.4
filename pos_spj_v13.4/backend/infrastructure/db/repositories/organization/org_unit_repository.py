@@ -144,9 +144,16 @@ class SqliteOrgUnitRepository:
         if self._conn.execute("SELECT 1 FROM sqlite_master WHERE type='table'"
                               " AND name='cash_shifts'").fetchone() is None:
             return 0
+        # SDLC-ARQ-SHIFT-001: abiertos = estados activos de la política de Caja
+        # (antes NOT IN ('CLOSED','FORCE_CLOSED') contaba también CANCELLED).
+        from backend.domain.cash_register.policies.workflow_policies import (
+            CashShiftLifecyclePolicy,
+        )
+        statuses = CashShiftLifecyclePolicy.active_status_values()
+        marks = ",".join("?" for _ in statuses)
         return int(self._conn.execute(
-            "SELECT COUNT(*) FROM cash_shifts WHERE branch_id=?"
-            " AND status NOT IN ('CLOSED','FORCE_CLOSED')", (str(site_id),)).fetchone()[0])
+            f"SELECT COUNT(*) FROM cash_shifts WHERE branch_id=? AND status IN ({marks})",
+            (str(site_id), *statuses)).fetchone()[0])
 
     def installation_branch_id(self) -> str | None:
         fila = self._conn.execute(

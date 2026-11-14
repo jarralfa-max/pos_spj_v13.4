@@ -23,6 +23,9 @@ from backend.domain.settings.exceptions import WorkstationNotFoundError
 from backend.infrastructure.db.repositories.settings.workstation_repository import (
     SqliteWorkstationRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class WorkstationStatusAction(str, Enum):
@@ -35,8 +38,22 @@ class WorkstationStatusAction(str, Enum):
     RETIRE = "RETIRE"
 
 
+#: Permiso por acción. ÚNICA fuente: la verifica el caso de uso
+#: (SDLC-ARQ-PERM-001) y el presentador la importa para su mensaje previo.
+WORKSTATION_STATUS_PERMISSIONS = {
+    WorkstationStatusAction.ACTIVATE: ConfiguracionPermissions.ESTACION_EDITAR,
+    WorkstationStatusAction.DEACTIVATE: ConfiguracionPermissions.ESTACION_EDITAR,
+    WorkstationStatusAction.ENTER_MAINTENANCE: ConfiguracionPermissions.ESTACION_EDITAR,
+    WorkstationStatusAction.EXIT_MAINTENANCE: ConfiguracionPermissions.ESTACION_EDITAR,
+    WorkstationStatusAction.UNBLOCK: ConfiguracionPermissions.ESTACION_EDITAR,
+    WorkstationStatusAction.BLOCK: ConfiguracionPermissions.ESTACION_BLOQUEAR,
+    WorkstationStatusAction.RETIRE: ConfiguracionPermissions.ESTACION_RETIRAR,
+}
+
+
 class RegisterWorkstationUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._workstations = SqliteWorkstationRepository(connection)
 
@@ -44,6 +61,7 @@ class RegisterWorkstationUseCase:
         self, *, branch_id: str, code: str, name: str, workstation_type: WorkstationType | str,
         device_identifier: str = "", operating_system: str = "", offline_enabled: bool = True,
     ) -> Workstation:
+        self._authz.require(ConfiguracionPermissions.ESTACION_CREAR)
         workstation = Workstation.create(
             branch_id=branch_id, code=code, name=name,
             workstation_type=WorkstationType(workstation_type),
@@ -56,13 +74,15 @@ class RegisterWorkstationUseCase:
 
 
 class UpdateWorkstationUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._workstations = SqliteWorkstationRepository(connection)
 
     def execute(
         self, *, workstation_id: str, name: str, device_identifier: str = "", operating_system: str = "",
     ) -> Workstation:
+        self._authz.require(ConfiguracionPermissions.ESTACION_EDITAR)
         workstation = self._workstations.get(workstation_id)
         if workstation is None:
             raise WorkstationNotFoundError(f"Estación {workstation_id} no encontrada")
@@ -75,13 +95,15 @@ class UpdateWorkstationUseCase:
 
 
 class ChangeWorkstationStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._workstations = SqliteWorkstationRepository(connection)
 
     def execute(
         self, *, workstation_id: str, action: WorkstationStatusAction, reason: str = "",
     ) -> Workstation:
+        self._authz.require_mapped(WORKSTATION_STATUS_PERMISSIONS, action)
         workstation = self._workstations.get(workstation_id)
         if workstation is None:
             raise WorkstationNotFoundError(f"Estación {workstation_id} no encontrada")

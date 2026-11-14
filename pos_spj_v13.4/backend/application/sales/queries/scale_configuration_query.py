@@ -25,9 +25,10 @@ class ScaleConfigurationQuery:
             if workstation is None or workstation.branch_id != branch_id or workstation.status.value != "ACTIVE":
                 raise ValueError("La estación no está activa en la sucursal")
             assignment = self._assignments.get_active_for_role(workstation_id, AssignmentRole.SCALE)
-            if assignment is None:
-                return None
-            assigned_device_id = assignment.device_id
+            # Sin asignación rige la báscula de la sucursal: una terminal recién
+            # registrada no pierde la báscula que ya usaba (SDLC-ARQ-TERM-001).
+            if assignment is not None:
+                assigned_device_id = assignment.device_id
         matches = []
         for device in self._devices.list_active():
             if device.branch_id != branch_id:

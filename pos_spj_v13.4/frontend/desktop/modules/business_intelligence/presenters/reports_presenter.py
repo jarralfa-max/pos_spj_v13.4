@@ -25,12 +25,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
+from backend.application.analytics.access import BiAccess
+from backend.application.analytics.permissions import AnalyticsPermissions
 from backend.application.analytics.queries.bi_dashboard_query_service import (
     BiDashboardQueryService,
 )
 from backend.application.analytics.services.bi_dashboard_service import BiDashboardService
 from backend.application.analytics.services.bi_export_service import BiExportService
+from frontend.desktop.modules.business_intelligence.presenters.bi_filters import BiFilterState
 
 #: The only report `BiExportService` can actually render today (§30 — one
 #: real catalog entry, not several fabricated ones).
@@ -49,9 +51,14 @@ class ReportUnavailableError(Exception):
 
 
 class ReportsPresenter:
-    def __init__(self, connection, *, actor_user_id: str | None = None) -> None:
+    def __init__(self, connection, *, actor_user_id: str | None = None,
+                 access: BiAccess | None = None) -> None:
+        access = access or BiAccess()
+        self._access = access
         query_service = BiDashboardQueryService(connection)
-        self._dashboard = BiDashboardService(query_service)
+        self._dashboard = BiDashboardService(
+            query_service, permission_checker=access.can, branch_scope=access.scope)
+        self.filters = BiFilterState(access, query_service)
         self._export = BiExportService()
         self._actor_user_id = actor_user_id
 
@@ -62,19 +69,20 @@ class ReportsPresenter:
         ts = datetime.now().strftime("%Y%m%d_%H%M")
         return f"{report_key}_{ts}.{fmt}"
 
-    def generate(self, *, report_key: str, fmt: str, filepath: str,
-                 branch_label: str = "Todas") -> str:
+    def generate(self, *, report_key: str, fmt: str, filepath: str) -> str:
         if report_key != "executive_summary":
             raise ReportUnavailableError(f"Reporte desconocido: {report_key}")
         if fmt not in _FORMAT_EXTENSIONS:
             raise ReportUnavailableError(f"Formato desconocido: {fmt}")
+        if not self._access.can(AnalyticsPermissions.REPORTS_EXPORT):
+            raise ReportUnavailableError("No tiene permiso para exportar reportes.")
         try:
-            filters = DashboardFilters().resolved()
+            filters = self.filters.current.resolved()
             payload = self._dashboard.build_dashboard(filters).to_dict()
             meta = {
                 "usuario": self._actor_user_id or "—",
                 "rango": f"{filters.date_from} a {filters.date_to}",
-                "sucursal": branch_label,
+                "sucursal": self.filters.branch_label(),
                 "generado": datetime.now().strftime("%Y-%m-%d %H:%M"),
             }
             return self._export.export_summary(payload, meta, filepath, fmt=fmt)

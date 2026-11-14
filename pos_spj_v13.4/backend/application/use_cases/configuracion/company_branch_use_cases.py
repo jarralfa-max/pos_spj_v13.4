@@ -42,10 +42,14 @@ from backend.infrastructure.db.repositories.settings.branch_profile_repository i
 from backend.infrastructure.db.repositories.settings.company_profile_repository import (
     SqliteCompanyProfileRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class SaveCompanyProfileUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._companies = SqliteCompanyProfileRepository(connection)
 
@@ -55,6 +59,7 @@ class SaveCompanyProfileUseCase:
         fiscal_regime_reference: str = "", address: str = "", phone: str = "", email: str = "",
         website: str = "", logo_asset_id: str = "",
     ) -> CompanyProfile:
+        self._authz.require(ConfiguracionPermissions.EMPRESA_EDITAR)
         existing = self._companies.list_active()
         if existing:
             profile = existing[0]
@@ -105,7 +110,8 @@ def _sync_org_unit(connection, profile: BranchProfile) -> None:
 
 
 class RegisterBranchProfileUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._branches = SqliteBranchProfileRepository(connection)
 
@@ -115,6 +121,7 @@ class RegisterBranchProfileUseCase:
         closing_time: time | None = None, operation_days: tuple[str, ...] = (),
         ticket_header: str = "", ticket_footer: str = "",
     ) -> BranchProfile:
+        self._authz.require(ConfiguracionPermissions.SUCURSAL_CREAR)
         profile = BranchProfile.create(
             branch_id=branch_id, code=code, name=name, address=address, phone=phone or None,
             timezone=timezone, locale=locale, opening_time=opening_time, closing_time=closing_time,
@@ -131,7 +138,8 @@ class RegisterBranchProfileUseCase:
 
 
 class UpdateBranchProfileUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._branches = SqliteBranchProfileRepository(connection)
 
@@ -141,6 +149,7 @@ class UpdateBranchProfileUseCase:
         operation_days: tuple[str, ...] = (), ticket_header: str = "", ticket_footer: str = "",
         code: str | None = None,
     ) -> BranchProfile:
+        self._authz.require(ConfiguracionPermissions.SUCURSAL_EDITAR)
         profile = self._branches.get(branch_id)
         if profile is None:
             raise BranchProfileNotFoundError(f"Perfil de sucursal {branch_id} no encontrado")

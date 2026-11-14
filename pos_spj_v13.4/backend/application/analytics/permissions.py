@@ -27,6 +27,8 @@ class AnalyticsPermissions:
     ACCESS = "INTELIGENCIA_BI.acceso"
     DASHBOARD_VIEW = "INTELIGENCIA_BI.dashboard.ver"
     GLOBAL_SEARCH = "INTELIGENCIA_BI.busqueda_global"
+    #: Ver toda la empresa; sin él, BI se acota a las sucursales del usuario (SDLC-BI-001).
+    ALL_BRANCHES_VIEW = "INTELIGENCIA_BI.sucursales.todas"
     AUDIT_VIEW = "INTELIGENCIA_BI.auditoria.ver"
     SETTINGS_VIEW = "INTELIGENCIA_BI.configuracion.ver"
     SETTINGS_MANAGE = "INTELIGENCIA_BI.configuracion.editar"

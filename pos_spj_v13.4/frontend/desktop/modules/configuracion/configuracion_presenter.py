@@ -49,6 +49,27 @@ from backend.application.use_cases.configuracion.appearance_management_use_cases
 from backend.application.use_cases.configuracion.offline_management_use_cases import (
     CacheExpirationPolicyStatusAction,
 )
+# SDLC-ARQ-PERM-001: tablas de permiso por acción, una sola fuente (el caso de uso).
+from backend.application.use_cases.configuracion.customer_display_advertising_use_cases import (
+    CONTENT_CAMPAIGN_STATUS_PERMISSIONS as _CONTENT_CAMPAIGN_STATUS_PERMISSIONS,
+)
+from backend.application.use_cases.configuracion.device_management_use_cases import (
+    DEVICE_STATUS_PERMISSIONS as _DEVICE_STATUS_PERMISSIONS,
+)
+from backend.application.use_cases.configuracion.document_template_use_cases import (
+    DOCUMENT_TEMPLATE_STATUS_PERMISSION as _DOCUMENT_TEMPLATE_STATUS_PERMISSION,
+    TEMPLATE_VERSION_STATUS_PERMISSIONS as _TEMPLATE_STATUS_PERMISSIONS,
+)
+from backend.application.use_cases.configuracion.integration_management_use_cases import (
+    INTEGRATION_DEFINITION_STATUS_PERMISSIONS as _INTEGRATION_DEFINITION_STATUS_PERMISSIONS,
+    INTEGRATION_INSTANCE_STATUS_PERMISSIONS as _INTEGRATION_INSTANCE_STATUS_PERMISSIONS,
+)
+from backend.application.use_cases.configuracion.marketing_campaign_use_cases import (
+    MARKETING_CAMPAIGN_STATUS_PERMISSION as _CAMPAIGN_STATUS_PERMISSION,
+)
+from backend.application.use_cases.configuracion.workstation_use_cases import (
+    WORKSTATION_STATUS_PERMISSIONS as _WORKSTATION_STATUS_PERMISSIONS,
+)
 from backend.application.commands.settings_commands import (
     SaveRoleCommand,
     SaveRolePermissionsCommand,
@@ -89,63 +110,28 @@ _PAGE_VIEW_PERMISSIONS = {entry.page_id: entry.permission for entry in CONFIGURA
 
 # SET-1: permission code required for each mutating command whose gate
 # doesn't depend on the requested action (device/template status changes
-# resolve their code dynamically — see _DEVICE_STATUS_PERMISSIONS /
-# _TEMPLATE_STATUS_PERMISSIONS below).
-_DEVICE_STATUS_PERMISSIONS = {
-    DeviceStatusAction.ACTIVATE: ConfiguracionPermissions.DISPOSITIVOS_EDITAR,
-    DeviceStatusAction.DEACTIVATE: ConfiguracionPermissions.DISPOSITIVOS_EDITAR,
-    DeviceStatusAction.UNBLOCK: ConfiguracionPermissions.DISPOSITIVOS_EDITAR,
-    DeviceStatusAction.BLOCK: ConfiguracionPermissions.DISPOSITIVOS_DESHABILITAR,
-    DeviceStatusAction.RETIRE: ConfiguracionPermissions.DISPOSITIVOS_DESHABILITAR,
-}
-_TEMPLATE_STATUS_PERMISSIONS = {
-    TemplateVersionAction.SUBMIT_FOR_APPROVAL: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
-    TemplateVersionAction.REJECT: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_APROBAR,
-    TemplateVersionAction.APPROVE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_APROBAR,
-    TemplateVersionAction.ACTIVATE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_ACTIVAR,
-    TemplateVersionAction.DEACTIVATE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
-    TemplateVersionAction.EXPIRE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
-    TemplateVersionAction.ARCHIVE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
-}
+# resolve their code dynamically). SDLC-ARQ-PERM-001: las tablas por acción
+# viven junto a su enum en el módulo del caso de uso, que las verifica en
+# backend; el presentador sólo las importa (arriba) para su mensaje previo.
 # Status changes worth a persisted before/after audit entry (§60): the
 # ones that gate/unblock a device or move a document towards production
 # use. Routine edits (rename, notes) are permission-gated but not
 # audit-logged — same scope boundary the plan's own audit checklist draws.
 _DEVICE_STATUS_AUDITED = {DeviceStatusAction.BLOCK, DeviceStatusAction.RETIRE}
 _TEMPLATE_STATUS_AUDITED = {TemplateVersionAction.APPROVE, TemplateVersionAction.ACTIVATE}
-_WORKSTATION_STATUS_PERMISSIONS = {
-    WorkstationStatusAction.ACTIVATE: ConfiguracionPermissions.ESTACION_EDITAR,
-    WorkstationStatusAction.DEACTIVATE: ConfiguracionPermissions.ESTACION_EDITAR,
-    WorkstationStatusAction.ENTER_MAINTENANCE: ConfiguracionPermissions.ESTACION_EDITAR,
-    WorkstationStatusAction.EXIT_MAINTENANCE: ConfiguracionPermissions.ESTACION_EDITAR,
-    WorkstationStatusAction.UNBLOCK: ConfiguracionPermissions.ESTACION_EDITAR,
-    WorkstationStatusAction.BLOCK: ConfiguracionPermissions.ESTACION_BLOQUEAR,
-    WorkstationStatusAction.RETIRE: ConfiguracionPermissions.ESTACION_RETIRAR,
-}
 _WORKSTATION_STATUS_AUDITED = {WorkstationStatusAction.BLOCK, WorkstationStatusAction.RETIRE}
 # SET-11 follow-up: the whole template *family*'s active/inactive
 # toggle (DocumentTemplateStatusAction) is a different action from a
 # single version's status (TemplateVersionAction above) — retiring a
 # template entirely is always audited, same weight as blocking a device.
-_DOCUMENT_TEMPLATE_STATUS_PERMISSION = ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_ACTIVAR
 # SET-13 cutover: same weight as the template family toggle above — a
 # campaign starting/stopping to print on live tickets is a critical
 # transition, always audited; create/edit are routine content edits.
-_CAMPAIGN_STATUS_PERMISSION = ConfiguracionPermissions.DOCUMENTOS_CAMPANA_ACTIVAR
 # SET-18 cutover: ContentCampaign's 7-state machine mirrors
 # DocumentTemplateVersion's exact shape (SET-11) — same permission-mapping
 # discipline as _TEMPLATE_STATUS_PERMISSIONS. SUBMIT/ACTIVATE/DEACTIVATE/
 # EXPIRE/ARCHIVE are "programar" (schedule/lifecycle management);
 # APPROVE/REJECT are the actual approval-workflow gate.
-_CONTENT_CAMPAIGN_STATUS_PERMISSIONS = {
-    ContentCampaignStatusAction.SUBMIT_FOR_APPROVAL: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
-    ContentCampaignStatusAction.REJECT: ConfiguracionPermissions.PANTALLA_CLIENTE_CONTENIDO_APROBAR,
-    ContentCampaignStatusAction.APPROVE: ConfiguracionPermissions.PANTALLA_CLIENTE_CONTENIDO_APROBAR,
-    ContentCampaignStatusAction.ACTIVATE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
-    ContentCampaignStatusAction.DEACTIVATE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
-    ContentCampaignStatusAction.EXPIRE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
-    ContentCampaignStatusAction.ARCHIVE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
-}
 _CONTENT_CAMPAIGN_STATUS_AUDITED = {ContentCampaignStatusAction.APPROVE, ContentCampaignStatusAction.ACTIVATE}
 
 
@@ -192,6 +178,7 @@ class ConfiguracionPresenter:
         change_density_profile_status_uc=None,
         create_appearance_preference_uc=None, change_appearance_preference_status_uc=None,
         create_cache_expiration_policy_uc=None, update_cache_expiration_policy_uc=None,
+        replication_conflict_query=None, resolve_replication_conflict_uc=None,
         change_cache_expiration_policy_status_uc=None,
         user_management_service=None, role_management_service=None,
         user_security_service=None,
@@ -203,9 +190,12 @@ class ConfiguracionPresenter:
         import_display_media_uc=None, set_device_windows_printer_uc=None,
         authorization=None, audit_log_repository=None,
         address_search_factory=None, software_updates=None, ticket_designer=None,
-        org_structure=None, role_assignments=None,
+        org_structure=None, role_assignments=None, session_site_follower=None,
     ) -> None:
         self._query_service = query_service
+        #: Mueve la sesión abierta al anclar la estación (SDLC-SET-001). Sólo existe
+        #: dentro del shell vivo.
+        self._session_site_follower = session_site_follower
         #: Estructura organizacional (auditoría enterprise, Fase 1): servicio de
         #: aplicación que autoriza, abre la transacción y audita por su cuenta.
         self._org_structure = org_structure
@@ -294,6 +284,8 @@ class ConfiguracionPresenter:
         self._create_appearance_preference_uc = create_appearance_preference_uc
         self._change_appearance_preference_status_uc = change_appearance_preference_status_uc
         self._create_cache_expiration_policy_uc = create_cache_expiration_policy_uc
+        self._replication_conflict_query = replication_conflict_query
+        self._resolve_replication_conflict_uc = resolve_replication_conflict_uc
         self._update_cache_expiration_policy_uc = update_cache_expiration_policy_uc
         self._change_cache_expiration_policy_status_uc = change_cache_expiration_policy_status_uc
         self._user_management_service = user_management_service
@@ -390,6 +382,12 @@ class ConfiguracionPresenter:
     def list_offline_cache_entries(self):
         self._require_read(ConfiguracionPermissions.OFFLINE_VIEW)
         return self._query_service.list_offline_cache_entries()
+
+    def list_replication_conflicts(self):
+        self._require_read(ConfiguracionPermissions.OFFLINE_VIEW)
+        if self._replication_conflict_query is None:
+            return ()
+        return self._replication_conflict_query.pending()
 
     def list_users(self):
         self._require_read(ConfiguracionPermissions.USUARIOS_VIEW)
@@ -990,6 +988,23 @@ class ConfiguracionPresenter:
             logger.exception("ConfiguracionPresenter.change_cache_expiration_policy_status failed")
             return False, "Error inesperado; revise el log."
 
+    def resolve_replication_conflict(
+        self, *, envelope_id: str, strategy: str, reason: str,
+    ) -> tuple[bool, str]:
+        """El permiso, el motivo y la auditoría los decide el caso de uso."""
+        if self._resolve_replication_conflict_uc is None:
+            return False, "Resolución de conflictos no disponible."
+        try:
+            self._resolve_replication_conflict_uc.execute(
+                envelope_id=envelope_id, strategy=strategy, reason=reason,
+                actor=self._actor(), operation_id=new_uuid())
+            return True, "Conflicto resuelto."
+        except (ConfigurationDomainError, ValueError, LookupError) as exc:
+            return False, str(exc)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.resolve_replication_conflict failed")
+            return False, "Error inesperado; revise el log."
+
     def create_user(
         self, *, username: str, full_name: str = "", email: str = "", password: str = "", role: str = "",
         branch_id: str = "", employee_id: str = "", active: bool = True,
@@ -1182,20 +1197,40 @@ class ConfiguracionPresenter:
         actor = self._actor()
         if not actor:
             return False, "Sesión inválida; no se puede anclar la instalación sin un usuario autenticado."
-        denial = self._authorize(ConfiguracionPermissions.EMPRESA_EDITAR)
-        if denial:
-            return False, denial
+        # El permiso (CONFIGURACION.estacion.reanclar), el turno abierto, la
+        # sincronización pendiente y la auditoría los decide el caso de uso
+        # (SDLC-ARQ-TERM-002); aquí sólo se traduce el resultado.
         try:
             cmd = SetInstallationBranchCommand(
                 operation_id=new_uuid(), branch_id=branch_id, user_name=actor,
+                workstation_id=str(getattr(self._session, "workstation_id", None) or ""),
             )
             result = self._set_installation_branch_uc.execute(cmd)
-            return True, f"Instalación anclada a «{result.data.get('branch_name', '')}»."
-        except ValueError as exc:
+            nombre = result.data.get("branch_name", "")
+            if not result.data.get("changed", True):
+                return True, f"La instalación ya está anclada a «{nombre}»."
+            return True, f"Instalación anclada a «{nombre}»."
+        except (ConfigurationDomainError, ValueError) as exc:
             return False, str(exc)
         except Exception:
             logger.exception("ConfiguracionPresenter.set_installation_branch failed")
             return False, "Error inesperado; revise el log."
+
+    def follow_installation_branch(self, branch_id: str) -> tuple[bool, str]:
+        """Tras anclar: la sesión abierta pasa a esa sucursal (SDLC-SET-001).
+        `False` exige cerrar la sesión con `end_session_after_anchor()`."""
+        if self._session_site_follower is None:
+            return True, "Cierre sesión y vuelva a entrar para operar en esa sucursal."
+        try:
+            return self._session_site_follower.follow(branch_id)
+        except Exception:
+            logger.exception("ConfiguracionPresenter.follow_installation_branch failed")
+            return False, ("No se pudo actualizar la sesión abierta.\n\n"
+                           "Hay que cerrar la sesión para continuar.")
+
+    def end_session_after_anchor(self) -> None:
+        if self._session_site_follower is not None:
+            self._session_site_follower.end_session()
 
     def _session_branch_id(self) -> str:
         return str(getattr(self._session, "active_branch_id", None) or "")
@@ -2068,10 +2103,7 @@ class ConfiguracionPresenter:
             action_enum = IntegrationDefinitionStatusAction(action)
         except ValueError:
             return False, f"Acción de definición desconocida: {action}"
-        permission = (
-            ConfiguracionPermissions.INTEGRACIONES_ACTIVAR if action_enum is IntegrationDefinitionStatusAction.ACTIVATE
-            else ConfiguracionPermissions.INTEGRACIONES_DESACTIVAR
-        )
+        permission = _INTEGRATION_DEFINITION_STATUS_PERMISSIONS[action_enum]
         denial = self._authorize(permission)
         if denial:
             return False, denial
@@ -2123,10 +2155,7 @@ class ConfiguracionPresenter:
             action_enum = IntegrationInstanceStatusAction(action)
         except ValueError:
             return False, f"Acción de instancia desconocida: {action}"
-        permission = (
-            ConfiguracionPermissions.INTEGRACIONES_ACTIVAR if action_enum is IntegrationInstanceStatusAction.ACTIVATE
-            else ConfiguracionPermissions.INTEGRACIONES_DESACTIVAR
-        )
+        permission = _INTEGRATION_INSTANCE_STATUS_PERMISSIONS[action_enum]
         denial = self._authorize(permission)
         if denial:
             return False, denial

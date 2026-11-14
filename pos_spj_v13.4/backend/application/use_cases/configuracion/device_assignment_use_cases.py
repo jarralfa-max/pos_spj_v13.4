@@ -36,10 +36,14 @@ from backend.infrastructure.db.repositories.device_management.device_repository 
 from backend.infrastructure.db.repositories.device_management.workstation_device_assignment_repository import (
     SqliteWorkstationDeviceAssignmentRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class AssignDeviceUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._assignments = SqliteWorkstationDeviceAssignmentRepository(connection)
         self._devices = SqliteDeviceRepository(connection)
@@ -49,6 +53,7 @@ class AssignDeviceUseCase:
         self, *, workstation_id: str, device_id: str, role: AssignmentRole | str,
         assigned_by_user_id: str = "",
     ) -> WorkstationDeviceAssignment:
+        self._authz.require(ConfiguracionPermissions.DISPOSITIVOS_ASIGNAR, claimed_actor=assigned_by_user_id)
         role = AssignmentRole(role)
         if role in CASH_REGISTER_OWNED_ROLES:
             raise DeviceInvalidValueError(
@@ -77,11 +82,13 @@ class AssignDeviceUseCase:
 
 
 class UnassignDeviceUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._assignments = SqliteWorkstationDeviceAssignmentRepository(connection)
 
     def execute(self, *, assignment_id: str) -> WorkstationDeviceAssignment:
+        self._authz.require(ConfiguracionPermissions.DISPOSITIVOS_ASIGNAR)
         assignment = self._assignments.get(assignment_id)
         if assignment is None:
             raise DeviceAssignmentNotFoundError(f"Asignación {assignment_id} no encontrada")

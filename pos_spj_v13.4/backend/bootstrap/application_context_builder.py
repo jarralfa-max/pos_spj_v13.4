@@ -19,7 +19,8 @@ adaptadores antes de que haya sesión sólo los dejaría esperando.
 SITIO DE LA SESIÓN (auditoría enterprise, Fase 2; N01) — la sesión opera el sitio
 anclado a ESTA estación (`sucursal_instalacion_id`), no la sucursal propia del
 usuario: antes un cajero de otra sucursal que entraba en esta caja vendía el
-inventario de la suya. Sólo sin ancla se usa la sucursal propia. El usuario
+inventario de la suya. Sin ancla no hay sesión operativa (SDLC-ARQ-TERM-002):
+sólo entra quien puede re-anclar, sin sucursal ni módulos operativos. El usuario
 necesita un rol cuyo ámbito cubra el sitio (`AccessScopeResolver`); si no, el
 inicio de sesión se rechaza (`SiteAccessDeniedError`). Los permisos y los roles
 son los que valen EN ese sitio, el alcance (`assigned_branch_ids`) son todos los
@@ -33,12 +34,22 @@ from backend.application.feature_flags.branch_feature_flags_query import (
 )
 from backend.application.security.access_scope import AccessScopeResolver
 from backend.application.security.permission_query_service import PermissionQueryService
-from backend.bootstrap.application_context_errors import SiteAccessDeniedError
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.bootstrap.application_context_errors import (
+    SiteAccessDeniedError,
+    StationNotAnchoredError,
+)
+from backend.bootstrap.permission_evaluator import PermissionEvaluator
+from backend.bootstrap.terminal_identity import register_terminal
 from backend.application.software_updates.installation import enabled_capabilities_for
 from backend.bootstrap.application_context import (
     ApplicationContext,
     FeatureContext,
     default_workstation_id,
+)
+from backend.bootstrap.application_context_service import (
+    ApplicationContextService,
+    BranchLookupResult,
 )
 from backend.infrastructure.db.repositories.feature_flags.feature_flag_repository import (
     SqliteFeatureFlagRepository,
@@ -78,7 +89,7 @@ class ApplicationContextBuilder:
         permission_repo = SqlitePermissionRepository(self._conn)
         resolver = AccessScopeResolver(permission_repo)
 
-        site_id, site_name = self._session_site(credentials, branches)
+        site_id, site_name = self._session_site()
         if site_id and resolver.supports_scopes and not resolver.covers(credentials.id, site_id):
             raise SiteAccessDeniedError(site_name or site_id)
 
@@ -102,14 +113,23 @@ class ApplicationContextBuilder:
         else:
             assigned = frozenset(branches.assigned_branch_ids(credentials.id))
 
-        return ApplicationContext(
+        terminal_id = register_terminal(self._conn, branch_id=site_id,
+                                        workstation_type=workstation_type)
+        context = ApplicationContext(
             installation_id=installation.id if installation else "",
             company_id=(installation.company_id or "") if installation else "",
             branch_id=site_id,
             branch_name=site_name,
             assigned_branch_ids=frozenset(assigned),
-            site_capabilities=self._site_capabilities(site_id),
-            workstation_id=session.workstation_id or default_workstation_id(),
+            # Sin ancla, ningún módulo que exija capacidad del sitio (Ventas, Caja,
+            # Inventario, Compras, Finanzas…) se ofrece ni se concede: sesión de
+            # reparación (SDLC-ARQ-TERM-002).
+            site_capabilities=(self._site_capabilities(site_id) if site_id
+                               else frozenset()),
+            # Id persistente de la terminal, no el hostname (SDLC-ARQ-TERM-001).
+            # `default_workstation_id()` sólo queda para bases sin el registro.
+            workstation_id=(session.workstation_id or terminal_id
+                            or default_workstation_id()),
             workstation_type=workstation_type,
             user_id=credentials.id,
             user_name=credentials.full_name or credentials.username,
@@ -119,16 +139,53 @@ class ApplicationContextBuilder:
             session_id=session.session_id,
             capabilities=enabled_capabilities_for(AppPaths.from_environment()),
         )
+        if not site_id and not PermissionEvaluator(context).has_permission(
+                ConfiguracionPermissions.ESTACION_REANCLAR):
+            raise StationNotAnchoredError()
+        return context
 
-    def _session_site(self, credentials, branches) -> tuple[str, str]:
-        """El sitio anclado a esta estación; sin ancla, la sucursal propia."""
+    def _session_site(self) -> tuple[str, str]:
+        """El sitio anclado a esta estación, o `("", "")` si no tiene ancla.
+
+        SDLC-ARQ-TERM-002: sin ancla ya NO se usa la sucursal propia del usuario
+        —eso cambiaba la sucursal de la estación en silencio al iniciar sesión—.
+        Sólo quien puede re-anclar entra, a una sesión sin sucursal ni módulos
+        operativos, para anclarla; los demás reciben `StationNotAnchoredError`.
+        """
         ancla = SqliteInstallationBranchRepository(self._conn).get()
         if ancla:
             return str(ancla[0]), str(ancla[1] or "")
-        propia = str(credentials.branch_id or "")
-        return propia, branches.name_for(propia)
+        return "", ""
 
     def _site_capabilities(self, site_id: str) -> frozenset[str] | None:
         """Capacidades de la unidad del sitio. `None` (no restringe) si la base no
         tiene estructura organizacional o el sitio no tiene unidad."""
         return SqliteOrgUnitRepository(self._conn).site_capabilities(site_id)
+
+    def context_service(self, *, user_id: str) -> ApplicationContextService:
+        """El servicio de cambio de contexto con los MISMOS puertos que `build()`,
+        para que un contexto reconstruido en sesión valga lo mismo que uno de login
+        (SDLC-SET-001)."""
+        branches = SqliteBranchDirectoryRepository(self._conn)
+        permission_repo = SqlitePermissionRepository(self._conn)
+        resolver = AccessScopeResolver(permission_repo)
+        query = PermissionQueryService(permission_repo)
+        flags = BranchFeatureFlagsQuery(
+            SqliteFeatureFlagRepository(self._conn),
+            SqliteFeatureFlagRuleRepository(self._conn),
+        )
+
+        def resolve_branch(branch_id: str) -> BranchLookupResult | None:
+            rows = branches.search(branch_ids=(branch_id,), active_only=True, limit=1)
+            if not rows:
+                return None
+            return BranchLookupResult(id=str(rows[0]["id"]), name=str(rows[0]["nombre"] or ""))
+
+        return ApplicationContextService(
+            branch_resolver=resolve_branch,
+            permissions_loader=query.permission_codes_for_user,
+            feature_flags_loader=lambda branch_id: flags.flags_for(branch_id, user_id=user_id),
+            site_access_checker=resolver.covers if resolver.supports_scopes else None,
+            roles_loader=query.roles_for,
+            site_capabilities_loader=self._site_capabilities,
+        )

@@ -48,9 +48,15 @@ Una venta normal de 2 Pollos quedaba COMPLETED por $200 y:
    lo despachaba. Ahora lleva totales, pagos y costo de venta, y
    `backend/application/sales/integrations/` lo entrega a `SaleCompletedHandler`.
 
-`settle_inventory`/`require_cash_shift` existen para Pedidos/Delivery, que
-descuenta por su propio cliente de inventario (ORD-8) y liquida el efectivo con
-el repartidor, no con un turno de mostrador. El mostrador usa ambos en True.
+`settle_inventory`/`require_cash_shift`/`cash_custody` existen para
+Pedidos/Delivery, que descuenta por su propio cliente de inventario al despachar
+o entregar (SDLC-ORD-004). `cash_custody` dice dónde queda el efectivo
+(SDLC-ORD-001): "DRAWER" exige turno sólo si hay efectivo (una transferencia no
+entra a ningún cajón; el efectivo sin turno no entra a ningún corte) y "DRIVER"
+es el que trae el repartidor, que nunca pasa por un cajón y lo asienta su propio
+cobro. Caja corre siempre en la transacción de la venta; antes, en esta ruta,
+corría después y su falla quedaba en `cash_effects_error`, que nadie leía. El
+mostrador usa `settle_inventory` y `require_cash_shift` en True.
 """
 
 from __future__ import annotations
@@ -86,7 +92,7 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
     def __init__(self, authorization=None, inventory_authorization=None,
                  customer_authorization=None, *, authorizer_authorization=None,
                  costs=None, settle_inventory: bool = True,
-                 require_cash_shift: bool = True) -> None:
+                 require_cash_shift: bool = True, cash_custody: str | None = None) -> None:
         super().__init__(authorization, inventory_authorization, customer_authorization)
         #: Política para el AUTORIZADOR de vender sin existencia (otro usuario;
         #: en producción, `AuthorizerPermissionChecker`).
@@ -95,6 +101,7 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
         self._costs = costs
         self._settle_inventory = settle_inventory
         self._require_cash_shift = require_cash_shift
+        self._cash_custody = cash_custody
 
     def execute(self, connection, *, sale_id: str, actor_user_id: str,
                 operation_id: str, authorizer_user_id: str | None = None,
@@ -117,7 +124,8 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
-            if self._require_cash_shift:
+            exige_turno = self._shift_required(sale)
+            if exige_turno:
                 problema = self._open_shift_problem(connection, sale)
                 if problema:
                     return SaleResult.fail(problema, "NO_OPEN_CASH_SHIFT",
@@ -156,7 +164,8 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
             # inventario no sale y el folio no avanza. Antes corría después del
             # commit y su error sólo quedaba en `cash_effects_error`, que la
             # pantalla nunca leía.
-            if sale.payments and self._require_cash_shift:
+            if sale.payments and self._cash_custody != "DRIVER" and (
+                    exige_turno or self._open_shift_problem(connection, sale) is None):
                 change = max(Decimal("0"), sale.total_paid - sale.totals.total)
                 try:
                     SalesCashEffectsClient().record_completed_sale(
@@ -171,22 +180,6 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
                         "corrige el problema y vuelve a cobrar.", "CASH_EFFECTS_FAILED",
                         operation_id=operation_id)
 
-        cash_effects_error: str | None = None
-        if sale.payments and not self._require_cash_shift:
-            # Pedidos/Delivery (sin turno de mostrador; el efectivo lo liquida
-            # el repartidor): conserva el efecto de Caja de siempre, después
-            # del commit y sin deshacer la venta. Ver `orders_delivery_sales_client`.
-            change = max(Decimal("0"), sale.total_paid - sale.totals.total)
-            try:
-                SalesCashEffectsClient().record_completed_sale(
-                    connection, sale_id=sale.id, branch_id=sale.branch_id,
-                    cashier_user_id=sale.cashier_user_id, operation_id=operation_id,
-                    payments=sale.payments, change=change, owns_transaction=True,
-                    sale_number=sale.sale_number)
-            except Exception as exc:  # noqa: BLE001 - Pedidos no se deshace por Caja
-                cash_effects_error = str(exc)
-                logger.warning("Efecto de caja no registrado para venta %s: %s", sale.id, exc)
-
         raffle_issue_error: str | None = None
         try:
             SalesSweepstakesClient(connection).issue_tickets_for_sale(sale=SaleDTO.from_entity(sale))
@@ -196,24 +189,22 @@ class CheckoutSaleUseCase(_SalesBaseUseCase):
 
         return SaleResult.ok(
             "Venta finalizada", entity_id=sale.id, operation_id=operation_id,
-            sale=SaleDTO.from_entity(sale), cash_effects_error=cash_effects_error,
-            raffle_issue_error=raffle_issue_error)
+            sale=SaleDTO.from_entity(sale), raffle_issue_error=raffle_issue_error)
 
 
     # ── cobro: turno, inventario y costo ─────────────────────────────────
+    def _shift_required(self, sale) -> bool:
+        if self._require_cash_shift:
+            return True
+        return self._cash_custody == "DRAWER" and any(
+            getattr(pago.method, "value", pago.method) == "CASH" for pago in sale.payments)
+
     @staticmethod
     def _open_shift_problem(connection, sale) -> str | None:
-        import sqlite3
-
-        from backend.domain.cash_register.exceptions import CashRegisterError
-        try:
-            SalesCashEffectsClient().require_open_shift(
-                connection, branch_id=sale.branch_id, cashier_user_id=sale.cashier_user_id)
-        except (CashRegisterError, sqlite3.OperationalError):
-            # Sin esquema de Caja no puede haber turno: se falla cerrado.
-            return ("No tienes un turno de caja abierto. Abre tu turno en Caja antes de "
-                    "cobrar: sin turno, el dinero de la venta no entra a ningún corte.")
-        return None
+        # Misma fuente y redacción que Caja y la barra del POS
+        # (SDLC-ARQ-SHIFT-001); sin esquema de Caja se falla cerrado.
+        return SalesCashEffectsClient().open_shift_problem(
+            connection, branch_id=sale.branch_id, cashier_user_id=sale.cashier_user_id)
 
     def _unit_costs(self, connection, sale, *, virtual: dict | None = None
                     ) -> tuple[dict, list[str]]:

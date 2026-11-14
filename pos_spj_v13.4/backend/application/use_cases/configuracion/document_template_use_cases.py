@@ -45,6 +45,9 @@ from backend.infrastructure.db.repositories.document_output.document_template_re
 from backend.infrastructure.db.repositories.document_output.document_template_version_repository import (
     SqliteDocumentTemplateVersionRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 
@@ -72,6 +75,21 @@ class DocumentTemplateStatusAction(str, Enum):
     DEACTIVATE = "DEACTIVATE"
 
 
+#: Permiso por acción. ÚNICA fuente: la verifica el caso de uso
+#: (SDLC-ARQ-PERM-001) y el presentador la importa para su mensaje previo.
+TEMPLATE_VERSION_STATUS_PERMISSIONS = {
+    TemplateVersionAction.SUBMIT_FOR_APPROVAL: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
+    TemplateVersionAction.REJECT: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_APROBAR,
+    TemplateVersionAction.APPROVE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_APROBAR,
+    TemplateVersionAction.ACTIVATE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_ACTIVAR,
+    TemplateVersionAction.DEACTIVATE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
+    TemplateVersionAction.EXPIRE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
+    TemplateVersionAction.ARCHIVE: ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR,
+}
+#: Activar o desactivar la plantilla completa (no una versión).
+DOCUMENT_TEMPLATE_STATUS_PERMISSION = ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_ACTIVAR
+
+
 def _ensure_ticket_content(document_type, content: str) -> None:
     """Comparativa de tickets (2026-10-16): el contenido de una plantilla de
     ticket ES el diseño por bloques que imprime el POS. Texto libre (como el
@@ -89,7 +107,8 @@ class CreateDocumentTemplateUseCase:
     (DRAFT) `DocumentTemplateVersion` — a template with zero versions
     isn't useful, so the UI's "new template" action always produces both."""
 
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._templates = SqliteDocumentTemplateRepository(connection)
         self._versions = SqliteDocumentTemplateVersionRepository(connection)
@@ -98,6 +117,7 @@ class CreateDocumentTemplateUseCase:
         self, *, document_type: DocumentType | str, name: str, module: str, description: str = "",
         content_format: RenderFormat | str, content: str, created_by_user_id: str = "",
     ) -> tuple[DocumentTemplate, DocumentTemplateVersion]:
+        self._authz.require(ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_CREAR, claimed_actor=created_by_user_id)
         template = DocumentTemplate.create(
             document_type=_configurable(document_type), name=name, module=module,
             description=description,
@@ -114,13 +134,15 @@ class CreateDocumentTemplateUseCase:
 
 
 class CreateNextTemplateVersionUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._versions = SqliteDocumentTemplateVersionRepository(connection)
 
     def execute(
         self, *, version_id: str, content: str, created_by_user_id: str = "",
     ) -> DocumentTemplateVersion:
+        self._authz.require(ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR, claimed_actor=created_by_user_id)
         current = self._versions.get(version_id)
         if current is None:
             raise TemplateVersionNotFoundError(f"Versión {version_id} no encontrada")
@@ -134,13 +156,15 @@ class CreateNextTemplateVersionUseCase:
 
 
 class ChangeTemplateVersionStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._versions = SqliteDocumentTemplateVersionRepository(connection)
 
     def execute(
         self, *, version_id: str, action: TemplateVersionAction, actor_user_id: str = "", reason: str = "",
     ) -> DocumentTemplateVersion:
+        self._authz.require_mapped(TEMPLATE_VERSION_STATUS_PERMISSIONS, action, claimed_actor=actor_user_id)
         version = self._versions.get(version_id)
         if version is None:
             raise TemplateVersionNotFoundError(f"Versión {version_id} no encontrada")
@@ -194,11 +218,13 @@ class ChangeTemplateVersionStatusUseCase:
 
 
 class UpdateDocumentTemplateUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._templates = SqliteDocumentTemplateRepository(connection)
 
     def execute(self, *, template_id: str, name: str, module: str, description: str = "") -> DocumentTemplate:
+        self._authz.require(ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR)
         template = self._templates.get(template_id)
         if template is None:
             raise DocumentTemplateNotFoundError(f"Plantilla {template_id} no encontrada")
@@ -209,11 +235,13 @@ class UpdateDocumentTemplateUseCase:
 
 
 class ChangeDocumentTemplateStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._templates = SqliteDocumentTemplateRepository(connection)
 
     def execute(self, *, template_id: str, action: DocumentTemplateStatusAction) -> DocumentTemplate:
+        self._authz.require(DOCUMENT_TEMPLATE_STATUS_PERMISSION)
         template = self._templates.get(template_id)
         if template is None:
             raise DocumentTemplateNotFoundError(f"Plantilla {template_id} no encontrada")

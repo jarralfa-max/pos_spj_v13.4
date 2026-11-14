@@ -19,6 +19,21 @@ class SiteAccessDeniedError(PermissionError):
         self.site_name = site_name
 
 
+class StationNotAnchoredError(SiteAccessDeniedError):
+    """La estación no tiene sucursal anclada y el usuario no puede anclarla
+    (SDLC-ARQ-TERM-002). Antes la sesión tomaba en silencio la sucursal propia
+    del usuario. Hereda de `SiteAccessDeniedError` para que el inicio de sesión
+    la trate igual: revoca la sesión recién abierta y muestra el motivo."""
+
+    def __init__(self) -> None:
+        PermissionError.__init__(
+            self,
+            "Esta estación no tiene una sucursal anclada, así que no puede operar. "
+            "Un usuario con el permiso para re-anclar estaciones debe iniciar sesión y "
+            "anclarla en Configuración → Empresa.")
+        self.site_name = ""
+
+
 class ContextSwitchNotAllowedError(RuntimeError):
     """The branch-switch request was rejected — either the caller lacks
     `APPLICATION_CONTEXT_SWITCH`, or there are open operations that would

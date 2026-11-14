@@ -163,6 +163,8 @@ Los IDs abreviados se refieren a `SDLC-ARQ-<…>`. Los de la columna con "(exist
 
 ## §15 Pruebas de aceptación
 
+**Arnés (SDLC-ARQ-TEST-001):** los escenarios con dos terminales, dos usuarios, caída de red o reinicio usan la fixture `multi_station` de `tests/integration/multi_station.py`: N estaciones con SQLite real en archivo + central con la ingesta real sobre el libro en memoria (`tests/unit/central_sync/memory_inbox.py`). Su propia prueba es `tests/integration/test_multi_station_harness.py`. PostgreSQL real sigue corriendo sólo en CI (`tests/integration/central_pg/*`). Quien aporte la prueba de un escenario actualiza su fila en esta tabla.
+
 | # | Escenario | Estado | Prueba que lo cubre | Ítem que debe aportarla |
 |---|---|---|---|---|
 | T1 | Usuario de A en POS de B → denegado | implementado y probado | `tests/integration/security/test_contextual_permissions.py::test_a_user_without_a_role_at_the_station_site_cannot_open_a_session` | — |

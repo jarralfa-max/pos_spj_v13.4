@@ -1,9 +1,9 @@
 """NewOrderPage (PASS 6) — "Nuevo pedido": captura completa en una pantalla.
 
-A diferencia del diálogo de "Todos los pedidos" (que pide el UUID del producto a
-mano y guarda sin dirección), aquí el producto se busca, el precio lo fija Pricing
-y, si la modalidad lleva entrega, la dirección se captura y se guarda con el pedido
-en la misma transacción (`CaptureOrderUseCase`).
+El producto se busca, el precio lo fija Pricing y, si la modalidad lleva entrega,
+la dirección se captura y se guarda con el pedido en la misma transacción
+(`CaptureOrderUseCase`). El alta rápida de "Todos los pedidos" envuelve esta misma
+página (SDLC-ORD-005): sólo hay un flujo de captura.
 
 Es un `FormPage`: el cuerpo desplaza y "Crear pedido" queda siempre alcanzable.
 """
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtWidgets import QFormLayout, QHBoxLayout, QLabel, QWidget
 
 from frontend.desktop.components import (
@@ -39,6 +40,9 @@ LINE_COLUMNS = [
 
 
 class NewOrderPage(FormPage):
+    #: El pedido quedó creado; lleva el mensaje para el usuario.
+    order_created = pyqtSignal(str)
+
     def __init__(self, presenter, *, title: str, subtitle: str, parent=None) -> None:
         super().__init__(parent, title=title, subtitle=subtitle)
         self._presenter = presenter
@@ -236,6 +240,7 @@ class NewOrderPage(FormPage):
         self._show(ok, mensaje)
         if ok:
             self._reset()
+            self.order_created.emit(mensaje)
 
     def _reset(self) -> None:
         self._lines.clear()

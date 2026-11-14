@@ -45,7 +45,12 @@ from backend.application.sales.use_cases.checkout_use_cases import CheckoutSaleU
 from backend.application.sales.use_cases.lifecycle_use_cases import BeginSaleCheckoutUseCase
 from backend.application.sales.use_cases.payment_use_cases import RecordSalePaymentUseCase
 from backend.application.sales.use_cases.return_use_cases import ReverseSaleUseCase
-from backend.domain.orders_delivery.exceptions import SaleProjectionFailedError
+from backend.domain.orders_delivery.exceptions import (
+    OrdersDeliveryDomainError,
+    SaleProjectionFailedError,
+)
+from backend.domain.sales.exceptions import InventoryReservationFailedError
+from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
 from backend.shared.ids import new_uuid
 
 
@@ -115,7 +120,14 @@ class OrdersDeliverySalesClient:
         """Returns `(total_paid, sale_total)` so the caller can resolve the
         order's own `PaymentStatus` via `OrderPaymentPolicy.
         resolve_from_amounts()` without this client reaching back into Sales
-        a second time."""
+        a second time.
+
+        Una venta ya pagada por completo no recibe otro pago: es el reintento de
+        un cobro cuya finalización falló (p. ej. sin turno de Caja). El pago ya
+        está registrado y lo que falta es completarla (SDLC-ORD-001)."""
+        sale = SalesUnitOfWork(self._connection).sales.get(sale_id)
+        if sale is not None and sale.totals.total > 0 and sale.total_paid >= sale.totals.total:
+            return sale.total_paid, sale.totals.total
         result = RecordSalePaymentUseCase(self._auth).execute(
             self._connection, sale_id=sale_id, method=method, amount=amount,
             actor_user_id=actor_user_id, operation_id=operation_id, reference=reference)
@@ -124,17 +136,19 @@ class OrdersDeliverySalesClient:
         sale = result.data["sale"]
         return sale.total_paid, sale.total
 
-    def complete_sale(self, *, sale_id: str, actor_user_id: str, operation_id: str) -> None:
-        """Finalizes the Sale (`CheckoutSaleUseCase`) — confirms any
-        inventory hold, marks it COMPLETED, and runs the real Caja/loyalty
-        side effects. A Caja-effect failure is logged by `CheckoutSaleUseCase`
-        itself and never un-completes the sale; it is not this client's job
-        to second-guess that."""
-        # Pedidos descuenta inventario por su propio cliente (ORD-8) y el
-        # efectivo lo liquida el repartidor, no un turno de mostrador: el
-        # cobro no debe volver a descontar ni exigir turno (Fase 6).
+    def complete_sale(self, *, sale_id: str, actor_user_id: str, operation_id: str,
+                      driver_collected: bool = False) -> None:
+        """Finalizes the Sale (`CheckoutSaleUseCase`): marks it COMPLETED and
+        runs Caja inside the same transaction. If Caja refuses, the sale is not
+        completed and the failure comes back to the caller (SDLC-ORD-001).
+
+        `driver_collected`: the cash is in the driver's hands, not in a drawer.
+        Caja never sees it; its own collection and settlement carry it."""
+        # Pedidos descuenta inventario por su propio cliente al despachar o
+        # entregar (SDLC-ORD-004): el cobro no debe volver a descontar.
         result = CheckoutSaleUseCase(
-            self._auth, settle_inventory=False, require_cash_shift=False).execute(
+            self._auth, settle_inventory=False, require_cash_shift=False,
+            cash_custody="DRIVER" if driver_collected else "DRAWER").execute(
             self._connection, sale_id=sale_id, actor_user_id=actor_user_id,
             operation_id=operation_id)
         if not result.success:
@@ -142,16 +156,24 @@ class OrdersDeliverySalesClient:
 
     def refund(
         self, *, sale_id: str, reason: str, actor_user_id: str, authorizer_user_id: str,
-        operation_id: str,
+        operation_id: str, restore_inventory,
     ) -> None:
         """A CustomerOrder has no per-line return tracking of its own, so a
         refund always reverses the WHOLE linked Sale (`ReverseSaleUseCase`,
-        which itself restores inventory and reverses Caja effects) — never a
-        partial `ReturnSaleLineUseCase`. `authorizer_user_id` flows straight
+        which reverses Caja effects) — never a partial
+        `ReturnSaleLineUseCase`. Inventory is NOT restored by Sales here: Sales
+        never issued it. `restore_inventory` takes back what Pedidos issued,
+        inside the reversal's own transaction. `authorizer_user_id` flows straight
         into Sales' own hot-authorization (`SalesAuthorizationPolicy.
         authorize_exception`, requiring a distinct approver) — this client
         does not additionally gate on an Orders/Delivery-side authorizer."""
-        result = ReverseSaleUseCase(self._auth).execute(
+        def _restore() -> None:
+            try:
+                restore_inventory()
+            except OrdersDeliveryDomainError as exc:
+                raise InventoryReservationFailedError(str(exc)) from exc
+
+        result = ReverseSaleUseCase(self._auth, inventory_return=_restore).execute(
             self._connection, sale_id=sale_id, reason=reason, actor_user_id=actor_user_id,
             authorizer_user_id=authorizer_user_id, operation_id=operation_id)
         if not result.success:

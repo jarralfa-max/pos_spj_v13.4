@@ -10,6 +10,7 @@ import sqlite3
 import pytest
 from PyQt5.QtWidgets import QApplication
 
+from backend.application.analytics.access import BiAccess
 from frontend.desktop.modules.business_intelligence.business_intelligence_routes import build_page
 from frontend.desktop.modules.business_intelligence.pages.analytical_section_page import (
     AnalyticalSectionPage,
@@ -34,7 +35,7 @@ def conn():
 
 def test_page_constructs_without_loading_charts_or_tables(qapp, conn):
     page = AnalyticalSectionPage(
-        AnalyticalSectionPresenter(conn, "ventas"), title="Ventas", subtitle="x")
+        AnalyticalSectionPresenter(conn, "ventas", access=BiAccess.permissive_for_tests()), title="Ventas", subtitle="x")
     assert page.charts == []
     assert page._tables == []
     assert page._loaded is False
@@ -42,5 +43,5 @@ def test_page_constructs_without_loading_charts_or_tables(qapp, conn):
 
 @pytest.mark.parametrize("page_id", ["bi_sales", "bi_inventory", "bi_purchasing", "bi_finance"])
 def test_build_page_with_connection_returns_real_analytical_section(qapp, conn, page_id):
-    page = build_page(page_id, conn)
+    page = build_page(page_id, conn, access=BiAccess.permissive_for_tests())
     assert isinstance(page, AnalyticalSectionPage)

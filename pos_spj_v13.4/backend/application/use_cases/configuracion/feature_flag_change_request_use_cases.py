@@ -20,14 +20,19 @@ from backend.infrastructure.db.repositories.feature_flags.feature_flag_change_re
 from backend.infrastructure.db.repositories.feature_flags.feature_flag_rule_repository import (
     SqliteFeatureFlagRuleRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class ApproveFeatureFlagChangeRequestUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._requests = SqliteFeatureFlagChangeRequestRepository(connection)
 
     def execute(self, *, request_id: str, approver_user_id: str) -> FeatureFlagChangeRequest:
+        self._authz.require(ConfiguracionPermissions.FEATURE_FLAGS_APROBAR, claimed_actor=approver_user_id)
         request = self._requests.get(request_id)
         if request is None:
             raise FeatureFlagNotFoundError(f"Solicitud {request_id} no encontrada")
@@ -39,11 +44,13 @@ class ApproveFeatureFlagChangeRequestUseCase:
 
 
 class RejectFeatureFlagChangeRequestUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._requests = SqliteFeatureFlagChangeRequestRepository(connection)
 
     def execute(self, *, request_id: str, reason: str) -> FeatureFlagChangeRequest:
+        self._authz.require(ConfiguracionPermissions.FEATURE_FLAGS_APROBAR)
         request = self._requests.get(request_id)
         if request is None:
             raise FeatureFlagNotFoundError(f"Solicitud {request_id} no encontrada")
@@ -54,12 +61,14 @@ class RejectFeatureFlagChangeRequestUseCase:
 
 
 class ApplyFeatureFlagChangeRequestUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._requests = SqliteFeatureFlagChangeRequestRepository(connection)
         self._rules = SqliteFeatureFlagRuleRepository(connection)
 
     def execute(self, *, request_id: str) -> FeatureFlagRule:
+        self._authz.require(ConfiguracionPermissions.FEATURE_FLAGS_ACTIVAR)
         request = self._requests.get(request_id)
         if request is None:
             raise FeatureFlagNotFoundError(f"Solicitud {request_id} no encontrada")

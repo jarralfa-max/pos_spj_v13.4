@@ -30,6 +30,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
+from backend.application.analytics.access import BiAccess
 from backend.application.analytical_alerting.services.alert_engine import AnalyticalAlertEngine
 from backend.application.analytics.dto.bi_dashboard_dto import DashboardFilters
 from backend.application.analytics.queries.bi_dashboard_query_service import (
@@ -74,10 +75,13 @@ def map_alert_kpis(alert) -> list[KPIDTO]:
 
 class AlertExplorerPresenter:
     def __init__(self, connection, *, settings: BiSettingsService | None = None,
-                 actor_user_id: str | None = None) -> None:
+                 actor_user_id: str | None = None, access: BiAccess | None = None) -> None:
         self._settings = settings or BiSettingsService()
+        self._access = access or BiAccess()
         query_service = BiDashboardQueryService(connection)
-        self._dashboard = BiDashboardService(query_service, settings=self._settings)
+        self._dashboard = BiDashboardService(
+            query_service, settings=self._settings, permission_checker=self._access.can,
+            branch_scope=self._access.scope)
         self._engine = AnalyticalAlertEngine()
         self._actor_user_id = actor_user_id
 
@@ -108,7 +112,8 @@ class AlertExplorerPresenter:
                 continue
             alert = self._engine.evaluate(
                 rule=rule, metric_value=Decimal(str(metric_value)),
-                branch_id=_ALL_BRANCHES, target_id=rule.metric_key,
+                branch_id=self._access.resolve_branch() or _ALL_BRANCHES,
+                target_id=rule.metric_key,
                 evidence={"metric_key": rule.metric_key, "metric_value": str(metric_value),
                           "threshold": str(rule.threshold)},
                 title=f"{rule.alert_type.value} — {rule.metric_key}",

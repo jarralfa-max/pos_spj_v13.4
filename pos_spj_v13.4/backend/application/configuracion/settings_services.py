@@ -3,7 +3,7 @@
 Reemplazan las clases homónimas de `core/services/configuration_settings_service.py`
 (borrado). Los nombres de clase y de método se conservan porque los consumidores
 son código canónico vivo que no tiene por qué cambiar: `SaveUserUseCase`,
-`SetUserActiveUseCase`, `SaveRoleUseCase`, `SetInstallationBranchUseCase` y
+`SetUserActiveUseCase`, `SaveRoleUseCase` y
 `ConfiguracionWorkspaceQueryService`.
 
 Lo que sí cambia es de qué dependen: antes recibían `ConfigRepository`, una
@@ -182,5 +182,6 @@ class CompanyProfileService:
     def get_installation_branch(self) -> tuple[str, str] | None:
         return self._repository.get()
 
-    def set_installation_branch(self, branch_id: str) -> tuple[str, str]:
-        return self._repository.set(branch_id)
+    # Sin `set_installation_branch` a propósito (SDLC-ARQ-TERM-002): anclar
+    # sólo pasa por `SetInstallationBranchUseCase`, que exige permiso, revisa
+    # turno y sincronización y audita. Una segunda puerta lo saltaría todo.

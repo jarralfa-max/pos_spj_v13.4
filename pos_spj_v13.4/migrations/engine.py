@@ -480,6 +480,7 @@ PG_MIGRATIONS = [
     _Migration("p003", "migrations.pg.p003_central_sales_inventory"),
     _Migration("p004", "migrations.pg.p004_central_cash_finance_credit_loyalty"),
     _Migration("p005", "migrations.pg.p005_central_org_units"),
+    _Migration("p006", "migrations.pg.p006_device_provisioning"),
 ]
 
 #: Clave del bloqueo consultivo (constante arbitraria, estable entre versiones).

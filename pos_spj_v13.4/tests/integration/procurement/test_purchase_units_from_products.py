@@ -70,6 +70,10 @@ def conn():
     seed_purchase_context(c)
     c.execute("CREATE TABLE sucursales (id TEXT PRIMARY KEY, nombre TEXT, activa INTEGER)")
     c.execute("INSERT INTO sucursales VALUES ('br-1','Sucursal Uno',1)")
+    # `rol`: el alcance lo resuelve `AccessScopeResolver`, igual que la sesión
+    # (SDLC-ARQ-PERM-003); un usuario sin rol no alcanza nada.
+    c.execute("CREATE TABLE usuarios (id TEXT PRIMARY KEY, sucursal_id TEXT, rol TEXT)")
+    c.execute("INSERT INTO usuarios VALUES ('user-1', NULL, 'compras')")
     c.execute("CREATE TABLE usuarios_sucursales (usuario_id TEXT, sucursal_id TEXT)")
     c.execute("INSERT INTO usuarios_sucursales VALUES ('user-1','br-1')")
     # Maestro de unidades de Productos: pollo en KG con presentación CAJA de 20 kg.
