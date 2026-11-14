@@ -631,6 +631,9 @@ CREATE TABLE IF NOT EXISTS fixed_assets (
     disposal_journal_entry_id TEXT REFERENCES journal_entries(id),
     supplier_id TEXT,
     source_document_id TEXT,
+    source_document_number TEXT,
+    suspended_on TEXT,
+    suspended_months INTEGER NOT NULL DEFAULT 0,
     project_id TEXT REFERENCES projects(id),
     branch_id TEXT,
     cost_center_id TEXT REFERENCES cost_centers(id),
@@ -991,6 +994,8 @@ def drop_legacy_finance_tables(conn) -> list[str]:
 POST_CONTRACT_COLUMNS: dict[str, frozenset[str]] = {
     "cost_centers": frozenset({"org_unit_id"}),     # 351
     "profit_centers": frozenset({"org_unit_id"}),   # 351
+    "fixed_assets": frozenset({"source_document_number",    # 380
+                               "suspended_on", "suspended_months"}),  # 381
 }
 
 

@@ -1,61 +1,73 @@
-"""FASE 15 — fidelidad: emisión, canje, expiración, reverso, idempotencia (§27)."""
+"""FASE 15 — fidelidad: emisión, canje, expiración, reverso, idempotencia (§27).
+
+SDLC-FIN-001: las reglas viven en ``CommercialInstrumentProcessor``, el que usa el
+puente de Fidelidad. Dos pruebas de los manejadores retirados no se migraron
+porque su regla ya no existe aparte: el costo de un premio entregado lo cubre
+``test_confirming_a_product_reward_issues_stock_and_posts_its_cost`` y la valuación
+de los puntos ``test_accrual_recognizes_liability_at_point_value``.
+"""
+
+from datetime import date
 
 import pytest
 
-from backend.application.event_handlers.finance.loyalty_points_expired_handler import (
-    LoyaltyPointsExpiredHandler,
-)
-from backend.application.event_handlers.finance.loyalty_points_issued_handler import (
-    LoyaltyPointsIssuedHandler,
-)
-from backend.application.event_handlers.finance.loyalty_points_redeemed_handler import (
-    LoyaltyPointsRedeemedHandler,
-)
-from backend.application.event_handlers.finance.loyalty_reward_granted_handler import (
-    LoyaltyRewardGrantedHandler,
-)
-from backend.application.event_handlers.finance.loyalty_transaction_reversed_handler import (
-    LoyaltyTransactionReversedHandler,
+from backend.application.services.finance.commercial_instrument_processor import (
+    CommercialInstrumentProcessor,
 )
 from backend.domain.finance.enums import (
     CommercialInstrumentType,
     CommercialObligationStatus,
     JournalEntryStatus,
 )
-from backend.domain.finance.exceptions import (
-    FinanceDomainError,
-    ObligationStateError,
-    PostingProfileNotFoundError,
-)
+from backend.domain.finance.exceptions import ObligationStateError, PostingProfileNotFoundError
+from backend.domain.finance.value_objects.money import Money
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
 from backend.shared.ids import new_uuid
 
-OCCURRED = "2026-07-16T12:00:00Z"
+ON = date(2026, 7, 16)
+POINTS = CommercialInstrumentType.LOYALTY_POINTS
 
 
-def _issue_payload(**overrides):
-    payload = {
-        "event_id": new_uuid(), "operation_id": new_uuid(),
-        "customer_id": new_uuid(), "branch_id": new_uuid(),
-        "sale_id": new_uuid(), "loyalty_transaction_id": new_uuid(),
-        "points": "100", "estimated_fair_value": "10.00",
-        "currency_code": "MXN", "occurred_at": OCCURRED,
-    }
-    payload.update(overrides)
-    return payload
+def _issue(conn, transaction_id=None, value="10.00"):
+    transaction_id = transaction_id or new_uuid()
+    with FinanceUnitOfWork(conn) as uow:
+        CommercialInstrumentProcessor().recognize(
+            uow, instrument_type=POINTS, source_module="loyalty",
+            source_instrument_id=transaction_id, amount=Money.from_string(value), on_date=ON,
+            operation_id=new_uuid(), customer_id=new_uuid(), branch_id=new_uuid())
+    return transaction_id
+
+
+def _redeem(conn, transaction_id, value, **extra):
+    with FinanceUnitOfWork(conn) as uow:
+        CommercialInstrumentProcessor().redeem(
+            uow, instrument_type=POINTS, source_instrument_id=transaction_id,
+            amount=Money.from_string(value), on_date=ON, operation_id=new_uuid(), **extra)
+
+
+def _expire(conn, transaction_id):
+    with FinanceUnitOfWork(conn) as uow:
+        CommercialInstrumentProcessor().expire(
+            uow, instrument_type=POINTS, source_instrument_id=transaction_id, on_date=ON,
+            operation_id=new_uuid())
+
+
+def _reverse(conn, transaction_id):
+    with FinanceUnitOfWork(conn) as uow:
+        CommercialInstrumentProcessor().reverse(
+            uow, instrument_type=POINTS, source_instrument_id=transaction_id, on_date=ON,
+            operation_id=new_uuid(), reason="venta cancelada")
 
 
 def _obligation(conn, transaction_id):
     with FinanceUnitOfWork(conn) as uow:
-        return uow.commercial_obligations.find_by_instrument(
-            CommercialInstrumentType.LOYALTY_POINTS, transaction_id)
+        return uow.commercial_obligations.find_by_instrument(POINTS, transaction_id)
 
 
 class TestPointsIssue:
     def test_issue_recognizes_obligation_and_posts(self, bootstrapped_conn):
-        payload = _issue_payload()
-        LoyaltyPointsIssuedHandler(bootstrapped_conn).handle(payload)
-        obligation = _obligation(bootstrapped_conn, payload["loyalty_transaction_id"])
+        transaction_id = _issue(bootstrapped_conn)
+        obligation = _obligation(bootstrapped_conn, transaction_id)
         assert obligation is not None
         assert obligation.status is CommercialObligationStatus.OPEN
         assert obligation.outstanding_amount.to_string() == "10.00"
@@ -64,90 +76,55 @@ class TestPointsIssue:
         ).fetchone()[0]
         assert entries == 1
 
-    def test_repeated_event_is_idempotent(self, bootstrapped_conn):
-        payload = _issue_payload()
-        handler = LoyaltyPointsIssuedHandler(bootstrapped_conn)
-        handler.handle(payload)
-        handler.handle(payload)
-        handler.handle(_issue_payload(
-            loyalty_transaction_id=payload["loyalty_transaction_id"]))
+    def test_repeated_recognition_is_idempotent(self, bootstrapped_conn):
+        transaction_id = _issue(bootstrapped_conn)
+        _issue(bootstrapped_conn, transaction_id)
         count = bootstrapped_conn.execute(
             "SELECT COUNT(*) FROM commercial_obligations").fetchone()[0]
         assert count == 1
 
     def test_missing_profile_blocks_processing(self, finance_conn):
-        """Programa sin perfil contable: el evento falla explícitamente."""
-        payload = _issue_payload()
+        """Programa sin perfil contable: falla explícitamente."""
         with pytest.raises(PostingProfileNotFoundError):
-            LoyaltyPointsIssuedHandler(finance_conn).handle(payload)
+            _issue(finance_conn)
 
 
 class TestPointsRedemption:
-    def _issued(self, conn, value="10.00"):
-        payload = _issue_payload(estimated_fair_value=value)
-        LoyaltyPointsIssuedHandler(conn).handle(payload)
-        return payload["loyalty_transaction_id"]
-
     def test_partial_then_total_redemption(self, bootstrapped_conn):
-        transaction_id = self._issued(bootstrapped_conn)
-        handler = LoyaltyPointsRedeemedHandler(bootstrapped_conn)
-        handler.handle({
-            "event_id": new_uuid(), "operation_id": new_uuid(),
-            "loyalty_transaction_id": transaction_id, "occurred_at": OCCURRED,
-            "redeemed_value": "4.00", "loyalty_redemption_id": new_uuid(),
-        })
+        transaction_id = _issue(bootstrapped_conn)
+        _redeem(bootstrapped_conn, transaction_id, "4.00", redemption_id=new_uuid())
         obligation = _obligation(bootstrapped_conn, transaction_id)
         assert obligation.status is CommercialObligationStatus.PARTIALLY_REDEEMED
         assert obligation.outstanding_amount.to_string() == "6.00"
 
-        handler.handle({
-            "event_id": new_uuid(), "operation_id": new_uuid(),
-            "loyalty_transaction_id": transaction_id, "occurred_at": OCCURRED,
-            "redeemed_value": "6.00", "loyalty_redemption_id": new_uuid(),
-        })
+        _redeem(bootstrapped_conn, transaction_id, "6.00", redemption_id=new_uuid())
         obligation = _obligation(bootstrapped_conn, transaction_id)
         assert obligation.status is CommercialObligationStatus.REDEEMED
 
     def test_estimation_vs_actual_cost_difference(self, bootstrapped_conn):
-        transaction_id = self._issued(bootstrapped_conn)
-        LoyaltyPointsRedeemedHandler(bootstrapped_conn).handle({
-            "event_id": new_uuid(), "operation_id": new_uuid(),
-            "loyalty_transaction_id": transaction_id, "occurred_at": OCCURRED,
-            "redeemed_value": "10.00", "actual_reward_cost": "8.40",
-            "loyalty_redemption_id": new_uuid(),
-        })
+        transaction_id = _issue(bootstrapped_conn)
+        _redeem(bootstrapped_conn, transaction_id, "10.00", redemption_id=new_uuid(),
+                actual_cost=Money.from_string("8.40"))
         # entry must remain balanced with the 1.60 breakage difference
         rows = bootstrapped_conn.execute(
             "SELECT SUM(CAST(debit_amount AS NUMERIC)), SUM(CAST(credit_amount AS NUMERIC))"
             " FROM journal_lines").fetchone()
         assert rows[0] == rows[1]
 
-    def test_double_redemption_event_no_duplicate(self, bootstrapped_conn):
-        transaction_id = self._issued(bootstrapped_conn)
+    def test_double_redemption_no_duplicate(self, bootstrapped_conn):
+        transaction_id = _issue(bootstrapped_conn)
         redemption_id = new_uuid()
-        event = {
-            "event_id": new_uuid(), "operation_id": new_uuid(),
-            "loyalty_transaction_id": transaction_id, "occurred_at": OCCURRED,
-            "redeemed_value": "10.00", "loyalty_redemption_id": redemption_id,
-        }
-        handler = LoyaltyPointsRedeemedHandler(bootstrapped_conn)
-        handler.handle(event)
-        handler.handle(event)  # same event id
-        handler.handle({**event, "event_id": new_uuid(), "operation_id": new_uuid()})
+        _redeem(bootstrapped_conn, transaction_id, "10.00", redemption_id=redemption_id)
+        _redeem(bootstrapped_conn, transaction_id, "10.00", redemption_id=redemption_id)
         obligation = _obligation(bootstrapped_conn, transaction_id)
         assert obligation.redeemed_amount.to_string() == "10.00"
 
 
 class TestPointsExpiration:
     def test_expiration_releases_with_trace(self, bootstrapped_conn):
-        payload = _issue_payload()
-        LoyaltyPointsIssuedHandler(bootstrapped_conn).handle(payload)
-        LoyaltyPointsExpiredHandler(bootstrapped_conn).handle({
-            "event_id": new_uuid(), "operation_id": new_uuid(),
-            "loyalty_transaction_id": payload["loyalty_transaction_id"],
-            "occurred_at": OCCURRED,
-        })
-        obligation = _obligation(bootstrapped_conn, payload["loyalty_transaction_id"])
+        transaction_id = _issue(bootstrapped_conn)
+        _expire(bootstrapped_conn, transaction_id)
+        obligation = _obligation(bootstrapped_conn, transaction_id)
         assert obligation.status is CommercialObligationStatus.EXPIRED
         assert obligation.outstanding_amount.is_zero()
         expiration_entries = bootstrapped_conn.execute(
@@ -156,16 +133,9 @@ class TestPointsExpiration:
         assert expiration_entries == 1  # nunca se borra en silencio
 
     def test_double_expiration_no_duplicate(self, bootstrapped_conn):
-        payload = _issue_payload()
-        LoyaltyPointsIssuedHandler(bootstrapped_conn).handle(payload)
-        handler = LoyaltyPointsExpiredHandler(bootstrapped_conn)
-        event = {
-            "event_id": new_uuid(), "operation_id": new_uuid(),
-            "loyalty_transaction_id": payload["loyalty_transaction_id"],
-            "occurred_at": OCCURRED,
-        }
-        handler.handle(event)
-        handler.handle({**event, "event_id": new_uuid(), "operation_id": new_uuid()})
+        transaction_id = _issue(bootstrapped_conn)
+        _expire(bootstrapped_conn, transaction_id)
+        _expire(bootstrapped_conn, transaction_id)
         count = bootstrapped_conn.execute(
             "SELECT COUNT(*) FROM journal_entries WHERE posting_purpose='INSTRUMENT_EXPIRATION'"
         ).fetchone()[0]
@@ -174,50 +144,16 @@ class TestPointsExpiration:
 
 class TestPointsReversal:
     def test_reversal_mirrors_recognition(self, bootstrapped_conn):
-        payload = _issue_payload()
-        LoyaltyPointsIssuedHandler(bootstrapped_conn).handle(payload)
-        LoyaltyTransactionReversedHandler(bootstrapped_conn).handle({
-            "event_id": new_uuid(), "operation_id": new_uuid(),
-            "loyalty_transaction_id": payload["loyalty_transaction_id"],
-            "occurred_at": OCCURRED, "reason": "venta cancelada",
-        })
-        obligation = _obligation(bootstrapped_conn, payload["loyalty_transaction_id"])
+        transaction_id = _issue(bootstrapped_conn)
+        _reverse(bootstrapped_conn, transaction_id)
+        obligation = _obligation(bootstrapped_conn, transaction_id)
         assert obligation.status is CommercialObligationStatus.REVERSED
         statuses = {row[0] for row in bootstrapped_conn.execute(
             "SELECT status FROM journal_entries")}
         assert JournalEntryStatus.REVERSED.value in statuses
 
     def test_double_reversal_rejected(self, bootstrapped_conn):
-        payload = _issue_payload()
-        LoyaltyPointsIssuedHandler(bootstrapped_conn).handle(payload)
-        handler = LoyaltyTransactionReversedHandler(bootstrapped_conn)
-        handler.handle({
-            "event_id": new_uuid(), "operation_id": new_uuid(),
-            "loyalty_transaction_id": payload["loyalty_transaction_id"],
-            "occurred_at": OCCURRED,
-        })
+        transaction_id = _issue(bootstrapped_conn)
+        _reverse(bootstrapped_conn, transaction_id)
         with pytest.raises(ObligationStateError):
-            handler.handle({
-                "event_id": new_uuid(), "operation_id": new_uuid(),
-                "loyalty_transaction_id": payload["loyalty_transaction_id"],
-                "occurred_at": OCCURRED,
-            })
-
-
-class TestRewardGranted:
-    def test_reward_posts_expense(self, bootstrapped_conn):
-        LoyaltyRewardGrantedHandler(bootstrapped_conn).handle({
-            "event_id": new_uuid(), "operation_id": new_uuid(),
-            "reward_id": new_uuid(), "occurred_at": OCCURRED,
-            "reward_cost": "45.00", "delivers_inventory": True,
-        })
-        row = bootstrapped_conn.execute(
-            "SELECT SUM(CAST(debit_amount AS NUMERIC)) FROM journal_lines").fetchone()
-        assert float(row[0]) == 45.0
-
-    def test_points_never_monetary_without_valuation(self, bootstrapped_conn):
-        """El evento sin estimated_fair_value falla — los puntos no son moneda."""
-        payload = _issue_payload()
-        del payload["estimated_fair_value"]
-        with pytest.raises(FinanceDomainError):
-            LoyaltyPointsIssuedHandler(bootstrapped_conn).handle(payload)
+            _reverse(bootstrapped_conn, transaction_id)

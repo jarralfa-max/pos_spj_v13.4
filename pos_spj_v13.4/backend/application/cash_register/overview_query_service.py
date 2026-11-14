@@ -8,6 +8,8 @@ from decimal import Decimal
 from backend.application.cash_register.authorization import CashAuthorizationPolicy
 from backend.application.cash_register.blind_count_visibility import branch_has_open_blind_count
 from backend.application.cash_register.permissions import CashPermissions
+from backend.domain.cash_register.enums import CashShiftStatus
+from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,21 +159,24 @@ class CashOverviewQueryService:
 
     def _active_shifts(self, branch_id: str, amounts: bool = True) -> tuple[CashOverviewRow, ...]:
         detail = "'Fondo inicial $'||s.opening_amount" if amounts else "'Turno activo'"
+        # SDLC-ARQ-SHIFT-001: los estados activos son los de la política.
+        statuses = CashShiftLifecyclePolicy.active_status_values()
+        marks = ",".join("?" for _ in statuses)
         return self._fetch_rows(
             f"""SELECT s.id,r.name,s.status,{detail},s.opened_at
             FROM cash_shifts s JOIN cash_registers r ON r.id=s.register_id
-            WHERE s.branch_id=? AND s.status IN ('OPEN','SUSPENDED','CLOSING')
+            WHERE s.branch_id=? AND s.status IN ({marks})
             ORDER BY s.opened_at DESC LIMIT 10""",
-            (branch_id,),
+            (branch_id, *statuses),
         )
 
     def _pending_closures(self, branch_id: str) -> tuple[CashOverviewRow, ...]:
         return self._fetch_rows(
             """SELECT s.id,r.name,s.status,'Turno en cierre sin Corte Z final',s.opened_at
             FROM cash_shifts s JOIN cash_registers r ON r.id=s.register_id
-            WHERE s.branch_id=? AND s.status='CLOSING'
+            WHERE s.branch_id=? AND s.status=?
             ORDER BY s.opened_at LIMIT 10""",
-            (branch_id,),
+            (branch_id, CashShiftStatus.CLOSING.value),
         )
 
     def _pending_differences(self, branch_id: str, amounts: bool = True) -> tuple[CashOverviewRow, ...]:
@@ -210,16 +215,18 @@ class CashOverviewQueryService:
         )
 
     def _expected_cash(self, branch_id: str) -> Decimal:
+        statuses = CashShiftLifecyclePolicy.active_status_values()
+        marks = ",".join("?" for _ in statuses)
         row = self._connection.execute(
-            """SELECT COALESCE(SUM(CASE direction
+            f"""SELECT COALESCE(SUM(CASE direction
                 WHEN 'INFLOW' THEN CAST(amount AS NUMERIC)
                 ELSE -CAST(amount AS NUMERIC) END),0)
             FROM cash_ledger_entries
             WHERE branch_id=? AND shift_id IN (
                 SELECT id FROM cash_shifts
-                WHERE branch_id=? AND status IN ('OPEN','SUSPENDED','CLOSING')
+                WHERE branch_id=? AND status IN ({marks})
             )""",
-            (branch_id, branch_id),
+            (branch_id, branch_id, *statuses),
         ).fetchone()
         return Decimal(str(row[0] if row else "0"))
 

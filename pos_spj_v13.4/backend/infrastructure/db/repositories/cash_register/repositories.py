@@ -13,6 +13,9 @@ from backend.domain.cash_register.entities import (
     BlindCashCount, CashDifference, CashDrawer, CashHandover, CashLedgerEntry,
     CashRegister, CashShift, PosTerminal, XCut, ZCut,
 )
+from backend.domain.cash_register.exceptions import (
+    CashInvalidStateError, CashShiftConflictError,
+)
 from backend.domain.cash_register.policies.workflow_policies import CashShiftLifecyclePolicy
 from backend.shared.business_dates import local_business_date
 from backend.shared.ids import new_uuid
@@ -31,7 +34,7 @@ class _Repository:
 
 
 class CashShiftRepository(_Repository):
-    _ACTIVE_STATUSES = tuple(status.value for status in CashShiftLifecyclePolicy.ACTIVE_STATUSES)
+    _RESOURCE_COLUMNS = frozenset({"register_id", "drawer_id", "terminal_id"})
 
     def add(self, shift: CashShift) -> None:
         # §33 (CASH-26, 2026-10-07): el turno pertenece al día LOCAL en que abrió,
@@ -55,47 +58,110 @@ class CashShiftRepository(_Repository):
         columns = [item[0] for item in cursor.description]
         return dict(zip(columns, row))
 
-    def set_lifecycle(self, *, shift_id: str, status: str,
-                      suspended_reason: str | None = None) -> None:
-        self.execute("UPDATE cash_shifts SET status=?,suspended_reason=? WHERE id=?",
-                     (status, suspended_reason, shift_id))
-
-    def find_open_for_cashier(self, *, branch_id: str, cashier_user_id: str):
+    def reassign(self, *, shift_id: str, new_cashier_user_id: str, expected_status: str,
+                 expected_version: int) -> None:
         cursor = self.execute(
-            "SELECT * FROM cash_shifts WHERE branch_id=? AND cashier_user_id=? AND status='OPEN'",
-            (branch_id, cashier_user_id))
+            """UPDATE cash_shifts SET cashier_user_id=?,version=version+1
+            WHERE id=? AND status=? AND version=?""",
+            (new_cashier_user_id, shift_id, expected_status, expected_version))
+        if cursor.rowcount != 1:
+            raise CashShiftConflictError(
+                "El turno cambió mientras operabas. Actualiza la pantalla e intenta de nuevo.")
+
+    def add_assignment(self, *, shift_id: str, branch_id: str, register_id: str,
+                       drawer_id: str, terminal_id: str, cashier_user_id: str,
+                       assigned_by: str, assigned_at: str) -> None:
+        self.execute(
+            """INSERT INTO cash_shift_assignments
+            (id,shift_id,branch_id,register_id,drawer_id,terminal_id,cashier_user_id,
+             assigned_by,status,assigned_at)
+            VALUES (?,?,?,?,?,?,?,?,'ACTIVE',?)""",
+            (new_uuid(), shift_id, branch_id, register_id, drawer_id, terminal_id,
+             cashier_user_id, assigned_by, assigned_at))
+
+    def end_assignments(self, *, shift_id: str, status: str, ended_at: str) -> None:
+        self.execute(
+            """UPDATE cash_shift_assignments SET status=?,ended_at=?
+            WHERE shift_id=? AND status='ACTIVE'""", (status, ended_at, shift_id))
+
+    def find_by_opening_operation(self, operation_id: str):
+        """El turno que abrió esa operación, en el estado que tenga hoy."""
+        cursor = self.execute(
+            "SELECT * FROM cash_shifts WHERE opening_operation_id=?", (operation_id,))
         row = cursor.fetchone()
         if row is None:
             return None
         return dict(zip((item[0] for item in cursor.description), row))
 
-    def find_active_for_cashier(self, *, cashier_user_id: str):
-        placeholders = ",".join("?" for _ in self._ACTIVE_STATUSES)
+    def set_lifecycle(self, *, shift_id: str, status: str, expected_status: str,
+                      expected_version: int, suspended_reason: str | None = None) -> None:
+        """Compare-and-set sobre estado y versión (SDLC-ARQ-SHIFT-004): si el
+        turno ya no es el que se leyó, 0 filas y conflicto; nunca se pisa."""
         cursor = self.execute(
-            f"SELECT * FROM cash_shifts WHERE cashier_user_id=? AND status IN ({placeholders})",
-            (cashier_user_id, *self._ACTIVE_STATUSES))
+            """UPDATE cash_shifts SET status=?,suspended_reason=?,version=version+1
+            WHERE id=? AND status=? AND version=?""",
+            (status, suspended_reason, shift_id, expected_status, expected_version))
+        if cursor.rowcount != 1:
+            raise CashShiftConflictError(
+                "El turno cambió mientras operabas. Actualiza la pantalla e intenta de nuevo.")
+
+    def find_active(self, *, cashier_user_id: str | None = None,
+                    branch_id: str | None = None, column: str | None = None,
+                    value: str | None = None):
+        """El turno activo (estados de `CashShiftLifecyclePolicy`) que cumple
+        los filtros dados, el más reciente primero. Sólo lo llama
+        `ActiveShiftResolver` (SDLC-ARQ-SHIFT-001)."""
+        statuses = CashShiftLifecyclePolicy.active_status_values()
+        filters = [f"status IN ({','.join('?' for _ in statuses)})"]
+        params: list[str] = [*statuses]
+        if cashier_user_id is not None:
+            filters.append("cashier_user_id=?")
+            params.append(str(cashier_user_id))
+        if branch_id is not None:
+            filters.append("branch_id=?")
+            params.append(str(branch_id))
+        if column is not None:
+            if column not in self._RESOURCE_COLUMNS:
+                raise ValueError("Unsupported cash shift resource column")
+            filters.append(f"{column}=?")
+            params.append(str(value))
+        if len(params) == len(statuses):
+            raise ValueError("find_active requires at least one filter")
+        cursor = self.execute(
+            f"SELECT * FROM cash_shifts WHERE {' AND '.join(filters)}"
+            " ORDER BY opened_at DESC, id DESC LIMIT 1", tuple(params))
         row = cursor.fetchone()
         if row is None:
             return None
         return dict(zip((item[0] for item in cursor.description), row))
 
-    def find_active_for_resource(self, *, column: str, value: str):
-        if column not in {"register_id", "drawer_id", "terminal_id"}:
-            raise ValueError("Unsupported cash shift resource column")
-        placeholders = ",".join("?" for _ in self._ACTIVE_STATUSES)
-        cursor = self.execute(
-            f"SELECT * FROM cash_shifts WHERE {column}=? AND status IN ({placeholders})",
-            (value, *self._ACTIVE_STATUSES))
-        row = cursor.fetchone()
-        if row is None:
-            return None
-        return dict(zip((item[0] for item in cursor.description), row))
+    def active_register_ids(self, *, branch_id: str) -> set[str]:
+        statuses = CashShiftLifecyclePolicy.active_status_values()
+        rows = self.execute(
+            "SELECT register_id FROM cash_shifts WHERE branch_id=?"
+            f" AND status IN ({','.join('?' for _ in statuses)})",
+            (str(branch_id), *statuses)).fetchall()
+        return {str(row[0]) for row in rows}
 
-    def close(self, *, shift_id: str, z_cut_id: str, closed_at: str) -> None:
+    def count_active(self, *, branch_id: str | None = None,
+                     business_date_until: str | None = None) -> int:
+        statuses = CashShiftLifecyclePolicy.active_status_values()
+        sql = f"SELECT COUNT(*) FROM cash_shifts WHERE status IN ({','.join('?' for _ in statuses)})"
+        params: list[str] = [*statuses]
+        if branch_id is not None:
+            sql += " AND branch_id=?"
+            params.append(str(branch_id))
+        if business_date_until is not None:
+            sql += " AND COALESCE(business_date, substr(opened_at, 1, 10)) <= ?"
+            params.append(str(business_date_until))
+        return int(self.execute(sql, tuple(params)).fetchone()[0] or 0)
+
+    def close(self, *, shift_id: str, z_cut_id: str, closed_at: str,
+              expected_version: int) -> None:
         cursor = self.execute(
-            """UPDATE cash_shifts SET status='CLOSED',z_cut_id=?,closed_at=?
-            WHERE id=? AND status='CLOSING' AND z_cut_id IS NULL""",
-            (z_cut_id, closed_at, shift_id))
+            """UPDATE cash_shifts SET status='CLOSED',z_cut_id=?,closed_at=?,version=version+1
+            WHERE id=? AND status='CLOSING' AND z_cut_id IS NULL AND version=?""",
+            (z_cut_id, closed_at, shift_id, expected_version))
         if cursor.rowcount != 1:
             raise RuntimeError("Shift is not ready for final closure")
 
@@ -179,9 +245,29 @@ class CashAuditRepository(_Repository):
             (audit_id, action, actor_user_id, entity_id, branch_id,
              operation_id, reason, occurred_at))
 
+    def find(self, *, action: str, entity_id: str | None = None,
+             operation_id: str | None = None):
+        """El primer registro de esa acción sobre la entidad o la operación."""
+        column, value = (("entity_id", entity_id) if entity_id is not None
+                         else ("operation_id", operation_id))
+        cursor = self.execute(
+            f"SELECT * FROM cash_audit_log WHERE action=? AND {column}=?"
+            " ORDER BY occurred_at,id LIMIT 1", (action, value))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(zip((item[0] for item in cursor.description), row))
+
 
 class CashLedgerRepository(_Repository):
     def add(self, entry: CashLedgerEntry) -> None:
+        # SDLC-CASH-001: el corte de un turno cerrado ya se asentó; un movimiento
+        # posterior lo descuadraría sin que nadie lo vuelva a contar.
+        shift = self.execute("SELECT status FROM cash_shifts WHERE id=?",
+                             (entry.shift_id,)).fetchone()
+        if shift and CashShiftLifecyclePolicy.normalize(
+                shift[0]) in CashShiftLifecyclePolicy.FINAL_STATUSES:
+            raise CashInvalidStateError("El turno está cerrado: no admite movimientos")
         self.execute(
             """INSERT INTO cash_ledger_entries
             (id,shift_id,branch_id,movement_type,direction,amount,operation_id,
@@ -319,6 +405,21 @@ class CashDepositPreparationRepository(_Repository):
             (deposit_id, handover_id, branch_id, amount, prepared_by,
              operation_id, status, denominations_json, prepared_at),
         )
+
+    def _one(self, sql: str, params: tuple):
+        cursor = self.execute(sql, params)
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(zip((item[0] for item in cursor.description), row))
+
+    def get(self, deposit_id: str):
+        return self._one("SELECT * FROM cash_deposit_preparations WHERE id=?", (deposit_id,))
+
+    def find_by_handover(self, handover_id: str):
+        return self._one("SELECT * FROM cash_deposit_preparations WHERE handover_id=?",
+                         (handover_id,))
+
 
 
 class CashMovementReasonRepository(_Repository):

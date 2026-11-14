@@ -10,19 +10,21 @@ por nombre, sucursales a las que sus permisos no le dan acceso. Por eso el
 filtro vive en el SQL, sobre un conjunto resuelto antes de consultar, y nunca en
 la pantalla.
 
-CÓMO SE RESUELVE EL ALCANCE (decisión del usuario: asignación con respaldo)
+CÓMO SE RESUELVE EL ALCANCE
 
     1. ¿tiene el permiso de alcance global que le pasa el llamador? → TODAS.
-    2. ¿tiene filas en `usuarios_sucursales`?                      → ésas.
-    3. si no                                                        → su
-       `usuarios.sucursal_id`.
+    2. ¿algún rol suyo vale en toda la empresa?                     → TODAS.
+    3. si no → los sitios que cubren sus roles: sucursal propia, asignadas
+       (`usuarios_sucursales`) y las unidades de `user_role_assignments`, con
+       herencia por jerarquía.
     4. nada de lo anterior                                          → NINGUNA.
 
-El paso 3 no es un adorno: `usuarios_sucursales` existe desde la migración 047
-pero está VACÍA en la instalación real, mientras que los usuarios sí tienen
-`sucursal_id`. Sin el respaldo, el alcance sería vacío para todo el mundo y la
-búsqueda no devolvería nada — el modo de fallo más confuso posible, porque se
-parece a "no hay sucursales".
+Los pasos 2 y 3 son `AccessScopeResolver`, el mismo que decide los permisos de
+la sesión (SDLC-ARQ-PERM-003): antes este servicio leía por su cuenta
+`usuarios_sucursales` con respaldo en la sucursal propia e ignoraba las
+asignaciones de rol y la jerarquía, así que el mismo usuario alcanzaba sucursales
+distintas según qué módulo preguntara. Un solo resolvedor; aquí sólo se le agrega
+el escape global del llamador.
 
 POR QUÉ EL PERMISO GLOBAL SE INYECTA Y NO SE INVENTA AQUÍ
 
@@ -30,7 +32,7 @@ No existe un módulo `SUCURSALES` en el catálogo, y crear un `SUCURSALES.ver_to
 sería fabricar vocabulario. El ERP ya declara el escape bajo el módulo que
 CONSUME (`CAJA.ver.todas_sucursales`, `INVENTARIO.ver.todas_sucursales`,
 `COMPRAS...`, `DELIVERY...`, `PRODUCCION...`), así que cada llamador pasa el
-suyo. Sin código inyectado no hay escape global, que es fallar cerrado.
+suyo. Sin código inyectado no hay ese escape: sólo cuenta el alcance de los roles.
 
 COMODINES: se aplican las MISMAS reglas que `PermissionEvaluator`
 (`{"*"}` → código exacto → `MODULO.*`). No hacerlo fue exactamente el fallo de
@@ -42,6 +44,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from backend.application.security.access_scope import AccessScopeResolver, SiteReach
 from backend.application.security.permission_query_service import PermissionQueryService
 from backend.infrastructure.db.repositories.security.permission_repository import (
     SqlitePermissionRepository,
@@ -132,6 +135,14 @@ class BranchScopeQueryService:
         module = normalized.split(".", 1)[0] if "." in normalized else ""
         return bool(module) and f"{module}.{_GLOBAL_WILDCARD}" in codes
 
+    def _reach(self, user_id: str) -> SiteReach:
+        try:
+            return AccessScopeResolver(SqlitePermissionRepository(self._conn)).reach(user_id)
+        except Exception:
+            # Mismo criterio que `_has_global_scope`: sin esquema de seguridad no
+            # se puede afirmar que alcance nada, y negarlo es fallar cerrado.
+            return SiteReach(False, frozenset())
+
     def allowed_branch_ids(self, user_id: str | None) -> tuple[str, ...] | None:
         """Sucursales permitidas. `None` = TODAS (alcance global concedido).
 
@@ -143,11 +154,8 @@ class BranchScopeQueryService:
             return ()
         if self._has_global_scope(user_id):
             return None
-        asignadas = self._branches.assigned_branch_ids(user_id)
-        if asignadas:
-            return asignadas
-        propia = self._branches.own_branch_id(user_id)
-        return (propia,) if propia else ()
+        reach = self._reach(user_id)
+        return None if reach.company_wide else tuple(sorted(reach.site_ids))
 
     # ── búsqueda ──────────────────────────────────────────────────────────
     def search(self, criteria: BranchSearchQuery) -> list[BranchOption]:

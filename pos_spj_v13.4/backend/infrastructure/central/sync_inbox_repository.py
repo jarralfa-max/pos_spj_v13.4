@@ -179,10 +179,10 @@ class PostgresCentralInboxRepository:
     def add_device_event(self, *, station_id, invitation_id, event, actor_station, actor_user,
                          detail, now: datetime) -> None:
         import json
-        self._exec("INSERT INTO central_device_events (station_id, invitation_id, event,"
+        self._exec("INSERT INTO central_device_events (id, station_id, invitation_id, event,"
                    " actor_station, actor_user, detail, occurred_at)"
-                   " VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s)",
-                   (station_id, invitation_id, event, actor_station, actor_user,
+                   " VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb,%s)",
+                   (new_uuid(), station_id, invitation_id, event, actor_station, actor_user,
                     json.dumps(dict(detail), default=str), now))
 
     def device_events(self, station_id: str) -> list[Mapping[str, Any]]:
@@ -211,6 +211,11 @@ class PostgresCentralInboxRepository:
     def fact_hash(self, event_id: str) -> str | None:
         fila = self._one("SELECT content_hash FROM sync_inbox WHERE event_id = %s", (event_id,))
         return None if fila is None else str(fila[0])
+
+    def fact_status(self, event_id: str) -> tuple[str, str | None] | None:
+        fila = self._one("SELECT status, error_code FROM sync_inbox WHERE event_id = %s",
+                         (event_id,))
+        return None if fila is None else (str(fila[0]), fila[1])
 
     def event_for_sequence(self, station_id: str, sequence_no: int) -> str | None:
         fila = self._one("SELECT event_id FROM sync_inbox WHERE station_id = %s"

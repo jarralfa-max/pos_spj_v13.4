@@ -4,8 +4,12 @@ CONFLICT DO NOTHING`): reproyectar nunca duplica una venta ni un movimiento."""
 
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
+from decimal import Decimal
 from typing import Any, Mapping
+
+from backend.shared.ids import new_uuid
 
 
 class PostgresCentralProjectionRepository:
@@ -25,17 +29,26 @@ class PostgresCentralProjectionRepository:
     def commit(self) -> None:
         self._conn.commit()
 
-    def pending_facts(self, *, projector: str, limit: int) -> list[Mapping[str, Any]]:
+    def pending_facts(self, *, projector: str, limit: int,
+                      retry_errors: bool = False) -> list[Mapping[str, Any]]:
+        """Lo no proyectado y, AL FINAL del lote (para que su dependencia se
+        proyecte antes), lo que espera una dependencia; con `retry_errors`, todo
+        ERROR (SDLC-SYNC-003)."""
         with self._conn.cursor() as cur:
             cur.execute(
-                """SELECT i.event_id, i.event_type, i.aggregate_id, i.branch_id, i.station_id,
-                          i.occurred_at, i.payload
+                """SELECT i.event_id, i.event_type, i.aggregate_type, i.aggregate_id,
+                          i.aggregate_version, i.branch_id, i.station_id, i.occurred_at,
+                          i.payload
                    FROM sync_inbox i
+                   LEFT JOIN central_projection_log l
+                          ON l.event_id = i.event_id AND l.projector = %s
                    WHERE i.status = 'APPLIED'
-                     AND NOT EXISTS (SELECT 1 FROM central_projection_log l
-                                     WHERE l.event_id = i.event_id AND l.projector = %s)
-                   ORDER BY i.received_at, i.station_id, i.sequence_no
-                   LIMIT %s""", (projector, limit))
+                     AND (l.event_id IS NULL
+                          OR (l.status = 'ERROR'
+                              AND (%s OR l.error LIKE 'DEPENDENCY_MISSING%%')))
+                   ORDER BY (l.event_id IS NOT NULL), i.received_at, i.station_id,
+                            i.sequence_no
+                   LIMIT %s""", (projector, bool(retry_errors), limit))
             nombres = [c.name for c in cur.description]
             return [{k: (str(v) if k in ("event_id", "aggregate_id", "branch_id", "station_id")
                          else v) for k, v in zip(nombres, fila)} for fila in cur.fetchall()]
@@ -73,9 +86,10 @@ class PostgresCentralProjectionRepository:
             self._exec("INSERT INTO central_sale_payments (sale_id, method, amount)"
                        " VALUES (%s,%s,%s)", (v["sale_id"], p["method"], p["amount"]))
 
-    def set_sale_status(self, *, sale_id: str, status: str, event_id: str) -> None:
-        self._exec("UPDATE central_sales SET status = %s, status_event_id = %s"
-                   " WHERE sale_id = %s", (status, event_id, sale_id))
+    def set_sale_status(self, *, sale_id: str, status: str, event_id: str) -> bool:
+        """`False` si la venta aún no está proyectada (no se tocó ninguna fila)."""
+        return self._exec("UPDATE central_sales SET status = %s, status_event_id = %s"
+                          " WHERE sale_id = %s", (status, event_id, sale_id)) > 0
 
     def add_sale_return(self, row: dict) -> None:
         self._exec("INSERT INTO central_sale_returns (event_id, sale_id, branch_id, amount,"
@@ -104,7 +118,38 @@ class PostgresCentralProjectionRepository:
                  e["warehouse_id"], e["location_id"], e["inventory_status"],
                  e["quantity_delta"], e["weight_delta"]))
 
+    def stock_position(self, *, product_id: str,
+                       warehouse_id: str) -> tuple[Decimal, list[str]]:
+        """Existencia central del producto en el almacén y qué estaciones la movieron."""
+        with self._conn.cursor() as cur:
+            cur.execute(
+                """SELECT COALESCE(SUM(e.quantity_delta), 0),
+                          COALESCE(array_agg(DISTINCT i.station_id), '{}')
+                   FROM central_stock_effects e
+                   JOIN central_stock_movements m ON m.movement_id = e.movement_id
+                   JOIN sync_inbox i ON i.event_id = m.event_id
+                   WHERE e.product_id = %s AND e.warehouse_id = %s""",
+                (product_id, warehouse_id))
+            saldo, estaciones = cur.fetchone()
+        return Decimal(saldo), sorted(str(e) for e in (estaciones or ()))
+
+    def add_conflict(self, *, event_id: str, kind: str, details: Mapping[str, Any]) -> None:
+        """Conflicto visible en `sync_conflicts` (OPEN). Lo resuelve una persona."""
+        self._exec("INSERT INTO sync_conflicts (id, event_id, kind, details, created_at)"
+                   " VALUES (%s, %s, %s, %s::jsonb, now())",
+                   (new_uuid(), event_id, kind, json.dumps(dict(details), default=str)))
+
     # ── Caja (Slice 6) ──────────────────────────────────────────────────
+    def overlapping_open_shifts(self, *, register_id: str, shift_id: str,
+                                opened_at) -> list[Mapping[str, Any]]:
+        """Otros turnos de la misma caja que no se habían cerrado cuando éste abrió."""
+        with self._conn.cursor() as cur:
+            cur.execute("SELECT shift_id, station_id FROM central_cash_shifts"
+                        " WHERE register_id = %s AND shift_id <> %s"
+                        " AND (closed_at IS NULL OR closed_at > %s)",
+                        (register_id, shift_id, opened_at))
+            return [{"shift_id": str(f[0]), "station_id": str(f[1])} for f in cur.fetchall()]
+
     def open_cash_shift(self, row: dict) -> None:
         self._exec(
             """INSERT INTO central_cash_shifts (shift_id, event_id, branch_id, station_id,
@@ -114,10 +159,11 @@ class PostgresCentralProjectionRepository:
              row["register_id"], row["cashier_user_id"], row["opening_amount"],
              row["opened_at"]))
 
-    def close_cash_shift(self, *, shift_id: str, closed_at, z_cut_id) -> None:
-        self._exec("UPDATE central_cash_shifts SET status = 'CLOSED', closed_at = %s,"
-                   " z_cut_id = COALESCE(%s, z_cut_id) WHERE shift_id = %s",
-                   (closed_at, z_cut_id, shift_id))
+    def close_cash_shift(self, *, shift_id: str, closed_at, z_cut_id) -> bool:
+        """`False` si el turno aún no está proyectado."""
+        return self._exec("UPDATE central_cash_shifts SET status = 'CLOSED', closed_at = %s,"
+                          " z_cut_id = COALESCE(%s, z_cut_id) WHERE shift_id = %s",
+                          (closed_at, z_cut_id, shift_id)) > 0
 
     def add_cash_movement(self, row: dict) -> None:
         self._exec(
@@ -172,6 +218,25 @@ class PostgresCentralProjectionRepository:
                  l["is_receivable"], l["debit"], l["credit"], l["line_role"],
                  l["line_branch_id"], l["cost_center_id"], l["customer_id"], l["supplier_id"],
                  l["product_id"]))
+
+    #: Proyecciones que guardan el último hecho aplicado (`last_event_id`).
+    _LAST_EVENT = {"credit_account": ("central_credit_accounts", "profile_id"),
+                   "loyalty_transaction": ("central_loyalty_transactions", "transaction_id"),
+                   "org_unit": ("central_org_units", "unit_id")}
+
+    def last_projected_event(self, kind: str, key: str) -> Mapping[str, Any] | None:
+        """Estación, agregado y versión del último hecho que escribió esa fila."""
+        tabla, llave = self._LAST_EVENT[kind]
+        with self._conn.cursor() as cur:
+            cur.execute(f"SELECT i.station_id, i.aggregate_type, i.aggregate_id,"
+                        f" i.aggregate_version FROM {tabla} t"
+                        f" JOIN sync_inbox i ON i.event_id = t.last_event_id"
+                        f" WHERE t.{llave} = %s", (key,))
+            fila = cur.fetchone()
+        if fila is None:
+            return None
+        return {"station_id": str(fila[0]), "aggregate_type": fila[1],
+                "aggregate_id": str(fila[2]), "aggregate_version": int(fila[3])}
 
     # ── Crédito (Slice 6) ───────────────────────────────────────────────
     def upsert_credit_account(self, row: dict) -> None:

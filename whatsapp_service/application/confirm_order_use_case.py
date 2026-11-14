@@ -109,20 +109,9 @@ class ConfirmWhatsAppOrderUseCase:
         except Exception as exc:
             logger.warning("No se pudo evaluar requiere_anticipo; se usará política completa: %s", exc)
 
-        # Camino profesional: motor oficial de anticipos del ERP v13.
-        try:
-            from core.services.anticipo_service import AnticipoCotizacionService
-
-            items = self._items_for_advance_policy(cmd.items)
-            info = AnticipoCotizacionService(self.erp.db).calcular(
-                total=total,
-                items=items,
-                cliente_id=cmd.cliente_id,
-            )
-            if isinstance(info, dict):
-                return info
-        except Exception as exc:
-            logger.warning("AnticipoCotizacionService no disponible/compatible: %s", exc)
+        # SDLC-WA-005: aquí se importaba `core.services.anticipo_service`, que
+        # ya no existe; la rama siempre caía al except. La regla del anticipo
+        # es SDLC-WA-004.
 
         # Compatibilidad temporal con implementaciones antiguas del bridge.
         try:

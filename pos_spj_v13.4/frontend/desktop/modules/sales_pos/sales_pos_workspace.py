@@ -57,6 +57,9 @@ from frontend.desktop.modules.sales_pos.dialogs.prepaid_voucher_dialog import Pr
 from frontend.desktop.modules.sales_pos.dialogs.redeem_points_dialog import RedeemPointsDialog
 from frontend.desktop.modules.sales_pos.dialogs.resume_sale_dialog import ResumeSaleDialog
 from frontend.desktop.modules.sales_pos.dialogs.return_sale_dialog import ReturnSaleDialog
+from frontend.desktop.modules.sales_pos.dialogs.stock_authorization_dialog import (
+    StockAuthorizationDialog,
+)
 from frontend.desktop.modules.sales_pos.dialogs.weight_confirmation_dialog import (
     WEIGHT_SOURCE_MANUAL,
     WeightCaptureDialog,
@@ -75,6 +78,7 @@ _DIALOG_NAMES = {
     "quantity": "QuantityDialog",
     "cancel": "CancelSaleDialog",
     "resume": "ResumeSaleDialog",
+    "resume_authorization": "StockAuthorizationDialog",
     "posted_sale": "PostedSalePickerDialog",
     "invoice": "InvoiceRequestDialog",
     "invoice_status": "InvoiceStatusDialog",
@@ -603,18 +607,44 @@ class SalesPosWorkspace(QWidget):
         dialog = self.dialogs["resume"](suspended, parent=self)
         if not dialog.exec_() or not dialog.sale_id:
             return
+        # Se pide antes de apartar la venta en curso: cancelar la autorización
+        # no debe dejar nada a medias (SDLC-ARQ-SESS-003).
+        authorization = self._ask_resume_authorization(
+            next((s for s in suspended if s.id == dialog.sale_id), None))
+        if authorization is None:
+            return
+        parked_current = False
         if self._has_lines():
             # La venta en curso no se pierde: se suspende antes de cambiar.
             parked = self._presenter.suspend_sale(sale_id=self._sale_id)
             if not parked.success:
                 self._warn("No se pudo suspender la venta en curso", parked.message)
                 return
-        result = self._presenter.resume_sale(sale_id=dialog.sale_id)
+            parked_current = True
+        result = self._presenter.resume_sale(sale_id=dialog.sale_id, **authorization)
         if result.success:
             self._sale_id = dialog.sale_id
             self._refresh()
         else:
             self._warn("No se pudo reanudar", result.message)
+            if parked_current:
+                # La venta en curso ya quedó suspendida: se recupera de la lista.
+                self._start_new_sale()
+
+    def _ask_resume_authorization(self, sale) -> dict | None:
+        """Datos de autorización para reanudar `sale` ({} si no hace falta) o
+        None si quien iba a autorizar canceló."""
+        if sale is None or not self._presenter.resume_needs_authorization(sale):
+            return {}
+        dialog = self.dialogs["resume_authorization"](
+            self._presenter,
+            message="Esta venta la atiende otro cajero. Si la tomas, quedará a tu "
+                    "nombre y el traspaso queda registrado.",
+            parent=self, title="Autorizar toma de venta", ok_text="Autorizar y reanudar",
+            reason_prompt="Captura el motivo para tomar la venta.")
+        if not dialog.exec_() or not dialog.authorizer_user_id:
+            return None
+        return {"authorizer_user_id": dialog.authorizer_user_id, "reason": dialog.reason}
 
     def _on_cancel_requested(self) -> None:
         if not self._sale_id or not self._has_lines():

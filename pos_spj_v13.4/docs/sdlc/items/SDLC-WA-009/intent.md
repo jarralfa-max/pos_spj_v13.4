@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §53, §54 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-003, SDLC-WA-008
 
 ## Problema
@@ -37,4 +37,4 @@ Seguridad: cuando exista el contrato del ERP (SDLC-WA-003), cualquiera con la ll
 WA-1 (memoria); SDLC-SEC-005 (nonce por proceso, mismo patrón en el ERP).
 
 ## Preguntas abiertas
-- ¿La identidad de servicio vive en `usuarios` con un rol técnico o en una tabla propia de identidades de servicio?
+- ¿La identidad de servicio vive en `usuarios` con un rol técnico o en una tabla propia de identidades de servicio? tabla diferente

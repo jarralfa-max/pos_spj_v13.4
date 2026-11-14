@@ -471,10 +471,18 @@ class SalesPosPresenter:
             "suspend_sale", sale_id=sale_id, actor_user_id=self.current_user_id(),
             operation_id=_new_op(), max_suspended_sales=max_suspended_sales)
 
-    def resume_sale(self, *, sale_id: str) -> SaleResult:
+    def resume_sale(self, *, sale_id: str, authorizer_user_id: str | None = None,
+                    reason: str | None = None) -> SaleResult:
         return self._run(
             "resume_sale", sale_id=sale_id, actor_user_id=self.current_user_id(),
-            operation_id=_new_op())
+            operation_id=_new_op(), authorizer_user_id=authorizer_user_id, reason=reason)
+
+    def resume_needs_authorization(self, sale) -> bool:
+        """¿Hay que pedir autorización ANTES de intentar reanudar `sale`? Sólo
+        adelanta el diálogo (y evita apartar la venta en curso en vano): quien
+        decide es `ResumeSaleUseCase`."""
+        return (sale.cashier_user_id != self.current_user_id()
+                and not self.capabilities().sale_resume_foreign)
 
     def void_payment(self, *, sale_id: str, payment_id: str, reason: str) -> SaleResult:
         """Quita un pago ya registrado (auditoría V02/V03). `data["refund"]` dice

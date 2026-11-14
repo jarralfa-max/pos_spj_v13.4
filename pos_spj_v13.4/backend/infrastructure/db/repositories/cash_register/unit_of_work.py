@@ -19,6 +19,10 @@ from backend.infrastructure.db.transaction import TransactionalUnitOfWork
 
 class CashRegisterUnitOfWork(TransactionalUnitOfWork):
     _reject_double_commit = True
+    #: SDLC-ARQ-SHIFT-004: Caja lee el estado y luego escribe; con BEGIN diferido
+    #: dos conexiones leían lo mismo y la segunda reventaba con "database is
+    #: locked" o decidía sobre un turno viejo. Así, la segunda espera su turno.
+    _begin_statement = "BEGIN IMMEDIATE"
 
     """``owns_transaction=False`` (auditoría de Ventas V06, 2026-10-15): Caja se
     compone dentro de la transacción de quien la llama — el cobro o la

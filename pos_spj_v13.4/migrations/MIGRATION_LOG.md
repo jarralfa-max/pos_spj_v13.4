@@ -5,6 +5,48 @@ documentarse aquí antes del commit.
 
 ---
 
+## Alcance y roles reservados, sin migración (SDLC-ARQ-PERM-002/003/004) — 2026-11-05
+
+- **PERM-003:** `BranchScopeQueryService` resuelve con `AccessScopeResolver`, el mismo de la
+  sesión. Cambia lo que ve un usuario: la asignación se SUMA a la sucursal propia (antes la
+  sustituía), cuentan las asignaciones de rol y la jerarquía, y un rol de toda la empresa alcanza
+  todas sin permiso inyectado (antes un administrador se quedaba en la suya en Compras, Precios y
+  Transferencias). `TransferSessionScopeChecker` niega sin sucursal salvo alcance global;
+  `TransferAuthorizationPolicy.require` sólo comprueba las patas que la operación declara.
+- **PERM-002:** `GrantScope` (`backend/application/security/grant_scope.py`): asignar, revocar y
+  editar excepciones exige que el alcance del actor cubra el ámbito y al usuario. Los rechazos se
+  anotan como `ROLE_ASSIGNMENT_DENIED` (`audit_logs`) y `ACTUALIZAR_PERMISOS_DENEGADO`
+  (`configuracion_audit_log`).
+- **PERM-004:** política del responsable fijada en pruebas: roles reservados y operación en
+  cualquier sucursal para dueño y cuentas de empresa. Por esa decisión NO hay migración que
+  convierta los nombres reservados en asignaciones. Se retira `es_gerente`, sin lectores.
+
+## 368 — permiso para reanudar la venta de otro cajero (SDLC-ARQ-SESS-003) — 2026-11-05
+
+Siembra `POS.venta.reanudar_ajena` para `system_owner`, `admin`, `gerente` y `supervisor` (si
+existe). El cajero NO lo recibe: reanuda las suyas y para las ajenas pide autorización. Sólo
+agrega, con `INSERT OR IGNORE`: no pisa lo otorgado o revocado. Sin cambio de esquema; ya existe
+`sales.cashier_user_id`, pero `SaleRepository.save` no lo actualizaba al reasignarlo.
+
+## Configuración: autorización en backend de cada caso de uso de escritura (SDLC-ARQ-PERM-001, sin migración) — 2026-11-04
+
+Los 80 casos de uso de escritura de `backend/application/use_cases/configuracion/`,
+`SetInstallationBranchUseCase` y la prueba de impresión de `TicketDesignerService`
+verifican su permiso en backend con `ConfiguracionActionAuthorizer`
+(`backend/application/configuracion/authorization.py`): actor de la SESIÓN, un actor
+declarado distinto se niega, sin autorizador falla cerrado (`unwired()`). Antes sólo
+`ConfiguracionPresenter._authorize` lo hacía.
+
+**No agrega migración y no siembra permisos**: cada operación exige el mismo código
+`MODULO.accion` que ya exigía la pantalla (tabla congelada en
+`tests/unit/configuracion/test_configuracion_use_cases_backend_authorization.py`); roles,
+permisos y asignaciones existentes no cambian. El número reservado 358 queda libre.
+Las tablas de permiso por acción se movieron del presentador al módulo de cada caso de
+uso (una sola fuente). Reversa: revertir los commits del ítem. Detalle en
+`docs/sdlc/items/SDLC-ARQ-PERM-001/spec.md`.
+
+---
+
 ## Productos: códigos de catálogo automáticos y código de barras en el alta (PROD-23, sin migración) — 2026-10-22
 
 Categorías, marcas, atributos, opciones, especies, regiones y cortes: si el

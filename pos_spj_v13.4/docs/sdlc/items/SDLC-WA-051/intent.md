@@ -3,7 +3,7 @@
 - **Prioridad:** P3
 - **Nivel de riesgo:** T2
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §4, §80 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** —
 
 ## Problema
@@ -34,4 +34,4 @@ Agentes y personas siguen instrucciones contradictorias.
 —
 
 ## Preguntas abiertas
-- ¿Actualizas tú las reglas 8 y 9 de `CLAUDE.md`, o propongo el texto en el PR para que lo apruebes?
+- ¿Actualizas tú las reglas 8 y 9 de `CLAUDE.md`, o propongo el texto en el PR para que lo apruebes? propon el texto

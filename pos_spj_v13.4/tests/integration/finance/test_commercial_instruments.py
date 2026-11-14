@@ -1,33 +1,16 @@
-"""FASE 16 — cupones, vales, tarjetas de regalo y saldos promocionales (§27)."""
+"""FASE 16 — cupones, vales, tarjetas de regalo y saldos promocionales (§27).
+
+SDLC-FIN-001: estas reglas viven en ``CommercialInstrumentProcessor``, el que usa
+el puente de Fidelidad. Las pruebas pasaban por manejadores de evento que nada en
+producción conectaba; ahora ejercitan el procesador directamente.
+"""
+
+from datetime import date
 
 import pytest
 
-from backend.application.event_handlers.finance.coupon_expired_handler import (
-    CouponExpiredHandler,
-)
-from backend.application.event_handlers.finance.coupon_issued_handler import (
-    CouponIssuedHandler,
-)
-from backend.application.event_handlers.finance.coupon_redeemed_handler import (
-    CouponRedeemedHandler,
-)
-from backend.application.event_handlers.finance.gift_card_redeemed_handler import (
-    GiftCardRedeemedHandler,
-)
-from backend.application.event_handlers.finance.gift_card_refunded_handler import (
-    GiftCardRefundedHandler,
-)
-from backend.application.event_handlers.finance.gift_card_sold_handler import (
-    GiftCardSoldHandler,
-)
-from backend.application.event_handlers.finance.stored_value_adjusted_handler import (
-    StoredValueAdjustedHandler,
-)
-from backend.application.event_handlers.finance.voucher_issued_handler import (
-    VoucherIssuedHandler,
-)
-from backend.application.event_handlers.finance.voucher_redeemed_handler import (
-    VoucherRedeemedHandler,
+from backend.application.services.finance.commercial_instrument_processor import (
+    CommercialInstrumentProcessor,
 )
 from backend.application.services.finance.commercial_reconciliation_service import (
     CommercialReconciliationService,
@@ -37,17 +20,44 @@ from backend.domain.finance.enums import (
     CommercialObligationStatus,
 )
 from backend.domain.finance.exceptions import ObligationAmountError, ObligationStateError
+from backend.domain.finance.value_objects.money import Money
 from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
 from backend.shared.ids import new_uuid
 
-OCCURRED = "2026-07-16T12:00:00Z"
+ON = date(2026, 7, 16)
+COUPON = CommercialInstrumentType.PROMOTIONAL_COUPON
+VOUCHER = CommercialInstrumentType.REFUND_VOUCHER
+GIFT_CARD = CommercialInstrumentType.GIFT_CARD
+PROMO_BALANCE = CommercialInstrumentType.PROMOTIONAL_BALANCE
 
 
-def _event(**fields):
-    base = {"event_id": new_uuid(), "operation_id": new_uuid(),
-            "occurred_at": OCCURRED, "currency_code": "MXN"}
-    base.update(fields)
-    return base
+def _recognize(conn, kind, instrument, amount, **extra):
+    with FinanceUnitOfWork(conn) as uow:
+        return CommercialInstrumentProcessor().recognize(
+            uow, instrument_type=kind, source_module="promotions",
+            source_instrument_id=instrument, amount=Money.from_string(amount), on_date=ON,
+            operation_id=new_uuid(), **extra)
+
+
+def _redeem(conn, kind, instrument, amount, **extra):
+    with FinanceUnitOfWork(conn) as uow:
+        return CommercialInstrumentProcessor().redeem(
+            uow, instrument_type=kind, source_instrument_id=instrument,
+            amount=Money.from_string(amount), on_date=ON, operation_id=new_uuid(), **extra)
+
+
+def _expire(conn, kind, instrument):
+    with FinanceUnitOfWork(conn) as uow:
+        return CommercialInstrumentProcessor().expire(
+            uow, instrument_type=kind, source_instrument_id=instrument, on_date=ON,
+            operation_id=new_uuid())
+
+
+def _reverse(conn, kind, instrument):
+    with FinanceUnitOfWork(conn) as uow:
+        return CommercialInstrumentProcessor().reverse(
+            uow, instrument_type=kind, source_instrument_id=instrument, on_date=ON,
+            operation_id=new_uuid())
 
 
 def _get(conn, instrument_type, instrument_id):
@@ -69,9 +79,8 @@ def _lines_for(conn, account_id):
 class TestPromotionalCoupon:
     def test_issue_creates_no_liability(self, bootstrapped_conn):
         instrument = new_uuid()
-        CouponIssuedHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="50.00"))
-        obligation = _get(bootstrapped_conn, CommercialInstrumentType.PROMOTIONAL_COUPON, instrument)
+        _recognize(bootstrapped_conn, COUPON, instrument, "50.00")
+        obligation = _get(bootstrapped_conn, COUPON, instrument)
         assert obligation.status is CommercialObligationStatus.PENDING_RECOGNITION
         entries = bootstrapped_conn.execute(
             "SELECT COUNT(*) FROM journal_entries").fetchone()[0]
@@ -79,29 +88,23 @@ class TestPromotionalCoupon:
 
     def test_redemption_posts_contra_revenue(self, bootstrapped_conn):
         instrument = new_uuid()
-        CouponIssuedHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="50.00"))
-        CouponRedeemedHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, redeemed_value="50.00"))
+        _recognize(bootstrapped_conn, COUPON, instrument, "50.00")
+        _redeem(bootstrapped_conn, COUPON, instrument, "50.00")
         contra = _account_id(bootstrapped_conn, "4203")
         rows = _lines_for(bootstrapped_conn, contra)
         assert rows and float(rows[0][0]) == 50.0  # débito a contra-ingreso
 
     def test_double_redemption_rejected(self, bootstrapped_conn):
         instrument = new_uuid()
-        CouponIssuedHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="50.00"))
-        handler = CouponRedeemedHandler(bootstrapped_conn)
-        handler.handle(_event(instrument_id=instrument, redeemed_value="50.00"))
+        _recognize(bootstrapped_conn, COUPON, instrument, "50.00")
+        _redeem(bootstrapped_conn, COUPON, instrument, "50.00")
         with pytest.raises(ObligationStateError):
-            handler.handle(_event(instrument_id=instrument, redeemed_value="50.00"))
+            _redeem(bootstrapped_conn, COUPON, instrument, "50.00")
 
     def test_third_party_funded_coupon_creates_receivable(self, bootstrapped_conn):
         instrument = new_uuid()
-        CouponIssuedHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="80.00",
-                   funding_party="PROVEEDOR-X"))
-        obligation = _get(bootstrapped_conn, CommercialInstrumentType.PROMOTIONAL_COUPON, instrument)
+        _recognize(bootstrapped_conn, COUPON, instrument, "80.00", funding_party="PROVEEDOR-X")
+        obligation = _get(bootstrapped_conn, COUPON, instrument)
         assert obligation.recognition_basis.value == "THIRD_PARTY_RECEIVABLE"
         receivable_account = _account_id(bootstrapped_conn, "1135")
         rows = _lines_for(bootstrapped_conn, receivable_account)
@@ -109,10 +112,9 @@ class TestPromotionalCoupon:
 
     def test_expiration_of_promotional_coupon_posts_nothing(self, bootstrapped_conn):
         instrument = new_uuid()
-        CouponIssuedHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="50.00"))
-        CouponExpiredHandler(bootstrapped_conn).handle(_event(instrument_id=instrument))
-        obligation = _get(bootstrapped_conn, CommercialInstrumentType.PROMOTIONAL_COUPON, instrument)
+        _recognize(bootstrapped_conn, COUPON, instrument, "50.00")
+        _expire(bootstrapped_conn, COUPON, instrument)
+        obligation = _get(bootstrapped_conn, COUPON, instrument)
         assert obligation.status is CommercialObligationStatus.EXPIRED
         entries = bootstrapped_conn.execute("SELECT COUNT(*) FROM journal_entries").fetchone()[0]
         assert entries == 0
@@ -121,9 +123,8 @@ class TestPromotionalCoupon:
 class TestRefundVoucher:
     def test_issue_creates_real_liability(self, bootstrapped_conn):
         instrument = new_uuid()
-        VoucherIssuedHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="120.00"))
-        obligation = _get(bootstrapped_conn, CommercialInstrumentType.REFUND_VOUCHER, instrument)
+        _recognize(bootstrapped_conn, VOUCHER, instrument, "120.00")
+        obligation = _get(bootstrapped_conn, VOUCHER, instrument)
         assert obligation.status is CommercialObligationStatus.OPEN
         liability = _account_id(bootstrapped_conn, "2132")
         rows = _lines_for(bootstrapped_conn, liability)
@@ -131,24 +132,19 @@ class TestRefundVoucher:
 
     def test_partial_and_total_redemption(self, bootstrapped_conn):
         instrument = new_uuid()
-        VoucherIssuedHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="120.00"))
-        handler = VoucherRedeemedHandler(bootstrapped_conn)
-        handler.handle(_event(instrument_id=instrument, redeemed_value="70.00",
-                              redemption_id=new_uuid()))
-        obligation = _get(bootstrapped_conn, CommercialInstrumentType.REFUND_VOUCHER, instrument)
+        _recognize(bootstrapped_conn, VOUCHER, instrument, "120.00")
+        _redeem(bootstrapped_conn, VOUCHER, instrument, "70.00", redemption_id=new_uuid())
+        obligation = _get(bootstrapped_conn, VOUCHER, instrument)
         assert obligation.status is CommercialObligationStatus.PARTIALLY_REDEEMED
-        handler.handle(_event(instrument_id=instrument, redeemed_value="50.00",
-                              redemption_id=new_uuid()))
-        obligation = _get(bootstrapped_conn, CommercialInstrumentType.REFUND_VOUCHER, instrument)
+        _redeem(bootstrapped_conn, VOUCHER, instrument, "50.00", redemption_id=new_uuid())
+        obligation = _get(bootstrapped_conn, VOUCHER, instrument)
         assert obligation.status is CommercialObligationStatus.REDEEMED
 
 
 class TestGiftCard:
     def test_sale_creates_liability_not_revenue(self, bootstrapped_conn):
         instrument = new_uuid()
-        GiftCardSoldHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="500.00"))
+        _recognize(bootstrapped_conn, GIFT_CARD, instrument, "500.00")
         liability = _account_id(bootstrapped_conn, "2131")
         revenue = _account_id(bootstrapped_conn, "4101")
         assert _lines_for(bootstrapped_conn, liability)
@@ -156,12 +152,9 @@ class TestGiftCard:
 
     def test_redemption_moves_liability_to_revenue(self, bootstrapped_conn):
         instrument = new_uuid()
-        GiftCardSoldHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="500.00"))
-        GiftCardRedeemedHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, redeemed_value="200.00",
-                   redemption_id=new_uuid()))
-        obligation = _get(bootstrapped_conn, CommercialInstrumentType.GIFT_CARD, instrument)
+        _recognize(bootstrapped_conn, GIFT_CARD, instrument, "500.00")
+        _redeem(bootstrapped_conn, GIFT_CARD, instrument, "200.00", redemption_id=new_uuid())
+        obligation = _get(bootstrapped_conn, GIFT_CARD, instrument)
         assert obligation.outstanding_amount.to_string() == "300.00"
         revenue = _account_id(bootstrapped_conn, "4101")
         rows = _lines_for(bootstrapped_conn, revenue)
@@ -169,19 +162,16 @@ class TestGiftCard:
 
     def test_over_redemption_rejected(self, bootstrapped_conn):
         instrument = new_uuid()
-        GiftCardSoldHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="100.00"))
+        _recognize(bootstrapped_conn, GIFT_CARD, instrument, "100.00")
         with pytest.raises(ObligationAmountError):
-            GiftCardRedeemedHandler(bootstrapped_conn).handle(
-                _event(instrument_id=instrument, redeemed_value="150.00",
-                       redemption_id=new_uuid()))
+            _redeem(bootstrapped_conn, GIFT_CARD, instrument, "150.00",
+                    redemption_id=new_uuid())
 
     def test_refund_reverses_recognition(self, bootstrapped_conn):
         instrument = new_uuid()
-        GiftCardSoldHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="500.00"))
-        GiftCardRefundedHandler(bootstrapped_conn).handle(_event(instrument_id=instrument))
-        obligation = _get(bootstrapped_conn, CommercialInstrumentType.GIFT_CARD, instrument)
+        _recognize(bootstrapped_conn, GIFT_CARD, instrument, "500.00")
+        _reverse(bootstrapped_conn, GIFT_CARD, instrument)
+        obligation = _get(bootstrapped_conn, GIFT_CARD, instrument)
         assert obligation.status is CommercialObligationStatus.REVERSED
         # ledger neto en cero para el pasivo
         liability = _account_id(bootstrapped_conn, "2131")
@@ -192,9 +182,7 @@ class TestGiftCard:
 
 class TestPromotionalBalance:
     def test_never_recognized_as_cash(self, bootstrapped_conn):
-        instrument = new_uuid()
-        StoredValueAdjustedHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="60.00"))
+        _recognize(bootstrapped_conn, PROMO_BALANCE, new_uuid(), "60.00")
         for cash_code in ("1101", "1102", "1110"):
             assert not _lines_for(bootstrapped_conn, _account_id(bootstrapped_conn, cash_code))
         promo_liability = _account_id(bootstrapped_conn, "2134")
@@ -202,26 +190,20 @@ class TestPromotionalBalance:
 
     def test_kept_separate_from_store_credit(self, bootstrapped_conn):
         """Saldo promocional (2134) nunca se mezcla con saldo reembolsable (2133)."""
-        instrument = new_uuid()
-        StoredValueAdjustedHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="60.00"))
+        _recognize(bootstrapped_conn, PROMO_BALANCE, new_uuid(), "60.00")
         store_credit = _account_id(bootstrapped_conn, "2133")
         assert not _lines_for(bootstrapped_conn, store_credit)
 
 
 class TestInstrumentReconciliation:
     def test_matching_balances_report_clean(self, bootstrapped_conn):
-        instrument = new_uuid()
-        GiftCardSoldHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="500.00"))
+        _recognize(bootstrapped_conn, GIFT_CARD, new_uuid(), "500.00")
         rows = CommercialReconciliationService().reconcile(
             bootstrapped_conn, {"GIFT_CARD": "500.00"})
         assert rows[0].difference == "0.00" and not rows[0].is_material
 
     def test_material_difference_emits_event(self, bootstrapped_conn):
-        instrument = new_uuid()
-        GiftCardSoldHandler(bootstrapped_conn).handle(
-            _event(instrument_id=instrument, face_value="500.00"))
+        _recognize(bootstrapped_conn, GIFT_CARD, new_uuid(), "500.00")
         rows = CommercialReconciliationService().reconcile(
             bootstrapped_conn, {"GIFT_CARD": "650.00"})
         assert rows[0].is_material

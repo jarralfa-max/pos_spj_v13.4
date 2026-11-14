@@ -3,8 +3,8 @@
 from datetime import date
 
 from backend.application.event_handlers.finance.payroll_paid_handler import PayrollPaidHandler
-from backend.application.event_handlers.finance.purchase_received_handler import (
-    PurchaseReceivedHandler,
+from backend.application.event_handlers.finance.procurement_payable_bridge import (
+    ProcurementPayableBridgeHandler,
 )
 from backend.application.event_handlers.finance.sale_completed_handler import (
     SaleCompletedHandler,
@@ -37,10 +37,11 @@ def _seed_activity(conn):
         "tax_total": "64.83", "cogs_total": "200.00",
         "settlements": [{"type": "CASH", "amount": "470.00"}],
     })
-    PurchaseReceivedHandler(conn).handle({
-        "event_id": new_uuid(), "operation_id": new_uuid(), "purchase_id": new_uuid(),
-        "supplier_id": new_uuid(), "folio": "C-1", "occurred_at": OCCURRED,
-        "subtotal": "1000.00", "tax_total": "160.00", "total": "1160.00",
+    ProcurementPayableBridgeHandler(conn).handle({
+        "source_module": "procurement", "operation_id": new_uuid(),
+        "document_id": new_uuid(), "supplier_id": new_uuid(), "document_number": "C-1",
+        "timestamp": "2026-07-16T12:00:00", "nature_subtotals": {"INVENTORY": "1000.00"},
+        "tax_total": "160.00", "amount": "1160.00",
     })
     PayrollPaidHandler(conn).handle({
         "event_id": new_uuid(), "operation_id": new_uuid(), "payroll_run_id": new_uuid(),
@@ -115,14 +116,19 @@ class TestReadServices:
         assert len(payables) == 1 and payables[0]["document_number"] == "C-1"
 
     def test_obligation_summary_service(self, bootstrapped_conn):
-        from backend.application.event_handlers.finance.gift_card_sold_handler import (
-            GiftCardSoldHandler,
+        from backend.application.services.finance.commercial_instrument_processor import (
+            CommercialInstrumentProcessor,
         )
-        GiftCardSoldHandler(bootstrapped_conn).handle({
-            "event_id": new_uuid(), "operation_id": new_uuid(),
-            "instrument_id": new_uuid(), "occurred_at": OCCURRED,
-            "face_value": "500.00", "currency_code": "MXN",
-        })
+        from backend.domain.finance.enums import CommercialInstrumentType
+        from backend.domain.finance.value_objects.money import Money
+        from backend.infrastructure.db.repositories.finance.unit_of_work import FinanceUnitOfWork
+
+        with FinanceUnitOfWork(bootstrapped_conn) as uow:
+            CommercialInstrumentProcessor().recognize(
+                uow, instrument_type=CommercialInstrumentType.GIFT_CARD,
+                source_module="promotions", source_instrument_id=new_uuid(),
+                amount=Money.from_string("500.00"), on_date=date(2026, 7, 16),
+                operation_id=new_uuid())
         summary = CommercialObligationQueryService(bootstrapped_conn).summary_by_instrument()
         assert summary[0]["instrument_type"] == "GIFT_CARD"
         assert float(summary[0]["outstanding"]) == 500.0

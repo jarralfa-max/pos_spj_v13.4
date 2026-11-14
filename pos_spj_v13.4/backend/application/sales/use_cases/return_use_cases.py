@@ -175,16 +175,11 @@ class ReturnSaleLineUseCase(_ReturnBaseUseCase):
 
     @staticmethod
     def _open_shift_problem(connection, branch_id: str, actor_user_id: str) -> str | None:
-        import sqlite3
-
-        from backend.domain.cash_register.exceptions import CashRegisterError
-        try:
-            SalesCashEffectsClient().require_open_shift(
-                connection, branch_id=branch_id, cashier_user_id=actor_user_id)
-        except (CashRegisterError, sqlite3.OperationalError):
-            return ("Para devolver efectivo necesitas tu turno de caja abierto: el reembolso "
-                    "sale de tu cajón.")
-        return None
+        # Misma fuente que Caja (SDLC-ARQ-SHIFT-001): el efectivo sale del
+        # cajón del turno operable de quien devuelve.
+        return SalesCashEffectsClient().open_shift_problem(
+            connection, branch_id=branch_id, cashier_user_id=actor_user_id,
+            purpose="refund")
 
 
 class ReverseSaleUseCase(_ReturnBaseUseCase):

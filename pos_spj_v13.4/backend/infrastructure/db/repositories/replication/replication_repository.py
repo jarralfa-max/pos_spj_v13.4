@@ -204,6 +204,18 @@ class ReplicationRepository:
             " GROUP BY state", args).fetchall())
         return {estado: int(conteo.get(estado, 0)) for estado in _STATES}
 
+    def list_conflicts(self, *, limit: int = 200) -> list[dict]:
+        """Sobres en CONFLICTO de esta base, sin importar el contexto. Sin el
+        motor de replicación instalado no hay conflictos."""
+        if self._conn.execute("SELECT 1 FROM sqlite_master WHERE type='table'"
+                              " AND name='replication_envelopes'").fetchone() is None:
+            return []
+        return _rows(self._conn.execute(
+            """SELECT id, source, event_id, event_type, aggregate_type, aggregate_id,
+                      sequence_no, last_error, created_at
+               FROM replication_envelopes WHERE state='CONFLICT'
+               ORDER BY sequence_no LIMIT ?""", (limit,)))
+
     def list_recent(self, station_id: str, *, source: str | None = None,
                     states: tuple[str, ...] | None = None, limit: int = 100) -> list[dict]:
         condiciones, args = ["station_id=?"], [station_id]

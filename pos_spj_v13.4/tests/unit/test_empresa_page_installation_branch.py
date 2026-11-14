@@ -57,10 +57,10 @@ def _all_permissions() -> set:
     return {p for p in vars(ConfiguracionPermissions).values() if isinstance(p, str)}
 
 
-def _view(app, conn):
+def _view(app, conn, permissions=None):
     class _FakeContainer:
         db = conn
-        session = _FakeSession(_all_permissions())
+        session = _FakeSession(_all_permissions() if permissions is None else permissions)
 
     return build_configuracion_view(connection=_FakeContainer.db, session_context=_FakeContainer.session)
 
@@ -129,3 +129,15 @@ class TestEmpresaPageInstallationBranch:
 
         ok, message = presenter.set_installation_branch(new_uuid())
         assert ok is False
+
+    def test_editing_the_company_no_longer_allows_re_anchoring(self, app, conn):
+        """SDLC-ARQ-TERM-002: el permiso lo decide el caso de uso y es específico."""
+        before = SqliteInstallationBranchRepository(conn).get()
+        perms = _all_permissions() - {ConfiguracionPermissions.ESTACION_REANCLAR}
+        view = _view(app, conn, perms)
+        view.show_route("config_empresa")
+        presenter = view._pages["config_empresa"]._presenter
+
+        ok, message = presenter.set_installation_branch(_branch_ids(conn)[0])
+        assert ok is False and "estacion.reanclar" in message
+        assert SqliteInstallationBranchRepository(conn).get() == before

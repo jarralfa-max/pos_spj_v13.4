@@ -8,6 +8,11 @@ from backend.domain.transfers.value_objects.authorization_grant import TransferA
 from .permissions import ALL_TRANSFER_PERMISSIONS
 
 
+#: Una pata que la operación no declara: no recae sobre esa sucursal. No es lo
+#: mismo que declararla vacía, que se niega (SDLC-ARQ-PERM-003).
+_NO_LEG = object()
+
+
 class TransferPermissionChecker(Protocol):
     def has_permission(self, user_id: str, permission_code: str) -> bool: ...
 
@@ -40,9 +45,9 @@ class TransferAuthorizationPolicy:
         self._audit_sink = audit_sink
 
     def require(self, *, user_id: str, permission_code: str,
-                branch_id: str | None = None, warehouse_id: str | None = None,
+                branch_id: str | None = _NO_LEG, warehouse_id: str | None = None,
                 location_id: str | None = None,
-                destination_branch_id: str | None = None,
+                destination_branch_id: str | None = _NO_LEG,
                 destination_warehouse_id: str | None = None,
                 destination_location_id: str | None = None) -> None:
         """Exige permiso y, cuando hay comprobador de alcance, las sucursales.
@@ -61,9 +66,12 @@ class TransferAuthorizationPolicy:
         nueva: alcanza a la pantalla, que era la única que la aplicaba — y una
         regla que sólo vive en la pantalla no protege al que no usa la pantalla.
 
-        Ausente o vacía PERMITE, igual que el origen: `authorize_exception`
-        llama sin sucursal y denegar ahí rompería la autorización en caliente
-        por un dato que la operación no tiene.
+        Una pata se comprueba sólo si la operación la DECLARA. Declarada vacía se
+        niega salvo alcance global (SDLC-ARQ-PERM-003): las transferencias siempre
+        van a sucursal, así que el dato faltante es un defecto, no una excepción.
+        Sin declarar no aplica: lo que no recae sobre una sucursal (imprimir,
+        generar sugerencias, validar al autorizador en `authorize_exception`) no
+        tiene alcance que comprobar.
         """
         if permission_code not in ALL_TRANSFER_PERMISSIONS:
             raise PermissionDeniedError(f"Permiso de transferencias desconocido: {permission_code}")
@@ -73,9 +81,11 @@ class TransferAuthorizationPolicy:
             raise PermissionDeniedError(f"El usuario no tiene el permiso {permission_code}")
         if self._scopes is None:
             return
-        self._require_scope(user_id, "origen", branch_id, warehouse_id, location_id)
-        self._require_scope(user_id, "destino", destination_branch_id,
-                            destination_warehouse_id, destination_location_id)
+        if branch_id is not _NO_LEG:
+            self._require_scope(user_id, "origen", branch_id, warehouse_id, location_id)
+        if destination_branch_id is not _NO_LEG:
+            self._require_scope(user_id, "destino", destination_branch_id,
+                                destination_warehouse_id, destination_location_id)
 
     def _require_scope(self, user_id: str, leg: str, branch_id: str | None,
                        warehouse_id: str | None, location_id: str | None) -> None:
