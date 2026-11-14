@@ -28,6 +28,7 @@ behavior onto the new `Sale` aggregate instead of inventing a different one.
 
 from __future__ import annotations
 
+from backend.application.sales.audit import record_sales_audit_entry
 from backend.application.sales.dto import SaleDTO
 from backend.application.sales.permissions import SalesPermissions
 from backend.application.sales.result import SaleResult, fail_from_domain_error
@@ -40,6 +41,7 @@ from backend.domain.sales.exceptions import (
     SalesDomainError,
     SaleNotFoundError,
 )
+from backend.domain.sales.value_objects.sales_audit_entry import SalesAuditEntry
 from backend.infrastructure.db.repositories.sales.unit_of_work import SalesUnitOfWork
 
 
@@ -87,11 +89,26 @@ class SuspendSaleUseCase(_SalesBaseUseCase):
                              sale=SaleDTO.from_entity(sale))
 
 
+#: Rastro del traspaso de una venta suspendida a otro responsable.
+AUDIT_RESUME_TRANSFERRED = "SALE_RESUME_TRANSFERRED"
+
+
 class ResumeSaleUseCase(_SalesBaseUseCase):
+    """SDLC-ARQ-SESS-003: la venta suspendida es de su cajero.
+
+    Antes reanudaba cualquiera con `POS.venta.reanudar` y `cashier_user_id` no
+    cambiaba, así que el efectivo que cobraba B aparecía en las ventas de A.
+    Ahora (decisión del responsable, 2026-11-02) la venta ajena la reanuda quien
+    tenga `POS.venta.reanudar_ajena`, u otro cajero con la autorización en
+    caliente de quien lo tenga. El responsable pasa a ser quien reanuda y el
+    traspaso se audita en la misma transacción. No es una bandera del llamador:
+    lo decide el permiso aquí dentro."""
+
     def execute(
         self, connection, *, sale_id: str, actor_user_id: str, operation_id: str,
         resuming_workstation_id: str | None = None,
-        allow_cross_user_resume: bool = True, allow_cross_workstation_resume: bool = True,
+        allow_cross_workstation_resume: bool = True,
+        authorizer_user_id: str | None = None, reason: str | None = None,
     ) -> SaleResult:
         try:
             self._auth.require(actor_user_id, SalesPermissions.SALE_RESUME)
@@ -101,19 +118,59 @@ class ResumeSaleUseCase(_SalesBaseUseCase):
             sale, denied = self._load_sale(uow, sale_id, actor_user_id, operation_id)
             if denied is not None:
                 return denied
+            previous_cashier = sale.cashier_user_id
+            is_takeover = (previous_cashier != actor_user_id
+                           and sale.status is SaleStatus.SUSPENDED)
+            authorized_by = None
             try:
+                if is_takeover:
+                    authorized_by = self._authorize_takeover(
+                        sale, actor_user_id=actor_user_id, operation_id=operation_id,
+                        authorizer_user_id=authorizer_user_id, reason=reason)
+                    if authorized_by is None:
+                        return SaleResult.fail(
+                            "Esta venta la atiende otro cajero: para tomarla necesitas "
+                            "la autorización de un supervisor.",
+                            "RESUME_AUTHORIZATION_REQUIRED", operation_id=operation_id)
                 sale.resume(
                     resuming_user_id=actor_user_id,
                     resuming_workstation_id=resuming_workstation_id,
-                    allow_cross_user_resume=allow_cross_user_resume,
+                    allow_cross_user_resume=is_takeover,
                     allow_cross_workstation_resume=allow_cross_workstation_resume)
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
             uow.sales.save(sale)
+            transfer = {}
+            if is_takeover:
+                transfer = {"previous_cashier_user_id": previous_cashier,
+                            "cashier_user_id": sale.cashier_user_id,
+                            "authorized_by": authorized_by}
+                record_sales_audit_entry(connection, SalesAuditEntry(
+                    user_id=actor_user_id, operation_id=operation_id,
+                    action=AUDIT_RESUME_TRANSFERRED, branch_id=sale.branch_id,
+                    authorized_by=authorized_by, sale_id=sale.id,
+                    before={"cashier_user_id": previous_cashier},
+                    after={"cashier_user_id": sale.cashier_user_id},
+                    reason=reason, workstation_id=resuming_workstation_id))
             self._emit(uow, SaleEvents.RESUMED, entity_id=sale.id, operation_id=operation_id,
-                       branch_id=sale.branch_id, actor_user_id=actor_user_id)
+                       branch_id=sale.branch_id, actor_user_id=actor_user_id, **transfer)
         return SaleResult.ok("Venta reanudada", entity_id=sale.id, operation_id=operation_id,
                              sale=SaleDTO.from_entity(sale))
+
+    def _authorize_takeover(self, sale, *, actor_user_id: str, operation_id: str,
+                            authorizer_user_id: str | None, reason: str | None) -> str | None:
+        """Quién respalda tomar la venta ajena, o None si nadie todavía: el
+        propio actor si tiene el permiso (supervisor); si no, un segundo usuario
+        que lo tenga, distinto del actor y con motivo."""
+        if self._auth.has_permission(actor_user_id, SalesPermissions.SALE_RESUME_FOREIGN):
+            return actor_user_id
+        if not authorizer_user_id:
+            return None
+        grant = self._authorizer().authorize_exception(
+            authorizer_user_id=authorizer_user_id, requested_by=actor_user_id,
+            permission_code=SalesPermissions.SALE_RESUME_FOREIGN,
+            operation_id=operation_id, reason=reason or "", sale_id=sale.id)
+        return grant.authorized_by
 
 
 class CancelSaleUseCase(_PaymentCompensation):

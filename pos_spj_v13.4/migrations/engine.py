@@ -357,9 +357,7 @@ MIGRATIONS = [
     _Migration("351",  "migrations.standalone.351_organizational_structure"),
     _Migration("352",  "migrations.standalone.352_org_outbox_and_branch_profiles"),
     _Migration("353",  "migrations.standalone.353_user_role_assignments"),
-    _Migration("354",  "migrations.standalone.354_device_enrollment"),
-    _Migration("357",  "migrations.standalone.357_seed_installation_reanchor_permission"),
-    _Migration("392",  "migrations.standalone.392_terminal_identity"),
+    _Migration("368",  "migrations.standalone.368_pos_foreign_resume_permission"),
 ]
 
 def _ensure_tracking_table(conn):

@@ -63,6 +63,7 @@ class SaleRepository(SalesRepositoryBase):
                 suspended_workstation_id, inventory_reservation_id
             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(id) DO UPDATE SET
+                cashier_user_id=excluded.cashier_user_id,
                 status=excluded.status,
                 sale_number=excluded.sale_number,
                 workstation_id=excluded.workstation_id,

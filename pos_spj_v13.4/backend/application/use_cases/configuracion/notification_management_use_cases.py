@@ -36,6 +36,9 @@ from backend.infrastructure.db.repositories.notifications.notification_route_rep
 from backend.infrastructure.db.repositories.notifications.notification_template_repository import (
     SqliteNotificationTemplateRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class NotificationAccountStatusAction(str, Enum):
@@ -56,7 +59,8 @@ class NotificationRouteStatusAction(str, Enum):
 # ── NotificationAccount ──────────────────────────────────────────────────────
 
 class CreateNotificationAccountUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._accounts = SqliteNotificationAccountRepository(connection)
 
@@ -64,6 +68,7 @@ class CreateNotificationAccountUseCase:
         self, *, channel: NotificationChannel | str, name: str, credential_reference: str | None = None,
         integration_instance_id: str | None = None,
     ) -> NotificationAccount:
+        self._authz.require(ConfiguracionPermissions.NOTIFICACIONES_GESTIONAR)
         account = NotificationAccount.create(
             channel=NotificationChannel(channel), name=name, credential_reference=credential_reference,
             integration_instance_id=integration_instance_id,
@@ -74,11 +79,13 @@ class CreateNotificationAccountUseCase:
 
 
 class UpdateNotificationAccountUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._accounts = SqliteNotificationAccountRepository(connection)
 
     def execute(self, *, account_id: str, name: str, credential_reference: str | None = None) -> NotificationAccount:
+        self._authz.require(ConfiguracionPermissions.NOTIFICACIONES_GESTIONAR)
         account = self._accounts.get(account_id)
         if account is None:
             raise NotificationAccountNotFoundError(f"Cuenta {account_id} no encontrada")
@@ -89,11 +96,13 @@ class UpdateNotificationAccountUseCase:
 
 
 class ChangeNotificationAccountStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._accounts = SqliteNotificationAccountRepository(connection)
 
     def execute(self, *, account_id: str, action: NotificationAccountStatusAction) -> NotificationAccount:
+        self._authz.require(ConfiguracionPermissions.NOTIFICACIONES_GESTIONAR)
         account = self._accounts.get(account_id)
         if account is None:
             raise NotificationAccountNotFoundError(f"Cuenta {account_id} no encontrada")
@@ -111,7 +120,8 @@ class ChangeNotificationAccountStatusUseCase:
 # ── NotificationTemplate ─────────────────────────────────────────────────────
 
 class CreateNotificationTemplateUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._templates = SqliteNotificationTemplateRepository(connection)
 
@@ -119,6 +129,7 @@ class CreateNotificationTemplateUseCase:
         self, *, code: str, channel: NotificationChannel | str, language: str,
         parameter_names: tuple[str, ...] | list[str] = (),
     ) -> NotificationTemplate:
+        self._authz.require(ConfiguracionPermissions.NOTIFICACIONES_GESTIONAR)
         channel_enum = NotificationChannel(channel)
         existing = self._templates.get_by_code(code)
         if existing is not None and existing.channel is channel_enum:
@@ -134,13 +145,15 @@ class CreateNotificationTemplateUseCase:
 
 
 class UpdateNotificationTemplateUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._templates = SqliteNotificationTemplateRepository(connection)
 
     def execute(
         self, *, template_id: str, parameter_names: tuple[str, ...] | list[str] = (),
     ) -> NotificationTemplate:
+        self._authz.require(ConfiguracionPermissions.NOTIFICACIONES_GESTIONAR)
         template = self._templates.get(template_id)
         if template is None:
             raise NotificationTemplateNotFoundError(f"Plantilla {template_id} no encontrada")
@@ -151,11 +164,13 @@ class UpdateNotificationTemplateUseCase:
 
 
 class ChangeNotificationTemplateStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._templates = SqliteNotificationTemplateRepository(connection)
 
     def execute(self, *, template_id: str, action: NotificationTemplateStatusAction) -> NotificationTemplate:
+        self._authz.require(ConfiguracionPermissions.NOTIFICACIONES_GESTIONAR)
         template = self._templates.get(template_id)
         if template is None:
             raise NotificationTemplateNotFoundError(f"Plantilla {template_id} no encontrada")
@@ -173,7 +188,8 @@ class ChangeNotificationTemplateStatusUseCase:
 # ── NotificationRoute ────────────────────────────────────────────────────────
 
 class CreateNotificationRouteUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._routes = SqliteNotificationRouteRepository(connection)
         self._templates = SqliteNotificationTemplateRepository(connection)
@@ -182,6 +198,7 @@ class CreateNotificationRouteUseCase:
     def execute(
         self, *, event_code: str, channel: NotificationChannel | str, template_id: str, account_id: str,
     ) -> NotificationRoute:
+        self._authz.require(ConfiguracionPermissions.NOTIFICACIONES_GESTIONAR)
         if self._templates.get(template_id) is None:
             raise NotificationTemplateNotFoundError(f"Plantilla {template_id} no encontrada")
         if self._accounts.get(account_id) is None:
@@ -201,11 +218,13 @@ class CreateNotificationRouteUseCase:
 
 
 class ChangeNotificationRouteStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._routes = SqliteNotificationRouteRepository(connection)
 
     def execute(self, *, route_id: str, action: NotificationRouteStatusAction) -> NotificationRoute:
+        self._authz.require(ConfiguracionPermissions.NOTIFICACIONES_GESTIONAR)
         route = self._routes.get(route_id)
         if route is None:
             raise NotificationRouteNotFoundError(f"Ruta {route_id} no encontrada")

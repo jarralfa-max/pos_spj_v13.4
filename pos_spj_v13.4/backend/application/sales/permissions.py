@@ -41,6 +41,10 @@ class SalesPermissions:
     SALE_CANCEL = "POS.cancelar"
     SALE_SUSPEND = "POS.venta.suspender"
     SALE_RESUME = "POS.venta.reanudar"
+    #: Reanudar la venta suspendida de OTRO cajero: la tiene el supervisor, y con
+    #: ella autoriza a otro cajero (SDLC-ARQ-SESS-003). El responsable de la venta
+    #: cambia y el traspaso se audita.
+    SALE_RESUME_FOREIGN = "POS.venta.reanudar_ajena"
     #: Autorización en caliente para cobrar sin existencia suficiente (el
     #: inventario queda negativo y auditado). Decisión del usuario, Fase 6
     #: (2026-09-18): el §26 lista "venta sin stock" entre las excepciones.

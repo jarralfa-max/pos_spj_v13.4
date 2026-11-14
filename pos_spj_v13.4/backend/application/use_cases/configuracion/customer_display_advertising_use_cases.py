@@ -48,6 +48,9 @@ from backend.infrastructure.db.repositories.customer_display.content_repository 
 from backend.infrastructure.db.repositories.customer_display.display_media_repository import (
     SqliteDisplayMediaRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class ContentStatusAction(str, Enum):
@@ -63,6 +66,19 @@ class ContentCampaignStatusAction(str, Enum):
     DEACTIVATE = "DEACTIVATE"
     EXPIRE = "EXPIRE"
     ARCHIVE = "ARCHIVE"
+
+
+#: Permiso por acción. ÚNICA fuente: la verifica el caso de uso
+#: (SDLC-ARQ-PERM-001) y el presentador la importa para su mensaje previo.
+CONTENT_CAMPAIGN_STATUS_PERMISSIONS = {
+    ContentCampaignStatusAction.SUBMIT_FOR_APPROVAL: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
+    ContentCampaignStatusAction.REJECT: ConfiguracionPermissions.PANTALLA_CLIENTE_CONTENIDO_APROBAR,
+    ContentCampaignStatusAction.APPROVE: ConfiguracionPermissions.PANTALLA_CLIENTE_CONTENIDO_APROBAR,
+    ContentCampaignStatusAction.ACTIVATE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
+    ContentCampaignStatusAction.DEACTIVATE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
+    ContentCampaignStatusAction.EXPIRE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
+    ContentCampaignStatusAction.ARCHIVE: ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR,
+}
 
 
 class AdvertisingSlotStatusAction(str, Enum):
@@ -95,7 +111,8 @@ class ImportDisplayMediaUseCase:
     """Copia un archivo elegido a la carpeta de media de la aplicación y lo
     registra. El mismo archivo (mismo hash) devuelve el registro existente."""
 
-    def __init__(self, connection, storage=None) -> None:
+    def __init__(self, connection, storage=None, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         from backend.infrastructure.customer_display.media_storage import DisplayMediaStorage
 
         self._conn = connection
@@ -104,6 +121,7 @@ class ImportDisplayMediaUseCase:
 
     def execute(self, *, source_path: str, media_type: str,
                 actor_user_id: str | None = None) -> DisplayMedia:
+        self._authz.require(ConfiguracionPermissions.PANTALLA_CLIENTE_CONTENIDO_CREAR, claimed_actor=actor_user_id)
         source = Path(str(source_path or "")).expanduser()
         if not source.is_file():
             raise CustomerDisplayInvalidValueError("El archivo elegido no existe.")
@@ -124,13 +142,15 @@ class ImportDisplayMediaUseCase:
 
 
 class CreateContentUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._content = SqliteContentRepository(connection)
 
     def execute(
         self, *, title: str, content_type: ContentType | str, body: str, duration_seconds: int = 10,
     ) -> Content:
+        self._authz.require(ConfiguracionPermissions.PANTALLA_CLIENTE_CONTENIDO_CREAR)
         _assert_media_body(self._conn, ContentType(content_type), body)
         content = Content.create(
             title=title, content_type=ContentType(content_type), body=body,
@@ -142,11 +162,13 @@ class CreateContentUseCase:
 
 
 class UpdateContentUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._content = SqliteContentRepository(connection)
 
     def execute(self, *, content_id: str, title: str, body: str, duration_seconds: int = 10) -> Content:
+        self._authz.require(ConfiguracionPermissions.PANTALLA_CLIENTE_CONTENIDO_CREAR)
         content = self._content.get(content_id)
         if content is None:
             raise CustomerDisplayNotFoundError(f"Contenido {content_id} no encontrado")
@@ -158,11 +180,13 @@ class UpdateContentUseCase:
 
 
 class ChangeContentStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._content = SqliteContentRepository(connection)
 
     def execute(self, *, content_id: str, action: ContentStatusAction) -> Content:
+        self._authz.require(ConfiguracionPermissions.PANTALLA_CLIENTE_CONTENIDO_CREAR)
         content = self._content.get(content_id)
         if content is None:
             raise CustomerDisplayNotFoundError(f"Contenido {content_id} no encontrado")
@@ -180,7 +204,8 @@ class ChangeContentStatusUseCase:
 # ── ContentCampaign ──────────────────────────────────────────────────────────
 
 class CreateContentCampaignUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._campaigns = SqliteContentCampaignRepository(connection)
 
@@ -188,6 +213,7 @@ class CreateContentCampaignUseCase:
         self, *, name: str, content_id: str, starts_at: str | None = None, ends_at: str | None = None,
         created_by_user_id: str | None = None,
     ) -> ContentCampaign:
+        self._authz.require(ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR, claimed_actor=created_by_user_id)
         campaign = ContentCampaign.create(
             name=name, content_id=content_id, starts_at=starts_at, ends_at=ends_at,
             created_by_user_id=created_by_user_id,
@@ -198,13 +224,15 @@ class CreateContentCampaignUseCase:
 
 
 class UpdateContentCampaignUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._campaigns = SqliteContentCampaignRepository(connection)
 
     def execute(
         self, *, campaign_id: str, starts_at: str | None = None, ends_at: str | None = None,
     ) -> ContentCampaign:
+        self._authz.require(ConfiguracionPermissions.PANTALLA_CLIENTE_CAMPANA_PROGRAMAR)
         campaign = self._campaigns.get(campaign_id)
         if campaign is None:
             raise CustomerDisplayNotFoundError(f"Campaña {campaign_id} no encontrada")
@@ -215,7 +243,8 @@ class UpdateContentCampaignUseCase:
 
 
 class ChangeContentCampaignStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._campaigns = SqliteContentCampaignRepository(connection)
 
@@ -223,6 +252,7 @@ class ChangeContentCampaignStatusUseCase:
         self, *, campaign_id: str, action: ContentCampaignStatusAction, actor_user_id: str = "",
         reason: str = "",
     ) -> ContentCampaign:
+        self._authz.require_mapped(CONTENT_CAMPAIGN_STATUS_PERMISSIONS, action, claimed_actor=actor_user_id)
         campaign = self._campaigns.get(campaign_id)
         if campaign is None:
             raise CustomerDisplayNotFoundError(f"Campaña {campaign_id} no encontrada")
@@ -250,11 +280,13 @@ class ChangeContentCampaignStatusUseCase:
 # ── AdvertisingSlot ──────────────────────────────────────────────────────────
 
 class CreateAdvertisingSlotUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._slots = SqliteAdvertisingSlotRepository(connection)
 
     def execute(self, *, code: str, mode: CustomerDisplayMode | str, display_order: int = 0) -> AdvertisingSlot:
+        self._authz.require(ConfiguracionPermissions.PANTALLA_CLIENTE_PUBLICIDAD_GESTIONAR)
         slot = AdvertisingSlot.create(code=code, mode=CustomerDisplayMode(mode), display_order=display_order)
         self._slots.save(slot)
         self._conn.commit()
@@ -262,11 +294,13 @@ class CreateAdvertisingSlotUseCase:
 
 
 class UpdateAdvertisingSlotUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._slots = SqliteAdvertisingSlotRepository(connection)
 
     def execute(self, *, slot_id: str, display_order: int) -> AdvertisingSlot:
+        self._authz.require(ConfiguracionPermissions.PANTALLA_CLIENTE_PUBLICIDAD_GESTIONAR)
         slot = self._slots.get(slot_id)
         if slot is None:
             raise CustomerDisplayNotFoundError(f"Slot {slot_id} no encontrado")
@@ -277,11 +311,13 @@ class UpdateAdvertisingSlotUseCase:
 
 
 class ChangeAdvertisingSlotStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._slots = SqliteAdvertisingSlotRepository(connection)
 
     def execute(self, *, slot_id: str, action: AdvertisingSlotStatusAction) -> AdvertisingSlot:
+        self._authz.require(ConfiguracionPermissions.PANTALLA_CLIENTE_PUBLICIDAD_GESTIONAR)
         slot = self._slots.get(slot_id)
         if slot is None:
             raise CustomerDisplayNotFoundError(f"Slot {slot_id} no encontrado")
@@ -299,7 +335,8 @@ class ChangeAdvertisingSlotStatusUseCase:
 # ── CampaignPlacement ────────────────────────────────────────────────────────
 
 class AssignCampaignPlacementUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._campaigns = SqliteContentCampaignRepository(connection)
         self._slots = SqliteAdvertisingSlotRepository(connection)
@@ -308,6 +345,7 @@ class AssignCampaignPlacementUseCase:
     def execute(
         self, *, campaign_id: str, slot_id: str, assigned_by_user_id: str | None = None,
     ) -> CampaignPlacement:
+        self._authz.require(ConfiguracionPermissions.PANTALLA_CLIENTE_PUBLICIDAD_GESTIONAR, claimed_actor=assigned_by_user_id)
         campaign = self._campaigns.get(campaign_id)
         if campaign is None:
             raise CustomerDisplayNotFoundError(f"Campaña {campaign_id} no encontrada")
@@ -327,11 +365,13 @@ class AssignCampaignPlacementUseCase:
 
 
 class UnassignCampaignPlacementUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._placements = SqliteCampaignPlacementRepository(connection)
 
     def execute(self, *, placement_id: str) -> CampaignPlacement:
+        self._authz.require(ConfiguracionPermissions.PANTALLA_CLIENTE_PUBLICIDAD_GESTIONAR)
         placement = self._placements.get(placement_id)
         if placement is None:
             raise CustomerDisplayNotFoundError(f"Asignación {placement_id} no encontrada")

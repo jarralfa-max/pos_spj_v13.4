@@ -31,6 +31,9 @@ from backend.infrastructure.db.repositories.device_management.device_test_result
 )
 from backend.infrastructure.printing import routed_printer
 from backend.infrastructure.printing.diagnostic_page_renderer import render_diagnostic_page
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class DeviceTestType(str, Enum):
@@ -41,12 +44,14 @@ class DeviceTestType(str, Enum):
 class TestDeviceUseCase:
     __test__ = False  # no es una prueba de pytest pese al nombre
 
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._results = SqliteDeviceTestResultRepository(connection)
 
     def execute(self, *, device_id: str, test_type: DeviceTestType | str,
                 actor_user_id: str | None = None) -> DeviceTestResult:
+        self._authz.require(ConfiguracionPermissions.DISPOSITIVOS_PROBAR, claimed_actor=actor_user_id)
         test_type = DeviceTestType(test_type)
         try:
             device, profile = routed_printer.load_device(

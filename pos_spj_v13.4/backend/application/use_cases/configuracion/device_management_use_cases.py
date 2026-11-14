@@ -46,6 +46,9 @@ from backend.infrastructure.db.repositories.device_management.device_profile_rep
     SqliteDeviceProfileRepository,
 )
 from backend.infrastructure.db.repositories.device_management.device_repository import SqliteDeviceRepository
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class DeviceStatusAction(str, Enum):
@@ -54,6 +57,17 @@ class DeviceStatusAction(str, Enum):
     BLOCK = "BLOCK"
     UNBLOCK = "UNBLOCK"
     RETIRE = "RETIRE"
+
+
+#: Permiso por acción. ÚNICA fuente: la verifica el caso de uso
+#: (SDLC-ARQ-PERM-001) y el presentador la importa para su mensaje previo.
+DEVICE_STATUS_PERMISSIONS = {
+    DeviceStatusAction.ACTIVATE: ConfiguracionPermissions.DISPOSITIVOS_EDITAR,
+    DeviceStatusAction.DEACTIVATE: ConfiguracionPermissions.DISPOSITIVOS_EDITAR,
+    DeviceStatusAction.UNBLOCK: ConfiguracionPermissions.DISPOSITIVOS_EDITAR,
+    DeviceStatusAction.BLOCK: ConfiguracionPermissions.DISPOSITIVOS_DESHABILITAR,
+    DeviceStatusAction.RETIRE: ConfiguracionPermissions.DISPOSITIVOS_DESHABILITAR,
+}
 
 
 class RegisterDeviceProfileUseCase:
@@ -86,7 +100,8 @@ class RegisterDeviceProfileUseCase:
     not deterministic, so `payment_capabilities` is the one capability
     input this use case actually accepts from the caller."""
 
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._profiles = SqliteDeviceProfileRepository(connection)
 
@@ -96,6 +111,7 @@ class RegisterDeviceProfileUseCase:
         host: str = "", port: int | None = None, paper_profile: str = "", protocol: str = "",
         driver_name: str = "",
     ) -> DeviceProfile:
+        self._authz.require(ConfiguracionPermissions.DISPOSITIVOS_CREAR)
         device_type = DeviceType(device_type)
         if device_type in CASH_REGISTER_OWNED_DEVICE_TYPES:
             raise DeviceInvalidValueError(
@@ -139,7 +155,8 @@ class RegisterDeviceProfileUseCase:
 
 
 class RegisterDeviceUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._devices = SqliteDeviceRepository(connection)
         self._profiles = SqliteDeviceProfileRepository(connection)
@@ -148,6 +165,7 @@ class RegisterDeviceUseCase:
         self, *, branch_id: str, profile_id: str, code: str, name: str, hardware_identifier: str = "",
         notes: str = "",
     ) -> Device:
+        self._authz.require(ConfiguracionPermissions.DISPOSITIVOS_CREAR)
         if self._profiles.get(profile_id) is None:
             raise DeviceProfileNotFoundError(f"Perfil de dispositivo {profile_id} no encontrado")
         identifier_vo = DeviceIdentifier.create(hardware_identifier) if hardware_identifier.strip() else None
@@ -161,11 +179,13 @@ class RegisterDeviceUseCase:
 
 
 class UpdateDeviceUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._devices = SqliteDeviceRepository(connection)
 
     def execute(self, *, device_id: str, name: str, notes: str) -> Device:
+        self._authz.require(ConfiguracionPermissions.DISPOSITIVOS_EDITAR)
         device = self._devices.get(device_id)
         if device is None:
             raise DeviceNotFoundError(f"Dispositivo {device_id} no encontrado")
@@ -177,11 +197,13 @@ class UpdateDeviceUseCase:
 
 
 class ChangeDeviceStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._devices = SqliteDeviceRepository(connection)
 
     def execute(self, *, device_id: str, action: DeviceStatusAction, reason: str = "") -> Device:
+        self._authz.require_mapped(DEVICE_STATUS_PERMISSIONS, action)
         device = self._devices.get(device_id)
         if device is None:
             raise DeviceNotFoundError(f"Dispositivo {device_id} no encontrado")
@@ -211,13 +233,15 @@ class SetDeviceWindowsPrinterUseCase:
     PDF»). Sólo se aceptan nombres de impresoras realmente instaladas.
     """
 
-    def __init__(self, connection, installed_printers=None) -> None:
+    def __init__(self, connection, installed_printers=None, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._devices = SqliteDeviceRepository(connection)
         self._profiles = SqliteDeviceProfileRepository(connection)
         self._installed = installed_printers
 
     def execute(self, *, device_id: str, printer_name: str):
+        self._authz.require(ConfiguracionPermissions.DISPOSITIVOS_EDITAR)
         from backend.domain.device_management.enums import ConnectionType
         from backend.infrastructure.printing.transport import installed_windows_printers
 

@@ -87,6 +87,10 @@ def conn():
     for branch_id, name in (("br-1", "Sucursal Uno"), ("br-2", "Sucursal Dos"),
                             ("br-3", "Sucursal Sin Almacen")):
         c.execute("INSERT INTO sucursales VALUES (?,?,1)", (branch_id, name))
+    # `rol`: el alcance lo resuelve `AccessScopeResolver`, igual que la sesión
+    # (SDLC-ARQ-PERM-003); un usuario sin rol no alcanza nada.
+    c.execute("CREATE TABLE usuarios (id TEXT PRIMARY KEY, sucursal_id TEXT, rol TEXT)")
+    c.execute("INSERT INTO usuarios VALUES ('user-1', NULL, 'compras')")
     c.execute("CREATE TABLE usuarios_sucursales (usuario_id TEXT, sucursal_id TEXT)")
     for branch_id in ("br-1", "br-2", "br-3"):
         c.execute("INSERT INTO usuarios_sucursales VALUES ('user-1', ?)", (branch_id,))

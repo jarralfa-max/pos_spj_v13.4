@@ -17,6 +17,9 @@ from __future__ import annotations
 import io
 from dataclasses import dataclass, field
 
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 from backend.domain.document_output.exceptions import DocumentInvalidValueError
 from backend.domain.document_output.ticket_layout import layout_for_document_type, parse
 
@@ -30,7 +33,10 @@ class TicketPreview:
 
 
 class TicketDesignerService:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        # SDLC-ARQ-PERM-001: la prueba de impresión se autoriza aquí; las
+        # escrituras de logos, en sus casos de uso, que reciben este autorizador.
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
 
     # ── diseño ───────────────────────────────────────────────────────────
@@ -67,6 +73,7 @@ class TicketDesignerService:
     def print_test(self, layout_json: str, *, document_type: str, branch_id: str | None,
                    workstation_id: str | None = None) -> list[str]:
         """Lanza `ReceiptPrintFailedError` con el motivo si no se pudo imprimir."""
+        self._authz.require(ConfiguracionPermissions.DOCUMENTOS_PLANTILLA_EDITAR)
         from backend.infrastructure.hardware.sales_ticket_printer import SalesTicketPrinter
 
         parse(layout_json)
@@ -89,7 +96,7 @@ class TicketDesignerService:
         from backend.application.use_cases.configuracion.branding_use_cases import (
             ImportLogoUseCase,
         )
-        return ImportLogoUseCase(self._conn).execute(
+        return ImportLogoUseCase(self._conn, authorization=self._authz).execute(
             source_path=source_path, remove_background=remove_background, tolerance=tolerance,
             actor_user_id=actor_user_id)
 
@@ -97,14 +104,14 @@ class TicketDesignerService:
         from backend.application.use_cases.configuracion.branding_use_cases import (
             SetCompanyLogoUseCase,
         )
-        SetCompanyLogoUseCase(self._conn).execute(asset_id=asset_id)
+        SetCompanyLogoUseCase(self._conn, authorization=self._authz).execute(asset_id=asset_id)
 
     def set_branch_logo(self, branch_id: str, asset_id: str | None,
                         actor_user_id: str = "") -> None:
         from backend.application.use_cases.configuracion.branding_use_cases import (
             SetBranchLogoUseCase,
         )
-        SetBranchLogoUseCase(self._conn).execute(branch_id=branch_id, asset_id=asset_id,
+        SetBranchLogoUseCase(self._conn, authorization=self._authz).execute(branch_id=branch_id, asset_id=asset_id,
                                                  actor_user_id=actor_user_id)
 
     def logo_for(self, branch_id: str | None) -> tuple[str | None, str]:

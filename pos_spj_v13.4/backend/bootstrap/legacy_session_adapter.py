@@ -155,13 +155,6 @@ class LegacySessionAdapter:
         return self._context.is_admin()
 
     @property
-    def es_gerente(self) -> bool:
-        return any(
-            role.lower() in ("admin", "superadmin", "gerente", "gerente_rh")
-            for role in self._context.roles
-        )
-
-    @property
     def assigned_branch_ids(self) -> frozenset:
         """Sucursales asignadas, el nombre que LEEN los contextos de ejecución.
 

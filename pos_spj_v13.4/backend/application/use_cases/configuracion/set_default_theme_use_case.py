@@ -17,14 +17,19 @@ from backend.domain.appearance.entities.theme import Theme
 from backend.domain.appearance.exceptions import ThemeNotFoundError
 from backend.domain.appearance.policies.theme_default_policy import assert_can_set_default
 from backend.infrastructure.db.repositories.appearance.theme_repository import SqliteThemeRepository
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class SetDefaultThemeUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._themes = SqliteThemeRepository(connection)
 
     def execute(self, *, theme_id: str) -> Theme:
+        self._authz.require(ConfiguracionPermissions.TEMA_ACTIVAR)
         theme = self._themes.get(theme_id)
         if theme is None:
             raise ThemeNotFoundError(f"Tema {theme_id} no encontrado")
