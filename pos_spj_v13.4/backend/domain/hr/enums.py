@@ -117,6 +117,12 @@ DEDUCTION_CONCEPTS = frozenset({
     PayrollConcept.SOCIAL_SECURITY,
 })
 
+#: Sueldo no devengado: reduce el gasto de sueldos; nadie lo entera a un tercero.
+UNEARNED_CONCEPTS = frozenset({
+    PayrollConcept.ABSENCE_DEDUCTION,
+    PayrollConcept.LATE_DEDUCTION,
+})
+
 #: Percepciones que RR. HH. captura y aprueba (bonos, comisiones, ajustes).
 CAPTURABLE_PERCEPTIONS = frozenset({
     PayrollConcept.BONUS, PayrollConcept.COMMISSION, PayrollConcept.ADJUSTMENT,

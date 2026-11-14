@@ -63,6 +63,7 @@ class SaleRepository(SalesRepositoryBase):
                 suspended_workstation_id, inventory_reservation_id
             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(id) DO UPDATE SET
+                cashier_user_id=excluded.cashier_user_id,
                 status=excluded.status,
                 sale_number=excluded.sale_number,
                 workstation_id=excluded.workstation_id,
@@ -211,7 +212,8 @@ class SaleRepository(SalesRepositoryBase):
         if workstation_id is not None:
             return self._scalar(
                 "SELECT COUNT(*) FROM sales WHERE status='SUSPENDED' AND branch_id=?"
-                " AND suspended_workstation_id=?", (branch_id, workstation_id), default=0)
+                " AND (suspended_workstation_id=? OR suspended_workstation_id IS NULL)",
+                (branch_id, workstation_id), default=0)
         return self._scalar(
             "SELECT COUNT(*) FROM sales WHERE status='SUSPENDED' AND branch_id=?",
             (branch_id,), default=0)
@@ -234,8 +236,8 @@ class SaleRepository(SalesRepositoryBase):
         if workstation_id is not None:
             rows = self._query(
                 "SELECT * FROM sales WHERE status='SUSPENDED' AND branch_id=?"
-                " AND suspended_workstation_id=? ORDER BY suspended_at",
-                (branch_id, workstation_id))
+                " AND (suspended_workstation_id=? OR suspended_workstation_id IS NULL)"
+                " ORDER BY suspended_at", (branch_id, workstation_id))
         else:
             rows = self._query(
                 "SELECT * FROM sales WHERE status='SUSPENDED' AND branch_id=?"

@@ -195,6 +195,8 @@ SCHEDULED_UPDATE_INTERVAL_MS = 60 * 1000
 #: Auditoría de Caja CJA-04 (2026-10-16): reintento de lo que Caja no pudo
 #: entregar a Finanzas (Corte Z, entrega de valores).
 CASH_OUTBOX_INTERVAL_MS = 2 * 60 * 1000
+#: SDLC-HR-002: reintento del asiento de nómina (antes sólo al pagar y al arrancar).
+HR_OUTBOX_INTERVAL_MS = 2 * 60 * 1000
 #: FIN-ERP (2026-10-22): merma valuada hacia el mayor, vencimientos de CxC/CxP
 #: y entrega del finance_outbox.
 FINANCE_CYCLE_INTERVAL_MS = 5 * 60 * 1000
@@ -252,6 +254,11 @@ def _build_background_services(*, context: ApplicationContext, connection):
     supervisor.bind("cash_register.outbox", PeriodicTaskService(
         _cash_outbox_tick(connection), interval_ms=CASH_OUTBOX_INTERVAL_MS,
         name="cola de Caja a Finanzas"))
+    registry.register(BackgroundServiceDescriptor(
+        "hr.outbox", "Entrega de nómina a Finanzas", module_id="hr"))
+    supervisor.bind("hr.outbox", PeriodicTaskService(
+        _hr_outbox_tick(connection), interval_ms=HR_OUTBOX_INTERVAL_MS,
+        name="cola de RR. HH. a Finanzas"))
     # Auditoría Fidelidad 968e0bc FID-10: ventas pendientes hacia Fidelidad y
     # Finanzas se reintentan solas (antes, hasta la siguiente operación del POS).
     registry.register(BackgroundServiceDescriptor(
@@ -260,6 +267,20 @@ def _build_background_services(*, context: ApplicationContext, connection):
     supervisor.bind("loyalty.sales_events", PeriodicTaskService(
         _loyalty_sales_tick(connection), interval_ms=LOYALTY_SALES_INTERVAL_MS,
         name="ventas a Fidelidad"))
+    # SDLC-ORD-001: cobros y liquidaciones de repartidor hacia Finanzas.
+    registry.register(BackgroundServiceDescriptor(
+        "orders_delivery.outbox", "Entrega de Pedidos a Finanzas",
+        module_id="orders_delivery"))
+    supervisor.bind("orders_delivery.outbox", PeriodicTaskService(
+        _orders_delivery_outbox_tick(connection), interval_ms=CASH_OUTBOX_INTERVAL_MS,
+        name="cola de Pedidos a Finanzas"))
+    # SDLC-ORD-006: avisos al cliente de Pedidos que WhatsApp no recibió.
+    registry.register(BackgroundServiceDescriptor(
+        "orders_delivery.customer_notices", "Reintento de avisos de Pedidos por WhatsApp",
+        module_id="orders_delivery"))
+    supervisor.bind("orders_delivery.customer_notices", PeriodicTaskService(
+        _orders_delivery_notices_tick(connection), interval_ms=PRODUCTS_WHATSAPP_OUTBOX_INTERVAL_MS,
+        name="avisos de Pedidos por WhatsApp"))
     registry.register(BackgroundServiceDescriptor(
         "finance.cycle", "Merma, vencimientos y eventos de Finanzas", module_id="finance"))
     supervisor.bind("finance.cycle", PeriodicTaskService(
@@ -282,6 +303,25 @@ def _cash_outbox_tick(connection):
         from backend.application.cash_register.finance_wiring import dispatch_cash_outbox
         from backend.shared.events.application_bus import get_bus
         return dispatch_cash_outbox(connection, get_bus())
+    return tick
+
+
+def _orders_delivery_outbox_tick(connection):
+    """Reintenta la cola de Pedidos (idempotente por evento)."""
+    def tick():
+        from backend.bootstrap.wiring.event_wiring import orders_delivery_tick
+        from backend.shared.events.application_bus import get_bus
+        return orders_delivery_tick(connection, get_bus())
+    return tick
+
+
+def _orders_delivery_notices_tick(connection):
+    """Reintenta los avisos al cliente de Pedidos (idempotente por mensaje)."""
+    def tick():
+        from backend.infrastructure.integrations.orders_delivery_notice_outbox import (
+            OrdersDeliveryNoticeOutbox,
+        )
+        return OrdersDeliveryNoticeOutbox(connection).drain()
     return tick
 
 

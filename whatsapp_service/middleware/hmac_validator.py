@@ -3,7 +3,13 @@
 from __future__ import annotations
 import hashlib
 import hmac
+import logging
 import time
+
+logger = logging.getLogger("wa.hmac")
+
+# Un `ts` actual en segundos tiene 10 dígitos; en milisegundos, 13.
+_MP_TS_MILLISECONDS_FROM = 10 ** 12
 
 
 def verify_signature(body: bytes, sig_header: str, app_secret: str) -> bool:
@@ -26,7 +32,7 @@ def verify_mp_signature(
     Per MercadoPago's documented validation (Payments event webhook,
     `action` in {"payment.created", "payment.updated"}):
 
-    - `X-Signature` carries `ts=<millis>,v1=<hex hmac>` (comma-separated).
+    - `X-Signature` carries `ts=<timestamp>,v1=<hex hmac>` (comma-separated).
     - `data_id` is the `data.id` **query-string** parameter of the
       notification URL (lower-cased), not the JSON body's `data.id`.
     - manifest = f"id:{data_id};request-id:{x_request_id};ts:{ts};"
@@ -35,7 +41,9 @@ def verify_mp_signature(
     WA-1 replay protection (whatsapp_security_audit.md, Hallazgo adicional
     §2 / S9): a validly-signed-but-old `ts` (a captured-and-replayed request)
     is now rejected if it falls outside `max_age_seconds` of the server
-    clock. `ts` is milliseconds per MercadoPago's own manifest format above.
+    clock. SDLC-WA-002: the docs show a 10-digit `ts` without declaring its
+    unit, so the unit is inferred from the magnitude: below 10**12 is seconds,
+    otherwise milliseconds. Any other scale falls outside the window (closed).
     Only applied here — the Meta webhook's `X-Hub-Signature-256` scheme has
     no timestamp in the signed payload, so there's no sound way to bound
     replay at the signature layer for it (see webhook/whatsapp.py comment).
@@ -48,18 +56,26 @@ def verify_mp_signature(
     ts = parts.get("ts", "").strip()
     v1 = parts.get("v1", "").strip()
     if not ts or not v1:
+        logger.warning("MercadoPago rechazado: X-Signature incompleto")
         return False
     manifest = f"id:{(data_id or '').lower()};request-id:{x_request_id or ''};ts:{ts};"
     expected = hmac.new(secret.encode(), manifest.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, v1):
+        logger.warning("MercadoPago rechazado: firma no coincide")
         return False
 
     try:
-        ts_ms = int(ts)
+        ts_value = int(ts)
     except ValueError:
+        logger.warning("MercadoPago rechazado: ts no numérico")
         return False
-    now_ms = time.time_ns() // 1_000_000
-    if abs(now_ms - ts_ms) > max_age_seconds * 1000:
+    ts_ms = ts_value if ts_value >= _MP_TS_MILLISECONDS_FROM else ts_value * 1000
+    age_ms = abs((time.time_ns() // 1_000_000) - ts_ms)
+    if age_ms > max_age_seconds * 1000:
+        logger.warning(
+            "MercadoPago rechazado: ts fuera de ventana (edad=%ds, máx=%ds)",
+            age_ms // 1000, max_age_seconds,
+        )
         return False
 
     return True

@@ -47,8 +47,8 @@ def conn():
     c.row_factory = sqlite3.Row
     c.execute("CREATE TABLE sucursales (id TEXT PRIMARY KEY, nombre TEXT, activa INTEGER)")
     c.execute("INSERT INTO sucursales VALUES ('b1','Matriz',1), ('b2','San Bartolo',1)")
-    c.execute("CREATE TABLE usuarios (id TEXT PRIMARY KEY, sucursal_id TEXT)")
-    c.execute("INSERT INTO usuarios VALUES ('u1','b1')")
+    c.execute("CREATE TABLE usuarios (id TEXT PRIMARY KEY, sucursal_id TEXT, rol TEXT)")
+    c.execute("INSERT INTO usuarios VALUES ('u1','b1','cajero')")
     c.commit()
     yield c
     c.close()

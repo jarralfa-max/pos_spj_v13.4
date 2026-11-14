@@ -58,8 +58,11 @@ class _Memoria:
     def __init__(self, hechos):
         self.hechos, self.registro, self.unidades = list(hechos), {}, {}
 
-    def pending_facts(self, *, projector, limit):
+    def pending_facts(self, *, projector, limit, retry_errors=False):
         return [h for h in self.hechos if (h["event_id"], projector) not in self.registro][:limit]
+
+    def last_projected_event(self, kind, key):
+        return None     # los hechos de esta batería no traen versión de agregado
 
     @contextmanager
     def savepoint(self):

@@ -169,6 +169,15 @@ def wire_cross_context_events(connection) -> dict:
     return summary
 
 
+def orders_delivery_tick(connection, bus) -> dict:
+    """Entrega `orders_delivery_outbox` (idempotente: Finanzas lo es por evento y
+    documento). Lo usa el arranque y el ciclo periódico del shell."""
+    from backend.application.orders_delivery.integrations.orders_delivery_outbox_dispatcher import (
+        dispatch_orders_delivery_outbox,
+    )
+    return dispatch_orders_delivery_outbox(connection, bus)
+
+
 def _wire_loyalty(bus, connection) -> dict:
     from backend.application.loyalty.integrations.credit_collection import (
         wire_loyalty_finance,

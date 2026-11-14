@@ -8,6 +8,9 @@ Revalida todo aunque la pantalla ya lo filtre (§57):
 4. Sin escalamiento: nadie concede lo que no tiene (salvo dueño y administradores).
 5. Un usuario con rol de acceso total (administradores y el dueño de la
    instalación) no lleva excepciones.
+6. El alcance de quien actúa cubre al usuario y a la sucursal de la excepción;
+   sin sucursal, todo lo que el usuario alcanza (SDLC-ARQ-PERM-002). El rechazo
+   queda auditado con su motivo.
 Cada cambio queda auditado con el antes y el después, en la misma transacción.
 
 Auditoría de permisos 968e0bc:
@@ -24,6 +27,7 @@ import json
 from backend.application.commands.settings_commands import SaveUserPermissionsCommand
 from backend.application.configuracion.permissions import ConfiguracionPermissions
 from backend.application.dto.use_case_result import UseCaseResult
+from backend.application.security.grant_scope import GrantScope
 from backend.application.security.permission_query_service import (
     GLOBAL_WILDCARD,
     PermissionQueryService,
@@ -96,6 +100,7 @@ class SaveUserPermissionsUseCase(BaseUseCase[SaveUserPermissionsCommand]):
             return UseCaseResult(success=True, operation_id=command.operation_id,
                                  entity_id=user_id, message="Sin cambios.", data={"changes": {}})
         self._guard_escalation(actor, [c for c, s in changes.items() if s == GRANT])
+        self._guard_scope(command, actor, user_id, user_name, scope)
 
         antes = {c: _state_of(current, c) for c in changes}
         try:
@@ -156,6 +161,30 @@ class SaveUserPermissionsUseCase(BaseUseCase[SaveUserPermissionsCommand]):
             raise ConfigurationPermissionDeniedError(
                 "No puedes conceder permisos que tú no tienes: " + ", ".join(ajenos[:5])
                 + ("…" if len(ajenos) > 5 else ""))
+
+    def _guard_scope(self, command: SaveUserPermissionsCommand, actor: str, user_id: str,
+                     user_name: str, scope: str) -> None:
+        alcance = GrantScope(self._conn)
+        if scope:
+            motivo = (None if alcance.covers_unit(actor, scope)
+                      else "Esa sucursal está fuera de tu alcance.")
+            if motivo is None and not alcance.covers_user(actor, user_id):
+                motivo = f"{user_name} está fuera de tu alcance."
+        else:
+            motivo = (None if alcance.covers_all_of_user(actor, user_id) else
+                      f"{user_name} opera en sucursales fuera de tu alcance: "
+                      "indica la sucursal de la excepción.")
+        if motivo is None:
+            return
+        self._audit.record(
+            entity_type="user_permissions", entity_id=user_id,
+            action="ACTUALIZAR_PERMISOS_DENEGADO", user_id=actor,
+            operation_id=command.operation_id,
+            after_json=json.dumps({"usuario": user_name, "sucursal_id": scope or None},
+                                  ensure_ascii=False),
+            reason=motivo, branch_id=command.branch_id or None)
+        self._conn.commit()
+        raise ConfigurationPermissionDeniedError(motivo)
 
 
 def _state_of(overrides: dict, code: str) -> str:

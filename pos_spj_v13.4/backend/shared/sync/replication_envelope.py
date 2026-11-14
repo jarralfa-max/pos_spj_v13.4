@@ -287,7 +287,8 @@ def envelope_from_outbox_event(event: Mapping[str, Any], *, aggregate_type: str,
 class ReplicationOutcome(str, Enum):
     #: Aplicado ahora.
     ACCEPTED = "ACCEPTED"
-    #: Ya estaba aplicado con la MISMA huella: la estación lo da por confirmado.
+    #: Ya estaba APLICADO con la misma huella: la estación lo da por confirmado.
+    #: Un hecho guardado en conflicto nunca responde esto, sino CONFLICT.
     DUPLICATE = "DUPLICATE"
     #: Contradice el estado central (versión, huella distinta, regla de negocio
     #: compartida). Queda visible para resolverse; nunca se pisa.

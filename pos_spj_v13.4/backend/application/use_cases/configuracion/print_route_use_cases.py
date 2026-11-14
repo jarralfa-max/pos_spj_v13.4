@@ -26,6 +26,9 @@ from backend.domain.document_output.enums import LOYALTY_OWNED_DOCUMENT_TYPES, D
 from backend.infrastructure.db.repositories.device_management.print_route_repository import (
     SqlitePrintRouteRepository,
 )
+from backend.application.configuracion.authorization import ConfiguracionActionAuthorizer
+from backend.application.configuracion.permissions import ConfiguracionPermissions
+from backend.application.security.unwired_policy import unwired
 
 
 class PrintRouteStatusAction(str, Enum):
@@ -63,7 +66,8 @@ def _ensure_resolvable(document_type: str, module: str | None, channel: str | No
 
 
 class CreatePrintRouteUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._routes = SqlitePrintRouteRepository(connection)
 
@@ -72,6 +76,7 @@ class CreatePrintRouteUseCase:
         branch_id: str | None = None, workstation_id: str | None = None, module: str | None = None,
         channel: str | None = None,
     ) -> PrintRoute:
+        self._authz.require(ConfiguracionPermissions.DISPOSITIVOS_RUTAS_GESTIONAR)
         normalized_type = document_type.strip().upper()
         branch_id = branch_id or None
         workstation_id = workstation_id or None
@@ -104,13 +109,15 @@ class CreatePrintRouteUseCase:
 
 
 class UpdatePrintRouteUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._routes = SqlitePrintRouteRepository(connection)
 
     def execute(
         self, *, route_id: str, primary_device_id: str, fallback_device_ids: tuple[str, ...] = (),
     ) -> PrintRoute:
+        self._authz.require(ConfiguracionPermissions.DISPOSITIVOS_RUTAS_GESTIONAR)
         route = self._routes.get(route_id)
         if route is None:
             raise PrintRouteNotFoundError(f"Ruta {route_id} no encontrada")
@@ -129,11 +136,13 @@ class UpdatePrintRouteUseCase:
 
 
 class ChangePrintRouteStatusUseCase:
-    def __init__(self, connection) -> None:
+    def __init__(self, connection, *, authorization=None) -> None:
+        self._authz = authorization or unwired(ConfiguracionActionAuthorizer)
         self._conn = connection
         self._routes = SqlitePrintRouteRepository(connection)
 
     def execute(self, *, route_id: str, action: PrintRouteStatusAction) -> PrintRoute:
+        self._authz.require(ConfiguracionPermissions.DISPOSITIVOS_RUTAS_GESTIONAR)
         route = self._routes.get(route_id)
         if route is None:
             raise PrintRouteNotFoundError(f"Ruta {route_id} no encontrada")

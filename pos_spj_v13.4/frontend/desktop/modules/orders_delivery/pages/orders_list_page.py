@@ -52,9 +52,9 @@ class OrdersListPage(WorklistPage):
         self.header.add_action(new_order_btn)
 
     def _new_order(self) -> None:
-        dialog = NewOrderDialog(self)
+        dialog = NewOrderDialog(self._presenter.new_order_presenter(), self)
         if dialog.exec_():
-            self.notify(*self._presenter.create_order(dialog.data()))
+            self.notify(True, dialog.message)
 
     def _load(self) -> None:
         model = self._presenter.orders(

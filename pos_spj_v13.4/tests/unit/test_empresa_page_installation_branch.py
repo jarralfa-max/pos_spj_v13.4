@@ -57,10 +57,10 @@ def _all_permissions() -> set:
     return {p for p in vars(ConfiguracionPermissions).values() if isinstance(p, str)}
 
 
-def _view(app, conn):
+def _view(app, conn, permissions=None):
     class _FakeContainer:
         db = conn
-        session = _FakeSession(_all_permissions())
+        session = _FakeSession(_all_permissions() if permissions is None else permissions)
 
     return build_configuracion_view(connection=_FakeContainer.db, session_context=_FakeContainer.session)
 

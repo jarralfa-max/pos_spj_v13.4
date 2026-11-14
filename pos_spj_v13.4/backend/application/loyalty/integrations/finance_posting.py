@@ -2,11 +2,11 @@
 de sorteo (decisión del usuario, 2026-10-03: "contabiliza los puntos, cupones,
 vales, boletos y cualquier programa de fidelidad").
 
-Antes de esto NINGÚN movimiento de Fidelidad llegaba a contabilidad: los
-manejadores de Finanzas existían (`LoyaltyPointsIssuedHandler`, …) y nadie los
-llamaba, y varias vías (bonos de cumpleaños, retos, referidos) ni siquiera
-emitían el evento. Por eso el puente lee los LIBROS, no los eventos: todo lo
-que mueve un saldo pasa por el libro, se emita o no un evento.
+Antes de esto NINGÚN movimiento de Fidelidad llegaba a contabilidad, y varias
+vías (bonos de cumpleaños, retos, referidos) ni siquiera emitían el evento. Por
+eso el puente lee los LIBROS, no los eventos: todo lo que mueve un saldo pasa por
+el libro, se emita o no un evento. Es la ÚNICA implementación de estas reglas
+(SDLC-FIN-001 retiró los manejadores por evento que nadie conectaba).
 
 Reglas contables (las cuentas salen de los perfiles contables, nunca de aquí):
 

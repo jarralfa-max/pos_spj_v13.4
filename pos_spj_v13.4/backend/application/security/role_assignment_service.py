@@ -11,7 +11,9 @@ Reglas contra el escalamiento (las mismas que ya rigen el rol principal):
 * nadie se otorga ni se revoca roles a sí mismo;
 * el rol de dueño no se otorga por asignación (es el rol principal de UNA cuenta);
 * sólo quien tiene acceso total otorga o revoca un rol de acceso total;
-* quien no tiene acceso total sólo otorga roles cuyos permisos ya tiene él.
+* quien no tiene acceso total sólo otorga roles cuyos permisos ya tiene él;
+* su alcance tiene que cubrir el ámbito y al usuario destino (SDLC-ARQ-PERM-002),
+  al otorgar y al revocar; el rechazo queda en `audit_logs` con su motivo.
 
 El ámbito tiene que existir: `COMPANY` es la empresa de esta instalación;
 `ORG_UNIT`, una unidad activa de esa empresa.
@@ -27,6 +29,7 @@ from backend.application.organization.org_structure_service import (
     OrgStructureQueryService,
     resolve_company_id,
 )
+from backend.application.security.grant_scope import GrantScope
 from backend.application.security.permission_query_service import PermissionQueryService
 from backend.domain.organization.org_unit import OrgUnitStatus
 from backend.domain.organization.role_assignment import (
@@ -46,6 +49,14 @@ from backend.security.permissions.principals import is_full_access_role, is_owne
 from backend.shared.ids import new_uuid
 
 AUDIT_ENTITY = "user_role_assignment"
+
+
+class AssignmentOutOfScopeError(RoleAssignmentError):
+    """El alcance de quien actúa no cubre el ámbito o al usuario destino."""
+
+    def __init__(self, message: str, assignment: RoleAssignment) -> None:
+        super().__init__(message)
+        self.assignment = assignment
 
 
 class RoleAssignmentService:
@@ -97,36 +108,46 @@ class RoleAssignmentService:
             user_id=user_id, role_id=role_id, scope_type=scope_type, scope_id=scope_id,
             reason=reason, valid_from=valid_from, valid_until=valid_until,
             granted_by=actor or None)
-        with RoleAssignmentUnitOfWork(self._conn) as uow:
-            repo = uow.assignments
-            if not repo.available():
-                raise RoleAssignmentError("Falta la migración 353 (asignaciones de rol)")
-            if not repo.user_exists(asignacion.user_id):
-                raise RoleAssignmentError("El usuario no existe")
-            rol = repo.role(asignacion.role_id)
-            if rol is None:
-                raise RoleAssignmentError("El rol no existe")
-            self._check_escalation(actor, asignacion.user_id, rol["nombre"])
-            self._check_scope(asignacion)
-            if repo.active_duplicate(asignacion):
-                raise RoleAssignmentError(f"Ya tiene el rol «{rol['nombre']}» en ese ámbito")
-            repo.save(asignacion)
-            self._after(actor, "ROLE_ASSIGNMENT_GRANTED", asignacion, rol["nombre"],
-                        asignacion.reason)
+        try:
+            with RoleAssignmentUnitOfWork(self._conn) as uow:
+                repo = uow.assignments
+                if not repo.available():
+                    raise RoleAssignmentError("Falta la migración 353 (asignaciones de rol)")
+                if not repo.user_exists(asignacion.user_id):
+                    raise RoleAssignmentError("El usuario no existe")
+                rol = repo.role(asignacion.role_id)
+                if rol is None:
+                    raise RoleAssignmentError("El rol no existe")
+                self._check_escalation(actor, asignacion.user_id, rol["nombre"])
+                self._check_scope(asignacion)
+                self._check_actor_reach(actor, asignacion)
+                if repo.active_duplicate(asignacion):
+                    raise RoleAssignmentError(f"Ya tiene el rol «{rol['nombre']}» en ese ámbito")
+                repo.save(asignacion)
+                self._after(actor, "ROLE_ASSIGNMENT_GRANTED", asignacion, rol["nombre"],
+                            asignacion.reason)
+        except AssignmentOutOfScopeError as exc:
+            self._record_denied(actor, exc)
+            raise
         return asignacion
 
     def revoke(self, assignment_id: str, *, reason: str) -> RoleAssignment:
         actor = self._require(P.USUARIOS_ASIGNACIONES)
-        with RoleAssignmentUnitOfWork(self._conn) as uow:
-            asignacion = uow.assignments.get(assignment_id)
-            if asignacion is None:
-                raise RoleAssignmentError("La asignación no existe")
-            rol = uow.assignments.role(asignacion.role_id) or {"nombre": ""}
-            self._check_escalation(actor, asignacion.user_id, rol["nombre"])
-            asignacion.revoke(by=actor or None, reason=reason)
-            uow.assignments.save(asignacion)
-            self._after(actor, "ROLE_ASSIGNMENT_REVOKED", asignacion, rol["nombre"],
-                        asignacion.revoke_reason or "")
+        try:
+            with RoleAssignmentUnitOfWork(self._conn) as uow:
+                asignacion = uow.assignments.get(assignment_id)
+                if asignacion is None:
+                    raise RoleAssignmentError("La asignación no existe")
+                rol = uow.assignments.role(asignacion.role_id) or {"nombre": ""}
+                self._check_escalation(actor, asignacion.user_id, rol["nombre"])
+                self._check_actor_reach(actor, asignacion)
+                asignacion.revoke(by=actor or None, reason=reason)
+                uow.assignments.save(asignacion)
+                self._after(actor, "ROLE_ASSIGNMENT_REVOKED", asignacion, rol["nombre"],
+                            asignacion.revoke_reason or "")
+        except AssignmentOutOfScopeError as exc:
+            self._record_denied(actor, exc)
+            raise
         return asignacion
 
     # ── reglas ───────────────────────────────────────────────────────────
@@ -165,6 +186,27 @@ class RoleAssignmentService:
             raise RoleAssignmentError("La unidad organizacional no existe o no está activa")
         if empresa and unidad.company_id != empresa:
             raise RoleAssignmentError("La unidad es de otra empresa")
+
+    def _check_actor_reach(self, actor: str, a: RoleAssignment) -> None:
+        alcance = GrantScope(self._conn)
+        cubre_ambito = (alcance.covers_company(actor) if a.scope_type is ScopeType.COMPANY
+                        else alcance.covers_unit(actor, a.scope_id))
+        if not cubre_ambito:
+            raise AssignmentOutOfScopeError("Ese ámbito está fuera de su alcance", a)
+        if not alcance.covers_user(actor, a.user_id):
+            raise AssignmentOutOfScopeError("Ese usuario está fuera de su alcance", a)
+
+    def _record_denied(self, actor: str, exc: AssignmentOutOfScopeError) -> None:
+        """La transacción del intento ya se deshizo: el rechazo se anota aparte."""
+        if self._audit is None:
+            return
+        a = exc.assignment
+        self._audit.record(
+            action="ROLE_ASSIGNMENT_DENIED", entity=AUDIT_ENTITY, entity_id=a.id, actor=actor,
+            operation_id=new_uuid(), details=str(exc),
+            after={"user_id": a.user_id, "role_id": a.role_id,
+                   "scope_type": a.scope_type.value, "scope_id": a.scope_id})
+        self._conn.commit()
 
     def _after(self, actor: str, accion: str, a: RoleAssignment, role_name: str,
                motivo: str) -> None:

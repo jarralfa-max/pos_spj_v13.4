@@ -24,6 +24,7 @@ import logging
 import sqlite3
 from datetime import datetime
 from typing import Any, Dict, Iterable, List
+from backend.shared.ids import new_uuid
 
 logger = logging.getLogger("wa.pos_notifier")
 
@@ -227,14 +228,14 @@ class POSNotifier:
         try:
             self.db.execute("""
                 CREATE TABLE IF NOT EXISTS notification_inbox (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    empleado_id INTEGER,
+                    id          TEXT NOT NULL PRIMARY KEY,
+                    empleado_id TEXT,
                     tipo        TEXT    NOT NULL,
                     titulo      TEXT    NOT NULL,
                     cuerpo      TEXT    DEFAULT '',
                     datos       TEXT    DEFAULT '{}',
                     leido       INTEGER DEFAULT 0,
-                    sucursal_id INTEGER DEFAULT 1,
+                    sucursal_id TEXT,
                     created_at  TEXT    DEFAULT (datetime('now')),
                     leido_at    TEXT,
                     dedupe_key  TEXT,
@@ -244,7 +245,7 @@ class POSNotifier:
             self.db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_notification_inbox_dedupe_key ON notification_inbox(dedupe_key) WHERE dedupe_key IS NOT NULL")
             self.db.commit()
         except Exception as exc:
-            logger.debug("ensure notification_inbox falló: %s", exc)
+            logger.error("ensure notification_inbox falló: %s", exc)
 
     def _insert_one_inbox(
         self,
@@ -268,21 +269,23 @@ class POSNotifier:
             if "empleado_id" in cols:
                 self.db.execute("""
                     INSERT INTO notification_inbox
-                        (empleado_id, tipo, titulo, cuerpo, datos, sucursal_id, severity, dedupe_key, leido, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
-                """, (emp.get("id"), tipo, titulo, cuerpo, datos_json, sucursal_id, severity, dedupe_value))
+                        (id, empleado_id, tipo, titulo, cuerpo, datos, sucursal_id, severity, dedupe_key, leido, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+                """, (new_uuid(), emp.get("id"), tipo, titulo, cuerpo, datos_json, sucursal_id, severity, dedupe_value))
             elif "usuario" in cols:
                 self.db.execute("""
                     INSERT INTO notification_inbox
-                        (usuario, tipo, titulo, cuerpo, sucursal_id, severity, dedupe_key, leido, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
-                """, (emp.get("usuario") or emp.get("nombre") or "admin", tipo, titulo, cuerpo, sucursal_id, severity, dedupe_value))
+                        (id, usuario, tipo, titulo, cuerpo, sucursal_id, severity, dedupe_key, leido, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+                """, (new_uuid(), emp.get("usuario") or emp.get("nombre") or "admin", tipo, titulo, cuerpo, sucursal_id, severity, dedupe_value))
             else:
                 logger.warning("notification_inbox sin empleado_id/usuario; no se insertó notificación")
                 return
             self.db.commit()
         except Exception as exc:
-            logger.debug("insert inbox WA falló emp=%s: %s", emp, exc)
+            self.db.rollback()
+            logger.error("No se pudo dejar el aviso de WhatsApp en la bandeja del POS (usuario %s): %s",
+                         emp.get("id") or emp.get("usuario"), exc)
 
     # ── Usuarios destino ──────────────────────────────────────────────────────
 

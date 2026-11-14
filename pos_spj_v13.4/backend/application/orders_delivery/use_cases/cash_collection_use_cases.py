@@ -96,7 +96,10 @@ class RecordCashCollectionUseCase(_OrdersDeliveryBaseUseCase):
                     uow, DeliveryEvents.CASH_COLLECTION_RECORDED,
                     entity_id=collection.delivery_job_id, operation_id=operation_id,
                     branch_id=job.branch_id, actor_user_id=actor_user_id,
-                    collection_id=collection.id, status=collection.status.value)
+                    collection_id=collection.id, status=collection.status.value,
+                    driver_id=collection.driver_id,
+                    payment_method=collection.payment_method.value,
+                    collected_amount=str(collection.collected_amount))
         return OrderResult.ok(
             "Cobro registrado", entity_id=collection.id, operation_id=operation_id,
             status=collection.status.value)

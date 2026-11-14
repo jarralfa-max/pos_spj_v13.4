@@ -97,7 +97,9 @@ def test_un_usuario_desconocido_no_hereda_alcance(conn):
 
 
 # ── resolución del alcance ──────────────────────────────────────────────────
-def test_la_asignacion_gana_sobre_la_sucursal_propia(conn):
+def test_la_asignacion_se_suma_a_la_sucursal_propia(conn):
+    """SDLC-ARQ-PERM-003: el mismo alcance que la sesión. Antes la asignación
+    sustituía a la propia aquí, y en la sesión se sumaba."""
     propia = _sucursal(conn, "Propia")
     asignada = _sucursal(conn, "Asignada")
     usuario = _usuario(conn, "cajero", propia)
@@ -107,7 +109,7 @@ def test_la_asignacion_gana_sobre_la_sucursal_propia(conn):
 
     permitidas = _servicio(conn).allowed_branch_ids(usuario)
 
-    assert set(permitidas) == {asignada}
+    assert set(permitidas) == {propia, asignada}
 
 
 def test_sin_asignaciones_se_usa_la_sucursal_propia(conn):
@@ -150,13 +152,21 @@ def test_el_administrador_entra_por_el_comodin(conn):
 
 
 def test_sin_permiso_inyectado_no_hay_escape_global(conn):
-    """Fallar cerrado: un servicio construido sin código de escape nunca
-    concede alcance global, ni siquiera al administrador."""
+    """Fallar cerrado: sin código de escape, un rol que no es de toda la empresa
+    se queda en su alcance aunque tenga el comodín del módulo."""
     propia = _sucursal(conn, "Propia")
     _sucursal(conn, "Otra")
-    admin = _usuario(conn, "admin", propia)
+    gerente = _usuario(conn, "gerente", propia)
 
-    assert _servicio(conn).allowed_branch_ids(admin) == (propia,)
+    assert _servicio(conn).allowed_branch_ids(gerente) == (propia,)
+
+
+def test_el_administrador_es_de_toda_la_empresa_tambien_sin_permiso_inyectado(conn):
+    """SDLC-ARQ-PERM-003: es lo que ya dice su sesión. Antes este servicio lo
+    dejaba en su sucursal propia y Transferencias le negaba las demás."""
+    admin = _usuario(conn, "admin", _sucursal(conn, "Propia"))
+
+    assert _servicio(conn).allowed_branch_ids(admin) is None
 
 
 # ── degradación y diagnóstico ───────────────────────────────────────────────

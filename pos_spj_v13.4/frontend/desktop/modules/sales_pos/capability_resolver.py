@@ -28,6 +28,7 @@ def resolve_sales_pos_capabilities(can: Callable[[str], bool]) -> SalesPosCapabi
         sale_complete=can(SalesPermissions.SALE_COMPLETE),
         sale_suspend=can(SalesPermissions.SALE_SUSPEND),
         sale_resume=can(SalesPermissions.SALE_RESUME),
+        sale_resume_foreign=can(SalesPermissions.SALE_RESUME_FOREIGN),
         sale_cancel=can(SalesPermissions.SALE_CANCEL),
         sale_return=can(SalesPermissions.RETURN),
         sale_reverse=can(SalesPermissions.REVERSE),

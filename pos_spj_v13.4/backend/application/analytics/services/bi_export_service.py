@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import logging
 import os
+from collections.abc import Mapping
 from datetime import datetime
 
 logger = logging.getLogger("spj.bi.export")
@@ -29,6 +30,12 @@ def _fmt(value, unit) -> str:
 
 
 class BiExportService:
+    def __init__(self, document_colors: Mapping[str, str] | None = None) -> None:
+        """``document_colors`` (header_background, header_text, grid) come from
+        the JUANIS tokens via the UI layer (SDLC-UI-005); this application
+        service holds no palette of its own and falls back to neutral ink."""
+        self._document_colors = dict(document_colors or {})
+
     def export_summary(self, payload: dict, meta: dict, filepath: str,
                        fmt: str = "xlsx") -> str:
         """Exporta el resumen ejecutivo. Devuelve la ruta escrita."""
@@ -153,12 +160,17 @@ class BiExportService:
             f"Periodo: {meta['rango']} · Sucursal: {meta['sucursal']}", styles["Normal"]))
         el.append(Spacer(1, 12))
         tbl = Table(self._kpi_rows(payload), repeatRows=1)
+        palette = self._document_colors
+
+        def color(key, fallback):
+            return colors.HexColor(palette[key]) if palette.get(key) else fallback
+
         tbl.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1E3A5F")),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("BACKGROUND", (0, 0), (-1, 0), color("header_background", colors.black)),
+            ("TEXTCOLOR", (0, 0), (-1, 0), color("header_text", colors.white)),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
             ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
+            ("GRID", (0, 0), (-1, -1), 0.5, color("grid", colors.grey)),
         ]))
         el.append(tbl)
         alerts = payload.get("alerts", [])

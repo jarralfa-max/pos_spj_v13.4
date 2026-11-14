@@ -64,15 +64,17 @@ def test_webhook_invalid_signature_returns_403(monkeypatch):
     assert getattr(resp, "status_code", None) == 403
 
 
-def test_webhook_status_update_is_ignored():
+def test_webhook_status_update_is_ignored(monkeypatch):
     import webhook.whatsapp as wh
+    monkeypatch.setenv("WA_ALLOW_UNSIGNED_WEBHOOKS", "1")
     req = _Req({"entry": [{"changes": [{"value": {"statuses": [{"id": "x", "status": "read"}]}}]}]})
     out = _run(wh.receive_message(req))
     assert out["status"] == "ok"
 
 
-def test_webhook_group_message_is_ignored():
+def test_webhook_group_message_is_ignored(monkeypatch):
     import webhook.whatsapp as wh
+    monkeypatch.setenv("WA_ALLOW_UNSIGNED_WEBHOOKS", "1")
     req = _Req(_text_payload(from_number="12036300@g.us"))
     out = _run(wh.receive_message(req))
     assert out["status"] == "ok"
@@ -80,6 +82,7 @@ def test_webhook_group_message_is_ignored():
 
 def test_webhook_rate_limit_blocks_processing(monkeypatch):
     import webhook.whatsapp as wh
+    monkeypatch.setenv("WA_ALLOW_UNSIGNED_WEBHOOKS", "1")
     wh._conversation_store = SimpleNamespace(
         is_duplicate=lambda _mid: False,
         log_message=lambda *_args, **_kwargs: None,

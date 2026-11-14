@@ -21,6 +21,7 @@ from backend.application.sales.authorization import (
     DenyAllSalesPermissionCheckerForTests,
     SalesAuthorizationPolicy,
 )
+from backend.application.sales.permissions import SalesPermissions
 from backend.application.sales.result import SaleResult
 from backend.application.sales.use_cases.cart_use_cases import (
     AddSaleLineUseCase,
@@ -373,18 +374,21 @@ class TestSuspendResumeCancel:
             max_suspended_sales=5, workstation_id=workstation)
         assert result.success  # 0 currently suspended, under the limit
 
-    def test_resume_denies_cross_user_when_configured(self, conn):
+    def test_resume_denies_cross_user_without_permission(self, conn):
         sale_id, cashier = _active_sale(conn)
         other_cashier = new_uuid()
         SuspendSaleUseCase(_allow_all(), allow_all_inventory()).execute(
             conn, sale_id=sale_id, actor_user_id=cashier, operation_id=new_uuid(),
             max_suspended_sales=5)
 
-        result = ResumeSaleUseCase(_allow_all()).execute(
-            conn, sale_id=sale_id, actor_user_id=other_cashier, operation_id=new_uuid(),
-            allow_cross_user_resume=False)
+        class _WithoutForeignResume(AllowAllSalesPermissionCheckerForTests):
+            def has_permission(self, user_id, permission_code):
+                return permission_code != SalesPermissions.SALE_RESUME_FOREIGN
+
+        result = ResumeSaleUseCase(SalesAuthorizationPolicy(_WithoutForeignResume())).execute(
+            conn, sale_id=sale_id, actor_user_id=other_cashier, operation_id=new_uuid())
         assert not result.success
-        assert result.error_code == "RESUME_NOT_ALLOWED"
+        assert result.error_code == "RESUME_AUTHORIZATION_REQUIRED"
 
     def test_cancel_active_sale(self, conn):
         sale_id, cashier = _active_sale(conn)

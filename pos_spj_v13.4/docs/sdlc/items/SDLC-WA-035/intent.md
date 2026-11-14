@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §45, §46 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-034
 
 ## Problema
@@ -37,4 +37,4 @@ Legal y privacidad: se pueden mandar mensajes a quien pidió no recibirlos; no h
 WA-14 (memoria); CRM-9.
 
 ## Preguntas abiertas
-- ¿Qué mensajes se consideran transaccionales y siguen permitidos tras una baja (pedido listo, pago recibido, ajuste de peso)? ¿Qué palabras exactas cuentan como baja?
+- ¿Qué mensajes se consideran transaccionales y siguen permitidos tras una baja (pedido listo, pago recibido, ajuste de peso)? ¿Qué palabras exactas cuentan como baja? 

@@ -33,6 +33,9 @@ from backend.domain.orders_delivery.policies.catch_weight_adjustment_policy impo
 from backend.infrastructure.db.repositories.orders_delivery.unit_of_work import (
     OrdersDeliveryUnitOfWork,
 )
+from backend.infrastructure.integrations.orders_delivery_notice_outbox import (
+    OrdersDeliveryNoticeOutbox,
+)
 from backend.infrastructure.integrations.orders_delivery_whatsapp_client import (
     OrdersDeliveryWhatsAppClient,
 )
@@ -98,16 +101,15 @@ class EvaluateCatchWeightUseCase(_OrdersDeliveryBaseUseCase):
                     uow, OrderEvents.ITEM_WEIGHT_ADJUSTED, aggregate_type="CustomerOrder",
                     entity_id=order.id, operation_id=operation_id, branch_id=order.branch_id,
                     actor_user_id=actor_user_id, line_id=line_id)
+            # El aviso queda en cola en la misma transacción (SDLC-ORD-006).
+            avisos = OrdersDeliveryNoticeOutbox(connection, whatsapp=self._whatsapp)
+            aviso = None if evaluation.within_tolerance else avisos.enqueue(
+                route="approval", phone=order.contact_phone or "", operation_id=operation_id,
+                branch_id=order.branch_id, order_id=order.id,
+                order_number=order.order_number or order.id,
+                reason=f"ajuste de peso ({evaluation.difference_pct}% de diferencia)")
 
-        notification_sent = False
-        if not evaluation.within_tolerance:
-            try:
-                notification_sent = self._whatsapp.notify_customer_approval_required(
-                    phone=order.contact_phone or "", order_number=order.order_number or order.id,
-                    reason=f"ajuste de peso ({evaluation.difference_pct}% de diferencia)")
-            except Exception as exc:  # noqa: BLE001 - never fail the evaluation over a notification
-                logger.warning(
-                    "Notificación de aprobación no enviada para pedido %s: %s", order.id, exc)
+        notification_sent = avisos.deliver(aviso)
         return OrderResult.ok(
             "Ajuste de peso evaluado", entity_id=order.id, operation_id=operation_id,
             order=CustomerOrderDTO.from_entity(order),

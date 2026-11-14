@@ -59,10 +59,11 @@ LOYALTY_GRANT = IntegrationGrant(
     owner_context="inventory", source_module="loyalty",
     permissions=frozenset({P.MOVEMENT_CREATE}))
 
-#: Pedidos: aparta y libera la mercancía de un pedido; no la mueve.
+#: Pedidos: aparta y libera la mercancía de un pedido, registra su salida al
+#: despachar o entregar y su reingreso si regresa o se reversa (SDLC-ORD-004).
 ORDERS_DELIVERY_GRANT = IntegrationGrant(
     owner_context="inventory", source_module="orders_delivery",
-    permissions=frozenset({P.RESERVATION_CREATE, P.RESERVATION_RELEASE}))
+    permissions=frozenset({P.RESERVATION_CREATE, P.RESERVATION_RELEASE, P.MOVEMENT_CREATE}))
 
 GRANTS = {g.source_module: g for g in (
     MEAT_PROCESSING_GRANT, QUALITY_GRANT, TRANSFERS_GRANT, SALES_GRANT, PROCUREMENT_GRANT,

@@ -175,19 +175,21 @@ class ReturnSaleLineUseCase(_ReturnBaseUseCase):
 
     @staticmethod
     def _open_shift_problem(connection, branch_id: str, actor_user_id: str) -> str | None:
-        import sqlite3
-
-        from backend.domain.cash_register.exceptions import CashRegisterError
-        try:
-            SalesCashEffectsClient().require_open_shift(
-                connection, branch_id=branch_id, cashier_user_id=actor_user_id)
-        except (CashRegisterError, sqlite3.OperationalError):
-            return ("Para devolver efectivo necesitas tu turno de caja abierto: el reembolso "
-                    "sale de tu cajón.")
-        return None
+        # Misma fuente que Caja (SDLC-ARQ-SHIFT-001): el efectivo sale del
+        # cajón del turno operable de quien devuelve.
+        return SalesCashEffectsClient().open_shift_problem(
+            connection, branch_id=branch_id, cashier_user_id=actor_user_id,
+            purpose="refund")
 
 
 class ReverseSaleUseCase(_ReturnBaseUseCase):
+    def __init__(self, *args, inventory_return=None, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        #: Para una venta cuyo cobro no movió inventario (`settle_inventory=False`,
+        #: Pedidos): quien sacó la mercancía la devuelve, dentro de esta
+        #: transacción. Sin esto el reverso reponía lo que Ventas nunca sacó.
+        self._inventory_return = inventory_return
+
     def execute(
         self, connection, *, sale_id: str, reason: str, actor_user_id: str,
         authorizer_user_id: str, operation_id: str,
@@ -222,26 +224,15 @@ class ReverseSaleUseCase(_ReturnBaseUseCase):
             except SalesDomainError as exc:
                 return fail_from_domain_error(exc, operation_id=operation_id)
 
-            inv_client = self._inventory_client(
-                connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
-            for line in sale.goods_lines:
-                already_returned = sum(
-                    (r.quantity for r in sale.returns if r.line_id == line.id), Decimal("0"))
-                remaining = line.quantity.value - already_returned
-                if remaining <= 0:
-                    continue
-                try:
-                    inv_client.restore_for_return(
-                        product_id=line.product_id, quantity=remaining, sale_id=sale.id,
-                        # Una identidad por LÍNEA: el movimiento es idempotente
-                        # por operation_id, y con la del reverso entero sólo la
-                        # primera línea regresaba al inventario.
-                        operation_id=f"{operation_id}:{line.id}",
-                        actor_user_id=actor_user_id,
-                        reason_code="SALE_REVERSAL", source_document_type="SALE_REVERSAL")
-                except SalesDomainError as exc:
-                    uow.rollback()
-                    return fail_from_domain_error(exc, operation_id=operation_id)
+            try:
+                if self._inventory_return is not None:
+                    self._inventory_return()
+                else:
+                    self._restore_lines(connection, sale, actor_user_id=actor_user_id,
+                                        operation_id=operation_id)
+            except SalesDomainError as exc:
+                uow.rollback()
+                return fail_from_domain_error(exc, operation_id=operation_id)
 
             uow.sales.save(sale)
             self._emit(uow, SaleEvents.REVERSED, entity_id=sale.id, operation_id=operation_id,
@@ -270,3 +261,21 @@ class ReverseSaleUseCase(_ReturnBaseUseCase):
         return SaleResult.ok(
             "Venta reversada", entity_id=sale.id, operation_id=operation_id,
             sale=SaleDTO.from_entity(sale))
+
+    def _restore_lines(self, connection, sale, *, actor_user_id, operation_id) -> None:
+        inv_client = self._inventory_client(
+            connection, branch_id=sale.branch_id, actor_user_id=actor_user_id)
+        for line in sale.goods_lines:
+            already_returned = sum(
+                (r.quantity for r in sale.returns if r.line_id == line.id), Decimal("0"))
+            remaining = line.quantity.value - already_returned
+            if remaining <= 0:
+                continue
+            inv_client.restore_for_return(
+                product_id=line.product_id, quantity=remaining, sale_id=sale.id,
+                # Una identidad por LÍNEA: el movimiento es idempotente
+                # por operation_id, y con la del reverso entero sólo la
+                # primera línea regresaba al inventario.
+                operation_id=f"{operation_id}:{line.id}",
+                actor_user_id=actor_user_id,
+                reason_code="SALE_REVERSAL", source_document_type="SALE_REVERSAL")

@@ -12,6 +12,7 @@ import importlib
 import re
 import sys
 import types
+from pathlib import Path
 
 import pytest
 
@@ -23,6 +24,8 @@ from backend.infrastructure.db.database import (
     create_connection_factory,
     redact_url,
 )
+from backend.infrastructure.central.sync_inbox_repository import PostgresCentralInboxRepository
+from backend.shared.ids import is_uuidv7, new_uuid
 
 URL = "postgresql://spj_api:s3cr3t@10.0.0.5:5432/spj"
 
@@ -110,6 +113,56 @@ def test_every_table_is_idempotent_and_keyed_by_uuid():
             assert "IF NOT EXISTS" in sentencia, version
         for columna in re.findall(r"^\s*(\w*_id|id)\s+(\w+)", sentencia, re.MULTILINE):
             assert columna[1].upper() == "UUID", (version, columna)
+
+
+# ── migraciones sin registrar (SDLC-SYNC-001) ───────────────────────────────
+def _columnas_del_carril(tabla: str) -> set[str]:
+    """Columnas que deja el carril registrado, leídas de su DDL: CREATE TABLE más
+    los ALTER TABLE … ADD COLUMN."""
+    columnas: set[str] = set()
+    for _, sentencia in _ddl():
+        creada = re.search(rf"CREATE TABLE IF NOT EXISTS {tabla}\s*\((.*)\)", sentencia, re.S)
+        if creada:
+            columnas |= set(re.findall(r"^\s*\"?([a-z_]+)\"?\s+[A-Z]", creada.group(1), re.M))
+        columnas |= set(re.findall(
+            rf"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS (\w+)", sentencia))
+    return columnas
+
+
+def test_every_postgres_migration_file_is_registered():
+    """Un archivo `migrations/pg/p*.py` fuera de `PG_MIGRATIONS` nunca corre:
+    así el repositorio consultó columnas de p006 que ningún central tenía."""
+    carpeta = Path(engine.__file__).resolve().parent / "pg"
+    en_disco = {f"migrations.pg.{a.stem}" for a in carpeta.glob("p[0-9]*.py")}
+    assert en_disco - {m.module for m in engine.PG_MIGRATIONS} == set()
+
+
+@pytest.mark.parametrize("tabla,columnas", [
+    ("sync_stations", PostgresCentralInboxRepository._STATION_COLS),
+    ("device_invitations", PostgresCentralInboxRepository._INV_COLS),
+])
+def test_repository_only_selects_columns_the_lane_creates(tabla, columnas):
+    pedidas = {c.strip() for c in columnas.split(",")}
+    assert pedidas - _columnas_del_carril(tabla) == set()
+
+
+def test_device_events_get_their_id_from_the_application(monkeypatch):
+    """Sin identidades del servidor: el historial del equipo lleva UUIDv7."""
+    ejecutadas = []
+    repositorio = PostgresCentralInboxRepository(object())
+    monkeypatch.setattr(repositorio, "_exec",
+                        lambda sql, params=(): ejecutadas.append((sql, params)) or 1)
+    repositorio.add_device_event(
+        station_id=new_uuid(), invitation_id=None, event="DEVICE_ENROLLED",
+        actor_station=None, actor_user=None, detail={}, now=None)
+    sql, params = ejecutadas[0]
+    assert "central_device_events (id," in " ".join(sql.split())
+    assert is_uuidv7(params[0])
+
+
+def test_station_enrollment_table_is_registered_in_the_sqlite_lane():
+    """354 es del mismo slice que p006 (decisión 2026-11-05)."""
+    assert "354" in {m.version for m in engine.MIGRATIONS}
 
 
 # ── carril con conexión SIMULADA ─────────────────────────────────────────────

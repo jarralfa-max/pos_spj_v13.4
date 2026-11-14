@@ -43,11 +43,11 @@ def conn():
     # `usuarios` hace falta desde que el alcance por sucursal se comprueba de
     # verdad: sin esta tabla no había forma de saber a qué sucursales alcanza
     # `u1`, y la comprobación del caso de uso quedaba inerte. u1 pertenece a b1.
-    c.execute("CREATE TABLE usuarios (id TEXT PRIMARY KEY, sucursal_id TEXT)")
+    c.execute("CREATE TABLE usuarios (id TEXT PRIMARY KEY, sucursal_id TEXT, rol TEXT)")
     # u2 es el cajero de una sola sucursal: pertenece a b1 y no tiene ninguna
     # asignación. Existe para que las dos reglas se prueben por separado en vez
     # de con el mismo usuario.
-    c.execute("INSERT INTO usuarios VALUES ('u1', 'b1'), ('u2', 'b1')")
+    c.execute("INSERT INTO usuarios VALUES ('u1', 'b1', 'almacen'), ('u2', 'b1', 'cajero')")
     # u1 opera las DOS sucursales. Hizo falta asignárselas cuando el destino
     # empezó a comprobarse: una transferencia toca dos sucursales por
     # definición, así que quien la crea necesita alcance sobre ambas. Con sólo
