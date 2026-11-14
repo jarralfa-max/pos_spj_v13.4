@@ -483,6 +483,10 @@ _(fecha · ID · decisión · quién aprobó)_
 - 2026-11-02 · SDLC-WA-044 · ¿`WHATSAPP.<accion>` aunque el documento diga códigos planos? → respetar el estándar · Alfred
 - 2026-11-02 · SDLC-WA-050 · ¿Se levanta el diferimiento de WA-21? → eliminar el legacy · Alfred
 - 2026-11-02 · SDLC-WA-051 · ¿Quién actualiza las reglas 8 y 9 de `CLAUDE.md`? → propón el texto en el PR · Alfred
+- 2026-11-14 · SDLC-ARQ-TERM-002 · ¿Re-anclar exige `EMPRESA_EDITAR` (PERM-001) o `ESTACION_REANCLAR` (TERM-002)? → `ESTACION_REANCLAR`, que es lo que ya quedó aplicado (integración ronda 1, `7b5c6fac`) · Alfred
+- 2026-11-14 · SDLC-PAY-002 · ¿Un pedido pagado con transferencia exige referencia? → sí, también en pedidos (el repartidor o el cajero la captura) · Alfred
+- 2026-11-14 · SDLC-ARQ-SHIFT-001 · ¿El reverso de un pedido reembolsa desde el turno de quien reversa o del cajero que cobró? → el de quien reembolsa, igual que en el POS; se ajustan las pruebas · Alfred
+- 2026-11-14 · SDLC-ARQ-TERM-002 · `open_cash_shifts_outside` con estados literales choca con SHIFT-001 → que use los estados de `ActiveShiftResolver` · Alfred
 
 ## Preguntas abiertas para el responsable
 

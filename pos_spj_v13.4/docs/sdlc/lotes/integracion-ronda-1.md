@@ -50,7 +50,7 @@ Se corrió `migrations.engine.up` sobre bases temporales en el scratchpad, con `
 | Base nueva | 344 migraciones. Desde 353, en orden: 353, 354, 357, 358, 359, 360, 368, 374, 380, 381, 384, 385, 388, 392. `foreign_key_check` vacío, `integrity_check` ok |
 | Relleno: base que ya corrió la lista de `6ef92643` (con 384/385) y luego la lista reparada | Corren las 11 que faltaban, sin errores. `foreign_key_check` vacío, `integrity_check` ok. Una tercera corrida no ejecuta nada |
 
-## Preguntas para el responsable
+## Preguntas planteadas (respondidas el 2026-11-14; ver «Decisiones del responsable»)
 
 1. **Re-anclaje: PERM-001 (lote 7) contra TERM-002 (lote 8).** Los dos lotes cambiaron el mismo caso de uso de forma incompatible:
    - PERM-001: `EMPRESA_EDITAR` con `ConfiguracionActionAuthorizer`, construido con `company_profile_service`;
@@ -113,6 +113,39 @@ Comparación por nombre con la última corrida de los lotes, que tiene las misma
 - **Una falla es nueva:** `test_active_shift_single_source.py::test_active_shift_has_a_single_source`. La guardia es de SDLC-ARQ-SHIFT-001 (lote 1) y señala `backend/infrastructure/db/repositories/settings/installation_branch_repository.py:101`. Ahí `open_cash_shifts_outside` (SDLC-ARQ-TERM-002, lote 8) consulta `cash_shifts` con estados literales (`status NOT IN ('CLOSED','FORCE_CLOSED','CANCELLED')`) en lugar de usar la fuente única del turno activo. Los dos archivos son idénticos a los de sus lotes (`git diff fix/lote-8 HEAD` y `git diff fix/lote-1 HEAD` vacíos). Es una interacción entre lotes, no una pérdida: pregunta 4.
 - Las 2 pruebas nuevas de `test_standalone_migrations_registered.py` pasan.
 
-## Pregunta 4 (de `tests/architecture`)
+## Pregunta 4 (de `tests/architecture`; respondida el 2026-11-14)
 
 4. **El re-anclaje cuenta los turnos abiertos sin la fuente única de SHIFT-001.** La guarda «turno de caja sin cerrar» de TERM-002 consulta `cash_shifts` con estados literales, y la guardia de SHIFT-001 lo prohíbe. Hay que decidir si `open_cash_shifts_outside` pasa a `ActiveShiftResolver` o a los estados que este expone, o si la guardia la exceptúa porque cuenta turnos de toda la estación y no resuelve el turno de un operador. No se cambió nada.
+
+## Decisiones del responsable 2026-11-14
+
+Alfred respondió las 4 preguntas de arriba. También quedaron en «Decisiones aprobadas» de `docs/sdlc/BACKLOG.md`.
+
+| # | Pregunta | Decisión (textual) | Qué se hizo | Commit | Pruebas |
+|---|---|---|---|---|---|
+| 1 | Re-anclaje: PERM-001 contra TERM-002 | «ESTACION_REANCLAR, que es lo que ya quedó aplicado» | Sin código: sólo se registra la decisión | `7b5c6fac` (ya estaba) | — |
+| 2 | Pedido pagado con transferencia, sin referencia | «Exigir referencia también en pedidos (el repartidor o el cajero la captura)» | Cobro del cajero: `RecordOrderPaymentUseCase` ya la exigía, porque delega en `RecordSalePaymentUseCase` y `SalePaymentPolicy` (la misma validación de PAY-002). Se ajusta la prueba del lote 6 para mandar referencia. Cobro del repartidor: `RecordCashCollectionUseCase`, que es lo que llama la ruta móvil `POST /delivery/mobile/cash-collections/{id}/record`, ya recibía `reference` pero no la exigía; ahora aplica `SalePaymentPolicy.ensure_reference_valid` a `TRANSFER`, salvo en un intento fallido (monto 0) | `d282361c` | `test_orders_delivery_driver_cash_finance.py::TestFallaDelEfectoDeCaja::test_pago_remoto_sin_efectivo_no_exige_turno` (con referencia) y `::test_una_transferencia_sin_referencia_se_rechaza` (nueva). `test_orders_delivery_cash_collection_use_cases.py`: 3 nuevas (sin referencia → `PAYMENT_REFERENCE_REQUIRED`, inválida → `PAYMENT_REFERENCE_INVALID`, con referencia → `COLLECTED`); las 2 de rechazo fallaban antes del cambio |
+| 3 | Reverso de pedido sin el turno de quien reembolsa | «El de quien reembolsa, igual que en el POS, y ajustar esas 4 pruebas» | No cambia la regla de SHIFT-001. Las 4 pruebas reversan ahora con el cajero que tiene el turno abierto | `7053baf4` | Las 4 en verde, más la nueva `TestReverso::test_sin_turno_propio_quien_reversa_es_rechazado_y_nada_vuelve`: se rechaza con «turno de caja» y no hay `SALE_RETURN` |
+| 4 | `open_cash_shifts_outside` con estados literales | «Que use los estados de ActiveShiftResolver» | Cuenta `status IN (CashShiftLifecyclePolicy.active_status_values())`, la fuente de `ActiveShiftResolver`, en SQL parametrizado. La guardia no tiene excepción | `2a7d9c49` | `test_active_shift_single_source.py` en verde (antes en rojo) y las 17 de `test_installation_branch_reanchor_use_case.py` siguen en verde |
+
+### Pendientes, sin construir (no existe el punto de captura)
+
+- **Pantalla de Pedidos (cajero):** ninguna pantalla ni ruta de la API llama a `RecordOrderPaymentUseCase` ni a `ReverseCustomerOrderUseCase`. Se buscó con `git grep` en `frontend/`, `backend/api` y el resto de `backend/`. Por eso no hay hoy dónde capturar la referencia, ni dónde mostrar el mensaje «Para devolver efectivo necesitas tu turno de caja abierto…». Cuando se construya la pantalla, debe pedir la referencia y mostrar `result.message` tal como lo devuelve el caso de uso, que ya trae ambos textos. Conviene abrir un ítem.
+- **PWA del repartidor (`frontend/web/delivery/app.js`):** sólo muestra «Cobrar: $…». No tiene pantalla para registrar el cobro ni para capturar la referencia. La API (`RecordCashCollectionRequest.reference`) ya la acepta, y desde el commit `d282361c` la exige.
+- **Otros métodos del repartidor:** PAY-002 también exige referencia para `CARD` y `MERCADO_PAGO`. En los cobros del repartidor sólo se aplicó a `TRANSFER`, que es lo que decidió el responsable. Queda por decidir si `CARD_TERMINAL` y `PAYMENT_LINK` siguen el mismo criterio.
+- **Mensaje de Caja duplicado:** el reverso sin turno devuelve «Caja no pudo compensar el efectivo: Para devolver efectivo … de tu cajón.. La venta NO se reversó.», con doble punto. Es cosmético y no se tocó.
+
+### Pruebas después de aplicar las decisiones
+
+Corrida sobre `d282361c` desde `pos_spj_v13.4/`, con `PYTHONPATH` al worktree, `QT_QPA_PLATFORM=offscreen` y un tope de 600 s por corrida.
+
+| Área | Rutas | Resultado |
+|---|---|---|
+| Arquitectura afectada | `test_active_shift_single_source.py`, `test_configuracion_use_cases_are_authorized.py`, `test_orders_single_pipeline_ratchet.py`, `test_orders_delivery_permissions_are_granular.py`, `test_erp_chain_wiring_ratchet.py`, `test_standalone_migrations_registered.py` | ✅ 22 passed. La falla nueva de `tests/architecture` desaparece, así que el total queda en las 21 de la línea base |
+| Pedidos, integración | `tests/integration/orders_delivery`, `tests/integration/test_orders_delivery_*.py`, `logistics/test_driver_pwa_api.py` | ✅ 441 passed (antes 1 + 4 fallas, preguntas 2 y 3) |
+| Pedidos, unitarias | `tests/unit/test_orders_delivery_*.py` | ✅ 257 passed |
+| Caja | `tests/unit/cash_register`, `tests/integration/cash_register` | ✅ 358 passed |
+| Configuración | `tests/unit/configuracion`, `test_empresa_page_installation_branch.py`, `shell/test_installation_branch_session_follow.py` | ✅ 206 passed |
+| Configuración, integración | `tests/integration/configuracion` | ✅ 378 passed |
+
+No se repitió `tests/architecture` completo, porque los cambios sólo tocan los archivos de las guardias que se corrieron.
