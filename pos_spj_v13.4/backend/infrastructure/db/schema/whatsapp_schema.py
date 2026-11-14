@@ -69,6 +69,7 @@ WHATSAPP_TABLES = (
     "whatsapp_quote_draft_lines",
     "whatsapp_delivery_requests",
     "whatsapp_handoff_requests",
+    "whatsapp_unmatched_payments",
 )
 
 _DDL = (
@@ -330,6 +331,23 @@ _DDL = (
         resolved_at TEXT
     )
     """,
+    # ── Pagos sin asignar (SDLC-WA-001) — pago aprobado por el proveedor que
+    # no casó con ninguna venta; se asigna a mano, nunca se pierde ──────────
+    """
+    CREATE TABLE IF NOT EXISTS whatsapp_unmatched_payments (
+        id TEXT NOT NULL PRIMARY KEY,
+        provider TEXT NOT NULL,
+        provider_payment_id TEXT NOT NULL,
+        external_reference TEXT,
+        amount TEXT NOT NULL,
+        currency TEXT,
+        provider_status TEXT,
+        reason TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        resolved_at TEXT,
+        UNIQUE (provider, provider_payment_id)
+    )
+    """,
 )
 
 _INDEXES = (
@@ -371,6 +389,8 @@ _INDEXES = (
     " ON whatsapp_delivery_requests(order_external_id)",
     "CREATE INDEX IF NOT EXISTS idx_whatsapp_handoff_requests_conversation"
     " ON whatsapp_handoff_requests(conversation_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_whatsapp_unmatched_payments_unresolved"
+    " ON whatsapp_unmatched_payments(resolved_at)",
 )
 
 

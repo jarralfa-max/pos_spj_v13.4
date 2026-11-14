@@ -5404,30 +5404,35 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Sólo agrega: el rol principal sigue en `usuarios.rol`, y ningún usuario cambia de permisos.
 - Detalle: `docs/architecture/enterprise_org/02_phase2_contextual_permissions.md`.
 
-### 380 — folio de compra en el auxiliar de activos (2026-11-06, SDLC-FIN-002)
+### SDLC-WA-002 — firma de webhooks independiente de `APP_ENV` (2026-11-06, sin migración de esquema)
 
-- `fixed_assets.source_document_number`, nula. Sólo agrega.
-- Una compra con naturaleza `ASSET` deja el activo en `fixed_assets` en estado `DRAFT`, con vida
-  útil 0 (sin capturar), en la misma transacción que su asiento. Finanzas → Activos fijos →
-  «Completar datos» lo activa **sin asiento**: el costo ya lo reconoció Compras.
-- `CapitalizeAssetUseCase` rechaza un documento que ya esté en el auxiliar; antes duplicaba la CxP
-  o el pago. Un activo por documento: varias líneas `ASSET` de la misma compra quedan en un solo
-  registro hasta que SDLC-ASSET-024 consolide las identidades.
-- El cierre bloquea con activos comprados sin completar (`purchased_assets_completed`).
-- Devolución o reverso de Compras: baja el costo del activo, o lo cancela si llega a cero. Un
-  activo ya depreciado no se ajusta solo: se registra el error y requiere baja formal.
+- Cambio de comportamiento en `whatsapp_service/`: sin `WA_APP_SECRET` o `MP_WEBHOOK_SECRET` el
+  webhook responde 503 en cualquier entorno. Antes sólo pasaba con `APP_ENV=production`, y las
+  estaciones instaladas nunca lo fijan.
+- Aceptar sin firma exige `WA_ALLOW_UNSIGNED_WEBHOOKS` (`1`, `true`, `yes`), que se ignora en
+  producción y en estación instalada.
+- MercadoPago: la unidad de `ts` se deduce por magnitud (antes todo `ts` en segundos daba 403) y la
+  ventana se configura con `MP_SIGNATURE_MAX_AGE_SECONDS` (por defecto 300).
+- Salud: check nuevo `webhook_signature`. Arranque: una línea con `webhooks_sin_firma`.
+- **Acción operativa (D3=A):** una estación con el servicio local y sin `WA_APP_SECRET` deja de
+  recibir mensajes hasta configurarlo en el módulo WhatsApp. Va en la nota de release.
+- Reversa: revertir el commit.
 
-### 381 — meses fuera de servicio de un activo (2026-11-06, SDLC-FIN-003)
+### 374 — bandeja de pagos de MercadoPago sin asignar (2026-11-09, SDLC-WA-001)
 
-- `fixed_assets.suspended_on` y `suspended_months`. Sólo agrega.
-- Los meses omitidos se recuperan en la siguiente corrida (`DepreciationPolicy`). Los suspendidos
-  no son omitidos: no se recuperan y alargan la vida en calendario. Un activo suspendido antes de
-  esta migración no tiene `suspended_on`, así que sus meses cuentan como omitidos al reanudarlo.
-- La baja deprecia lo que falte hasta el periodo anterior, como corrida registrada y en la misma
-  transacción. El asiento lleva la fecha de la baja.
-
-### Sin migración — depreciación automática (2026-11-06, SDLC-FIN-004)
-
-- `finance_periodic_tick` corre la depreciación del mes que terminó desde el día 1. Reemplaza el
-  job mensual del legacy (`accrual_depreciacion_mensual`). Sin esquema nuevo: la idempotencia es
-  el `operation_id` derivado del periodo, sobre `depreciation_runs.operation_id` (UNIQUE).
+- `whatsapp_unmatched_payments`, en el esquema del canal (`whatsapp_schema.py`). La crean esta
+  migración y también `migrate_channel_schema` al arrancar el microservicio.
+  - Guarda id UUIDv7, proveedor e id del pago (únicos juntos), referencia externa, monto en TEXT,
+    moneda, estado, motivo, alta y resolución.
+- Webhook (`whatsapp_service/webhook/mercadopago.py`):
+  - procesa `payment.created` y `payment.updated` si el pago consultado está `approved`;
+  - casa por la venta de `external_reference`, que debe estar `pendiente_wa` y coincidir en
+    teléfono, en moneda MXN y en el monto exacto del total;
+  - ya no busca por sufijo de teléfono;
+  - aplica cada pago una sola vez por su id;
+  - avisa al cliente y emite eventos sólo después del match;
+  - lo que no casa va a la bandeja;
+  - responde 5xx cuando no guardó nada, para que el proveedor reintente.
+- Probada en una base temporal: dos corridas idempotentes. **No** se probó sobre una copia de la
+  base real.
+- Reversa: revertir el commit. La tabla nueva sólo agrega.

@@ -110,6 +110,26 @@ def check_secrets(root) -> HealthCheckResult:
     )
 
 
+def check_webhook_signature(root) -> HealthCheckResult:
+    """SDLC-WA-002: sin secreto y sin opt-in el webhook de Meta responde 503 a
+    todo, y el operador debe verlo aquí."""
+    from whatsapp_service.config.settings import allow_unsigned_webhooks, get_app_secret
+
+    if get_app_secret():
+        return HealthCheckResult("webhook_signature", HealthStatus.HEALTHY)
+    if allow_unsigned_webhooks():
+        return HealthCheckResult(
+            "webhook_signature",
+            HealthStatus.DEGRADED,
+            "sin WA_APP_SECRET: webhooks aceptados sin firma (solo desarrollo)",
+        )
+    return HealthCheckResult(
+        "webhook_signature",
+        HealthStatus.UNHEALTHY,
+        "webhooks rechazados: configura WA_APP_SECRET en el módulo WhatsApp",
+    )
+
+
 def check_provider_gateway(root) -> HealthCheckResult:
     """WA-5: `root.provider_gateway.health_check()` es un ping real y
     síncrono contra la Graph API (`GET /{phone_number_id}`) — no un stub.
@@ -255,6 +275,7 @@ def run_all_checks(root) -> List[HealthCheckResult]:
         check_database(root),
         check_schema(root),
         check_secrets(root),
+        check_webhook_signature(root),
         check_provider_gateway(root),
         check_inbox_queue(root),
         check_outbox_queue(root),
