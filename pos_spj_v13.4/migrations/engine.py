@@ -357,8 +357,19 @@ MIGRATIONS = [
     _Migration("351",  "migrations.standalone.351_organizational_structure"),
     _Migration("352",  "migrations.standalone.352_org_outbox_and_branch_profiles"),
     _Migration("353",  "migrations.standalone.353_user_role_assignments"),
+    _Migration("354",  "migrations.standalone.354_device_enrollment"),
+    _Migration("357",  "migrations.standalone.357_seed_installation_reanchor_permission"),
+    _Migration("358",  "migrations.standalone.358_cash_shift_version"),
+    _Migration("359",  "migrations.standalone.359_cash_permissions_split"),
+    _Migration("360",  "migrations.standalone.360_cash_deposit_confirmations"),
+    _Migration("368",  "migrations.standalone.368_pos_foreign_resume_permission"),
+    _Migration("374",  "migrations.standalone.374_whatsapp_unmatched_payments"),
+    _Migration("380",  "migrations.standalone.380_fixed_assets_source_document_number"),
+    _Migration("381",  "migrations.standalone.381_fixed_assets_suspension_months"),
     _Migration("384",  "migrations.standalone.384_sale_payment_reference_unique"),
     _Migration("385",  "migrations.standalone.385_single_processor_account"),
+    _Migration("388",  "migrations.standalone.388_driver_cash_account"),
+    _Migration("392",  "migrations.standalone.392_terminal_identity"),
 ]
 
 def _ensure_tracking_table(conn):
