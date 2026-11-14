@@ -66,6 +66,10 @@ class MemoryCentralInbox:
         f = self.facts.get(event_id)
         return None if f is None else f["content_hash"]
 
+    def fact_status(self, event_id):
+        f = self.facts.get(event_id)
+        return None if f is None else (f["status"], f["error_code"])
+
     def event_for_sequence(self, station_id, sequence_no):
         return next((eid for eid, f in self.facts.items()
                      if f["station_id"] == station_id and f["sequence_no"] == sequence_no), None)

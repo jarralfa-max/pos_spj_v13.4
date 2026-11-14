@@ -59,7 +59,7 @@ DDL = (
     """,
     """
     CREATE TABLE IF NOT EXISTS central_device_events (
-        id            BIGSERIAL PRIMARY KEY,
+        id            UUID PRIMARY KEY,
         station_id    UUID,
         invitation_id UUID,
         event         TEXT NOT NULL,

@@ -357,7 +357,9 @@ MIGRATIONS = [
     _Migration("351",  "migrations.standalone.351_organizational_structure"),
     _Migration("352",  "migrations.standalone.352_org_outbox_and_branch_profiles"),
     _Migration("353",  "migrations.standalone.353_user_role_assignments"),
-    _Migration("374",  "migrations.standalone.374_whatsapp_unmatched_payments"),
+    _Migration("354",  "migrations.standalone.354_device_enrollment"),
+    _Migration("357",  "migrations.standalone.357_seed_installation_reanchor_permission"),
+    _Migration("392",  "migrations.standalone.392_terminal_identity"),
 ]
 
 def _ensure_tracking_table(conn):
@@ -479,6 +481,7 @@ PG_MIGRATIONS = [
     _Migration("p003", "migrations.pg.p003_central_sales_inventory"),
     _Migration("p004", "migrations.pg.p004_central_cash_finance_credit_loyalty"),
     _Migration("p005", "migrations.pg.p005_central_org_units"),
+    _Migration("p006", "migrations.pg.p006_device_provisioning"),
 ]
 
 #: Clave del bloqueo consultivo (constante arbitraria, estable entre versiones).

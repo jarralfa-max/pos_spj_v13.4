@@ -194,8 +194,11 @@ def test_branch_selector_skips_corrupt_identities(roles, conn):
 
 
 # ── sucursal de la instalación ──────────────────────────────────────────────
+# Escribir el ancla ya sólo lo hace `SetInstallationBranchUseCase` (SDLC-ARQ-TERM-002,
+# con permiso, guardas y auditoría: `test_installation_branch_reanchor_use_case.py`);
+# aquí se prueba la validación del repositorio y la lectura del servicio.
 def test_set_and_get_installation_branch(company, conn, branch_id):
-    assert company.set_installation_branch(branch_id)[0] == branch_id
+    assert SqliteInstallationBranchRepository(conn).set(branch_id)[0] == branch_id
     assert company.get_installation_branch()[0] == branch_id
 
 
@@ -204,13 +207,13 @@ def test_an_inactive_branch_cannot_be_anchored(company, conn, branch_id):
     abrir sesión, y el error aparecería en el login, lejos de aquí."""
     conn.execute("UPDATE sucursales SET activa=0 WHERE id=?", (branch_id,))
     with pytest.raises(ValueError, match="activa"):
-        company.set_installation_branch(branch_id)
+        SqliteInstallationBranchRepository(conn).set(branch_id)
 
 
 def test_get_returns_none_when_the_anchored_branch_disappeared(company, conn, branch_id):
     """Sin el JOIN contra `sucursales` esto devolvería un id huérfano que el
     arranque trataría como una sucursal válida."""
-    company.set_installation_branch(branch_id)
+    SqliteInstallationBranchRepository(conn).set(branch_id)
     # Desaparecer del todo = también su perfil de Configuración (la 275 le da uno
     # a toda sucursal para el código de sus folios; la llave foránea lo exige).
     conn.execute("DELETE FROM branch_profiles WHERE branch_id=?", (branch_id,))

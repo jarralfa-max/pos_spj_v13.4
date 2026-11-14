@@ -110,6 +110,10 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         UpdateDesignTokenUseCase,
         UpdateThemeUseCase,
     )
+    from backend.application.sync.replication_conflicts import (
+        ReplicationConflictQuery,
+        ResolveReplicationConflictUseCase,
+    )
     from backend.application.use_cases.configuracion.offline_management_use_cases import (
         ChangeCacheExpirationPolicyStatusUseCase,
         CreateCacheExpirationPolicyUseCase,
@@ -143,8 +147,14 @@ def build_configuracion_view(*, connection, session_context, parent=None):
     from backend.infrastructure.db.repositories.security.grant_version_repository import (
         SqliteGrantVersionRepository,
     )
+    from backend.infrastructure.db.repositories.replication.conflict_unit_of_work import (
+        ReplicationConflictUnitOfWork,
+    )
     from backend.infrastructure.db.repositories.settings.installation_branch_repository import (
         SqliteInstallationBranchRepository,
+    )
+    from backend.infrastructure.db.repositories.settings.installation_branch_unit_of_work import (
+        InstallationBranchUnitOfWork,
     )
     from backend.infrastructure.db.repositories.settings.user_directory_repository import (
         SqliteUserDirectoryRepository,
@@ -279,6 +289,9 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         change_density_profile_status_uc=ChangeDensityProfileStatusUseCase(connection),
         create_appearance_preference_uc=CreateAppearancePreferenceUseCase(connection),
         change_appearance_preference_status_uc=ChangeAppearancePreferenceStatusUseCase(connection),
+        replication_conflict_query=ReplicationConflictQuery(connection),
+        resolve_replication_conflict_uc=ResolveReplicationConflictUseCase(
+            lambda: ReplicationConflictUnitOfWork(connection), authorization),
         create_cache_expiration_policy_uc=CreateCacheExpirationPolicyUseCase(connection),
         update_cache_expiration_policy_uc=UpdateCacheExpirationPolicyUseCase(connection),
         change_cache_expiration_policy_status_uc=ChangeCacheExpirationPolicyStatusUseCase(connection),
@@ -289,7 +302,8 @@ def build_configuracion_view(*, connection, session_context, parent=None):
         set_user_active_uc=SetUserActiveUseCase(user_management_service, authorization),
         save_role_uc=SaveRoleUseCase(role_management_service, authorization),
         company_profile_service=company_profile_service,
-        set_installation_branch_uc=SetInstallationBranchUseCase(company_profile_service),
+        set_installation_branch_uc=SetInstallationBranchUseCase(
+            lambda: InstallationBranchUnitOfWork(connection), authorization),
         role_permission_matrix_query=RolePermissionMatrixQuery(connection),
         save_role_permissions_uc=SaveRolePermissionsUseCase(connection, authorization),
         test_integration_connection_uc=TestIntegrationConnectionUseCase(connection, secret_store),
