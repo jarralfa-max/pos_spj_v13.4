@@ -73,6 +73,25 @@ class TestRenderContent:
         finally:
             window.close()
 
+    def test_display_follows_the_register_dark_theme(self, app):
+        """SDLC-UI-004: owner decision 2026-11-02 — the customer screen follows
+        the register theme instead of a fixed brand look."""
+        from frontend.desktop.themes.theme_manager import ThemeManager
+        from frontend.desktop.themes.semantic_colors import Dark
+        from PyQt5.QtGui import QColor
+        ThemeManager.instance().apply(app, "dark")
+        window = CustomerDisplayWindow()
+        try:
+            window.render_content("CART", _CART_CONTENT)
+            app.processEvents()
+            assert window.grab().toImage().pixelColor(2, 2) == QColor(Dark.BACKGROUND)
+            window.render_content("THANK_YOU", {"MESSAGE": "Gracias", "TOTAL": "10", "POINTS": "+1"})
+            app.processEvents()
+            assert window.grab().toImage().pixelColor(2, 2) == QColor(Dark.PRIMARY_DEFAULT)
+        finally:
+            window.close()
+            ThemeManager.instance().apply(app, "light")
+
     def test_ad_remains_visible_while_cart_changes_and_stops_at_payment(self, app):
         window = CustomerDisplayWindow()
         try:

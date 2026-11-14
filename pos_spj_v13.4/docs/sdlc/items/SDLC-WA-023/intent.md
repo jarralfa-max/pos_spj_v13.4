@@ -3,7 +3,7 @@
 - **Prioridad:** P2
 - **Nivel de riesgo:** T1
 - **Origen:** `docs/sdlc/inputs/whatsapp.md` §27, §28, §29, §30 (`/sdlc-plan arquitectura`, 2026-11-01; matriz `docs/sdlc/arquitectura/matriz-whatsapp.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-WA-022, SDLC-WA-007
 
 ## Problema
@@ -37,4 +37,4 @@ Clientes mal entendidos; riesgo de que una respuesta del LLM dispare acciones no
 WA-8 (memoria).
 
 ## Preguntas abiertas
-- Presupuesto $0: ¿se permite algún LLM en la nube, o solo Ollama local (y en qué máquina corre)?
+- Presupuesto $0: ¿se permite algún LLM en la nube, o solo Ollama local (y en qué máquina corre)? en la nube con API

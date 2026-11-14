@@ -135,9 +135,9 @@ class CustomerDisplayWindow(QWidget):
         self._completion_layout.setSpacing(Spacing.LG)
         self._completion_layout.addStretch(1)
         self._confirmation_icon = QLabel("", self._completion)
-        self._confirmation_icon.setPixmap(IconProvider.pixmap(
-            Icons.SUCCESS, size=Typography.SIZE_DISPLAY, state="warning", theme="dark",
-            device_pixel_ratio=self.devicePixelRatioF()))
+        # Follows the register theme (SDLC-UI-004) and repaints when it changes.
+        IconProvider.bind(self._confirmation_icon, Icons.SUCCESS,
+                          size=Typography.SIZE_DISPLAY, state="inverse")
         self._confirmation_icon.setAccessibleName("Pago confirmado")
         self._confirmation_icon.setObjectName("customerDisplayConfirmation")
         self._confirmation_icon.setAlignment(Qt.AlignCenter)

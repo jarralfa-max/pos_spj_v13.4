@@ -3,7 +3,7 @@
 - **Prioridad:** P1
 - **Nivel de riesgo:** T0
 - **Origen:** triage 2026-10-28 (`/sdlc-plan triage`, barrido por bounded context + línea base `docs/sdlc/baseline/2026-10-28.md`)
-- **Estado:** borrador
+- **Estado:** aprobado (2026-11-05, Alfred)
 - **Depende de:** SDLC-SYNC-002, SDLC-SYNC-003, SDLC-SYNC-004
 
 ## Problema
@@ -34,4 +34,4 @@ CLAUDE.md reglas 11-13 (asiento balanceado vía `finance_service.registrar_asien
 Pipeline híbrido; `docs/sdlc/inputs/requisitos-arquitectura.md`.
 
 ## Preguntas abiertas
-- ¿Ya hay un servidor central (Oracle Always Free) listo para recibir tráfico real?
+- ¿Ya hay un servidor central (Oracle Always Free) listo para recibir tráfico real? aun no 
