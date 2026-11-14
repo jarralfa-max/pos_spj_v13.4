@@ -390,67 +390,120 @@ _(fecha · ID · decisión · quién aprobó)_
 - 2026-11-02 · SDLC-UI-025 · ¿Edición en celda en `StandardTable` o un `EditableTable` canónico? → `EditableTable` canónico · Alfred
 - 2026-11-02 · SDLC-UI-030 · ¿Imágenes de referencia versionadas en el repo o como artefacto de CI? → se versionan en el repo · Alfred
 - 2026-11-02 · SDLC-UI-030 · ¿Se generan en Windows o en `offscreen`? → Windows · Alfred
+- 2026-11-02 · SDLC-INV-001 · ¿Las bajas por caducidad son merma o ajuste de inventario directo? → merma · Alfred
+- 2026-11-02 · SDLC-LOSS-001 · Umbral de monto a partir del cual la aprobación requiere gerente → más del 5% del stock como inicio, pero debe ser ajustable · Alfred
+- 2026-11-02 · SDLC-LOSS-001 · Revaluación: ¿ajuste por diferencia o reversa total + asiento nuevo? → reversa + asiento · Alfred
+- 2026-11-02 · SDLC-SALES-001 · Ante falla del motor de precios: ¿bloquear la línea o catálogo con autorización de gerente? (C-05) → con autorización · Alfred
+- 2026-11-02 · SDLC-SYNC-001 · ¿`354_device_enrollment` es del mismo slice que p006 o remanente a borrar? → es parte del mismo · Alfred
+- 2026-11-02 · SDLC-SYNC-002 · ¿Quién resuelve un conflicto y con qué pantalla? → la estación, en Configuración · Alfred
+- 2026-11-02 · SDLC-WA-001 · ¿Se usa MercadoPago en producción hoy? → está apagado · Alfred
+- 2026-11-02 · SDLC-CORE-007 · ¿Lista curada como gate o segmento completo verde? → completo verde · Alfred
+- 2026-11-02 · SDLC-CRED-001 · ¿Hay saldos vivos en `cuentas_por_cobrar` en la BD real? → no hay nada, se puede borrar; estamos en desarrollo · Alfred
+- 2026-11-02 · SDLC-CRM-002 · ¿Qué datos deben conservarse por obligación fiscal en ventas? → los requeridos según sea el caso · Alfred
+- 2026-11-02 · SDLC-HR-001 · ¿La cuota patronal IMSS la calcula el sistema o se captura? → la calcula el sistema · Alfred
+- 2026-11-02 · SDLC-ORD-001 · ¿Cuenta contable para «efectivo en poder de repartidores»? → sí · Alfred
+- 2026-11-02 · SDLC-SALES-002 · Redondeo: ¿por línea o sobre el total? ¿HALF_UP o bancario? → por línea, HALF_UP · Alfred
+- 2026-11-02 · SDLC-SYNC-005 · ¿Hay servidor central (Oracle Always Free) listo para tráfico real? → aún no · Alfred
+- 2026-11-02 · SDLC-WA-003 · ¿El canal WhatsApp está en uso hoy en alguna sucursal? → solo pruebas · Alfred
+- 2026-11-02 · SDLC-WA-004 · ¿Cuenta contable de anticipos de clientes? → sí · Alfred
+- 2026-11-02 · SDLC-CASH-002 · ¿Quién confirma el depósito y con qué evidencia? → tesorería, con el ticket · Alfred
+- 2026-11-02 · SDLC-CORE-002 · ¿UUIDv5/v8 derivado del UUIDv7 padre o UUIDv7 persistido? (posible contradicción con la REGLA CERO) → se aceptan según el caso · Alfred
+- 2026-11-02 · SDLC-INST-003 · ¿Varios usuarios de Windows por PC de sucursal, o uno solo? → varios · Alfred
+- 2026-11-02 · SDLC-ORD-003 · ¿Cuál pipeline de pedidos es el autoritativo? → el que esté más avanzado · Alfred
+- 2026-11-02 · SDLC-SALES-004 · ¿Vigencia de una venta suspendida? → al cerrar caja u 8 h · Alfred
+- 2026-11-02 · SDLC-SET-002 · ¿Dentro del pipeline CONFIGURACION o como ítem SDLC independiente? → dentro del pipeline · Alfred
+- 2026-11-02 · SDLC-CORE-009 · ¿`tools/refactor_control` y el orquestador Codex siguen en uso? → no · Alfred
+- 2026-11-02 · SDLC-LOY-001 · ¿Se reconoce breakage contablemente? → sí · Alfred
+- 2026-11-02 · SDLC-PAY-001 · ¿Dónde viven el backend de pagos y el Access Token? → en cada caja, temporalmente · Alfred
+- 2026-11-02 · SDLC-PAY-001 · ¿Entrada pública de webhooks: ngrok, Cloudflare Tunnel o central? → ngrok · Alfred
+- 2026-11-02 · SDLC-PAY-001 · ¿Se usa Mercado Pago hoy y con cuántas cuentas cobradoras? → se usa manualmente; una cuenta por empresa · Alfred
+- 2026-11-02 · SDLC-PAY-002 · ¿Referencia obligatoria y única también para Tarjeta y Transferencia? → sí · Alfred
+- 2026-11-02 · SDLC-PAY-002 · ¿Qué se hace con ventas históricas con referencia vacía o repetida? → no hay ventas en la BD · Alfred
+- 2026-11-02 · SDLC-PAY-004 · ¿Una cuenta de tesorería por cobradora/adquirente o una sola «procesadores»? → una sola · Alfred
+- 2026-11-02 · SDLC-PAY-004 · ¿La venta MP carga directo la cuenta del procesador o la 1120? → directo · Alfred
+- 2026-11-02 · SDLC-PAY-004 · ¿Cómo se reclasifica el saldo histórico de la 1120? → no hay datos · Alfred
+- 2026-11-02 · SDLC-PAY-006 · Sin API: ¿quién confirma el reembolso hecho en el panel de MP y con qué permiso? → el cajero, con su permiso, y se envía alerta al gerente · Alfred
+- 2026-11-02 · SDLC-PAY-008 · ¿Qué se compromete mientras el pago está pendiente? → inventario en reserva, se libera hasta confirmar el pago; puntos y caja no · Alfred
+- 2026-11-02 · SDLC-PAY-009 · ¿SDK oficial `mercadopago` o `httpx` directo? → SDK oficial · Alfred
+- 2026-11-02 · SDLC-PAY-012 · ¿Cuántas Point Smart hay, dónde, y ya están en modo PDV? → una por sucursal; aún no están en modo PDV · Alfred
+- 2026-11-02 · SDLC-PAY-017 · ¿Cobrar con Point si la caja no tiene internet pero la terminal sí? → sí, manualmente · Alfred
+- 2026-11-02 · SDLC-PAY-018 · ¿Comisión e IVA del reporte de liquidación de MP o de una tarifa configurada? → tarifa configurada · Alfred
+- 2026-11-02 · SDLC-PAY-019 · ¿Qué reporte de liquidación de MP se usa? → CSV · Alfred
+- 2026-11-02 · SDLC-PAY-022 · ¿Sandbox y producción en la misma pantalla, y quién cambia de ambiente? → sí; Sistemas (administrador) · Alfred
+- 2026-11-02 · SDLC-PAY-028 · ¿Se borran las pruebas legacy o se reescriben? → borrar · Alfred
+- 2026-11-02 · SDLC-FIN-002 · ¿Alta automática en el auxiliar al reconocer la CxP o «pendiente de capitalizar»? → automática, y se actualiza hasta completar los datos · Alfred
+- 2026-11-02 · SDLC-FIN-002 · ¿Cómo se regularizan compras ASSET asentadas sin auxiliar? → no hay nada en la BD · Alfred
+- 2026-11-02 · SDLC-FIN-003 · Si a la baja le faltan meses de depreciación: ¿bloquear o depreciar antes? → deprecia antes de dar de baja · Alfred
+- 2026-11-02 · SDLC-FIN-003 · ¿Se mantiene «meses omitidos no se recuperan» o se recuperan en el siguiente periodo? → se recupera en el siguiente periodo · Alfred
+- 2026-11-02 · SDLC-FIN-004 · ¿La depreciación corre sola el día 1 o basta un aviso en la bandeja? → sola, el día 1 · Alfred
+- 2026-11-02 · SDLC-ASSET-003 · ¿`tests/test_fase3_depreciacion.py` se borra o se rescatan casos? → borrar · Alfred
+- 2026-11-02 · SDLC-ASSET-004 · Filas en `activos`/`mantenimientos`: ¿EAM nuevo, `fixed_assets` o archivo? → al EAM nuevo cuando exista · Alfred
+- 2026-11-02 · SDLC-ASSET-006 · ¿Qué roles reciben qué permisos de Activos y qué roles de §82 se crean? → igual que Finanzas · Alfred
+- 2026-11-02 · SDLC-ASSET-008 · ¿Una transferencia en tránsito se cancela o solo se rechaza al recibir? → solo rechazar al recibir; el activo regresa al origen de donde salió · Alfred
+- 2026-11-02 · SDLC-ASSET-010 · Folio global o por sucursal, y ¿quién lo configura? → por sucursal; lo configura el gerente · Alfred
+- 2026-11-02 · SDLC-ASSET-016 · ¿El mantenimiento de equipos de Procesamiento Cárnico se migra a este modelo? → sí (ver SDLC-ASSET-034) · Alfred
+- 2026-11-02 · SDLC-ASSET-019 · ¿El costo de un servicio externo entra como CxP en Compras o como gasto en Finanzas? → CxP · Alfred
+- 2026-11-02 · SDLC-ASSET-020 · ¿Refacciones de un almacén de mantenimiento propio o del general? → almacén de mantenimiento · Alfred
+- 2026-11-02 · SDLC-ASSET-023 · ¿Una mejora capitalizada extiende vida, aumenta base o ambas? ¿Quién aprueba en Finanzas? → ambas según el caso; aprueba el gerente · Alfred
+- 2026-11-02 · SDLC-ASSET-024 · ¿El alta de un activo nace en Activos o en Finanzas? → nace en Activos · Alfred
+- 2026-11-02 · SDLC-ASSET-028 · Línea de compra con cantidad 5: ¿5 borradores o uno que se desdobla? → se desdobla al capturar series · Alfred
+- 2026-11-02 · SDLC-ASSET-034 · ¿El mantenimiento de equipos de producción se muda a Activos? → se muda · Alfred
+- 2026-11-02 · SDLC-TRF-003 · ¿Almacén por omisión al recibir en sucursal con despiece: `PRODUCTION` o recepción + movimiento? → directamente `PRODUCTION` · Alfred
+- 2026-11-02 · SDLC-TRF-003 · ¿Quién autoriza el movimiento recepción → producción? → el que recibe · Alfred
+- 2026-11-02 · SDLC-PROC-004 · ¿Se permite vender cortes estimados antes de pesarlos? → sí · Alfred
+- 2026-11-02 · SDLC-PROC-004 · ¿Con qué tolerancia y quién la configura? → se configura en el perfil del producto · Alfred
+- 2026-11-02 · SDLC-PRICE-001 · ¿La revisión de una línea requiere segundo usuario o basta el permiso de editar? → permiso de editar precio · Alfred
+- 2026-11-02 · SDLC-PRICE-001 · ¿Se permite programar una revisión con vigencia futura? → sí · Alfred
+- 2026-11-02 · SDLC-PRICE-002 · ¿El precio por volumen reemplaza o complementa el negociado? → complementa · Alfred
+- 2026-11-02 · SDLC-PRICE-002 · ¿El descuento global se suma al precio de cliente? → sí · Alfred
+- 2026-11-02 · SDLC-PRICE-002 · ¿La lista se asigna desde CRM o desde Precios? → CRM, pero debe existir una lista base · Alfred
+- 2026-11-02 · SDLC-LOG-002 · ¿En qué módulo vive la bandeja de recepciones y qué pasa con los accesos actuales? → en Logística; los accesos de Compras y Transferencias quedan como atajos, también hacen recepciones · Alfred
+- 2026-11-02 · SDLC-INV-008 · ¿Qué define «recibe alertas de stock»? → responsables por almacén · Alfred
+- 2026-11-02 · SDLC-INV-008 · ¿Teléfonos de WhatsApp por sucursal, por almacén o del usuario? → del usuario destinatario · Alfred
+- 2026-11-02 · SDLC-PROD-001 · ¿«Comercialización» bloquea la activación sin precio o solo avisa? → solo avisar · Alfred
+- 2026-11-02 · SDLC-ORD-004 · ¿El inventario se descuenta al entregar/recoger o al despachar? → al despachar · Alfred
+- 2026-11-02 · SDLC-ORD-004 · ¿Cuántas reservas `CONFIRMED` de pedidos completados hay en la base real? → ni una, estamos en desarrollo · Alfred
+- 2026-11-02 · SDLC-ORD-005 · ¿Se elimina el diálogo «Nuevo pedido» de «Todos los pedidos» o se conserva el alta rápida? → se conserva · Alfred
+- 2026-11-02 · SDLC-ORD-006 · ¿Los avisos de Pedidos se reintentan sobre `whatsapp_outbox` o el outbox de Pedidos? → sobre `whatsapp_outbox` · Alfred
+- 2026-11-02 · SDLC-ORD-007 · ¿Qué evidencia exige cada entrega? → PIN de 4 dígitos si el monto es mayor a 500, valor configurable · Alfred
+- 2026-11-02 · SDLC-ORD-007 · ¿Se rastrea al repartidor toda la ruta o solo al llegar/entregar? → toda la ruta · Alfred
+- 2026-11-02 · SDLC-ORD-009 · ¿Dispositivo de repartidor o navegador móvil emulado? ¿Los flujos WA quedan fuera del primer smoke? → navegador móvil emulado; los flujos WA no se dejan fuera del primer smoke · Alfred
+- 2026-11-02 · SDLC-WA-008 · ¿Alguna instalación usa `configuraciones.wa_*` o tokens en `whatsapp_numeros`? → no · Alfred
+- 2026-11-02 · SDLC-WA-009 · ¿Identidad de servicio en `usuarios` con rol técnico o tabla propia? → tabla diferente · Alfred
+- 2026-11-02 · SDLC-WA-011 · ¿Cuántos días se conservan mensajes y media? ¿Obligación de conservar alguna conversación? → 7 días, configurable; no · Alfred
+- 2026-11-02 · SDLC-WA-013 · Con número global, ¿de dónde sale la sucursal? → se le pregunta · Alfred
+- 2026-11-02 · SDLC-WA-019 · ¿`inputs/whatsapp.md` levanta el diferimiento del corte del webhook (WA-21)? → sí · Alfred
+- 2026-11-02 · SDLC-WA-019 · ¿Hay conversaciones reales en `conversations.db` que migrar? → no · Alfred
+- 2026-11-02 · SDLC-WA-021 · ¿El pedido de WhatsApp nace en `customer_orders` o en `ventas` `pendiente_wa`? → `customer_orders` · Alfred
+- 2026-11-02 · SDLC-WA-023 · ¿LLM en la nube o solo Ollama local? → en la nube, con API · Alfred
+- 2026-11-02 · SDLC-WA-026 · ¿Los horarios de sucursal son del ERP o del canal? → son del ERP · Alfred
+- 2026-11-02 · SDLC-WA-029 · ¿Basta la aceptación del cliente o un ajuste alto requiere además `CUSTOMER_APPROVAL_OVERRIDE`? → una aceptación arriba de 500, valor configurable · Alfred
+- 2026-11-02 · SDLC-WA-034 · ¿Qué datos mínimos pide el registro? ¿Un número sin registrar puede pedir? → nombre completo y dirección; sí puede pedir sin registrarse · Alfred
+- 2026-11-02 · SDLC-WA-036 · ¿Quién atiende conversaciones, con qué horario y SLA? → cajeros y logística, dentro de los horarios del ERP, primera respuesta en 15 min · Alfred
+- 2026-11-02 · SDLC-WA-044 · ¿`WHATSAPP.<accion>` aunque el documento diga códigos planos? → respetar el estándar · Alfred
+- 2026-11-02 · SDLC-WA-050 · ¿Se levanta el diferimiento de WA-21? → eliminar el legacy · Alfred
+- 2026-11-02 · SDLC-WA-051 · ¿Quién actualiza las reglas 8 y 9 de `CLAUDE.md`? → propón el texto en el PR · Alfred
 
 ## Preguntas abiertas para el responsable
 
 _(ID · pregunta · por qué bloquea)_
 
-- SDLC-CORE-002 · Posible contradicción entre fuentes: la REGLA CERO exige UUIDv7 en toda operación, pero la idempotencia necesita `operation_id` derivados deterministas. · Registrada aquí en vez de elegir en silencio (regla del README).
 - SDLC-INST-001 · ¿Nombre/huella del certificado de firma de código que se usará? · bloquea `/sdlc-design SDLC-INST-001`
-- SDLC-INV-001 · ¿Las bajas por caducidad son merma (Mermas valúa y asienta) o ajuste de inventario directo? · bloquea `/sdlc-design SDLC-INV-001`
 - SDLC-INV-001 · ¿Qué cuentas usa un ajuste positivo (sobrante)? · bloquea `/sdlc-design SDLC-INV-001`
-- SDLC-LOSS-001 · ¿Umbral de monto a partir del cual la aprobación requiere gerente? · bloquea `/sdlc-design SDLC-LOSS-001`
-- SDLC-LOSS-001 · Revaluación: ¿ajuste por diferencia o reversa total + asiento nuevo? · bloquea `/sdlc-design SDLC-LOSS-001`
-- SDLC-SALES-001 · Ante falla del motor: ¿bloquear la línea o permitir catálogo con autorización de gerente? (misma decisión que correcciones C-05) · bloquea `/sdlc-design SDLC-SALES-001`
-- SDLC-SYNC-001 · ¿`354_device_enrollment` es parte del mismo slice que p006 o es un remanente a borrar? · bloquea `/sdlc-design SDLC-SYNC-001`
-- SDLC-SYNC-002 · ¿Quién resuelve un conflicto (central, estación, humano) y con qué pantalla? · bloquea `/sdlc-design SDLC-SYNC-002`
-- SDLC-WA-001 · ¿Se usa MercadoPago en producción hoy, o el flujo está apagado? · bloquea `/sdlc-design SDLC-WA-001`
 - SDLC-WA-002 · ¿Hay hoy algún despliegue del microservicio sin `APP_ENV=production`? · bloquea `/sdlc-design SDLC-WA-002`
-- SDLC-CORE-007 · ¿Se mantiene la lista curada como gate o se vuelve a exigir el segmento completo verde? · bloquea `/sdlc-design SDLC-CORE-007`
-- SDLC-CRED-001 · ¿Hay saldos vivos en `cuentas_por_cobrar` en la BD real? (se medirá sobre copia) · bloquea `/sdlc-design SDLC-CRED-001`
-- SDLC-CRM-002 · ¿Qué datos deben conservarse por obligación fiscal en ventas? · bloquea `/sdlc-design SDLC-CRM-002`
-- SDLC-HR-001 · ¿Cálculo de cuota patronal IMSS: lo hace el sistema o se captura? · bloquea `/sdlc-design SDLC-HR-001`
 - SDLC-INST-002 · ¿Dónde se genera y custodia la llave privada de release? (el humano la crea; Claude no la ve) · bloquea `/sdlc-design SDLC-INST-002`
 - SDLC-INV-003 · Probablemente requiera dividirse en Design (resolver + migración por flujo). · bloquea `/sdlc-design SDLC-INV-003`
-- SDLC-ORD-001 · ¿Cuenta contable para 'efectivo en poder de repartidores'? · bloquea `/sdlc-design SDLC-ORD-001`
 - SDLC-PROC-001 · ¿Política por producto/sucursal/almacén de qué dispara la transformación? Concretamente (correcciones C-03): ¿qué productos y sucursales usan `NEVER`, `OFFER_AFTER_RECEIPT` o `AUTO_ESTIMATE_AFTER_RECEIPT`, con alcance producto + sucursal + almacén + origen? · bloquea `/sdlc-design SDLC-PROC-001`
-- SDLC-SALES-002 · ¿Regla de redondeo: por línea o sobre el total? ¿HALF_UP o bancario? · bloquea `/sdlc-design SDLC-SALES-002`
-- SDLC-SYNC-005 · ¿Ya hay un servidor central (Oracle Always Free) listo para recibir tráfico real? · bloquea `/sdlc-design SDLC-SYNC-005`
 - SDLC-WA-003 · ¿El destino es la API REST del ERP (aún inexistente) o los casos de uso canónicos `customer_orders`/`quotes`? · bloquea `/sdlc-design SDLC-WA-003`
-- SDLC-WA-003 · ¿El canal WhatsApp está en uso hoy en alguna sucursal? · bloquea `/sdlc-design SDLC-WA-003`
-- SDLC-WA-004 · ¿Cuenta contable de anticipos de clientes? · bloquea `/sdlc-design SDLC-WA-004`
-- SDLC-CASH-002 · ¿Quién confirma el depósito (cajero, tesorería) y con qué evidencia? · bloquea `/sdlc-design SDLC-CASH-002`
-- SDLC-CORE-002 · Los ids derivados necesitan ser deterministas para idempotencia: ¿se acepta UUIDv5/v8 derivado del UUIDv7 padre, o se exige UUIDv7 persistido? (posible contradicción con la REGLA CERO) · bloquea `/sdlc-design SDLC-CORE-002`
-- SDLC-INST-003 · ¿Varios usuarios de Windows por PC de sucursal, o uno solo? · bloquea `/sdlc-design SDLC-INST-003`
-- SDLC-ORD-003 · ¿Cuál pipeline de pedidos es el autoritativo? · bloquea `/sdlc-design SDLC-ORD-003`
-- SDLC-SALES-004 · ¿Vigencia de una venta suspendida? · bloquea `/sdlc-design SDLC-SALES-004`
-- SDLC-SET-002 · ¿Se ejecuta dentro del pipeline CONFIGURACION (lotes 07/14) o como ítem SDLC independiente? · bloquea `/sdlc-design SDLC-SET-002`
 - SDLC-SET-003 · ¿Qué secciones conectar y cuáles ocultar? · bloquea `/sdlc-design SDLC-SET-003`
-- SDLC-CORE-009 · ¿Las herramientas de `tools/refactor_control` y el orquestador Codex siguen en uso? · bloquea `/sdlc-design SDLC-CORE-009`
-- SDLC-LOY-001 · ¿Se reconoce breakage contablemente? · bloquea `/sdlc-design SDLC-LOY-001`
 
 ### Arquitectura (2026-10-29)
 
 - §3.4 · La precedencia actual es ROL < USUARIO < SUCURSAL y gana la capa más específica, también cuando concede (`backend/application/security/permission_query_service.py:3-13`). El documento dice respetarla si existe: ¿se ratifica como política? · no bloquea; confirma la base de PERM-002/004
 - Entregables · `requisitos-arquitectura.md` §1/§16 pide `docs/spj/auditoria/matriz-hallazgos.md` y `plan-por-etapas.md`; `/sdlc-plan` sólo escribe en `docs/sdlc/`. Hoy `arquitectura/matriz-brechas.md` cumple ese papel y el orden por etapas vive en la columna «Depende de». ¿Se crea además `docs/spj/` (enlace o copia) o se adopta `docs/sdlc/` como ubicación oficial? · no bloquea
-- SDLC-PAY-001 · ¿Dónde vive el backend de pagos y el Access Token: PC anfitriona de sucursal (plan maestro, decisión 1), servidor central o, temporalmente, cada caja? · bloquea `/sdlc-design SDLC-PAY-001`
-- SDLC-PAY-001 · ¿Entrada pública de webhooks: ngrok, Cloudflare Tunnel o servidor central? · bloquea `/sdlc-design SDLC-PAY-001`
-- SDLC-PAY-001 · ¿Se usa Mercado Pago hoy en producción (POS manual y/o WhatsApp) y con cuántas cuentas cobradoras (una por empresa o por sucursal)? · bloquea `/sdlc-design SDLC-PAY-001`
-- SDLC-PAY-002 · ¿La referencia también es obligatoria y única para Tarjeta (número de autorización) y Transferencia? · bloquea `/sdlc-design SDLC-PAY-002`
-- SDLC-PAY-002 · ¿Qué se hace con ventas históricas con referencia vacía o repetida (se miden sobre copia)? · bloquea `/sdlc-design SDLC-PAY-002`
-- SDLC-PAY-004 · ¿Una cuenta de tesorería por cuenta cobradora MP y otra por adquirente de tarjeta, o una sola «procesadores»? · bloquea `/sdlc-design SDLC-PAY-004`
-- SDLC-PAY-004 · ¿La venta MP carga directo la cuenta del procesador o la 1120 hasta la liquidación? · bloquea `/sdlc-design SDLC-PAY-004`
-- SDLC-PAY-004 · ¿Cómo se reclasifica el saldo histórico de la 1120? · bloquea `/sdlc-design SDLC-PAY-004`
-- SDLC-PAY-006 · Mientras no exista la API: ¿quién confirma el reembolso hecho en el panel de Mercado Pago y con qué permiso? · bloquea `/sdlc-design SDLC-PAY-006`
-- SDLC-PAY-008 · ¿Qué se compromete mientras el pago está pendiente: inventario reservado sí, puntos y caja no? · bloquea `/sdlc-design SDLC-PAY-008`
-- SDLC-PAY-009 · ¿SDK oficial `mercadopago` o `httpx` directo? · bloquea `/sdlc-design SDLC-PAY-009`
-- SDLC-PAY-012 · ¿Cuántas Point Smart hay y en qué sucursales/cajas? ¿Ya están en modo PDV? · bloquea `/sdlc-design SDLC-PAY-012`
-- SDLC-PAY-017 · ¿Se permite cobrar con Point si la caja no tiene internet pero la terminal sí (la orden la crea el backend)? · bloquea `/sdlc-design SDLC-PAY-017`
-- SDLC-PAY-018 · ¿La comisión e IVA se toman del reporte de liquidación de MP o de una tarifa configurada? ¿Qué cuentas? · bloquea `/sdlc-design SDLC-PAY-018`
-- SDLC-PAY-019 · ¿Qué reporte de liquidación de MP usarán (CSV de «Dinero liberado», API de reportes) y quién lo descarga? · bloquea `/sdlc-design SDLC-PAY-019`
+- SDLC-PAY-018 · ¿Qué cuentas usan la comisión y el IVA? (respondido: tarifa configurada) · bloquea `/sdlc-design SDLC-PAY-018`
+- SDLC-PAY-019 · ¿Quién descarga el CSV de liquidación de MP? (respondido: CSV) · bloquea `/sdlc-design SDLC-PAY-019`
 - SDLC-PAY-021 · ¿Quién investiga un contracargo y qué cuentas usa la retención? · bloquea `/sdlc-design SDLC-PAY-021`
-- SDLC-PAY-022 · ¿Se separan instancias sandbox y producción en la misma pantalla, y quién puede cambiar de ambiente? · bloquea `/sdlc-design SDLC-PAY-022`
-- SDLC-PAY-028 · ¿Se borran las pruebas legacy o se reescriben las que describen comportamiento deseado (pendiente, webhook)? · bloquea `/sdlc-design SDLC-PAY-028`
 
 ### UI/UX (2026-10-29)
 
@@ -461,71 +514,21 @@ _(ID · pregunta · por qué bloquea)_
 
 ### Activos (2026-10-29)
 
-- SDLC-FIN-002 · ¿El alta en el auxiliar debe ser automática al reconocer la CxP (con datos mínimos: vida útil por categoría) o quedar «pendiente de capitalizar» hasta que alguien complete vida útil y categoría? · bloquea `/sdlc-design SDLC-FIN-002`
-- SDLC-FIN-002 · Si la medición en la copia de la BD encuentra compras ASSET ya asentadas sin auxiliar, ¿se regularizan con un alta sin origen de fondos o con un asiento de reclasificación? · bloquea `/sdlc-design SDLC-FIN-002`
-- SDLC-FIN-003 · Si a la baja le faltan meses de depreciación: ¿se bloquea, o el caso de uso deprecia los meses faltantes antes de dar de baja? · bloquea `/sdlc-design SDLC-FIN-003`
-- SDLC-FIN-003 · La regla actual «meses omitidos no se recuperan a mitad de vida; el último mes liquida» (`depreciation_policy.py:28-31`), ¿se mantiene o se prefiere recuperar en el siguiente periodo corrido? · bloquea `/sdlc-design SDLC-FIN-003`
-- SDLC-FIN-004 · ¿La depreciación debe correr sola el día 1, o basta un aviso en la bandeja de Finanzas para que la corra una persona? · bloquea `/sdlc-design SDLC-FIN-004`
-- SDLC-ASSET-003 · `tests/test_fase3_depreciacion.py` describe la lógica legacy prohibida (capitalizar por UPDATE, depreciación local): ¿se borra, o se rescatan los casos que describan comportamiento deseado como pruebas de Finanzas? · bloquea `/sdlc-design SDLC-ASSET-003`
-- SDLC-ASSET-004 · Si la copia de la BD real tiene filas en `activos` o `mantenimientos`: ¿se migran al EAM nuevo cuando exista (esperar a SDLC-ASSET-010), se migran a `fixed_assets`, o se archivan en un respaldo y se descartan? · bloquea `/sdlc-design SDLC-ASSET-004`
-- SDLC-ASSET-006 · ¿Qué roles existentes (gerente, cajero, administrador…) reciben qué permisos de Activos, y cuáles de los roles de §82 se crean? · bloquea `/sdlc-design SDLC-ASSET-006`
-- SDLC-ASSET-008 · ¿Una transferencia ya en tránsito se puede cancelar (y qué pasa con el activo físico), o solo rechazar al recibir? · bloquea `/sdlc-design SDLC-ASSET-008`
 - SDLC-ASSET-009 · ¿Lista de tipos de archivo permitidos para documentos y fotos de activos, y tamaño máximo (hoy 25 MB fijos)? · bloquea `/sdlc-design SDLC-ASSET-009`
-- SDLC-ASSET-010 · Formato del folio: ¿global (ACT-000001) o por sucursal (ACT-QRO-000234)? ¿Quién lo configura? · bloquea `/sdlc-design SDLC-ASSET-010`
-- SDLC-ASSET-016 · ¿Mantenimiento de equipos de Procesamiento Cárnico se migra a este modelo? (ver SDLC-ASSET-034) · bloquea `/sdlc-design SDLC-ASSET-016`
-- SDLC-ASSET-019 · ¿El costo de un servicio externo entra como factura de proveedor en Compras (CxP) o como solicitud de gasto en Finanzas? ¿Qué cuenta de gasto usa el mantenimiento interno? · bloquea `/sdlc-design SDLC-ASSET-019`
-- SDLC-ASSET-020 · ¿Las refacciones salen de un almacén de mantenimiento propio o del almacén general de la sucursal? · bloquea `/sdlc-design SDLC-ASSET-020`
-- SDLC-ASSET-023 · ¿Una mejora capitalizada extiende la vida útil, aumenta la base, o ambas según el caso? ¿Quién aprueba en Finanzas? · bloquea `/sdlc-design SDLC-ASSET-023`
-- SDLC-ASSET-024 · Igual que en SDLC-UI-017: ¿el alta de un activo nace en Activos (y Finanzas solo lo reconoce) o se mantiene el alta en Finanzas y Activos la toma de ahí? · bloquea `/sdlc-design SDLC-ASSET-024`
-- SDLC-ASSET-028 · ¿Una línea de compra con cantidad 5 genera 5 activos en borrador, o un borrador que se desdobla al capturar series? · bloquea `/sdlc-design SDLC-ASSET-028`
-- SDLC-ASSET-034 · ¿El mantenimiento de equipos de producción se muda a Activos, o Cárnico conserva el suyo y solo notifica a Activos? · bloquea `/sdlc-design SDLC-ASSET-034`
+- SDLC-ASSET-019 · ¿Qué cuenta de gasto usa el mantenimiento interno? (respondido: servicio externo por CxP) · bloquea `/sdlc-design SDLC-ASSET-019`
 - Precedencia de fuentes · `activos.md` pide códigos `ASSETS_VIEW…` (§71–§81); el repo usa `ACTIVOS.<accion>` (convención de Compras, ya en el catálogo). Los intents asumen la del repo; registrado aquí en vez de elegir en silencio. · no bloquea
 - Precedencia de fuentes · `activos.md` §1/§109 pide eliminar `modulos/activos.py` y `AssetService`, ya borrados; la función que hacían (alta de equipos, mantenimientos, etiquetas, PDF, depreciación automática) se perdió sin reemplazo, contra la regla de preservación de `CLAUDE.md`. Los ítems ASSET-013/016/019/023/027 y FIN-004 la restituyen. · no bloquea
 
 ### Correcciones (2026-10-31)
 
-- SDLC-TRF-003 · ¿El almacén por omisión al recibir una transferencia en una sucursal con despiece es directamente `PRODUCTION`, o siempre recepción y luego movimiento interno? · bloquea `/sdlc-design SDLC-TRF-003`
-- SDLC-TRF-003 · ¿Quién autoriza el movimiento interno recepción → producción (quien recibe o un segundo usuario)? · bloquea `/sdlc-design SDLC-TRF-003`
-- SDLC-PROC-004 · ¿Se permite vender cortes estimados antes de pesarlos? · bloquea `/sdlc-design SDLC-PROC-004`
-- SDLC-PROC-004 · Si se permite, ¿con qué tolerancia (por corte, por lote o global) y quién la configura? · bloquea `/sdlc-design SDLC-PROC-004`
-- SDLC-PRICE-001 · ¿La revisión de una línea de precio requiere aprobación de un segundo usuario (como la lista) o basta el permiso de editar? · bloquea `/sdlc-design SDLC-PRICE-001`
-- SDLC-PRICE-001 · ¿Se permite programar una revisión con vigencia futura? · bloquea `/sdlc-design SDLC-PRICE-001`
-- SDLC-PRICE-002 · ¿El precio por volumen reemplaza o complementa el precio negociado del cliente? · bloquea `/sdlc-design SDLC-PRICE-002`
-- SDLC-PRICE-002 · ¿El descuento global se suma al precio de cliente? · bloquea `/sdlc-design SDLC-PRICE-002`
-- SDLC-PRICE-002 · ¿La lista se asigna desde el expediente del cliente (CRM) o desde Precios? · bloquea `/sdlc-design SDLC-PRICE-002`
-- SDLC-LOG-002 · ¿En qué módulo vive la bandeja de recepciones, y desaparecen los accesos actuales de Compras y Transferencias o quedan como atajo? · bloquea `/sdlc-design SDLC-LOG-002`
-- SDLC-INV-008 · ¿Qué permiso o rol RBAC define «recibe alertas de stock» (permiso nuevo o responsables por almacén)? · bloquea `/sdlc-design SDLC-INV-008`
-- SDLC-INV-008 · ¿Teléfonos de WhatsApp por sucursal, por almacén o del propio usuario destinatario? · bloquea `/sdlc-design SDLC-INV-008`
-- SDLC-PROD-001 · ¿El paso «Comercialización» bloquea la activación del producto sin precio (requisitos de activación, migr. 324) o solo avisa? · bloquea `/sdlc-design SDLC-PROD-001`
 - Reconstrucción virtual del entero vendido por kg (correcciones, decisión fuera de un solo punto; auditoría §3 P1 «Reconstrucción virtual»): equivalencias entre cortes de pesos distintos, redondeo, merma real, saldos por lote y origen del costo; ¿el negocio arma físicamente unidades (eso sería otra orden de Producción)? Hoy existe el motor por esquema de corte (`backend/domain/products/services/reverse_recipe_explosion_service.py:47`, `backend/application/inventory/queries/sellable_availability_query_service.py:57`) que exige todas las partes. · sin ítem de build hasta tener la regla
 - Niveles · El README eleva un ítem al nivel más alto de las áreas que toca; se respetaron los niveles que fija `correcciones.md` para SDLC-PRICE-001/002 (T1, migración con ceremonia T0), SDLC-LOG-002 (T1, llama casos de uso de `transfers`) y SDLC-INV-008 (T1, lee desde `inventory/notifications`). ¿Se mantienen o pasan a T0? · no bloquea
 
 ### Pedidos/Delivery (2026-10-31)
 
-- SDLC-ORD-004 · ¿El inventario se descuenta al entregar o recoger (`COMPLETED`) o al despachar (sale de la sucursal)? · bloquea `/sdlc-design SDLC-ORD-004`
-- SDLC-ORD-004 · Medir sobre una copia de la base real cuántas reservas `CONFIRMED` de pedidos completados o reversados hay, para el saneamiento · bloquea `/sdlc-design SDLC-ORD-004`
-- SDLC-ORD-005 · ¿Se elimina el diálogo "Nuevo pedido" de "Todos los pedidos" (el botón lleva a la página de captura) o se conserva un alta rápida con el mismo flujo? · bloquea `/sdlc-design SDLC-ORD-005`
-- SDLC-ORD-006 · ¿Los avisos de Pedidos se reintentan sobre `whatsapp_outbox` o sobre el outbox de Pedidos? (decidir junto con SDLC-ORD-002) · no bloquea el intent
-- SDLC-ORD-007 · ¿Qué evidencia exige el negocio en cada entrega (PIN, foto, firma, o solo en cobros en efectivo)? · bloquea `/sdlc-design SDLC-ORD-007`
-- SDLC-ORD-007 · ¿Se rastrea la posición del repartidor durante toda la ruta o solo al llegar o entregar? (privacidad, batería, retención) · bloquea `/sdlc-design SDLC-ORD-007`
-- SDLC-ORD-009 · ¿Hay un dispositivo de repartidor para la prueba o basta un navegador móvil emulado? ¿Los flujos WhatsApp quedan fuera del primer smoke si el canal no está activo? · bloquea `/sdlc-design SDLC-ORD-009`
 - SDLC-ORD-011 · ¿El negocio necesita ajustar los avisos de Pedidos por sucursal? Si no, se descarta y queda solo el cambio de roles fijos a permiso · bloquea `/sdlc-design SDLC-ORD-011`
-- SDLC-WA-008 · ¿Alguna instalación usa hoy `configuraciones.wa_*` o tokens en `whatsapp_numeros`? Si sí, se necesita migrarlos al almacén antes de retirar el respaldo. · bloquea `/sdlc-design SDLC-WA-008`
-- SDLC-WA-009 · ¿La identidad de servicio vive en `usuarios` con un rol técnico o en una tabla propia de identidades de servicio? · bloquea `/sdlc-design SDLC-WA-009`
-- SDLC-WA-011 · ¿Cuántos días se conservan mensajes y archivos de media? ¿Hay obligación de conservar alguna conversación (por ejemplo, la que originó un pedido)? · bloquea `/sdlc-design SDLC-WA-011`
-- SDLC-WA-013 · Con número global: ¿la sucursal se toma de la última compra del cliente, de su dirección, o se le pregunta siempre? · bloquea `/sdlc-design SDLC-WA-013`
-- SDLC-WA-019 · El corte del webhook y la eliminación del legacy (WA-21) quedaron diferidos por decisión del responsable desde WA-9. ¿El documento `inputs/whatsapp.md` ("no conservar dos webhooks") levanta esa decisión? · bloquea `/sdlc-design SDLC-WA-019`
-- SDLC-WA-019 · ¿Hay conversaciones reales en `conversations.db` que deban migrarse al corte, o se puede empezar limpio? · bloquea `/sdlc-design SDLC-WA-019`
-- SDLC-WA-021 · Depende de la respuesta abierta de SDLC-ORD-003/SDLC-WA-003: ¿el pedido de WhatsApp nace en `customer_orders` (Orders/Delivery) o en `ventas` estado `pendiente_wa`? · bloquea `/sdlc-design SDLC-WA-021`
-- SDLC-WA-023 · Presupuesto $0: ¿se permite algún LLM en la nube, o solo Ollama local (y en qué máquina corre)? · bloquea `/sdlc-design SDLC-WA-023`
-- SDLC-WA-026 · ¿Los horarios de sucursal son del ERP (Configuración/Sucursales) y el canal solo los consulta, o el canal conserva `wa_horarios_sucursal`? · bloquea `/sdlc-design SDLC-WA-026`
-- SDLC-WA-029 · ¿La aceptación del cliente por WhatsApp basta como aprobación, o un ajuste por encima de cierto monto requiere además a un empleado con `CUSTOMER_APPROVAL_OVERRIDE`? · bloquea `/sdlc-design SDLC-WA-029`
-- SDLC-WA-034 · ¿Qué datos mínimos pide el registro por WhatsApp y qué versión del aviso de privacidad se muestra? ¿Un número sin registrar puede pedir sin registrarse? · bloquea `/sdlc-design SDLC-WA-034`
+- SDLC-WA-034 · ¿Qué versión del aviso de privacidad se muestra en el registro por WhatsApp? (respondido: nombre completo y dirección; se puede pedir sin registrarse) · bloquea `/sdlc-design SDLC-WA-034`
 - SDLC-WA-035 · ¿Qué mensajes se consideran transaccionales y siguen permitidos tras una baja (pedido listo, pago recibido, ajuste de peso)? ¿Qué palabras exactas cuentan como baja? · bloquea `/sdlc-design SDLC-WA-035`
-- SDLC-WA-036 · ¿Quién atiende conversaciones (roles), con qué horario y qué SLA de primera respuesta? · bloquea `/sdlc-design SDLC-WA-036`
-- SDLC-WA-044 · El documento lista códigos planos (`WHATSAPP_ACCESS`); el estándar del repositorio es `MODULO.accion`. ¿Se usan `WHATSAPP.<accion>` (propuesta) aunque el documento diga otra cosa? · bloquea `/sdlc-design SDLC-WA-044`
-- SDLC-WA-050 · Misma decisión que SDLC-WA-019: ¿se levanta el diferimiento de WA-21? · bloquea `/sdlc-design SDLC-WA-050`
-- SDLC-WA-051 · ¿Actualizas tú las reglas 8 y 9 de `CLAUDE.md`, o propongo el texto en el PR para que lo apruebes? · bloquea `/sdlc-design SDLC-WA-051`
 
 ### Corrección ronda 1 (2026-11-12, `/sdlc-corregir ronda 1`)
 
