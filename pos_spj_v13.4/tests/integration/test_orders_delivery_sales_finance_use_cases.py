@@ -253,6 +253,16 @@ class TestRecordOrderPaymentUseCase:
 
 
 class TestReverseCustomerOrderUseCase:
+    @staticmethod
+    def _refunder_with_shift(conn, order_id) -> str:
+        """Decisión 2026-11-14: el reembolso sale del turno de quien reversa,
+        igual que en el POS (SDLC-ARQ-SHIFT-001): reversa el cajero que tiene el
+        turno abierto en la sucursal."""
+        branch_id = CustomerOrderRepository(conn).get(order_id).branch_id
+        return conn.execute(
+            "SELECT cashier_user_id FROM cash_shifts WHERE branch_id=? AND status='OPEN'",
+            (branch_id,)).fetchone()[0]
+
     def _completed_paid_order(self, conn) -> tuple[str, str]:
         order_id, branch_id = _ready_pickup_order(conn)
         sale_id = _project(conn, order_id)
@@ -274,7 +284,8 @@ class TestReverseCustomerOrderUseCase:
 
         result = ReverseCustomerOrderUseCase(_allow_all()).execute(
             conn, order_id=order_id, reason="Cliente reportó producto dañado",
-            actor_user_id=new_uuid(), authorizer_user_id=new_uuid(), operation_id=new_uuid(),
+            actor_user_id=self._refunder_with_shift(conn, order_id),
+            authorizer_user_id=new_uuid(), operation_id=new_uuid(),
             sales_authorization=_sales_allow_all())
 
         assert result.success, result.message
@@ -311,7 +322,7 @@ class TestReverseCustomerOrderUseCase:
     def test_retry_with_same_operation_id_does_not_double_refund(self, conn):
         order_id, sale_id = self._completed_paid_order(conn)
         operation_id = new_uuid()
-        actor_user_id, authorizer_user_id = new_uuid(), new_uuid()
+        actor_user_id, authorizer_user_id = self._refunder_with_shift(conn, order_id), new_uuid()
 
         first = ReverseCustomerOrderUseCase(_allow_all()).execute(
             conn, order_id=order_id, reason="Motivo", actor_user_id=actor_user_id,

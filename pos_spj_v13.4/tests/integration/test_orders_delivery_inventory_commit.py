@@ -184,6 +184,14 @@ def _pedido_mostrador(conn, *, branch_id, product_id, requested="1", prepared="1
     return creado.entity_id, listo.data["verification_code"]
 
 
+def _cajero_con_turno(conn, order_id) -> str:
+    """El cajero con turno abierto en la sucursal del pedido."""
+    branch_id = CustomerOrderRepository(conn).get(order_id).branch_id
+    return conn.execute(
+        "SELECT cashier_user_id FROM cash_shifts WHERE branch_id=? AND status='OPEN'",
+        (branch_id,)).fetchone()[0]
+
+
 def _cobrar(conn, order_id):
     cajero = new_uuid()
     open_cash_shift(conn, branch_id=CustomerOrderRepository(conn).get(order_id).branch_id,
@@ -371,9 +379,14 @@ class TestReverso:
         assert _entregar_en_mostrador(conn, order_id, codigo).success
         return order_id, product_id
 
-    def _reversar(self, conn, order_id):
+    def _reversar(self, conn, order_id, *, actor_user_id=None):
+        # Decisión 2026-11-14: el reembolso sale del turno de QUIEN reversa, igual
+        # que en el POS (SDLC-ARQ-SHIFT-001).  Sin actor explícito, reversa el cajero
+        # que tiene el turno abierto en la sucursal.
+        if actor_user_id is None:
+            actor_user_id = _cajero_con_turno(conn, order_id)
         return ReverseCustomerOrderUseCase(_auth()).execute(
-            conn, order_id=order_id, reason="Cliente devolvió", actor_user_id=new_uuid(),
+            conn, order_id=order_id, reason="Cliente devolvió", actor_user_id=actor_user_id,
             authorizer_user_id=new_uuid(), operation_id=new_uuid(),
             sales_authorization=_sales_auth())
 
@@ -400,6 +413,17 @@ class TestReverso:
             "SELECT lot_id, quantity FROM inventory_balances WHERE product_id=?",
             (product_id,)).fetchall()
         assert fila == [(lote, "100")]
+
+    def test_sin_turno_propio_quien_reversa_es_rechazado_y_nada_vuelve(self, conn):
+        """Decisión 2026-11-14: el turno del cajero que cobró no le sirve a otro."""
+        order_id, product_id = self._pedido_completado(conn)
+
+        resultado = self._reversar(conn, order_id, actor_user_id=new_uuid())
+
+        assert not resultado.success
+        assert "turno de caja" in resultado.message
+        assert _movimientos(conn, "SALE_RETURN") == []
+        assert CustomerOrderRepository(conn).get(order_id).status.value == "COMPLETED"
 
     def test_un_pedido_que_nunca_desconto_no_suma_y_suelta_su_retencion(self, conn):
         branch_id, product_id = new_uuid(), new_uuid()
