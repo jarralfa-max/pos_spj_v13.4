@@ -2,6 +2,8 @@ from decimal import Decimal
 
 import pytest
 
+from backend.domain.sales.exceptions import InvalidMoneyValueError
+
 from backend.domain.payments.entities import PaymentIntent
 from backend.domain.payments.enums import (
     PaymentChannel, PaymentIntentStatus, PaymentMethod, PaymentPurpose,
@@ -98,7 +100,7 @@ def test_whatsapp_intent_supports_deposit_purpose():
 
 
 def test_money_must_be_decimal_and_positive():
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidMoneyValueError):
         make_intent(amount=125.50)
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidMoneyValueError):
         make_intent(amount=Decimal("0"))
