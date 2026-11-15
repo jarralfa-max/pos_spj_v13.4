@@ -23,7 +23,7 @@ from backend.domain.payments.exceptions import (
     PaymentIntentTransitionError,
 )
 from backend.domain.sales.value_objects.money import money
-from backend.shared.ids import new_uuid, validate_uuidv7
+from backend.shared.ids import new_uuid
 
 _CURRENCY = re.compile(r"^[A-Z]{3}$")
 _PROVIDER_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
