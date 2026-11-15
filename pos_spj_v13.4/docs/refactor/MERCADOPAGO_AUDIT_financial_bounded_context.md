@@ -124,3 +124,15 @@ Mantener `links_pago`/anticipos legacy como compatibilidad mientras se migra; no
 ## 7. Estado
 
 Esta es una auditoría estática focalizada sobre la rama especificada y los archivos enumerados. No se ejecutó la suite de pruebas, no se probaron credenciales ni terminales reales y no se modificó código productivo. El siguiente paso de implementación debe comenzar por inventariar las rutas activas del adaptador Mercado Pago legacy y el composition root de esta rama, para no crear duplicados ni romper los límites del bounded context.
+
+
+## 9. Avance posterior a la auditoría — fundación Payments
+
+Por aprobación del responsable, se inició la implementación siguiendo los límites recomendados:
+- Nuevo dominio puro `backend/domain/payments` con `PaymentIntent`, enums y excepciones.
+- Referencia externa opaca UUIDv7; validación de importe Decimal, moneda y referencia; replay idempotente sólo para el mismo payment_id y después de revalidar el contenido.
+- Pruebas unitarias de dominio en `tests/unit/domain/payments/test_payment_intent.py`.
+- Documento de límites y fases en `docs/architecture/PAYMENTS_BOUNDED_CONTEXT.md`.
+- Registro del avance en `migrations/MIGRATION_LOG.md`.
+
+Esta entrega **no** incluye aún persistencia, API de Mercado Pago, webhooks compartidos, QR, Point, WhatsApp parcial ni integración UI. Tampoco se ejecutaron localmente las pruebas; el código debe pasar CI y revisión antes de avanzar a la fase de infraestructura.
