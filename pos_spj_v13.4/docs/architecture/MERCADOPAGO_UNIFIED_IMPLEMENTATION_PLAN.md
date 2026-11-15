@@ -27,14 +27,14 @@ La base existente es aprovechable: el POS ya crea intenciones pendientes y reser
 
 1. **Dos implementaciones de Checkout.** ERP y WhatsApp construyen preferencias por separado. Pueden divergir en referencias, montos, moneda, expiraciones, metadatos, idempotencia y persistencia. Consolidar la creación de intentos en una sola capa de aplicación/proveedor.
 2. **Webhook de WhatsApp sin verificación de firma.** `whatsapp_service/webhook/mercadopago.py` no valida `x-signature` y `x-request-id`. Consultar el pago por ID no sustituye la autenticación de la notificación.
-3. **Asociación ambigua de pagos WA.** El webhook interpreta `external_reference` como teléfono y, además, busca la venta `pendiente_wa` más reciente por teléfono. Un cliente con varios pedidos/anticipos puede liquidar el pedido incorrecto. La referencia externa debe ser un identificador opaco, único e inmutable del intento de pago, relacionado en BD con un pedido/venta concretos.
-4. **Idempotencia de negocio incorrecta.** La clave `confirm_payment:{venta_id}:{monto}` no incluye `payment_id`; dos pagos legítimos del mismo importe podrían colisionar. La deduplicación debe basarse en el ID único del pago del proveedor y proteger también el efecto de negocio.
+3. **Asociación ambigua de pagos WA.** `pago_flow.py` actualmente construye `external_reference` como `venta_id:phone` cuando `last_venta_id` existe, pero cae al teléfono si no lo tiene. El webhook intenta extraer el prefijo numérico y después hace fallback a la venta `pendiente_wa` más reciente por teléfono. Ese fallback sigue siendo ambiguo, y el formato `venta_id:phone` filtra un dato personal innecesario al proveedor. La referencia externa debe ser un identificador opaco, único e inmutable del intento de pago, relacionado en BD con un pedido/venta concretos.
+4. **Idempotencia de negocio incorrecta y carrera de confirmación.** La clave `confirm_payment:{venta_id}:{monto}` no incluye `payment_id`; dos pagos legítimos del mismo importe podrían colisionar. Además, `SalesService.confirm_pending_payment_sale` consulta estado `pendiente_pago`, ejecuta la venta y después actualiza a `confirmada`; dos webhooks concurrentes pueden leer el mismo estado antes del commit. La deduplicación debe basarse en el ID único del pago del proveedor y proteger atómicamente el efecto de negocio con transacción/constraint.
 5. **Monto y contexto no validados de extremo a extremo.** Antes de contabilizar, verificar estado `approved`, moneda esperada (MXN), monto exacto del intento, referencia, cuenta/receptor cuando esté disponible, pedido/venta asociados y que el intento admita ese pago. No confiar en monto ni teléfono del payload entrante.
 6. **Respuesta del webhook y fallos.** El endpoint WA registra excepciones y devuelve `status=ok` incluso cuando falla el procesamiento; esto puede impedir reintentos y ocultar pagos no aplicados. Persistir notificación/estado de procesamiento y devolver respuesta que permita reintento ante fallo transitorio.
 
 ### P1 — Necesario para completar ambos canales
 
-7. **Anticipo y liquidación no son un modelo de pagos múltiples todavía.** El flujo actual de WhatsApp presenta efectivo, tarjeta o link; la ruta de link usa un importe de anticipo en ciertos casos, pero no hay evidencia suficiente de un ledger unificado que permita varios intentos aprobados contra un pedido, saldo restante, pagos parciales, devoluciones y conciliación.
+7. **Anticipo y liquidación no están unificados en el flujo WA inspeccionado.** `PagoFlow._handle_metodo` trata `pago_link` y llama a `_generar_link_pago(ctx)`, que usa `ctx.total_pedido()` como importe total, no el anticipo configurable. `ERPBridge` sí expone `registrar_anticipo` y `confirmar_pago_anticipo`, pero el creador de preferencias de `PagoFlow` no registra allí el intento ni vincula el ID de preferencia a un anticipo concreto. Falta un ledger de varios pagos por pedido, saldo restante, pagos parciales, devoluciones y conciliación.
 8. **`links_pago` es demasiado estrecha como registro canónico.** Su clave `pedido_id` y campos actuales no representan bien varios pagos por pedido, varios intentos, canal (POS/WA), dispositivo Point, tipo de cobro (total/anticipo/liquidación), moneda, vencimiento, estados de procesamiento ni auditoría de notificaciones.
 9. **El `X-Idempotency-Key` de proveedor se genera al vuelo.** Para creación/reintento de la misma operación se necesita una clave persistida y estable por intento; un intento nuevo debe tener una clave nueva.
 10. **Contabilidad y comisión.** La documentación financiera describe que el ingreso MP se registra al confirmar webhook y menciona una comisión estimada fija del 3.6%. No se debe asumir esa tasa como comisión real: registrar importes/comisiones netos y brutos según datos reales de liquidación/operación y parametrización contable. Evitar duplicar el asiento al reintentar webhook.
@@ -89,7 +89,7 @@ Estados internos sugeridos: `created`, `pending`, `approved`, `rejected`, `cance
 
 ### 4.5 WhatsApp: política por pedido
 
-Persistir configuración por pedido:
+Persistir configuración por pedido (hoy no aparece conectada al método `pago_link` del `PagoFlow` inspeccionado):
 - `payment_policy`: `full` o `deposit_then_balance`.
 - `deposit_amount` o `deposit_percent` (validar que sea >0 y < total).
 - `balance_due`, `paid_amount`, `payment_status`.
