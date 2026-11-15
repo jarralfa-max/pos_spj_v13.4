@@ -5724,3 +5724,10 @@ Solo agrega; no renombra ni borra nada, y es idempotente.
 - Probada en una base temporal: dos corridas idempotentes. **No** se probó sobre una copia de la
   base real.
 - Reversa: revertir el commit. La tabla nueva sólo agrega.
+
+
+## Payments bounded context — fundación de dominio (2026-11-15, sin migración)
+
+Se agrega `backend/domain/payments` con `PaymentIntent`, catálogos de canal/método/propósito/estado y excepciones tipadas. La intención usa UUIDv7 opaco como `external_reference`, exige Decimal positivo, verifica coincidencia exacta de importe/moneda/referencia al aprobar y permite replay del mismo `provider_payment_id` sin repetir la transición. Se agregan pruebas unitarias de dominio.
+
+**Sin cambio de esquema y sin integración activa:** aún no se crean repositorios, tablas, adaptadores HTTP, endpoints webhook ni controles de POS/WhatsApp. La persistencia y el índice único de `provider_payment_id` deben llegar antes de procesar cobros reales. Ventas y Finanzas conservan sus rutas oficiales. Diseño completo en `docs/architecture/PAYMENTS_BOUNDED_CONTEXT.md`.
