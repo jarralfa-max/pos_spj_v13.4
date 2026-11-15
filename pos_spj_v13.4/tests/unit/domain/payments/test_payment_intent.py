@@ -104,3 +104,17 @@ def test_money_must_be_decimal_and_positive():
         make_intent(amount=125.50)
     with pytest.raises(InvalidMoneyValueError):
         make_intent(amount=Decimal("0"))
+
+
+def test_replay_of_same_payment_id_still_revalidates_amount():
+    intent = make_intent()
+    intent.mark_pending()
+    intent.approve(
+        provider_payment_id="mp-123", amount=Decimal("125.50"),
+        currency="MXN", external_reference=intent.id,
+    )
+    with pytest.raises(PaymentConfirmationMismatchError):
+        intent.approve(
+            provider_payment_id="mp-123", amount=Decimal("1.00"),
+            currency="MXN", external_reference=intent.id,
+        )
