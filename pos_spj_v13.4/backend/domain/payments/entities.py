@@ -103,13 +103,6 @@ class PaymentIntent:
         currency: str, external_reference: str,
     ) -> None:
         """Approve only after the adapter has fetched the payment from MP."""
-        if self.status is PaymentIntentStatus.APPROVED:
-            if self.provider_payment_id == provider_payment_id:
-                return  # exact replay is harmless
-            raise PaymentIntentTransitionError("Intent is already approved by another payment")
-        if self.status not in {PaymentIntentStatus.CREATED, PaymentIntentStatus.PENDING}:
-            raise PaymentIntentTransitionError(
-                f"Cannot approve an intent in {self.status.value}")
         if not _PROVIDER_ID.fullmatch(str(provider_payment_id or "")):
             raise PaymentConfirmationMismatchError("Provider payment id is invalid")
         if external_reference != self.external_reference:
@@ -122,6 +115,13 @@ class PaymentIntent:
             raise PaymentConfirmationMismatchError("Provider amount is invalid") from exc
         if confirmed_amount != self.amount:
             raise PaymentConfirmationMismatchError("Provider amount does not match intent")
+        if self.status is PaymentIntentStatus.APPROVED:
+            if self.provider_payment_id == provider_payment_id:
+                return  # exact, fully revalidated replay is harmless
+            raise PaymentIntentTransitionError("Intent is already approved by another payment")
+        if self.status not in {PaymentIntentStatus.CREATED, PaymentIntentStatus.PENDING}:
+            raise PaymentIntentTransitionError(
+                f"Cannot approve an intent in {self.status.value}")
         self.provider_payment_id = str(provider_payment_id)
         self.status = PaymentIntentStatus.APPROVED
         self.updated_at = _now()
